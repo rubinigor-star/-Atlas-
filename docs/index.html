@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0a1220">
+  <meta name="description" content="Atlas Tickets - статическая демонстрация билетной платформы">
+  <title>Atlas Tickets - Demo</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell nav">
+      <a class="brand" href="#home" aria-label="Atlas home">ATL<span>AS</span></a>
+      <nav>
+        <a href="#home">События</a>
+        <a href="#admin">Организаторам</a>
+        <span class="disabled-link" title="Недоступно в статической демонстрации">Сканер</span>
+        <a class="button ghost" href="#admin">Demo back-office</a>
+      </nav>
+    </div>
+  </header>
+  <div class="demo-bar"><strong>Статическая демонстрация</strong><span>Оплата, база данных и сканирование отключены</span></div>
+  <main id="app" aria-live="polite"></main>
+  <footer><div class="shell footer-row"><span>© 2026 Atlas Tickets</span><span>Interactive design preview</span></div></footer>
+  <script src="./app.js"></script>
+</body>
+</html>
