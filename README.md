@@ -16,7 +16,7 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 - Atomic first check-in, duplicate, cancelled and unknown states
 - Entry counter and scan log
 - Organizer dashboard, sales metrics and order list
-- Event creation with local poster upload
+- Event creation/editing, publish controls, categories and VIP tables with local poster upload
 - Ticket cancellation and code regeneration
 - Minimal promo code (`ATLAS10`) and referral data (`MALINA`)
 - Seed event, users and test order
@@ -102,7 +102,7 @@ The code is shaped for Vercel, but the local SQLite database and filesystem post
 - Test checkout marks orders paid without a payment provider.
 - Roles exist in the schema but routes are not protected.
 - Promo and referral support is intentionally minimal.
-- Event creation currently adds one initial category; editing tools for the complete seating model are a next iteration.
+- Seating management supports zones and whole VIP tables, but not a graphical row-and-seat editor.
 - SQLite provides a credible local transaction demo, not production concurrency guarantees.
 - Camera scanning depends on browser permission and HTTPS outside localhost.
 - No email, WhatsApp, refunds, tax invoices, settlement or organizer payouts.
