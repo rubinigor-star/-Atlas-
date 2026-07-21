@@ -1,0 +1,2 @@
+import {NextResponse} from "next/server"; import {db} from "@/lib/db"; import {ticketCode} from "@/lib/ticketing";
+export async function PATCH(req:Request,{params}:{params:Promise<{id:string}>}){const {id}=await params;const {action}=await req.json();if(action==="cancel")await db.ticket.update({where:{id},data:{status:"CANCELLED"}});else if(action==="regenerate")await db.ticket.update({where:{id},data:{publicCode:ticketCode(),status:"VALID"}});else return NextResponse.json({error:"Unknown action"},{status:400});return NextResponse.json({ok:true})}

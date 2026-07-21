@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  ORGANIZER
+  CHECKIN
+  ADMIN
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum TicketStatus {
+  VALID
+  USED
+  CANCELLED
+}
+
+enum PriceMode {
+  PER_SEAT
+  WHOLE_TABLE
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  users     User[]
+  events    Event[]
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id             String        @id @default(cuid())
+  name           String
+  email          String        @unique
+  role           Role
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime      @default(now())
+}
+
+model Venue {
+  id      String  @id @default(cuid())
+  name    String
+  city    String
+  address String
+  events  Event[]
+}
+
+model Event {
+  id             String           @id @default(cuid())
+  slug           String           @unique
+  title          String
+  description    String
+  posterUrl      String
+  startsAt       DateTime
+  salesStart     DateTime
+  salesEnd       DateTime
+  status         EventStatus      @default(DRAFT)
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  venueId        String
+  venue          Venue            @relation(fields: [venueId], references: [id])
+  categories     TicketCategory[]
+  zones          Zone[]
+  orders         Order[]
+  promoCodes     PromoCode[]
+  referrals      Referral[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model TicketCategory {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  priceMinor  Int
+  currency    String   @default("ILS")
+  capacity    Int
+  sold        Int      @default(0)
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id])
+  tickets     Ticket[]
+
+  @@unique([eventId, name])
+}
+
+model Zone {
+  id      String  @id @default(cuid())
+  name    String
+  eventId String
+  event   Event   @relation(fields: [eventId], references: [id])
+  tables  Table[]
+
+  @@unique([eventId, name])
+}
+
+model Table {
+  id          String      @id @default(cuid())
+  label       String
+  seats       Int
+  priceMinor  Int
+  priceMode   PriceMode   @default(WHOLE_TABLE)
+  reserved    Boolean     @default(false)
+  zoneId      String
+  zone        Zone        @relation(fields: [zoneId], references: [id])
+  orderItems  OrderItem[]
+
+  @@unique([zoneId, label])
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  publicId       String      @unique
+  idempotencyKey String      @unique
+  customerName   String
+  customerEmail  String
+  customerPhone  String
+  totalMinor     Int
+  currency       String      @default("ILS")
+  status         OrderStatus @default(PAID)
+  eventId        String
+  event          Event       @relation(fields: [eventId], references: [id])
+  items          OrderItem[]
+  tickets        Ticket[]
+  referralId     String?
+  referral       Referral?   @relation(fields: [referralId], references: [id])
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model OrderItem {
+  id             String @id @default(cuid())
+  quantity       Int
+  unitPriceMinor Int
+  categoryName   String
+  orderId        String
+  order          Order  @relation(fields: [orderId], references: [id])
+  tableId        String?
+  table          Table? @relation(fields: [tableId], references: [id])
+}
+
+model Ticket {
+  id         String       @id @default(cuid())
+  publicCode String       @unique
+  status     TicketStatus @default(VALID)
+  holderName String
+  categoryId String
+  category   TicketCategory @relation(fields: [categoryId], references: [id])
+  orderId    String
+  order      Order        @relation(fields: [orderId], references: [id])
+  scans      Scan[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
+model Scan {
+  id        String   @id @default(cuid())
+  result    String
+  scannedAt DateTime @default(now())
+  ticketId  String?
+  ticket    Ticket?  @relation(fields: [ticketId], references: [id])
+}
+
+model PromoCode {
+  id              String  @id @default(cuid())
+  code            String
+  discountPercent Int
+  active          Boolean @default(true)
+  eventId         String
+  event           Event   @relation(fields: [eventId], references: [id])
+
+  @@unique([eventId, code])
+}
+
+model Referral {
+  id      String  @id @default(cuid())
+  code    String  @unique
+  label   String
+  eventId String
+  event   Event   @relation(fields: [eventId], references: [id])
+  orders  Order[]
+}

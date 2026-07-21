@@ -1,0 +1,3 @@
+"use client";
+import {useRouter} from "next/navigation";
+export function TicketActions({id,status}:{id:string;status:string}){const router=useRouter();async function action(type:"cancel"|"regenerate"){await fetch(`/api/admin/tickets/${id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({action:type})});router.refresh()}return <div className="row"><button className="btn secondary" disabled={status==="CANCELLED"} onClick={()=>void action("cancel")}>Аннулировать</button><button className="btn secondary" onClick={()=>void action("regenerate")}>Новый код</button></div>}

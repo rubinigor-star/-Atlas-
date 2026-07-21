@@ -1,0 +1,3 @@
+import Link from "next/link"; import {db} from "@/lib/db"; import {money} from "@/lib/format"; import {AdminShell} from "@/components/admin-shell";
+export const dynamic="force-dynamic";
+export default async function Orders(){const orders=await db.order.findMany({include:{event:true,tickets:true},orderBy:{createdAt:"desc"}});return <AdminShell><h1>Заказы</h1><div className="table-wrap"><table><thead><tr><th>Номер</th><th>Событие</th><th>Клиент</th><th>Билетов</th><th>Сумма</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td><Link href={`/admin/orders/${o.publicId}`}><strong>{o.publicId}</strong></Link></td><td>{o.event.title}</td><td>{o.customerName}</td><td>{o.tickets.length}</td><td>{money(o.totalMinor)}</td></tr>)}</tbody></table></div></AdminShell>}
