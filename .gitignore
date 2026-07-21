@@ -1,0 +1,9 @@
+node_modules
+.next
+.env
+prisma/dev.db
+coverage
+*.log
+*.tsbuildinfo
+generated_images/
+.DS_Store
