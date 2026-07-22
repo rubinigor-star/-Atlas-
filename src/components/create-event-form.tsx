@@ -37,6 +37,7 @@ export function CreateEventForm() {
       mapEnabled: admissionMode === "RESERVED_SEATING", salesMode,
       approvalInstructions: form.get("approvalInstructions"), posterUrl,
       categoryName: form.get("categoryName"), categoryDescription: form.get("categoryDescription"),
+      categoryColor: form.get("categoryColor"),
       priceMinor: Math.round(Number(form.get("price")) * 100), capacity: Number(form.get("capacity")),
       pricingMode, salesStart: date("salesStart"), salesEnd: date("salesEnd"),
       earlyBirdPriceMinor: pricingMode === "SCHEDULED" ? Math.round(Number(form.get("earlyBirdPrice")) * 100) : undefined,
@@ -72,7 +73,7 @@ export function CreateEventForm() {
 
     <section className="panel form wizard-section">
       <div className="wizard-heading"><span>03</span><div><h2>Первый тип билета</h2><p>{admissionMode === "RESERVED_SEATING" ? "Позже этот тариф можно назначить столам, диванам, рядам или отдельным местам." : "Дополнительные типы билетов можно добавить после создания мероприятия."}</p></div></div>
-      <div className="form-grid two"><div className="field"><label>Название</label><input key={admissionMode} className="input" name="categoryName" defaultValue={admissionMode === "RESERVED_SEATING" ? "VIP Seating" : "General Admission"} required /></div><div className="field"><label>Количество</label><input className="input" name="capacity" type="number" min="1" required /></div></div>
+      <div className="form-grid three"><div className="field"><label>Название</label><input key={admissionMode} className="input" name="categoryName" defaultValue={admissionMode === "RESERVED_SEATING" ? "VIP Seating" : "General Admission"} required /></div><div className="field"><label>Количество</label><input className="input" name="capacity" type="number" min="1" required /></div><div className="field"><label>Цвет на карте</label><input className="input color-input" name="categoryColor" type="color" defaultValue="#2563EB" /></div></div>
       <div className="field"><label>Что входит в билет</label><textarea name="categoryDescription" rows={2} placeholder="Например: вход в танцевальную зону" /></div>
       <div className="pricing-switch"><button type="button" className={pricingMode === "FIXED" ? "active" : ""} onClick={() => setPricingMode("FIXED")}>Фиксированная цена</button><button type="button" className={pricingMode === "SCHEDULED" ? "active" : ""} onClick={() => setPricingMode("SCHEDULED")}>Цена по расписанию</button></div>
       {pricingMode === "FIXED" ? <div className="field"><label>Цена, ₪</label><input className="input" name="price" type="number" min="0.01" step="0.01" required /></div> : <div className="form-grid three"><div className="field"><label>Ранняя цена, ₪</label><input className="input" name="earlyBirdPrice" type="number" min="0.01" step="0.01" required /></div><div className="field"><label>Ранняя цена действует до</label><input className="input" name="earlyBirdEndsAt" type="datetime-local" required /></div><div className="field"><label>Основная цена, ₪</label><input className="input" name="price" type="number" min="0.01" step="0.01" required /></div></div>}

@@ -15,7 +15,7 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
     include: {
       venue: true,
       categories: { include: { priceTiers: true } },
-      zones: { include: { tables: { include: { category: { select: { name: true } }, seatItems: { orderBy: { position: "asc" } } } } } },
+      zones: { include: { tables: { include: { category: { select: { name: true, colorHex: true } }, seatItems: { orderBy: { position: "asc" } } } } } },
     },
   });
   if (!event || event.status !== "PUBLISHED") notFound();

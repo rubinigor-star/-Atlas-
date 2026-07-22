@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { checkoutSchema } from "@/lib/schemas";
-import { effectiveTicketPrice, initialOrderStatus, orderNumber, seatingSelectionTotal, ticketCode } from "@/lib/ticketing";
+import { effectiveTicketPrice, initialOrderStatus, orderNumber, ticketCode } from "@/lib/ticketing";
 
 export async function POST(req: Request) {
   try {
@@ -29,28 +29,28 @@ export async function POST(req: Request) {
       const table = input.tableId
         ? await tx.table.findUnique({
             where: { id: input.tableId },
-            include: { zone: true },
+            include: { zone: true, category: { include: { priceTiers: true } } },
           })
         : null;
       if (table && table.zone.eventId !== input.eventId) {
         throw new Error("Стол не относится к событию");
       }
       if (table?.reserved) throw new Error("Этот стол уже занят");
-      if (table && (table.priceMode !== "WHOLE_TABLE" || table.categoryId !== category.id)) {
-        throw new Error("Этот объект нельзя купить целиком по выбранному тарифу");
+      if (table && (table.priceMode !== "WHOLE_TABLE" || !table.category)) {
+        throw new Error("Для этого объекта не назначен билет для продажи целиком");
       }
 
       const seats = input.seatIds?.length
         ? await tx.seat.findMany({
             where: { id: { in: input.seatIds } },
-            include: { table: { include: { zone: true } } },
+            include: { category: { include: { priceTiers: true } }, table: { include: { zone: true } } },
           })
         : [];
       if (input.seatIds?.length && seats.length !== input.seatIds.length) {
         throw new Error("Некоторые выбранные места не найдены");
       }
-      if (seats.some((seat) => seat.table.zone.eventId !== input.eventId || seat.table.categoryId !== category.id)) {
-        throw new Error("Место не относится к выбранному мероприятию или тарифу");
+      if (seats.some((seat) => seat.table.zone.eventId !== input.eventId || !seat.category)) {
+        throw new Error("Место не относится к мероприятию или для него не назначен билет");
       }
       if (seats.some((seat) => seat.table.priceMode !== "PER_SEAT")) {
         throw new Error("Этот объект продаётся только целиком");
@@ -58,17 +58,21 @@ export async function POST(req: Request) {
       if (seats.some((seat) => seat.status !== "AVAILABLE")) {
         throw new Error("Одно из выбранных мест уже занято");
       }
-      if (new Set(seats.map((seat) => seat.tableId)).size > 1) {
-        throw new Error("Выберите места за одним столом или диваном");
-      }
       if (table && seats.length) throw new Error("Нельзя одновременно выбрать объект целиком и отдельные места");
 
       const quantity = table ? table.seats : seats.length || input.quantity;
       if (!table && !seats.length && (quantity < category.minPerOrder || quantity > category.maxPerOrder)) {
         throw new Error(`В одном заказе можно выбрать от ${category.minPerOrder} до ${category.maxPerOrder} билетов`);
       }
-      if (category.sold + quantity > category.capacity) {
-        throw new Error("Недостаточно доступных билетов");
+      const requested = new Map<string, { category: typeof category; quantity: number; price: number }>();
+      if (table?.category) requested.set(table.category.id, { category: table.category, quantity: table.seats, price: effectiveTicketPrice(table.category) });
+      else if (seats.length) for (const seat of seats) {
+        const assigned = seat.category!;
+        const current = requested.get(assigned.id);
+        requested.set(assigned.id, { category: assigned, quantity: (current?.quantity ?? 0) + 1, price: effectiveTicketPrice(assigned) });
+      } else requested.set(category.id, { category, quantity, price: categoryPrice });
+      for (const item of requested.values()) {
+        if (item.category.hidden || item.category.sold + item.quantity > item.category.capacity) throw new Error(`Недостаточно доступных билетов ${item.category.name}`);
       }
 
       let discount = 0;
@@ -84,11 +88,7 @@ export async function POST(req: Request) {
         if (promo?.active) discount = promo.discountPercent;
       }
 
-      const subtotal = table
-        ? seatingSelectionTotal("WHOLE_TABLE", table.priceMinor, quantity)
-        : seats[0]
-          ? seatingSelectionTotal("PER_SEAT", seats[0].table.priceMinor, quantity)
-          : categoryPrice * quantity;
+      const subtotal = [...requested.values()].reduce((sum, item) => sum + item.price * (table ? 1 : item.quantity), 0);
       const total = Math.round((subtotal * (100 - discount)) / 100);
       const referral = input.referralCode
         ? await tx.referral.findUnique({ where: { code: input.referralCode } })
@@ -110,36 +110,31 @@ export async function POST(req: Request) {
             create: seats.length
               ? seats.map((seat) => ({
                   quantity: 1,
-                  unitPriceMinor: seat.table.priceMinor,
-                  categoryName: category.name,
+                  unitPriceMinor: effectiveTicketPrice(seat.category!),
+                  categoryName: seat.category!.name,
                   tableId: seat.tableId,
                   seatId: seat.id,
                 }))
               : [{
                   quantity,
-                  unitPriceMinor: table ? Math.round(table.priceMinor / quantity) : categoryPrice,
-                  categoryName: category.name,
+                  unitPriceMinor: table?.category ? Math.round(effectiveTicketPrice(table.category) / quantity) : categoryPrice,
+                  categoryName: table?.category?.name ?? category.name,
                   tableId: table?.id,
                 }],
           },
           tickets:
             event.salesMode === "INSTANT"
               ? {
-                  create: Array.from({ length: quantity }, () => ({
-                    publicCode: ticketCode(),
-                    holderName: input.customer.name,
-                    categoryId: category.id,
-                  })),
+                  create: seats.length
+                    ? seats.map((seat) => ({ publicCode: ticketCode(), holderName: input.customer.name, categoryId: seat.category!.id }))
+                    : Array.from({ length: quantity }, () => ({ publicCode: ticketCode(), holderName: input.customer.name, categoryId: table?.category?.id ?? category.id })),
                 }
               : undefined,
         },
       });
 
       if (event.salesMode === "INSTANT") {
-        await tx.ticketCategory.update({
-          where: { id: category.id },
-          data: { sold: { increment: quantity } },
-        });
+        for (const item of requested.values()) await tx.ticketCategory.update({ where: { id: item.category.id }, data: { sold: { increment: item.quantity } } });
       }
       if (event.salesMode === "INSTANT" && table) {
         const claimed = await tx.table.updateMany({

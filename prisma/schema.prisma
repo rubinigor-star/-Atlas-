@@ -133,10 +133,12 @@ model TicketCategory {
   minPerOrder    Int               @default(1)
   maxPerOrder    Int               @default(10)
   hidden         Boolean           @default(false)
+  colorHex       String            @default("#2563EB")
   eventId        String
   event          Event             @relation(fields: [eventId], references: [id])
   tickets        Ticket[]
   seatingObjects Table[]
+  assignedSeats  Seat[]
   priceTiers     TicketPriceTier[]
 
   @@unique([eventId, name])
@@ -188,12 +190,14 @@ model Table {
 }
 
 model Seat {
-  id         String      @id @default(cuid())
+  id         String          @id @default(cuid())
   label      String
   position   Int
-  status     SeatStatus  @default(AVAILABLE)
+  status     SeatStatus      @default(AVAILABLE)
   tableId    String
-  table      Table       @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  table      Table           @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  categoryId String?
+  category   TicketCategory? @relation(fields: [categoryId], references: [id])
   orderItems OrderItem[]
 
   @@unique([tableId, position])

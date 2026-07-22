@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { money } from "@/lib/format";
 import { useLocale } from "@/components/locale-provider";
 
-type Category = { id: string; name: string; description: string | null; priceMinor: number; capacity: number; sold: number };
-type MapSeat = { id: string; label: string; position: number; status: "AVAILABLE" | "RESERVED" | "BLOCKED" };
+type Category = { id: string; name: string; description: string | null; priceMinor: number; colorHex: string; capacity: number; sold: number };
+type MapSeat = { id: string; label: string; position: number; status: "AVAILABLE" | "RESERVED" | "BLOCKED"; categoryId: string | null };
 type MapObject = {
   id: string;
   label: string;
@@ -21,14 +21,14 @@ type MapObject = {
   height: number;
   reserved: boolean;
   categoryId: string | null;
-  category: { name: string } | null;
+  category: { name: string; colorHex: string } | null;
   zone: { name: string };
   seatItems: MapSeat[];
 };
 
 const copy = {
-  ru: { title: "Выберите билет", remaining: "осталось", map: "Выберите место на карте", stage: "СЦЕНА", whole: "целиком", perSeat: "за место", selected: "Выбрано мест", quantity: "Количество", total: "Итого", continue: "Продолжить", table: "стол", sofa: "диван", unavailable: "Занято" },
-  he: { title: "בחירת כרטיס", remaining: "נותרו", map: "בחירת מקום במפה", stage: "במה", whole: "מחיר מלא", perSeat: "למקום", selected: "מקומות שנבחרו", quantity: "כמות", total: "סה״כ", continue: "המשך", table: "שולחן", sofa: "ספה", unavailable: "תפוס" },
+  ru: { title: "Выберите билет", remaining: "осталось", map: "Выберите место на карте", stage: "СЦЕНА", whole: "целиком", perSeat: "за место", selected: "Выбрано мест", quantity: "Количество", total: "Итого", continue: "Продолжить", table: "стол", sofa: "диван", unavailable: "Занято", legend: "Категории и цены", unassigned: "Не продаётся" },
+  he: { title: "בחירת כרטיס", remaining: "נותרו", map: "בחירת מקום במפה", stage: "במה", whole: "מחיר מלא", perSeat: "למקום", selected: "מקומות שנבחרו", quantity: "כמות", total: "סה״כ", continue: "המשך", table: "שולחן", sofa: "ספה", unavailable: "תפוס", legend: "קטגוריות ומחירים", unassigned: "לא למכירה" },
 };
 
 export function EventPurchase({ eventId, categories, objects }: { eventId: string; categories: Category[]; objects: MapObject[] }) {
@@ -41,13 +41,14 @@ export function EventPurchase({ eventId, categories, objects }: { eventId: strin
   const [qty, setQty] = useState(1);
   const category = categories.find((item) => item.id === categoryId);
   const wholeObject = objects.find((item) => item.id === wholeObjectId);
+  const selectedSeats = objects.flatMap((item) => item.seatItems).filter((seat) => selectedSeatIds.includes(seat.id));
   const seatObject = objects.find((item) => item.seatItems.some((seat) => selectedSeatIds.includes(seat.id)));
   const selectionObject = wholeObject ?? seatObject;
   const total = useMemo(() => {
     if (wholeObject) return wholeObject.priceMinor;
-    if (seatObject) return seatObject.priceMinor * selectedSeatIds.length;
+    if (selectedSeats.length) return selectedSeats.reduce((sum, seat) => sum + (categories.find((item) => item.id === seat.categoryId)?.priceMinor ?? 0), 0);
     return (category?.priceMinor ?? 0) * qty;
-  }, [wholeObject, seatObject, selectedSeatIds.length, category, qty]);
+  }, [wholeObject, selectedSeats, categories, category, qty]);
 
   function clearMapSelection() {
     setWholeObjectId(null);
@@ -57,11 +58,10 @@ export function EventPurchase({ eventId, categories, objects }: { eventId: strin
   function chooseSeat(object: MapObject, seat: MapSeat) {
     if (seat.status !== "AVAILABLE") return;
     setWholeObjectId(null);
-    setCategoryId(object.categoryId ?? categoryId);
+    if (!seat.categoryId) return;
+    setCategoryId(seat.categoryId);
     setSelectedSeatIds((current) => {
-      const belongsToSameObject = current.every((id) => object.seatItems.some((item) => item.id === id));
-      const base = belongsToSameObject ? current : [];
-      return base.includes(seat.id) ? base.filter((id) => id !== seat.id) : [...base, seat.id];
+      return current.includes(seat.id) ? current.filter((id) => id !== seat.id) : [...current, seat.id];
     });
   }
 
@@ -80,6 +80,7 @@ export function EventPurchase({ eventId, categories, objects }: { eventId: strin
 
     {objects.length > 0 && <>
       <h3 className="map-purchase-title">{text.map}</h3>
+      <div className="buyer-ticket-legend"><strong>{text.legend}</strong>{categories.map((item) => <span key={item.id}><i style={{ background: item.colorHex }} />{item.name} · {money(item.priceMinor)}</span>)}</div>
       <div className="venue-canvas buyer-map">
         <div className="map-stage">{text.stage}</div>
         {objects.map((object) => {
@@ -110,12 +111,13 @@ export function EventPurchase({ eventId, categories, objects }: { eventId: strin
                 type="button"
                 key={seat.id}
                 title={seat.status === "AVAILABLE" ? seat.label : text.unavailable}
-                disabled={object.priceMode === "WHOLE_TABLE" || seat.status !== "AVAILABLE"}
+                disabled={object.priceMode === "WHOLE_TABLE" || seat.status !== "AVAILABLE" || !seat.categoryId}
                 className={`map-seat ${selectedSeatIds.includes(seat.id) ? "selected" : ""} ${seat.status.toLowerCase()}`}
+                style={{ "--ticket-color": categories.find((item) => item.id === seat.categoryId)?.colorHex ?? "#CBD5E1" } as React.CSSProperties}
                 onClick={() => chooseSeat(object, seat)}
               >{seat.position}</button>)}
             </span>
-            <small className="object-price">{money(object.priceMinor)} {object.priceMode === "WHOLE_TABLE" ? text.whole : text.perSeat}</small>
+            <small className="object-price">{object.priceMode === "WHOLE_TABLE" ? `${money(categories.find((item) => item.id === object.categoryId)?.priceMinor ?? 0)} ${text.whole}` : object.seatItems.some((seat) => seat.categoryId) ? text.perSeat : text.unassigned}</small>
             </>}
           </div>;
         })}

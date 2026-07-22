@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { CheckoutForm } from "@/components/checkout-form";
+import { effectiveTicketPrice } from "@/lib/ticketing";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +16,13 @@ export default async function Checkout({
   const [event, category, table, seats] = await Promise.all([
     db.event.findUnique({ where: { id: query.eventId } }),
     db.ticketCategory.findUnique({ where: { id: query.categoryId } }),
-    query.tableId ? db.table.findUnique({ where: { id: query.tableId } }) : null,
-    seatIds.length ? db.seat.findMany({ where: { id: { in: seatIds } }, include: { table: true } }) : [],
+    query.tableId ? db.table.findUnique({ where: { id: query.tableId }, include: { category: { include: { priceTiers: true } } } }) : null,
+    seatIds.length ? db.seat.findMany({ where: { id: { in: seatIds } }, include: { category: { include: { priceTiers: true } }, table: { include: { zone: true } } } }) : [],
   ]);
   if (!event || !category || category.eventId !== event.id) notFound();
-  if (seatIds.length && (seats.length !== seatIds.length || seats.some((seat) => seat.table.categoryId !== category.id))) notFound();
+  if (seatIds.length && (seats.length !== seatIds.length || seats.some((seat) => seat.table.zone.eventId !== event.id || !seat.category))) notFound();
   const seatObject = seats[0]?.table;
-  const total = table?.priceMinor ?? (seatObject ? seatObject.priceMinor * seats.length : category.priceMinor * quantity);
+  const total = table?.category ? effectiveTicketPrice(table.category) : seats.length ? seats.reduce((sum, seat) => sum + effectiveTicketPrice(seat.category!), 0) : category.priceMinor * quantity;
 
   return (
     <main className="shell">

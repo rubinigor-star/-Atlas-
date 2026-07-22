@@ -37,6 +37,7 @@ export async function POST(req: Request) {
           create: {
             name: input.categoryName,
             description: input.categoryDescription || null,
+            colorHex: input.categoryColor,
             priceMinor: input.priceMinor,
             pricingMode: input.pricingMode,
             capacity: input.capacity,

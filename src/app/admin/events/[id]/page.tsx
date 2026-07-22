@@ -25,7 +25,7 @@ export default async function ManageEvent({ params }: { params: Promise<{ id: st
       <EventManager event={{ id: event.id, title: event.title, description: event.description, status: event.status, startsAt: event.startsAt.toISOString(), salesMode: event.salesMode, approvalInstructions: event.approvalInstructions, mapEnabled: event.mapEnabled }} />
       {event.mapEnabled && <><h2 className="section-title">Карта мероприятия</h2><VenueMapEditor
         eventId={event.id}
-        categories={event.categories.map((category) => ({ id: category.id, name: category.name, priceMinor: category.priceMinor }))}
+        categories={event.categories.map((category) => ({ id: category.id, name: category.name, priceMinor: category.priceMinor, colorHex: category.colorHex }))}
         initialObjects={event.zones.flatMap((zone) => zone.tables.map((item) => ({
           id: item.id,
           label: item.label,
@@ -40,6 +40,7 @@ export default async function ManageEvent({ params }: { params: Promise<{ id: st
           height: item.height,
           categoryId: item.categoryId,
           reserved: item.reserved || item.seatItems.some((seat) => seat.status !== "AVAILABLE"),
+          seatAssignments: item.seatItems.map((seat) => ({ position: seat.position, categoryId: seat.categoryId })),
         })))}
       /></>}
     </AdminShell>

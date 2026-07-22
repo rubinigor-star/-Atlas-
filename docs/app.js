@@ -15,17 +15,19 @@ const state = {
   editorTab: "design",
   editorZoom: 0.72,
   editorInspectorOpen: false,
+  editorSeats: [],
+  editorTicket: "VIP Seating",
   admissionMode: "RESERVED_SEATING",
   demoPricingMode: "SCHEDULED",
   mapObjects: [
     { id: "STAGE", type: "stage", label: "СЦЕНА", seats: 0, x: 50, y: 12, width: 440, height: 72 },
     { id: "DANCE", type: "zone", label: "ТАНЦПОЛ", seats: 0, x: 50, y: 48, width: 390, height: 280 },
-    { id: "T1", type: "table", label: "T1", seats: 6, mode: "whole", price: 1890, category: "VIP Seating", x: 18, y: 35, width: 128, height: 76 },
+    { id: "T1", type: "table", label: "T1", seats: 6, mode: "whole", price: 1890, category: "VIP Seating", x: 18, y: 35, width: 128, height: 76, rotation: 0 },
     { id: "T2", type: "round-table", label: "T2", seats: 6, mode: "whole", price: 1890, category: "VIP Seating", x: 82, y: 35, width: 104, height: 104 },
-    { id: "T3", type: "table", label: "T3", seats: 6, mode: "seat", price: 349, category: "VIP Seating", x: 18, y: 67, width: 128, height: 76 },
+    { id: "T3", type: "table", label: "T3", seats: 6, mode: "seat", price: 349, category: "VIP Seating", seatCategories:["Golden Ring","Golden Ring","VIP Seating","VIP Seating","Golden Ring","Golden Ring"], x: 18, y: 67, width: 128, height: 76, rotation: 15 },
     { id: "S1", type: "sofa", label: "S1", seats: 4, mode: "whole", price: 1200, category: "VIP Seating", x: 36, y: 83, width: 172, height: 70 },
     { id: "S2", type: "sofa", label: "S2", seats: 4, mode: "seat", price: 299, category: "VIP Seating", x: 64, y: 83, width: 172, height: 70 },
-    { id: "R1", type: "row", label: "Ряд A", seats: 8, mode: "seat", price: 239, category: "Golden Ring", x: 82, y: 67, width: 210, height: 54 },
+    { id: "R1", type: "row", label: "Ряд A", seats: 8, mode: "seat", price: 239, category: "Golden Ring", seatCategories:["Standard","Standard","Golden Ring","VIP Seating","VIP Seating","Golden Ring","Standard","Standard"], x: 82, y: 67, width: 250, height: 54, rotation: -12 },
     { id: "BAR", type: "bar", label: "ЦЕНТРАЛЬНЫЙ БАР", seats: 0, x: 50, y: 95, width: 250, height: 46 },
   ],
 };
@@ -55,16 +57,17 @@ function applyLanguage() {
 }
 
 const sellableTypes = new Set(["table", "round-table", "sofa", "row"]);
+const ticketTypes = {"Standard":{price:149,color:"#2563EB"},"Golden Ring":{price:239,color:"#9333EA"},"VIP Seating":{price:349,color:"#D97706"}};
 
 function seatsMarkup(item, editor = false) {
-  return `<span class="furniture-seats">${Array.from({length:item.seats},(_,index)=>`<button class="demo-chair seat-${index + 1} ${!editor && state.selectedSeats.includes(`${item.id}-${index+1}`) ? "selected" : ""}" ${item.mode === "whole" || editor ? "disabled" : ""} data-map-seat="${item.id}-${index+1}" data-parent="${item.id}">${index+1}</button>`).join("")}</span>`;
+  return `<span class="furniture-seats">${Array.from({length:item.seats},(_,index)=>{const category=item.mode==="whole"?item.category:(item.seatCategories?.[index]||null);const color=ticketTypes[category]?.color||"#fff";const editorSelected=editor&&state.editorObject===item.id&&state.editorSeats.includes(index+1);return `<button class="demo-chair seat-${index + 1} ${!editor && state.selectedSeats.includes(`${item.id}-${index+1}`) ? "selected" : ""} ${editorSelected?"editor-selected":""}" style="--seat-color:${color}" ${item.mode === "whole" || (editor&&state.editorTab!=="tickets") ? "disabled" : ""} ${editor?`data-editor-seat="${index+1}"`: `data-map-seat="${item.id}-${index+1}"`} data-parent="${item.id}">${index+1}</button>`}).join("")}</span>`;
 }
 
 function furnitureMarkup(item, editor = false) {
   const selected = (editor ? state.editorObject : state.selectedMapObject) === item.id;
-  const style = `left:${item.x}%;top:${item.y}%;width:${item.width || 130}px;height:${item.height || 70}px`;
+  const style = `left:${item.x}%;top:${item.y}%;width:${item.width || 130}px;height:${item.height || 70}px;transform:translate(-50%,-50%) rotate(${item.rotation||0}deg)`;
   if (!sellableTypes.has(item.type)) return `<div class="venue-object decoration ${item.type} ${selected ? "selected" : ""}" style="${style}" ${editor ? `data-edit-object="${item.id}"` : ""}><strong>${item.label}</strong></div>`;
-  return `<div class="venue-object furniture ${item.type} ${selected ? "selected" : ""}" style="${style}" data-${editor ? "edit" : "map"}-object="${item.id}"><div class="furniture-body"><strong>${item.label}</strong>${item.type === "sofa" ? `<span class="sofa-cushions">${Array.from({length:item.seats},()=>"<i></i>").join("")}</span>` : ""}</div>${seatsMarkup(item, editor)}${editor ? "" : `<small class="object-price">${money(item.price)} ${item.mode === "whole" ? "целиком" : "за место"}</small>`}</div>`;
+  return `<div class="venue-object furniture ${item.type} ${selected ? "selected" : ""}" style="${style}" data-${editor ? "edit" : "map"}-object="${item.id}"><div class="furniture-body"><strong>${item.label}</strong>${item.type === "sofa" ? `<span class="sofa-cushions">${Array.from({length:item.seats},()=>"<i></i>").join("")}</span>` : ""}</div>${seatsMarkup(item, editor)}${editor&&selected&&state.editorTab==="design"?`<button class="demo-rotate-handle" data-rotate-object="${item.id}">↻</button>`:""}${editor ? "" : `<small class="object-price">${item.mode==="whole"?`${money(ticketTypes[item.category]?.price||item.price)} целиком`:"цена по цвету места"}</small>`}</div>`;
 }
 
 function mapMarkup(editor = false) {
@@ -72,7 +75,7 @@ function mapMarkup(editor = false) {
 }
 
 function selectedMapItem() { return state.mapObjects.find((item) => item.id === state.selectedMapObject); }
-function selectionTotal() { const item=selectedMapItem(); return item ? item.mode === "whole" ? item.price : item.price * state.selectedSeats.length : state.table ? 1890 : state.price * state.quantity; }
+function selectionTotal() { const item=selectedMapItem(); return item ? item.mode === "whole" ? (ticketTypes[item.category]?.price||item.price) : state.selectedSeats.reduce((sum,id)=>{const index=Number(id.split("-").pop())-1;return sum+(ticketTypes[item.seatCategories?.[index]]?.price||0)},0) : state.table ? 1890 : state.price * state.quantity; }
 function selectionQuantity() { const item=selectedMapItem(); return item ? item.mode === "whole" ? item.seats : state.selectedSeats.length : state.table ? 6 : state.quantity; }
 function selectionLabel() { const item=selectedMapItem(); return item ? `${item.type === "sofa" ? "Диван" : "Стол"} ${item.label} · ${item.mode === "whole" ? "целиком" : `места ${state.selectedSeats.map((id)=>id.split("-").pop()).join(", ")}`}` : state.table ? `VIP-стол ${state.table}` : state.category; }
 
@@ -264,7 +267,7 @@ function adminMapEditorMarkup() {
     </div>
     <div class="builder-demo-layout ${state.editorInspectorOpen ? "inspector-open" : ""}">
       <aside class="object-library"><strong>Добавить места</strong>${palette.slice(0,5).map(([type,label])=>`<button data-add-object="${type}"><span class="palette-visual ${type}"><i></i><i></i><i></i></span><span>${label}</span></button>`).join("")}<strong>Добавить объекты</strong>${palette.slice(5).map(([type,label])=>`<button data-add-object="${type}"><span class="palette-visual ${type}"><i></i></span><span>${label}</span></button>`).join("")}</aside>
-      <div class="builder-workspace"><div class="floating-tools"><button>↖</button><button>☝</button><span></span><button data-zoom="out">−</button><strong>${Math.round(state.editorZoom * 100)}%</strong><button data-zoom="in">+</button></div><div class="builder-viewport"><div class="builder-world" style="transform:scale(${state.editorZoom})">${mapMarkup(true)}</div></div></div>
+      <div class="builder-workspace"><div class="floating-tools"><button>↖</button><button>☝</button><span></span><button data-zoom="out">−</button><strong>${Math.round(state.editorZoom * 100)}%</strong><button data-zoom="in">+</button></div>${state.editorTab==="tickets"?`<div class="demo-ticket-assign"><strong>Назначить тип билета</strong><select id="editor-ticket"><option>Standard</option><option>Golden Ring</option><option>VIP Seating</option></select><button id="assign-editor-ticket">Назначить выбранным местам</button><small>Выбрано: ${state.editorSeats.length||"весь объект"}</small></div><div class="demo-map-legend">${Object.entries(ticketTypes).map(([name,ticket])=>`<span><i style="background:${ticket.color}"></i>${name} · ${money(ticket.price)}</span>`).join("")}</div>`:`<div class="demo-angle-toolbar"><span>Поворот ${selected?.rotation||0}°</span><button data-angle="${(selected?.rotation||0)-15}">↶ 15°</button><button data-angle="${(selected?.rotation||0)+15}">↷ 15°</button><button data-angle="0">0°</button><button data-angle="90">90°</button></div>`}<div class="builder-viewport"><div class="builder-world" style="transform:scale(${state.editorZoom})">${mapMarkup(true)}</div></div></div>
       ${state.editorInspectorOpen ? `<aside class="property-panel"><button data-toggle-inspector class="close-property">×</button><div class="capacity"><span>Вместимость площадки</span><strong>${capacity}</strong><small>посадочных мест</small></div>${selected ? `<div class="selected-kind"><span class="palette-visual ${selected.type}"><i></i><i></i><i></i></span><div><small>Выбран объект</small><strong>${selected.label}</strong></div></div><label class="field"><span>Название</span><input id="map-label" class="input" value="${selected.label}"></label>${state.editorTab === "design" ? `<label class="field"><span>Количество мест</span><input id="map-seats" class="input" type="number" min="${isSellable ? 1 : 0}" max="30" value="${selected.seats}"></label><div class="dimensions"><label class="field"><span>Ширина</span><input id="map-width" class="input" type="number" value="${selected.width || 130}"></label><label class="field"><span>Высота</span><input id="map-height" class="input" type="number" value="${selected.height || 70}"></label></div><label class="field"><span>Положение по горизонтали</span><input id="map-x" type="range" min="6" max="94" value="${selected.x}"></label><label class="field"><span>Положение по вертикали</span><input id="map-y" type="range" min="6" max="96" value="${selected.y}"></label>` : isSellable ? `<label class="field"><span>Категория билета</span><select id="map-category" class="input"><option ${selected.category === "VIP Seating" ? "selected" : ""}>VIP Seating</option><option ${selected.category === "Golden Ring" ? "selected" : ""}>Golden Ring</option></select></label><div><strong>Как продавать этот объект</strong><div class="map-mode"><button class="${selected.mode === "whole" ? "active" : ""}" data-map-mode="whole"><strong>Целиком</strong><small>Одна цена за весь объект</small></button><button class="${selected.mode === "seat" ? "active" : ""}" data-map-mode="seat"><strong>По местам</strong><small>Каждый стул отдельно</small></button></div></div><label class="field"><span>Цена, ₪ ${selected.mode === "whole" ? "за весь объект" : "за одно место"}</span><input id="map-price" class="input" type="number" min="1" value="${selected.price}"></label><div class="ticket-summary"><span>${selected.seats} мест</span><strong>${selected.mode === "whole" ? money(selected.price) : `${money(selected.price)} × ${selected.seats}`}</strong></div>` : `<div class="empty-inspector">Этот объект оформляет площадку и не продаётся.</div>`}<button id="remove-map-object" class="danger-link">Удалить объект</button>` : `<div class="empty-inspector">Выберите объект на схеме, чтобы настроить его.</div>`}</aside>` : ""}
     </div>
   </section>`;
@@ -298,6 +301,7 @@ function admin() {
   document.querySelectorAll("[data-demo-pricing]").forEach((button) => { button.onclick = () => { state.demoPricingMode = button.dataset.demoPricing; admin(); }; });
   document.querySelectorAll("[data-edit-object]").forEach((object) => {
     object.onpointerdown = (event) => {
+      if (state.editorTab !== "design" || event.target.closest("[data-editor-seat], [data-rotate-object]")) return;
       event.preventDefault();
       state.editorObject = object.dataset.editObject;
       const map = object.closest(".demo-map");
@@ -314,13 +318,18 @@ function admin() {
       object.addEventListener("pointermove", move); object.addEventListener("pointerup", up);
     };
   });
+  document.querySelectorAll("[data-editor-seat]").forEach((seat) => { seat.onclick = (event) => { event.stopPropagation(); const position=Number(seat.dataset.editorSeat); state.editorObject=seat.dataset.parent; state.editorSeats=event.shiftKey&&state.editorSeats.length?Array.from({length:Math.abs(position-state.editorSeats.at(-1))+1},(_,i)=>Math.min(position,state.editorSeats.at(-1))+i):(state.editorSeats.includes(position)?state.editorSeats.filter((value)=>value!==position):[...state.editorSeats,position]); admin(); }; });
+  document.querySelectorAll("[data-rotate-object]").forEach((handle)=>{handle.onpointerdown=(event)=>{event.preventDefault();event.stopPropagation();const object=handle.closest("[data-edit-object]"),map=handle.closest(".demo-map"),item=state.mapObjects.find(value=>value.id===handle.dataset.rotateObject);if(!object||!map||!item)return;handle.setPointerCapture(event.pointerId);const move=(pointer)=>{const bounds=map.getBoundingClientRect(),cx=bounds.left+bounds.width*item.x/100,cy=bounds.top+bounds.height*item.y/100,angle=Math.round((Math.atan2(pointer.clientY-cy,pointer.clientX-cx)*180/Math.PI+90)/5)*5;item.rotation=((angle%360)+360)%360;object.style.transform=`translate(-50%,-50%) rotate(${item.rotation}deg)`;};const up=()=>{handle.removeEventListener("pointermove",move);handle.removeEventListener("pointerup",up);admin();};handle.addEventListener("pointermove",move);handle.addEventListener("pointerup",up);};});
+  document.querySelectorAll("[data-angle]").forEach((button) => { button.onclick = (event) => { event.stopPropagation(); updateEditorObject({rotation:((Number(button.dataset.angle)%360)+360)%360}); admin(); }; });
+  const ticketSelect=document.querySelector("#editor-ticket"); if(ticketSelect){ticketSelect.value=state.editorTicket;ticketSelect.onchange=()=>{state.editorTicket=ticketSelect.value;};}
+  const assignTicket=document.querySelector("#assign-editor-ticket"); if(assignTicket)assignTicket.onclick=()=>{const item=state.mapObjects.find((value)=>value.id===state.editorObject);if(!item||!sellableTypes.has(item.type))return;if(item.mode==="whole")updateEditorObject({category:state.editorTicket,price:ticketTypes[state.editorTicket].price});else{const selected=state.editorSeats.length?state.editorSeats:Array.from({length:item.seats},(_,i)=>i+1);const seatCategories=Array.from({length:item.seats},(_,i)=>selected.includes(i+1)?state.editorTicket:(item.seatCategories?.[i]||null));updateEditorObject({seatCategories});}admin();};
   document.querySelectorAll("[data-toggle-inspector]").forEach((button) => { button.onclick = () => { state.editorInspectorOpen = !state.editorInspectorOpen; admin(); }; });
   document.querySelectorAll("[data-add-object]").forEach((button) => { button.onclick = () => addMapObject(button.dataset.addObject); });
   document.querySelectorAll("[data-editor-tab]").forEach((button) => { button.onclick = () => { state.editorTab = button.dataset.editorTab; admin(); }; });
   document.querySelectorAll("[data-zoom]").forEach((button) => { button.onclick = () => { state.editorZoom = Math.max(.45, Math.min(1.05, state.editorZoom + (button.dataset.zoom === "in" ? .1 : -.1))); admin(); }; });
   document.querySelectorAll("[data-map-mode]").forEach((button) => { button.onclick = () => { updateEditorObject({ mode: button.dataset.mapMode }); admin(); }; });
   const bindEditor = (selector, key, numeric = false) => { const input = document.querySelector(selector); if (input) input.onchange = () => { updateEditorObject({ [key]: numeric ? Number(input.value) : input.value }); admin(); }; };
-  bindEditor("#map-label", "label"); bindEditor("#map-seats", "seats", true); bindEditor("#map-category", "category"); bindEditor("#map-price", "price", true); bindEditor("#map-width", "width", true); bindEditor("#map-height", "height", true); bindEditor("#map-x", "x", true); bindEditor("#map-y", "y", true);
+  bindEditor("#map-label", "label"); bindEditor("#map-seats", "seats", true); bindEditor("#map-category", "category"); bindEditor("#map-width", "width", true); bindEditor("#map-height", "height", true); bindEditor("#map-x", "x", true); bindEditor("#map-y", "y", true);
   const remove = document.querySelector("#remove-map-object"); if (remove) remove.onclick = () => { state.mapObjects = state.mapObjects.filter((item) => item.id !== state.editorObject); state.editorObject = state.mapObjects[0]?.id || null; admin(); };
   const saveMap = document.querySelector("#save-map"); if (saveMap) saveMap.onclick = () => { saveMap.textContent = "Карта сохранена ✓"; };
   const approve = document.querySelector("#approve");
@@ -338,7 +347,7 @@ function addMapObject(type) {
     zone: ["Зона", 0, 0, 280, 180], stage: ["СЦЕНА", 0, 0, 360, 70], bar: ["БАР", 0, 0, 230, 46], text: ["Надпись", 0, 0, 180, 44],
   };
   const [label, seats, price, width, height] = presets[type] || presets.table;
-  const item = { id: `${type[0].toUpperCase()}${Date.now()}`, type, label: `${label} ${number}`, seats, mode: type === "row" ? "seat" : "whole", price, category: sellableTypes.has(type) ? "VIP Seating" : null, width, height, x: 20 + (state.mapObjects.length * 11) % 60, y: 24 + (state.mapObjects.length * 9) % 62 };
+  const item = { id: `${type[0].toUpperCase()}${Date.now()}`, type, label: `${label} ${number}`, seats, mode: type === "row" ? "seat" : "whole", price, category: sellableTypes.has(type) ? "VIP Seating" : null, seatCategories:Array.from({length:seats},()=>null), rotation:0, width, height, x: 20 + (state.mapObjects.length * 11) % 60, y: 24 + (state.mapObjects.length * 9) % 62 };
   state.mapObjects.push(item); state.editorObject = item.id; admin();
 }
 

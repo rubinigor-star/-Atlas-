@@ -28,6 +28,7 @@ export const createEventSchema = z.object({
   city: z.string().min(2),
   categoryName: z.string().min(2),
   categoryDescription: z.string().max(500).optional(),
+  categoryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#2563EB"),
   priceMinor: z.number().int().positive(),
   capacity: z.number().int().positive(),
   mapEnabled: z.boolean().default(false),

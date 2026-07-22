@@ -14,9 +14,10 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 - Organizer application queue with approve/reject decisions and applicant eligibility answers
 - Approved applications reserve inventory for a 24-hour test-payment window
 - Three-panel venue-map builder with a zoomable canvas, object library and property inspector
-- Drag-and-drop map objects with persisted position and a collapsible property inspector
+- Drag-and-drop map objects with persisted position, direct rotation handle, exact angle controls and a collapsible property inspector
 - Rectangular and round tables, sofas, chair rows, zones, stage, bar and text objects
-- Ticket-category assignment for every map object
+- Central ticket types with organizer-defined map colors; the map stores references to tickets instead of duplicate prices
+- Whole-object, individual-seat and seat-range ticket assignment, including multiple price bands inside one row
 - Whole table/sofa sales or individually reservable chairs
 - Buyer seat selection on the same responsive map
 - Russian/Hebrew language switch with RTL foundations and bilingual purchase/map flows
@@ -47,12 +48,14 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 
 1. The organizer opens an event and first designs the venue by adding furniture, rows and decorative objects to the canvas.
 2. Every object receives a label, position, dimensions and rotation; sellable furniture also receives a chair count.
-3. In the separate `Assign tickets` mode, the organizer assigns a category, price and whole-object or per-chair selling rule.
-4. `WHOLE_TABLE` sells and locks the full table or sofa in one atomic checkout operation.
-5. `PER_SEAT` creates a persistent opaque record for every chair; buyers can select one or more chairs behind the same object.
-6. Approval-required requests do not reserve chairs until approval. Approval claims the chosen chairs and opens the payment window.
-7. Instant checkout claims the full object or selected chairs and issues the correct number of tickets.
-8. A second request for an already claimed chair or object is rejected server-side.
+3. Ticket types and prices are created centrally. Each type also receives a map color.
+4. In the separate `Assign tickets` mode, the organizer chooses a whole object, individual chairs or a contiguous seat range and assigns an existing ticket type. No price is re-entered in the map.
+5. Rows can contain several ticket categories at once; the organizer and buyer maps color every chair and show a price legend.
+6. `WHOLE_TABLE` sells and locks the full table or sofa in one atomic checkout operation.
+7. `PER_SEAT` creates a persistent opaque record for every chair; one order may contain selected seats from different price categories.
+8. Approval-required requests do not reserve chairs until approval. Approval claims the chosen chairs and opens the payment window.
+9. Instant checkout claims the full object or selected chairs and issues the correct number of tickets.
+10. A second request for an already claimed chair or object is rejected server-side.
 
 ### Event and ticket setup flow
 

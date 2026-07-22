@@ -2,138 +2,75 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { money } from "@/lib/format";
 import { useLocale } from "@/components/locale-provider";
 
-type Category = { id: string; name: string; priceMinor: number };
+type Category = { id: string; name: string; priceMinor: number; colorHex: string };
 type ObjectType = "TABLE" | "ROUND_TABLE" | "SOFA" | "ROW" | "ZONE" | "STAGE" | "BAR" | "TEXT";
+type SeatAssignment = { position: number; categoryId: string | null };
 type MapObject = {
-  id: string;
-  label: string;
-  objectType: ObjectType;
-  seats: number;
-  priceMode: "WHOLE_TABLE" | "PER_SEAT";
-  priceMinor: number;
-  x: number;
-  y: number;
-  rotation: number;
-  width: number;
-  height: number;
-  categoryId: string | null;
-  reserved: boolean;
+  id: string; label: string; objectType: ObjectType; seats: number;
+  priceMode: "WHOLE_TABLE" | "PER_SEAT"; priceMinor: number;
+  x: number; y: number; rotation: number; width: number; height: number;
+  categoryId: string | null; reserved: boolean; seatAssignments: SeatAssignment[];
 };
 
 const sellable = new Set<ObjectType>(["TABLE", "ROUND_TABLE", "SOFA", "ROW"]);
-const presets: Record<ObjectType, Omit<MapObject, "id" | "label" | "x" | "y" | "categoryId" | "reserved">> = {
-  TABLE: { objectType: "TABLE", seats: 6, priceMode: "WHOLE_TABLE", priceMinor: 180000, rotation: 0, width: 170, height: 100 },
-  ROUND_TABLE: { objectType: "ROUND_TABLE", seats: 6, priceMode: "WHOLE_TABLE", priceMinor: 180000, rotation: 0, width: 130, height: 130 },
-  SOFA: { objectType: "SOFA", seats: 4, priceMode: "WHOLE_TABLE", priceMinor: 120000, rotation: 0, width: 190, height: 86 },
-  ROW: { objectType: "ROW", seats: 10, priceMode: "PER_SEAT", priceMinor: 24900, rotation: 0, width: 360, height: 58 },
-  ZONE: { objectType: "ZONE", seats: 0, priceMode: "WHOLE_TABLE", priceMinor: 0, rotation: 0, width: 420, height: 250 },
-  STAGE: { objectType: "STAGE", seats: 0, priceMode: "WHOLE_TABLE", priceMinor: 0, rotation: 0, width: 430, height: 100 },
-  BAR: { objectType: "BAR", seats: 0, priceMode: "WHOLE_TABLE", priceMinor: 0, rotation: 0, width: 320, height: 72 },
-  TEXT: { objectType: "TEXT", seats: 0, priceMode: "WHOLE_TABLE", priceMinor: 0, rotation: 0, width: 220, height: 54 },
+const preset: Record<ObjectType, Pick<MapObject, "seats" | "priceMode" | "rotation" | "width" | "height">> = {
+  TABLE:{seats:6,priceMode:"WHOLE_TABLE",rotation:0,width:170,height:100}, ROUND_TABLE:{seats:6,priceMode:"WHOLE_TABLE",rotation:0,width:130,height:130},
+  SOFA:{seats:4,priceMode:"WHOLE_TABLE",rotation:0,width:190,height:86}, ROW:{seats:12,priceMode:"PER_SEAT",rotation:0,width:420,height:58},
+  ZONE:{seats:0,priceMode:"WHOLE_TABLE",rotation:0,width:420,height:250}, STAGE:{seats:0,priceMode:"WHOLE_TABLE",rotation:0,width:430,height:100},
+  BAR:{seats:0,priceMode:"WHOLE_TABLE",rotation:0,width:320,height:72}, TEXT:{seats:0,priceMode:"WHOLE_TABLE",rotation:0,width:220,height:54},
 };
 
-const labels = {
-  ru: {
-    design: "Дизайн схемы", tickets: "Назначить билеты", addSeats: "Добавить места", addObjects: "Добавить объекты", row: "Ряд стульев", rect: "Прямоугольный стол", round: "Круглый стол", sofa: "Диван", zone: "Зона", stage: "Сцена", bar: "Бар", text: "Текст", select: "Выбор", undo: "Отменить", redo: "Повторить", preview: "Превью", save: "Сохранить", saving: "Сохраняем...", saved: "Карта сохранена", capacity: "Вместимость", nothing: "Ничего не выбрано", selectHelp: "Выберите место или объект на схеме, чтобы изменить его настройки.", settings: "Настройки объекта", label: "Название", seats: "Количество мест", size: "Размер", width: "Ширина", height: "Высота", rotation: "Поворот", remove: "Удалить", sale: "Как продавать", whole: "Целиком", perSeat: "Отдельные места", category: "Категория билета", priceWhole: "Цена объекта, ₪", priceSeat: "Цена места, ₪", locked: "Объект участвует в заказе и заблокирован для редактирования.", zoom: "Масштаб", designHint: "Сначала создайте геометрию площадки", ticketHint: "Теперь назначьте цены и способы продажи", selected: "Выбрано", object: "объект", objects: "объектов",
-  },
-  he: {
-    design: "עיצוב המפה", tickets: "שיוך כרטיסים", addSeats: "הוספת מקומות", addObjects: "הוספת אובייקטים", row: "שורת כיסאות", rect: "שולחן מלבני", round: "שולחן עגול", sofa: "ספה", zone: "אזור", stage: "במה", bar: "בר", text: "טקסט", select: "בחירה", undo: "ביטול", redo: "חזרה", preview: "תצוגה מקדימה", save: "שמירה", saving: "שומר...", saved: "המפה נשמרה", capacity: "קיבולת", nothing: "לא נבחר דבר", selectHelp: "בחרו מקום או אובייקט במפה כדי לשנות את ההגדרות שלו.", settings: "הגדרות אובייקט", label: "שם", seats: "מספר מקומות", size: "גודל", width: "רוחב", height: "גובה", rotation: "סיבוב", remove: "מחיקה", sale: "אופן מכירה", whole: "הכול יחד", perSeat: "מקומות בודדים", category: "קטגוריית כרטיס", priceWhole: "מחיר אובייקט, ₪", priceSeat: "מחיר למקום, ₪", locked: "האובייקט משתתף בהזמנה ונעול לעריכה.", zoom: "קנה מידה", designHint: "תחילה צרו את מבנה המקום", ticketHint: "כעת שייכו מחירים ואופן מכירה", selected: "נבחר", object: "אובייקט", objects: "אובייקטים",
-  },
+const copy = {
+  ru:{design:"Дизайн схемы",tickets:"Назначить билеты",save:"Сохранить",saved:"Карта сохранена",saving:"Сохраняем…",settings:"Настройки",addSeats:"Добавить места",addObjects:"Добавить объекты",row:"Ряд",table:"Прямоугольный стол",round:"Круглый стол",sofa:"Диван",zone:"Зона",stage:"Сцена",bar:"Бар",text:"Текст",label:"Название",seats:"Количество мест",width:"Ширина",height:"Высота",rotation:"Поворот",whole:"Продавать целиком",perSeat:"Продавать по местам",ticket:"Тип билета",assign:"Назначить выбранным местам",clear:"Очистить назначение",selectedSeats:"Выбрано мест",selectHelp:"Выберите объект или места на карте",designHelp:"Перетаскивайте объекты. Используйте круглую ручку или точный угол для поворота.",ticketHelp:"Выберите места, затем назначьте уже созданный тип билета.",legend:"Легенда билетов",unassigned:"Билет не назначен",remove:"Удалить объект",capacity:"Вместимость",left:"Повернуть влево",right:"Повернуть вправо"},
+  he:{design:"עיצוב המפה",tickets:"שיוך כרטיסים",save:"שמירה",saved:"המפה נשמרה",saving:"שומר…",settings:"הגדרות",addSeats:"הוספת מקומות",addObjects:"הוספת אובייקטים",row:"שורה",table:"שולחן מלבני",round:"שולחן עגול",sofa:"ספה",zone:"אזור",stage:"במה",bar:"בר",text:"טקסט",label:"שם",seats:"מספר מקומות",width:"רוחב",height:"גובה",rotation:"סיבוב",whole:"מכירה שלמה",perSeat:"מכירה לפי מקומות",ticket:"סוג כרטיס",assign:"שיוך למקומות שנבחרו",clear:"ניקוי שיוך",selectedSeats:"מקומות שנבחרו",selectHelp:"בחרו אובייקט או מקומות במפה",designHelp:"גררו אובייקטים. השתמשו בידית העגולה או בזווית מדויקת לסיבוב.",ticketHelp:"בחרו מקומות ושייכו סוג כרטיס שכבר נוצר.",legend:"מקרא כרטיסים",unassigned:"לא שויך כרטיס",remove:"מחיקת אובייקט",capacity:"קיבולת",left:"סיבוב שמאלה",right:"סיבוב ימינה"},
 };
 
-function clamp(value: number) { return Math.max(3, Math.min(97, Math.round(value))); }
-
-function PaletteIcon({ type }: { type: ObjectType }) {
-  if (type === "ROUND_TABLE") return <span className="palette-symbol round-symbol"><i /><b /><b /><b /><b /></span>;
-  if (type === "TABLE") return <span className="palette-symbol table-symbol"><i /><b /><b /><b /><b /></span>;
-  if (type === "SOFA") return <span className="palette-symbol sofa-symbol"><i /><b /><b /><b /></span>;
-  if (type === "ROW") return <span className="palette-symbol row-symbol">● ● ●</span>;
-  if (type === "ZONE") return <span className="palette-symbol zone-symbol">A</span>;
-  if (type === "STAGE") return <span className="palette-symbol">▰</span>;
-  if (type === "BAR") return <span className="palette-symbol">▭</span>;
-  return <span className="palette-symbol">T</span>;
+function clamp(value:number){return Math.max(3,Math.min(97,Math.round(value)));}
+function norm(value:number){return ((Math.round(value)%360)+360)%360;}
+function assignments(count:number,current:SeatAssignment[],fallback:string|null=null){return Array.from({length:count},(_,i)=>current.find(x=>x.position===i+1)??{position:i+1,categoryId:fallback});}
+function colorFor(item:MapObject, position:number, categories:Category[]){
+  const id=item.priceMode==="WHOLE_TABLE"?item.categoryId:item.seatAssignments.find(x=>x.position===position)?.categoryId;
+  return categories.find(x=>x.id===id)?.colorHex??"#FFFFFF";
 }
 
-function SeatDots({ item }: { item: MapObject }) {
-  if (!sellable.has(item.objectType)) return null;
-  if (item.objectType === "SOFA") return <span className="sofa-cushions">{Array.from({ length: item.seats }, (_, index) => <i key={index}>{index + 1}</i>)}</span>;
-  if (item.objectType === "ROW") return <span className="row-chairs">{Array.from({ length: item.seats }, (_, index) => <i key={index}>{index + 1}</i>)}</span>;
-  if (item.objectType === "ROUND_TABLE") return <>{Array.from({ length: item.seats }, (_, index) => { const angle = (index / item.seats) * Math.PI * 2 - Math.PI / 2; return <i className="radial-chair" key={index} style={{ left: `${50 + Math.cos(angle) * 58}%`, top: `${50 + Math.sin(angle) * 58}%` }}>{index + 1}</i>; })}</>;
-  return <>{Array.from({ length: item.seats }, (_, index) => { const top = index < Math.ceil(item.seats / 2); const slot = top ? index : index - Math.ceil(item.seats / 2); const count = top ? Math.ceil(item.seats / 2) : Math.floor(item.seats / 2); return <i className="edge-chair" key={index} style={{ left: `${((slot + 1) / (count + 1)) * 100}%`, top: top ? "-16px" : "calc(100% + 16px)" }}>{index + 1}</i>; })}</>;
+function Palette({type}:{type:ObjectType}){return <span className={`palette-symbol ${type.toLowerCase()}`}>{type==="ROW"?"● ● ●":type==="ZONE"?"A":type==="TEXT"?"T":""}</span>}
+
+function Shape({item,categories,mode,selectedSeats,onSeat}:{item:MapObject;categories:Category[];mode:"design"|"tickets";selectedSeats:Set<number>;onSeat:(position:number,shift:boolean)=>void}){
+  if(item.objectType==="ZONE")return <div className="shape-zone"><strong>{item.label}</strong></div>;
+  if(item.objectType==="STAGE")return <div className="shape-stage"><span>✦</span><strong>{item.label}</strong><span>✦</span></div>;
+  if(item.objectType==="BAR")return <div className="shape-bar"><strong>{item.label}</strong></div>;
+  if(item.objectType==="TEXT")return <div className="shape-text">{item.label}</div>;
+  const seat=(position:number,className:string,style?:React.CSSProperties)=><button type="button" key={position} className={`${className} ticket-seat ${selectedSeats.has(position)?"seat-selected":""}`} style={{...style,"--ticket-color":colorFor(item,position,categories)} as React.CSSProperties} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();if(mode==="tickets"&&item.priceMode==="PER_SEAT")onSeat(position,e.shiftKey)}}>{position}</button>;
+  let chairs:React.ReactNode;
+  if(item.objectType==="ROW")chairs=<span className="row-chairs">{Array.from({length:item.seats},(_,i)=>seat(i+1,"row-chair"))}</span>;
+  else if(item.objectType==="SOFA")chairs=<span className="sofa-cushions">{Array.from({length:item.seats},(_,i)=>seat(i+1,"sofa-seat"))}</span>;
+  else if(item.objectType==="ROUND_TABLE")chairs=Array.from({length:item.seats},(_,i)=>{const a=i/item.seats*Math.PI*2-Math.PI/2;return seat(i+1,"radial-chair",{left:`${50+Math.cos(a)*58}%`,top:`${50+Math.sin(a)*58}%`});});
+  else chairs=Array.from({length:item.seats},(_,i)=>{const half=Math.ceil(item.seats/2),top=i<half,slot=top?i:i-half,count=top?half:Math.floor(item.seats/2);return seat(i+1,"edge-chair",{left:`${(slot+1)/(count+1)*100}%`,top:top?"-16px":"calc(100% + 16px)"});});
+  return <div className={`furniture furniture-${item.objectType.toLowerCase()} ${mode==="tickets"?"ticket-mode":""}`}><div className="furniture-core"><strong>{item.label}</strong></div>{chairs}</div>;
 }
 
-function ObjectShape({ item, ticketMode }: { item: MapObject; ticketMode: boolean }) {
-  if (item.objectType === "ZONE") return <div className="shape-zone"><strong>{item.label}</strong></div>;
-  if (item.objectType === "STAGE") return <div className="shape-stage"><span>✦</span><strong>{item.label}</strong><span>✦</span></div>;
-  if (item.objectType === "BAR") return <div className="shape-bar"><strong>{item.label}</strong></div>;
-  if (item.objectType === "TEXT") return <div className="shape-text">{item.label}</div>;
-  return <div className={`furniture ${item.objectType.toLowerCase()} ${ticketMode ? "ticket-mode" : ""}`}><div className="furniture-core"><strong>{item.label}</strong>{ticketMode && <small>{item.priceMode === "WHOLE_TABLE" ? "1×" : `${item.seats}×`}</small>}</div><SeatDots item={item} /></div>;
-}
-
-export function VenueMapEditor({ eventId, categories, initialObjects }: { eventId: string; categories: Category[]; initialObjects: MapObject[] }) {
-  const router = useRouter();
-  const { locale } = useLocale();
-  const t = labels[locale];
-  const [objects, setObjects] = useState(initialObjects);
-  const [selectedId, setSelectedId] = useState("");
-  const [mode, setMode] = useState<"design" | "tickets">("design");
-  const [zoom, setZoom] = useState(75);
-  const [history, setHistory] = useState<MapObject[][]>([]);
-  const [future, setFuture] = useState<MapObject[][]>([]);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [inspectorOpen, setInspectorOpen] = useState(false);
-  const dragRef = useRef<{ id: string; before: MapObject[] } | null>(null);
-  const selected = useMemo(() => objects.find((item) => item.id === selectedId), [objects, selectedId]);
-  const capacity = objects.filter((item) => sellable.has(item.objectType)).reduce((sum, item) => sum + item.seats, 0);
-  const scale = zoom / 100;
-
-  function commit(next: MapObject[]) { setHistory((current) => [...current.slice(-29), objects]); setFuture([]); setObjects(next); }
-  function update(patch: Partial<MapObject>) { commit(objects.map((item) => item.id === selectedId ? { ...item, ...patch } : item)); }
-  function undo() { const previous = history.at(-1); if (!previous) return; setFuture((current) => [objects, ...current]); setObjects(previous); setHistory((current) => current.slice(0, -1)); setSelectedId(""); }
-  function redo() { const next = future[0]; if (!next) return; setHistory((current) => [...current, objects]); setObjects(next); setFuture((current) => current.slice(1)); setSelectedId(""); }
-
-  function add(type: ObjectType) {
-    const base = presets[type];
-    const sameType = objects.filter((item) => item.objectType === type).length + 1;
-    const names: Record<ObjectType, string> = { TABLE: "T", ROUND_TABLE: "R", SOFA: "S", ROW: "ROW", ZONE: locale === "he" ? "אזור" : "Зона", STAGE: locale === "he" ? "במה" : "Сцена", BAR: locale === "he" ? "בר" : "Бар", TEXT: locale === "he" ? "טקסט" : "Текст" };
-    const item: MapObject = { ...base, id: `new-${crypto.randomUUID()}`, label: `${names[type]}${["ZONE", "STAGE", "BAR", "TEXT"].includes(type) ? "" : sameType}`, x: 35 + (objects.length * 8) % 34, y: 32 + (objects.length * 9) % 48, categoryId: sellable.has(type) ? categories[0]?.id ?? null : null, reserved: false };
-    commit([...objects, item]); setSelectedId(item.id);
-  }
-
-  async function save() {
-    setBusy(true); setMessage("");
-    const response = await fetch(`/api/admin/events/${eventId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "layout", objects: objects.map((item) => ({ id: item.id.startsWith("new-") ? undefined : item.id, label: item.label, objectType: item.objectType, seats: item.seats, priceMode: item.priceMode, priceMinor: item.priceMinor, x: item.x, y: item.y, rotation: item.rotation, width: item.width, height: item.height, categoryId: item.categoryId })) }) });
-    const result = await response.json(); setMessage(response.ok ? t.saved : result.error); setBusy(false); if (response.ok) router.refresh();
-  }
-
-  const palette: Array<{ title: string; items: Array<[ObjectType, string]> }> = [
-    { title: t.addSeats, items: [["ROW", t.row], ["TABLE", t.rect], ["ROUND_TABLE", t.round], ["SOFA", t.sofa], ["ZONE", t.zone]] },
-    { title: t.addObjects, items: [["STAGE", t.stage], ["BAR", t.bar], ["TEXT", t.text]] },
-  ];
-
-  return <section className="venue-builder">
-    <header className="builder-topbar">
-      <div className="builder-title"><span className="eyebrow">Atlas venue builder</span><strong>{locale === "he" ? "מפת האירוע" : "Карта мероприятия"}</strong></div>
-      <div className="builder-tabs"><button className={mode === "design" ? "active" : ""} onClick={() => setMode("design")}>{t.design}</button><button className={mode === "tickets" ? "active" : ""} onClick={() => setMode("tickets")}>{t.tickets}</button></div>
-      <div className="builder-actions"><button className="icon-btn" title={t.undo} disabled={!history.length} onClick={undo}>↶</button><button className="icon-btn" title={t.redo} disabled={!future.length} onClick={redo}>↷</button>{selected && <button className={`btn secondary inspector-toggle ${inspectorOpen ? "active" : ""}`} onClick={() => setInspectorOpen((open) => !open)}>{t.settings}</button>}<button className="btn secondary">{t.preview}</button><button className="btn" disabled={busy || !objects.length} onClick={() => void save()}>{busy ? t.saving : t.save}</button></div>
-    </header>
-
-    <div className={`builder-body ${inspectorOpen ? "inspector-open" : ""}`}>
-      <aside className="object-library">{palette.map((group) => <div className="library-group" key={group.title}><h3>{group.title}</h3>{group.items.map(([type, title]) => <button key={type} onClick={() => add(type)}><PaletteIcon type={type} /><span>{title}</span></button>)}</div>)}</aside>
-
-      <main className="builder-workspace">
-        <div className="floating-tools"><button className="tool-active" title={t.select}>↖</button><button title={t.undo} onClick={undo}>↶</button><span /><button onClick={() => setZoom((value) => Math.max(35, value - 10))}>−</button><strong>{zoom}%</strong><button onClick={() => setZoom((value) => Math.min(125, value + 10))}>＋</button></div>
-        <div className="workspace-hint">{mode === "design" ? t.designHint : t.ticketHint}</div>
-        <div className="map-scroll"><div className="map-world-frame" style={{ width: 1000 * scale, height: 700 * scale }}><div className={`map-world ${mode}`} style={{ transform: `scale(${scale})` }} onClick={() => setSelectedId("")}>
-          {objects.map((item) => <button type="button" key={item.id} className={`editor-object object-${item.objectType.toLowerCase()} ${selectedId === item.id ? "selected" : ""} ${item.reserved ? "locked" : ""}`} style={{ left: `${item.x}%`, top: `${item.y}%`, width: item.width, height: item.height, transform: `translate(-50%,-50%) rotate(${item.rotation}deg)`, zIndex: item.objectType === "ZONE" ? 1 : 2 }} onClick={(event) => { event.stopPropagation(); setSelectedId(item.id); }} onPointerDown={(event) => { event.stopPropagation(); setSelectedId(item.id); if (item.reserved) return; dragRef.current = { id: item.id, before: objects }; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={(event) => { if (dragRef.current?.id !== item.id || item.reserved) return; const world = event.currentTarget.parentElement; if (!world) return; const bounds = world.getBoundingClientRect(); setObjects((current) => current.map((entry) => entry.id === item.id ? { ...entry, x: clamp(((event.clientX - bounds.left) / bounds.width) * 100), y: clamp(((event.clientY - bounds.top) / bounds.height) * 100) } : entry)); }} onPointerUp={(event) => { if (dragRef.current?.id !== item.id) return; setHistory((current) => [...current.slice(-29), dragRef.current!.before]); setFuture([]); dragRef.current = null; event.currentTarget.releasePointerCapture(event.pointerId); }}><ObjectShape item={item} ticketMode={mode === "tickets"} /></button>)}
-        </div></div></div>
-        <div className="builder-status"><span>{message || `${objects.length} ${objects.length === 1 ? t.object : t.objects}`}</span><span>{t.capacity}: <strong>{capacity}</strong></span></div>
-      </main>
-
-      {inspectorOpen && <aside className="property-panel"><div className="capacity-card"><span>{t.capacity}</span><strong>{capacity}</strong><button className="close-inspector" title={t.settings} onClick={() => setInspectorOpen(false)}>×</button></div>{!selected ? <div className="empty-inspector"><span>↖</span><h3>{t.nothing}</h3><p>{t.selectHelp}</p></div> : <div className="inspector-content"><span className="eyebrow">{mode === "design" ? t.design : t.tickets}</span><h3>{t.settings}</h3>{selected.reserved && <div className="toast">{t.locked}</div>}<div className="field"><label>{t.label}</label><input className="input" value={selected.label} disabled={selected.reserved} onChange={(event) => update({ label: event.target.value })} /></div>{sellable.has(selected.objectType) && <div className="field"><label>{t.seats}</label><input className="input" type="number" min="1" max="50" value={selected.seats} disabled={selected.reserved} onChange={(event) => update({ seats: Number(event.target.value) })} /></div>}{mode === "design" ? <><div className="property-pair"><div className="field"><label>{t.width}</label><input className="input" type="number" min="40" value={selected.width} onChange={(event) => update({ width: Number(event.target.value) })} /></div><div className="field"><label>{t.height}</label><input className="input" type="number" min="30" value={selected.height} onChange={(event) => update({ height: Number(event.target.value) })} /></div></div><div className="field"><label>{t.rotation}: {selected.rotation}°</label><input type="range" min="0" max="345" step="15" value={selected.rotation} onChange={(event) => update({ rotation: Number(event.target.value) })} /></div></> : sellable.has(selected.objectType) ? <><div className="segmented"><button className={selected.priceMode === "WHOLE_TABLE" ? "active" : ""} onClick={() => update({ priceMode: "WHOLE_TABLE" })}>{t.whole}</button><button className={selected.priceMode === "PER_SEAT" ? "active" : ""} onClick={() => update({ priceMode: "PER_SEAT" })}>{t.perSeat}</button></div><div className="field"><label>{t.category}</label><select value={selected.categoryId ?? ""} onChange={(event) => update({ categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div><div className="field"><label>{selected.priceMode === "WHOLE_TABLE" ? t.priceWhole : t.priceSeat}</label><input className="input" type="number" min="1" value={selected.priceMinor / 100} onChange={(event) => update({ priceMinor: Math.round(Number(event.target.value) * 100) })} /></div></> : <p className="muted">{locale === "he" ? "זהו אובייקט עיצובי ואינו נמכר." : "Это декоративный объект, билеты к нему не назначаются."}</p>}{!selected.reserved && <button className="delete-object" onClick={() => { commit(objects.filter((item) => item.id !== selected.id)); setSelectedId(""); }}>{t.remove}</button>}</div>}</aside>}
-    </div>
-  </section>;
+export function VenueMapEditor({eventId,categories,initialObjects}:{eventId:string;categories:Category[];initialObjects:MapObject[]}){
+  const router=useRouter(); const {locale}=useLocale(); const t=copy[locale];
+  const [objects,setObjects]=useState(initialObjects.map(x=>({...x,seatAssignments:assignments(x.seats,x.seatAssignments??[],x.categoryId)})));
+  const [mode,setMode]=useState<"design"|"tickets">("design"); const [selectedId,setSelectedId]=useState(""); const [selectedPositions,setSelectedPositions]=useState<Set<number>>(new Set());
+  const [assignmentCategory,setAssignmentCategory]=useState(categories[0]?.id??""); const [zoom,setZoom]=useState(75); const [inspector,setInspector]=useState(false); const [busy,setBusy]=useState(false); const [message,setMessage]=useState("");
+  const [history,setHistory]=useState<MapObject[][]>([]); const [future,setFuture]=useState<MapObject[][]>([]);
+  const drag=useRef<{id:string;before:MapObject[]}|null>(null); const rotate=useRef<{id:string;before:MapObject[]}|null>(null); const anchor=useRef<number|null>(null);
+  const selected=useMemo(()=>objects.find(x=>x.id===selectedId),[objects,selectedId]); const scale=zoom/100; const capacity=objects.filter(x=>sellable.has(x.objectType)).reduce((a,x)=>a+x.seats,0);
+  function commit(next:MapObject[]){setHistory(h=>[...h.slice(-29),objects]);setFuture([]);setObjects(next)}
+  function patch(value:Partial<MapObject>){commit(objects.map(x=>x.id===selectedId?{...x,...value}:x))}
+  function choose(id:string){setSelectedId(id);setInspector(true);setSelectedPositions(new Set());anchor.current=null}
+  function add(type:ObjectType){const n=objects.filter(x=>x.objectType===type).length+1;const name:{[K in ObjectType]:string}={TABLE:"T",ROUND_TABLE:"R",SOFA:"S",ROW:locale==="he"?"שורה":"Ряд",ZONE:t.zone,STAGE:t.stage,BAR:t.bar,TEXT:t.text};const base=preset[type];const item:MapObject={id:`new-${crypto.randomUUID()}`,label:`${name[type]}${sellable.has(type)?` ${n}`:""}`,objectType:type,...base,priceMinor:0,x:35+objects.length*7%35,y:30+objects.length*9%48,categoryId:null,reserved:false,seatAssignments:assignments(base.seats,[])};commit([...objects,item]);choose(item.id)}
+  function selectSeat(position:number,shift:boolean){if(!selected)return;setSelectedPositions(current=>{const next=new Set(current);if(shift&&anchor.current){const [a,b]=[anchor.current,position].sort((x,y)=>x-y);for(let i=a;i<=b;i++)next.add(i)}else if(next.has(position))next.delete(position);else next.add(position);anchor.current=position;return next})}
+  function assignCategory(clear=false){if(!selected)return;const id=clear?null:assignmentCategory;if(selected.priceMode==="WHOLE_TABLE")patch({categoryId:id,priceMinor:categories.find(x=>x.id===id)?.priceMinor??0});else{const positions=selectedPositions.size?selectedPositions:new Set(Array.from({length:selected.seats},(_,i)=>i+1));patch({seatAssignments:assignments(selected.seats,selected.seatAssignments).map(x=>positions.has(x.position)?{...x,categoryId:id}:x)})}}
+  function finishPointer(target:HTMLElement,pointerId:number,before:MapObject[]){setHistory(h=>[...h.slice(-29),before]);setFuture([]);drag.current=null;rotate.current=null;if(target.hasPointerCapture(pointerId))target.releasePointerCapture(pointerId)}
+  async function save(){setBusy(true);setMessage("");const response=await fetch(`/api/admin/events/${eventId}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({action:"layout",objects:objects.map(x=>({...x,id:x.id.startsWith("new-")?undefined:x.id,priceMinor:x.categoryId?categories.find(c=>c.id===x.categoryId)?.priceMinor??0:0,seatAssignments:assignments(x.seats,x.seatAssignments)}))})});const result=await response.json();setMessage(response.ok?t.saved:result.error);setBusy(false);if(response.ok)router.refresh()}
+  const groups:[[string,[ObjectType,string][]],[string,[ObjectType,string][]]]=[[t.addSeats,[["ROW",t.row],["TABLE",t.table],["ROUND_TABLE",t.round],["SOFA",t.sofa],["ZONE",t.zone]]],[t.addObjects,[["STAGE",t.stage],["BAR",t.bar],["TEXT",t.text]]]];
+  return <section className="venue-builder"><header className="builder-topbar"><div className="builder-title"><span className="eyebrow">Atlas venue builder</span><strong>{locale==="he"?"מפת האירוע":"Карта мероприятия"}</strong></div><div className="builder-tabs"><button className={mode==="design"?"active":""} onClick={()=>{setMode("design");setSelectedPositions(new Set())}}>{t.design}</button><button className={mode==="tickets"?"active":""} onClick={()=>setMode("tickets")}>{t.tickets}</button></div><div className="builder-actions"><button className="icon-btn" disabled={!history.length} onClick={()=>{const p=history.at(-1);if(p){setFuture(f=>[objects,...f]);setObjects(p);setHistory(h=>h.slice(0,-1))}}}>↶</button><button className="icon-btn" disabled={!future.length} onClick={()=>{const n=future[0];if(n){setHistory(h=>[...h,objects]);setObjects(n);setFuture(f=>f.slice(1))}}}>↷</button>{selected&&<button className="btn secondary inspector-toggle" onClick={()=>setInspector(x=>!x)}>{t.settings}</button>}<button className="btn" disabled={busy||!objects.length} onClick={()=>void save()}>{busy?t.saving:t.save}</button></div></header>
+    <div className={`builder-body ${inspector?"inspector-open":""}`}><aside className="object-library">{groups.map(([title,items])=><div className="library-group" key={title}><h3>{title}</h3>{items.map(([type,label])=><button key={type} onClick={()=>add(type)}><Palette type={type}/><span>{label}</span></button>)}</div>)}</aside>
+      <main className="builder-workspace"><div className="floating-tools"><button className="tool-active">↖</button><span/><button onClick={()=>setZoom(z=>Math.max(35,z-10))}>−</button><strong>{zoom}%</strong><button onClick={()=>setZoom(z=>Math.min(125,z+10))}>＋</button></div><div className="workspace-hint">{mode==="design"?t.designHelp:t.ticketHelp}</div>{mode==="tickets"&&<div className="ticket-legend"><strong>{t.legend}</strong>{categories.map(c=><span key={c.id}><i style={{background:c.colorHex}}/>{c.name} · {money(c.priceMinor)}</span>)}<span><i className="unassigned"/>{t.unassigned}</span></div>}<div className="map-scroll"><div className="map-world-frame" style={{width:1000*scale,height:700*scale}}><div className={`map-world ${mode}`} style={{transform:`scale(${scale})`}} onClick={()=>{setSelectedId("");setInspector(false);setSelectedPositions(new Set())}}>{objects.map(item=><div key={item.id} className={`editor-object ${selectedId===item.id?"selected":""} ${item.reserved?"locked":""}`} style={{left:`${item.x}%`,top:`${item.y}%`,width:item.width,height:item.height,transform:`translate(-50%,-50%) rotate(${item.rotation}deg)`,zIndex:item.objectType==="ZONE"?1:2}} onClick={e=>{e.stopPropagation();if(selectedId!==item.id)choose(item.id);else if(mode==="tickets"&&item.priceMode==="PER_SEAT")setSelectedPositions(new Set(Array.from({length:item.seats},(_,i)=>i+1)))}} onPointerDown={e=>{if(mode!=="design"||item.reserved||e.button!==0)return;e.stopPropagation();choose(item.id);drag.current={id:item.id,before:objects};e.currentTarget.setPointerCapture(e.pointerId)}} onPointerMove={e=>{if(drag.current?.id!==item.id)return;const world=e.currentTarget.parentElement;if(!world)return;const b=world.getBoundingClientRect();setObjects(current=>current.map(x=>x.id===item.id?{...x,x:clamp((e.clientX-b.left)/b.width*100),y:clamp((e.clientY-b.top)/b.height*100)}:x))}} onPointerUp={e=>{if(drag.current?.id===item.id)finishPointer(e.currentTarget,e.pointerId,drag.current.before)}}><Shape item={item} categories={categories} mode={mode} selectedSeats={selectedId===item.id?selectedPositions:new Set()} onSeat={selectSeat}/>{selectedId===item.id&&mode==="design"&&!item.reserved&&<button type="button" className="rotation-handle" title={t.rotation} onPointerDown={e=>{e.stopPropagation();rotate.current={id:item.id,before:objects};e.currentTarget.setPointerCapture(e.pointerId)}} onPointerMove={e=>{if(rotate.current?.id!==item.id)return;const world=e.currentTarget.closest(".map-world")?.getBoundingClientRect();if(!world)return;const cx=world.left+world.width*item.x/100,cy=world.top+world.height*item.y/100;setObjects(current=>current.map(x=>x.id===item.id?{...x,rotation:norm(Math.round((Math.atan2(e.clientY-cy,e.clientX-cx)*180/Math.PI+90)/5)*5)}:x))}} onPointerUp={e=>{if(rotate.current?.id===item.id)finishPointer(e.currentTarget,e.pointerId,rotate.current.before)}}>↻</button>}</div>)}</div></div></div><div className="builder-status"><span>{t.capacity}: {capacity}</span><span>{message}</span></div></main>
+      {inspector&&<aside className="property-panel"><button className="close-inspector" onClick={()=>setInspector(false)}>×</button>{!selected?<p className="empty-inspector">{t.selectHelp}</p>:<div className="inspector-content"><span className="eyebrow">{mode==="design"?t.design:t.tickets}</span><h3>{selected.label}</h3>{mode==="design"?<><label className="field"><span>{t.label}</span><input className="input" value={selected.label} onChange={e=>patch({label:e.target.value})}/></label>{sellable.has(selected.objectType)&&<label className="field"><span>{t.seats}</span><input className="input" type="number" min="1" max="50" value={selected.seats} onChange={e=>{const seats=Number(e.target.value);patch({seats,seatAssignments:assignments(seats,selected.seatAssignments)})}}/></label>}<div className="property-pair"><label className="field"><span>{t.width}</span><input className="input" type="number" value={selected.width} onChange={e=>patch({width:Number(e.target.value)})}/></label><label className="field"><span>{t.height}</span><input className="input" type="number" value={selected.height} onChange={e=>patch({height:Number(e.target.value)})}/></label></div><div className="rotation-controls"><strong>{t.rotation}: {selected.rotation}°</strong><div><button title={t.left} onClick={()=>patch({rotation:norm(selected.rotation-15)})}>↶ 15°</button><button title={t.right} onClick={()=>patch({rotation:norm(selected.rotation+15)})}>↷ 15°</button></div><input type="range" min="0" max="355" step="5" value={selected.rotation} onChange={e=>patch({rotation:Number(e.target.value)})}/><div className="angle-presets">{[0,45,90,180,270].map(a=><button key={a} className={selected.rotation===a?"active":""} onClick={()=>patch({rotation:a})}>{a}°</button>)}</div></div><button className="delete-object" onClick={()=>{commit(objects.filter(x=>x.id!==selected.id));setSelectedId("")}}>{t.remove}</button></>:sellable.has(selected.objectType)?<><div className="segmented"><button className={selected.priceMode==="WHOLE_TABLE"?"active":""} onClick={()=>patch({priceMode:"WHOLE_TABLE"})}>{t.whole}</button><button className={selected.priceMode==="PER_SEAT"?"active":""} onClick={()=>patch({priceMode:"PER_SEAT"})}>{t.perSeat}</button></div>{selected.priceMode==="PER_SEAT"&&<div className="selection-count"><span>{t.selectedSeats}</span><strong>{selectedPositions.size||selected.seats}</strong></div>}<label className="field"><span>{t.ticket}</span><select value={assignmentCategory} onChange={e=>setAssignmentCategory(e.target.value)}>{categories.map(c=><option key={c.id} value={c.id}>{c.name} · {money(c.priceMinor)}</option>)}</select></label><button className="btn assign-ticket" onClick={()=>assignCategory()}>{t.assign}</button><button className="btn secondary" onClick={()=>assignCategory(true)}>{t.clear}</button></>:<p className="muted">{t.unassigned}</p>}</div>}</aside>}</div></section>;
 }

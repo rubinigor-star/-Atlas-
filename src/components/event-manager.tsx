@@ -130,12 +130,12 @@ export function EventManager({ event }: { event: ManagedEvent }) {
           submitEvent.preventDefault();
           const form = new FormData(submitEvent.currentTarget);
           const iso = (name: string) => new Date(String(form.get(name))).toISOString();
-          void send({ action: "category", name: form.get("name"), description: form.get("description"), priceMinor: Math.round(Number(form.get("price")) * 100), capacity: Number(form.get("capacity")), pricingMode, salesStart: iso("salesStart"), salesEnd: iso("salesEnd"), earlyBirdPriceMinor: pricingMode === "SCHEDULED" ? Math.round(Number(form.get("earlyBirdPrice")) * 100) : undefined, earlyBirdEndsAt: pricingMode === "SCHEDULED" ? iso("earlyBirdEndsAt") : undefined, maxPerOrder: Number(form.get("maxPerOrder")) });
+          void send({ action: "category", name: form.get("name"), description: form.get("description"), colorHex: form.get("colorHex"), priceMinor: Math.round(Number(form.get("price")) * 100), capacity: Number(form.get("capacity")), pricingMode, salesStart: iso("salesStart"), salesEnd: iso("salesEnd"), earlyBirdPriceMinor: pricingMode === "SCHEDULED" ? Math.round(Number(form.get("earlyBirdPrice")) * 100) : undefined, earlyBirdEndsAt: pricingMode === "SCHEDULED" ? iso("earlyBirdEndsAt") : undefined, maxPerOrder: Number(form.get("maxPerOrder")) });
           submitEvent.currentTarget.reset();
         }}
       >
         <h2>{text.addCategory}</h2>
-        <div className="form-grid two"><input className="input" name="name" placeholder={text.name} required /><input className="input" name="capacity" type="number" min="1" placeholder={text.amount} required /></div>
+        <div className="form-grid three"><input className="input" name="name" placeholder={text.name} required /><input className="input" name="capacity" type="number" min="1" placeholder={text.amount} required /><label className="field"><span>Цвет на карте</span><input className="input color-input" name="colorHex" type="color" defaultValue="#2563EB" /></label></div>
         <textarea name="description" rows={2} placeholder="Что входит в билет" />
         <div className="pricing-switch"><button type="button" className={pricingMode === "FIXED" ? "active" : ""} onClick={() => setPricingMode("FIXED")}>Фиксированная цена</button><button type="button" className={pricingMode === "SCHEDULED" ? "active" : ""} onClick={() => setPricingMode("SCHEDULED")}>Цена по расписанию</button></div>
         {pricingMode === "SCHEDULED" && <div className="form-grid two"><div className="field"><label>Ранняя цена, ₪</label><input className="input" name="earlyBirdPrice" type="number" min="0.01" step="0.01" required /></div><div className="field"><label>Действует до</label><input className="input" name="earlyBirdEndsAt" type="datetime-local" required /></div></div>}
