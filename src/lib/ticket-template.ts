@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const ticketBindingSchema=z.enum(["CUSTOM","EVENT_TITLE","EVENT_DATE","EVENT_TIME","VENUE","ADDRESS","CUSTOMER_NAME","TICKET_TYPE","ORDER_NUMBER","TICKET_CODE","QR","IMAGE"]);
 export const ticketElementSchema=z.object({id:z.string(),binding:ticketBindingSchema,x:z.number().min(0).max(100),y:z.number().min(0).max(100),width:z.number().min(5).max(100),height:z.number().min(3).max(100),content:z.string().max(500).default(""),fontSize:z.number().min(8).max(54).default(16),color:z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#FFFFFF"),align:z.enum(["left","center","right"]).default("left"),bold:z.boolean().default(false),hidden:z.boolean().default(false)});
-export const ticketTemplateSchema=z.object({name:z.string().min(2).max(80),backgroundColor:z.string().regex(/^#[0-9A-Fa-f]{6}$/),accentColor:z.string().regex(/^#[0-9A-Fa-f]{6}$/),textColor:z.string().regex(/^#[0-9A-Fa-f]{6}$/),logoUrl:z.string().max(500).nullable(),backgroundUrl:z.string().max(500).nullable(),elements:z.array(ticketElementSchema).min(1).max(40)});
+export const ticketTemplateSchema=z.object({name:z.string().min(2).max(80),backgroundColor:z.string().regex(/^#[0-9A-Fa-f]{6}$/),accentColor:z.string().regex(/^#[0-9A-Fa-f]{6}$/),textColor:z.string().regex(/^#[0-9A-Fa-f]{6}$/),logoUrl:z.string().max(500).nullable(),backgroundUrl:z.string().max(500).nullable(),elements:z.array(ticketElementSchema).min(1).max(40)}).refine(template=>template.elements.some(element=>element.binding==="QR"&&!element.hidden),{message:"Шаблон должен содержать видимый QR-код",path:["elements"]});
 export type TicketElement=z.infer<typeof ticketElementSchema>;
 export type TicketDesign=z.infer<typeof ticketTemplateSchema>;
 
@@ -18,6 +18,8 @@ export const defaultTicketElements:TicketElement[]=[
 ];
 
 export function defaultTicketDesign():TicketDesign{return{name:"Основной билет",backgroundColor:"#081426",accentColor:"#FF5C45",textColor:"#FFFFFF",logoUrl:null,backgroundUrl:null,elements:defaultTicketElements}}
+
+export function nextTicketElementPosition(elementCount:number){const added=Math.max(0,elementCount-defaultTicketElements.length);return{x:8+(added*13)%48,y:54+(added*11)%31}}
 
 export function parseTicketDesign(input:{name:string;backgroundColor:string;accentColor:string;textColor:string;logoUrl:string|null;backgroundUrl:string|null;canvasJson:string}|null|undefined):TicketDesign{
   if(!input)return defaultTicketDesign();
