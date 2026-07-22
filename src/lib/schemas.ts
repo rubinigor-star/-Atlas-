@@ -27,8 +27,28 @@ export const createEventSchema = z.object({
   venueName: z.string().min(2),
   city: z.string().min(2),
   categoryName: z.string().min(2),
+  categoryDescription: z.string().max(500).optional(),
   priceMinor: z.number().int().positive(),
   capacity: z.number().int().positive(),
+  mapEnabled: z.boolean().default(false),
+  pricingMode: z.enum(["FIXED", "SCHEDULED"]).default("FIXED"),
+  salesStart: z.string().datetime(),
+  salesEnd: z.string().datetime(),
+  earlyBirdPriceMinor: z.number().int().positive().optional(),
+  earlyBirdEndsAt: z.string().datetime().optional(),
+  maxPerOrder: z.number().int().min(1).max(20).default(10),
   salesMode: z.enum(["INSTANT", "APPROVAL_REQUIRED"]).default("INSTANT"),
   approvalInstructions: z.string().max(1000).optional(),
+}).superRefine((value, context) => {
+  const eventStart = new Date(value.startsAt).getTime();
+  const salesStart = new Date(value.salesStart).getTime();
+  const salesEnd = new Date(value.salesEnd).getTime();
+  if (salesStart >= salesEnd || salesEnd > eventStart) context.addIssue({ code: z.ZodIssueCode.custom, path: ["salesEnd"], message: "Период продаж должен завершаться не позже начала мероприятия" });
+  if (value.pricingMode === "SCHEDULED") {
+    if (!value.earlyBirdPriceMinor || !value.earlyBirdEndsAt) context.addIssue({ code: z.ZodIssueCode.custom, path: ["earlyBirdEndsAt"], message: "Для цены по расписанию заполните раннюю цену и дату её окончания" });
+    else {
+      const earlyEnd = new Date(value.earlyBirdEndsAt).getTime();
+      if (earlyEnd <= salesStart || earlyEnd >= salesEnd) context.addIssue({ code: z.ZodIssueCode.custom, path: ["earlyBirdEndsAt"], message: "Окончание ранней цены должно находиться внутри периода продаж" });
+    }
+  }
 });

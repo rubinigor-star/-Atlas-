@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { checkoutSchema } from "@/lib/schemas";
-import { initialOrderStatus, orderNumber, seatingSelectionTotal, ticketCode } from "@/lib/ticketing";
+import { effectiveTicketPrice, initialOrderStatus, orderNumber, seatingSelectionTotal, ticketCode } from "@/lib/ticketing";
 
 export async function POST(req: Request) {
   try {
@@ -18,10 +18,13 @@ export async function POST(req: Request) {
       }
       const category = await tx.ticketCategory.findUnique({
         where: { id: input.categoryId },
+        include: { priceTiers: true },
       });
       if (!category || category.eventId !== input.eventId) {
         throw new Error("Категория не найдена");
       }
+      if (category.hidden) throw new Error("Этот тариф недоступен");
+      const categoryPrice = effectiveTicketPrice(category);
 
       const table = input.tableId
         ? await tx.table.findUnique({
@@ -61,6 +64,9 @@ export async function POST(req: Request) {
       if (table && seats.length) throw new Error("Нельзя одновременно выбрать объект целиком и отдельные места");
 
       const quantity = table ? table.seats : seats.length || input.quantity;
+      if (!table && !seats.length && (quantity < category.minPerOrder || quantity > category.maxPerOrder)) {
+        throw new Error(`В одном заказе можно выбрать от ${category.minPerOrder} до ${category.maxPerOrder} билетов`);
+      }
       if (category.sold + quantity > category.capacity) {
         throw new Error("Недостаточно доступных билетов");
       }
@@ -82,7 +88,7 @@ export async function POST(req: Request) {
         ? seatingSelectionTotal("WHOLE_TABLE", table.priceMinor, quantity)
         : seats[0]
           ? seatingSelectionTotal("PER_SEAT", seats[0].table.priceMinor, quantity)
-          : category.priceMinor * quantity;
+          : categoryPrice * quantity;
       const total = Math.round((subtotal * (100 - discount)) / 100);
       const referral = input.referralCode
         ? await tx.referral.findUnique({ where: { code: input.referralCode } })
@@ -111,7 +117,7 @@ export async function POST(req: Request) {
                 }))
               : [{
                   quantity,
-                  unitPriceMinor: table ? Math.round(table.priceMinor / quantity) : category.priceMinor,
+                  unitPriceMinor: table ? Math.round(table.priceMinor / quantity) : categoryPrice,
                   categoryName: category.name,
                   tableId: table?.id,
                 }],

@@ -22,9 +22,8 @@ export default async function ManageEvent({ params }: { params: Promise<{ id: st
       </div>
       <div className="table-wrap"><table><thead><tr><th>Категория</th><th>Цена</th><th>Продано</th><th>Остаток</th></tr></thead><tbody>{event.categories.map((item) => <tr key={item.id}><td>{item.name}</td><td>{money(item.priceMinor)}</td><td>{item.sold}</td><td>{item.capacity - item.sold}</td></tr>)}</tbody></table></div>
       <h2>Настройки</h2>
-      <EventManager event={{ id: event.id, title: event.title, description: event.description, status: event.status, startsAt: event.startsAt.toISOString(), salesMode: event.salesMode, approvalInstructions: event.approvalInstructions }} />
-      <h2 className="section-title">Карта мероприятия</h2>
-      <VenueMapEditor
+      <EventManager event={{ id: event.id, title: event.title, description: event.description, status: event.status, startsAt: event.startsAt.toISOString(), salesMode: event.salesMode, approvalInstructions: event.approvalInstructions, mapEnabled: event.mapEnabled }} />
+      {event.mapEnabled && <><h2 className="section-title">Карта мероприятия</h2><VenueMapEditor
         eventId={event.id}
         categories={event.categories.map((category) => ({ id: category.id, name: category.name, priceMinor: category.priceMinor }))}
         initialObjects={event.zones.flatMap((zone) => zone.tables.map((item) => ({
@@ -42,7 +41,7 @@ export default async function ManageEvent({ params }: { params: Promise<{ id: st
           categoryId: item.categoryId,
           reserved: item.reserved || item.seatItems.some((seat) => seat.status !== "AVAILABLE"),
         })))}
-      />
+      /></>}
     </AdminShell>
   );
 }

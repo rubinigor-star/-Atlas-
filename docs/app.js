@@ -14,6 +14,9 @@ const state = {
   editorObject: "T1",
   editorTab: "design",
   editorZoom: 0.72,
+  editorInspectorOpen: false,
+  admissionMode: "RESERVED_SEATING",
+  demoPricingMode: "SCHEDULED",
   mapObjects: [
     { id: "STAGE", type: "stage", label: "СЦЕНА", seats: 0, x: 50, y: 12, width: 440, height: 72 },
     { id: "DANCE", type: "zone", label: "ТАНЦПОЛ", seats: 0, x: 50, y: 48, width: 390, height: 280 },
@@ -257,14 +260,18 @@ function adminMapEditorMarkup() {
     <div class="builder-demo-head">
       <div><span class="eyebrow">Venue map builder</span><h2>Редактор карты мероприятия</h2></div>
       <div class="builder-tabs"><button class="${state.editorTab === "design" ? "active" : ""}" data-editor-tab="design">Дизайн схемы</button><button class="${state.editorTab === "tickets" ? "active" : ""}" data-editor-tab="tickets">Назначить билеты</button></div>
-      <div class="builder-actions"><button class="icon-action" title="Отменить">↶</button><button class="icon-action" title="Повторить">↷</button><button id="preview-map" class="button ghost">Превью</button><button id="save-map" class="button">Сохранить</button></div>
+      <div class="builder-actions"><button class="icon-action" title="Отменить">↶</button><button class="icon-action" title="Повторить">↷</button><button data-toggle-inspector class="button ghost">${state.editorInspectorOpen ? "Скрыть настройки" : "Настройки объекта"}</button><button id="preview-map" class="button ghost">Превью</button><button id="save-map" class="button">Сохранить</button></div>
     </div>
-    <div class="builder-demo-layout">
+    <div class="builder-demo-layout ${state.editorInspectorOpen ? "inspector-open" : ""}">
       <aside class="object-library"><strong>Добавить места</strong>${palette.slice(0,5).map(([type,label])=>`<button data-add-object="${type}"><span class="palette-visual ${type}"><i></i><i></i><i></i></span><span>${label}</span></button>`).join("")}<strong>Добавить объекты</strong>${palette.slice(5).map(([type,label])=>`<button data-add-object="${type}"><span class="palette-visual ${type}"><i></i></span><span>${label}</span></button>`).join("")}</aside>
       <div class="builder-workspace"><div class="floating-tools"><button>↖</button><button>☝</button><span></span><button data-zoom="out">−</button><strong>${Math.round(state.editorZoom * 100)}%</strong><button data-zoom="in">+</button></div><div class="builder-viewport"><div class="builder-world" style="transform:scale(${state.editorZoom})">${mapMarkup(true)}</div></div></div>
-      <aside class="property-panel"><div class="capacity"><span>Вместимость площадки</span><strong>${capacity}</strong><small>посадочных мест</small></div>${selected ? `<div class="selected-kind"><span class="palette-visual ${selected.type}"><i></i><i></i><i></i></span><div><small>Выбран объект</small><strong>${selected.label}</strong></div></div><label class="field"><span>Название</span><input id="map-label" class="input" value="${selected.label}"></label>${state.editorTab === "design" ? `<label class="field"><span>Количество мест</span><input id="map-seats" class="input" type="number" min="${isSellable ? 1 : 0}" max="30" value="${selected.seats}"></label><div class="dimensions"><label class="field"><span>Ширина</span><input id="map-width" class="input" type="number" value="${selected.width || 130}"></label><label class="field"><span>Высота</span><input id="map-height" class="input" type="number" value="${selected.height || 70}"></label></div><label class="field"><span>Положение по горизонтали</span><input id="map-x" type="range" min="6" max="94" value="${selected.x}"></label><label class="field"><span>Положение по вертикали</span><input id="map-y" type="range" min="6" max="96" value="${selected.y}"></label>` : isSellable ? `<label class="field"><span>Категория билета</span><select id="map-category" class="input"><option ${selected.category === "VIP Seating" ? "selected" : ""}>VIP Seating</option><option ${selected.category === "Golden Ring" ? "selected" : ""}>Golden Ring</option></select></label><div><strong>Как продавать этот объект</strong><div class="map-mode"><button class="${selected.mode === "whole" ? "active" : ""}" data-map-mode="whole"><strong>Целиком</strong><small>Одна цена за весь объект</small></button><button class="${selected.mode === "seat" ? "active" : ""}" data-map-mode="seat"><strong>По местам</strong><small>Каждый стул отдельно</small></button></div></div><label class="field"><span>Цена, ₪ ${selected.mode === "whole" ? "за весь объект" : "за одно место"}</span><input id="map-price" class="input" type="number" min="1" value="${selected.price}"></label><div class="ticket-summary"><span>${selected.seats} мест</span><strong>${selected.mode === "whole" ? money(selected.price) : `${money(selected.price)} × ${selected.seats}`}</strong></div>` : `<div class="empty-inspector">Этот объект оформляет площадку и не продаётся.</div>`}<button id="remove-map-object" class="danger-link">Удалить объект</button>` : `<div class="empty-inspector">Выберите объект на схеме, чтобы настроить его.</div>`}</aside>
+      ${state.editorInspectorOpen ? `<aside class="property-panel"><button data-toggle-inspector class="close-property">×</button><div class="capacity"><span>Вместимость площадки</span><strong>${capacity}</strong><small>посадочных мест</small></div>${selected ? `<div class="selected-kind"><span class="palette-visual ${selected.type}"><i></i><i></i><i></i></span><div><small>Выбран объект</small><strong>${selected.label}</strong></div></div><label class="field"><span>Название</span><input id="map-label" class="input" value="${selected.label}"></label>${state.editorTab === "design" ? `<label class="field"><span>Количество мест</span><input id="map-seats" class="input" type="number" min="${isSellable ? 1 : 0}" max="30" value="${selected.seats}"></label><div class="dimensions"><label class="field"><span>Ширина</span><input id="map-width" class="input" type="number" value="${selected.width || 130}"></label><label class="field"><span>Высота</span><input id="map-height" class="input" type="number" value="${selected.height || 70}"></label></div><label class="field"><span>Положение по горизонтали</span><input id="map-x" type="range" min="6" max="94" value="${selected.x}"></label><label class="field"><span>Положение по вертикали</span><input id="map-y" type="range" min="6" max="96" value="${selected.y}"></label>` : isSellable ? `<label class="field"><span>Категория билета</span><select id="map-category" class="input"><option ${selected.category === "VIP Seating" ? "selected" : ""}>VIP Seating</option><option ${selected.category === "Golden Ring" ? "selected" : ""}>Golden Ring</option></select></label><div><strong>Как продавать этот объект</strong><div class="map-mode"><button class="${selected.mode === "whole" ? "active" : ""}" data-map-mode="whole"><strong>Целиком</strong><small>Одна цена за весь объект</small></button><button class="${selected.mode === "seat" ? "active" : ""}" data-map-mode="seat"><strong>По местам</strong><small>Каждый стул отдельно</small></button></div></div><label class="field"><span>Цена, ₪ ${selected.mode === "whole" ? "за весь объект" : "за одно место"}</span><input id="map-price" class="input" type="number" min="1" value="${selected.price}"></label><div class="ticket-summary"><span>${selected.seats} мест</span><strong>${selected.mode === "whole" ? money(selected.price) : `${money(selected.price)} × ${selected.seats}`}</strong></div>` : `<div class="empty-inspector">Этот объект оформляет площадку и не продаётся.</div>`}<button id="remove-map-object" class="danger-link">Удалить объект</button>` : `<div class="empty-inspector">Выберите объект на схеме, чтобы настроить его.</div>`}</aside>` : ""}
     </div>
   </section>`;
+}
+
+function adminTicketsMarkup() {
+  return `<section class="panel ticket-settings-demo" style="margin-top:22px"><div class="section-head row"><div><span class="eyebrow">Ticket types</span><h2>Билеты без схемы зала</h2></div><button class="button">+ Добавить билет</button></div><div class="demo-ticket-list"><article><div><strong>General Admission</strong><small>Вход в танцевальную зону · 450 билетов</small></div><div><span class="price">₪149</span><small>Основной тариф</small></div></article><article><div><strong>Early Bird</strong><small>Продажа до 1 августа · 100 билетов</small></div><div><span class="price">₪119</span><small>Затем автоматически ₪149</small></div></article></div><div class="ticket-editor-demo"><h3>Настройка тарифа</h3><div class="pricing-switch"><button class="${state.demoPricingMode === "FIXED" ? "active" : ""}" data-demo-pricing="FIXED">Фиксированная цена</button><button class="${state.demoPricingMode === "SCHEDULED" ? "active" : ""}" data-demo-pricing="SCHEDULED">Цена по расписанию</button></div><div class="ticket-field-grid"><label class="field"><span>Название</span><input class="input" value="General Admission"></label><label class="field"><span>Количество</span><input class="input" type="number" value="450"></label><label class="field"><span>Начало продаж</span><input class="input" type="datetime-local" value="2026-07-22T12:00"></label><label class="field"><span>Окончание продаж</span><input class="input" type="datetime-local" value="2026-09-18T18:00"></label>${state.demoPricingMode === "SCHEDULED" ? `<label class="field"><span>Ранняя цена, ₪</span><input class="input" type="number" value="119"></label><label class="field"><span>Сменить цену</span><input class="input" type="datetime-local" value="2026-08-01T23:59"></label>` : ""}<label class="field"><span>Основная цена, ₪</span><input class="input" type="number" value="149"></label><label class="field"><span>Максимум в заказе</span><input class="input" type="number" value="10"></label></div><button class="button">Сохранить тариф</button></div></section>`;
 }
 
 function admin() {
@@ -273,12 +280,13 @@ function admin() {
     <aside class="sidebar"><strong>Atlas Office</strong><span class="active">Событие</span><span>Заявки ${state.requestStatus === "PENDING" ? "· 1" : ""}</span><span>Заказы</span><span>Сканер</span></aside>
     <section class="admin-main">
       <div class="admin-head row"><div><span class="eyebrow">Event manager</span><h1>NOA ELECTRIC</h1></div><a class="button ghost" href="#event">Посмотреть событие</a></div>
+      <div class="panel form admission-choice"><span class="eyebrow">Формат продажи</span><h2>Как покупатель выбирает билет?</h2><div class="admission-grid"><button class="${state.admissionMode === "GENERAL_ADMISSION" ? "selected" : ""}" data-admission="GENERAL_ADMISSION"><i>🎟</i><strong>Без схемы зала</strong><small>Тип билета и количество</small></button><button class="${state.admissionMode === "RESERVED_SEATING" ? "selected" : ""}" data-admission="RESERVED_SEATING"><i>▦</i><strong>С выбором мест</strong><small>Карта, столы, диваны и стулья</small></button></div></div>
       <div class="panel form">
         <span class="eyebrow">Ключевая настройка</span><h2>Как продавать билеты</h2>
         <button class="option ${state.salesMode === "INSTANT" ? "selected" : ""}" data-mode="INSTANT"><span><strong>Автоматическая продажа</strong><small>Клиент сразу оплачивает и получает билет.</small></span><strong>○</strong></button>
         <button class="option ${state.salesMode === "APPROVAL_REQUIRED" ? "selected" : ""}" data-mode="APPROVAL_REQUIRED"><span><strong>Только после моего одобрения</strong><small>Заявка → проверка → оплата → билет.</small></span><strong>○</strong></button>
       </div>
-      ${adminMapEditorMarkup()}
+      ${state.admissionMode === "RESERVED_SEATING" ? adminMapEditorMarkup() : adminTicketsMarkup()}
       <div class="section-head row"><h2>Заявки на вход</h2><span class="pill">${state.requestStatus === "PENDING" ? "1 ожидает" : "нет новых"}</span></div>
       <div class="table-wrap"><table><thead><tr><th>Клиент</th><th>Событие</th><th>Ответ</th><th>Решение</th></tr></thead><tbody>${pendingRow}</tbody></table></div>
     </section>
@@ -286,7 +294,27 @@ function admin() {
   document.querySelectorAll("[data-mode]").forEach((button) => {
     button.onclick = () => { state.salesMode = button.dataset.mode; admin(); };
   });
-  document.querySelectorAll("[data-edit-object]").forEach((object) => { object.onclick = () => { state.editorObject = object.dataset.editObject; admin(); }; });
+  document.querySelectorAll("[data-admission]").forEach((button) => { button.onclick = () => { state.admissionMode = button.dataset.admission; admin(); }; });
+  document.querySelectorAll("[data-demo-pricing]").forEach((button) => { button.onclick = () => { state.demoPricingMode = button.dataset.demoPricing; admin(); }; });
+  document.querySelectorAll("[data-edit-object]").forEach((object) => {
+    object.onpointerdown = (event) => {
+      event.preventDefault();
+      state.editorObject = object.dataset.editObject;
+      const map = object.closest(".demo-map");
+      if (!map) return;
+      object.setPointerCapture(event.pointerId);
+      const move = (pointerEvent) => {
+        const bounds = map.getBoundingClientRect();
+        const x = Math.max(4, Math.min(96, ((pointerEvent.clientX - bounds.left) / bounds.width) * 100));
+        const y = Math.max(4, Math.min(96, ((pointerEvent.clientY - bounds.top) / bounds.height) * 100));
+        updateEditorObject({ x: Math.round(x), y: Math.round(y) });
+        object.style.left = `${x}%`; object.style.top = `${y}%`;
+      };
+      const up = () => { object.removeEventListener("pointermove", move); object.removeEventListener("pointerup", up); admin(); };
+      object.addEventListener("pointermove", move); object.addEventListener("pointerup", up);
+    };
+  });
+  document.querySelectorAll("[data-toggle-inspector]").forEach((button) => { button.onclick = () => { state.editorInspectorOpen = !state.editorInspectorOpen; admin(); }; });
   document.querySelectorAll("[data-add-object]").forEach((button) => { button.onclick = () => addMapObject(button.dataset.addObject); });
   document.querySelectorAll("[data-editor-tab]").forEach((button) => { button.onclick = () => { state.editorTab = button.dataset.editorTab; admin(); }; });
   document.querySelectorAll("[data-zoom]").forEach((button) => { button.onclick = () => { state.editorZoom = Math.max(.45, Math.min(1.05, state.editorZoom + (button.dataset.zoom === "in" ? .1 : -.1))); admin(); }; });
@@ -294,7 +322,7 @@ function admin() {
   const bindEditor = (selector, key, numeric = false) => { const input = document.querySelector(selector); if (input) input.onchange = () => { updateEditorObject({ [key]: numeric ? Number(input.value) : input.value }); admin(); }; };
   bindEditor("#map-label", "label"); bindEditor("#map-seats", "seats", true); bindEditor("#map-category", "category"); bindEditor("#map-price", "price", true); bindEditor("#map-width", "width", true); bindEditor("#map-height", "height", true); bindEditor("#map-x", "x", true); bindEditor("#map-y", "y", true);
   const remove = document.querySelector("#remove-map-object"); if (remove) remove.onclick = () => { state.mapObjects = state.mapObjects.filter((item) => item.id !== state.editorObject); state.editorObject = state.mapObjects[0]?.id || null; admin(); };
-  document.querySelector("#save-map").onclick = () => { document.querySelector("#save-map").textContent = "Карта сохранена ✓"; };
+  const saveMap = document.querySelector("#save-map"); if (saveMap) saveMap.onclick = () => { saveMap.textContent = "Карта сохранена ✓"; };
   const approve = document.querySelector("#approve");
   if (approve) approve.onclick = () => { state.requestStatus = "APPROVED"; location.hash = "request"; };
   const reject = document.querySelector("#reject");

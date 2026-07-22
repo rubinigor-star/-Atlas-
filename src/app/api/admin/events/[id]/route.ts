@@ -5,7 +5,8 @@ import { db } from "@/lib/db";
 const update = z.object({ action: z.literal("update"), title: z.string().min(3), description: z.string().min(20), startsAt: z.string().datetime() });
 const status = z.object({ action: z.literal("status"), status: z.enum(["DRAFT", "PUBLISHED"]) });
 const sales = z.object({ action: z.literal("sales"), salesMode: z.enum(["INSTANT", "APPROVAL_REQUIRED"]), approvalInstructions: z.string().max(1000).optional() });
-const category = z.object({ action: z.literal("category"), name: z.string().min(2), priceMinor: z.number().int().positive(), capacity: z.number().int().positive() });
+const admission = z.object({ action: z.literal("admission"), mapEnabled: z.boolean() });
+const category = z.object({ action: z.literal("category"), name: z.string().min(2), description: z.string().max(500).optional(), priceMinor: z.number().int().positive(), capacity: z.number().int().positive(), pricingMode: z.enum(["FIXED", "SCHEDULED"]).default("FIXED"), salesStart: z.string().datetime().optional(), salesEnd: z.string().datetime().optional(), earlyBirdPriceMinor: z.number().int().positive().optional(), earlyBirdEndsAt: z.string().datetime().optional(), maxPerOrder: z.number().int().min(1).max(20).default(10) });
 const table = z.object({ action: z.literal("table"), zoneName: z.string().min(2), label: z.string().min(1), seats: z.number().int().positive(), priceMinor: z.number().int().positive() });
 const layout = z.object({
   action: z.literal("layout"),
@@ -38,9 +39,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     } else if (body.action === "sales") {
       const value = sales.parse(body);
       await db.event.update({ where: { id }, data: { salesMode: value.salesMode, approvalInstructions: value.approvalInstructions || null } });
+    } else if (body.action === "admission") {
+      const value = admission.parse(body);
+      const sold = await db.order.count({ where: { eventId: id } });
+      if (sold) throw new Error("Нельзя менять тип выбора билетов после появления заказов");
+      await db.event.update({ where: { id }, data: { mapEnabled: value.mapEnabled } });
     } else if (body.action === "category") {
       const value = category.parse(body);
-      await db.ticketCategory.create({ data: { eventId: id, name: value.name, priceMinor: value.priceMinor, capacity: value.capacity } });
+      const parent = await db.event.findUniqueOrThrow({ where: { id } });
+      const salesStart = value.salesStart ? new Date(value.salesStart) : parent.salesStart;
+      const salesEnd = value.salesEnd ? new Date(value.salesEnd) : parent.salesEnd;
+      if (salesStart >= salesEnd) throw new Error("Начало продаж должно быть раньше окончания");
+      if (value.pricingMode === "SCHEDULED" && (!value.earlyBirdPriceMinor || !value.earlyBirdEndsAt)) throw new Error("Заполните раннюю цену и дату её окончания");
+      const earlyEnd = value.earlyBirdEndsAt ? new Date(value.earlyBirdEndsAt) : null;
+      if (earlyEnd && (earlyEnd <= salesStart || earlyEnd >= salesEnd)) throw new Error("Дата смены цены должна находиться внутри периода продаж");
+      await db.ticketCategory.create({ data: { eventId: id, name: value.name, description: value.description || null, priceMinor: value.priceMinor, pricingMode: value.pricingMode, capacity: value.capacity, salesStart, salesEnd, maxPerOrder: value.maxPerOrder, priceTiers: value.pricingMode === "SCHEDULED" && earlyEnd && value.earlyBirdPriceMinor ? { create: [{ label: "Early bird", priceMinor: value.earlyBirdPriceMinor, startsAt: salesStart, endsAt: earlyEnd }, { label: "Regular", priceMinor: value.priceMinor, startsAt: earlyEnd, endsAt: salesEnd }] } : undefined } });
     } else if (body.action === "table") {
       const value = table.parse(body);
       let zone = await db.zone.findUnique({ where: { eventId_name: { eventId: id, name: value.zoneName } } });

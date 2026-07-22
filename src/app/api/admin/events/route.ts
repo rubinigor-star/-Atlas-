@@ -19,10 +19,11 @@ export async function POST(req: Request) {
         description: input.description,
         posterUrl,
         startsAt: new Date(input.startsAt),
-        salesStart: new Date(),
-        salesEnd: new Date(input.startsAt),
-        status: "PUBLISHED",
+        salesStart: new Date(input.salesStart),
+        salesEnd: new Date(input.salesEnd),
+        status: "DRAFT",
         salesMode: input.salesMode,
+        mapEnabled: input.mapEnabled,
         approvalInstructions: input.approvalInstructions || null,
         organization: { connect: { id: org.id } },
         venue: {
@@ -35,8 +36,19 @@ export async function POST(req: Request) {
         categories: {
           create: {
             name: input.categoryName,
+            description: input.categoryDescription || null,
             priceMinor: input.priceMinor,
+            pricingMode: input.pricingMode,
             capacity: input.capacity,
+            salesStart: new Date(input.salesStart),
+            salesEnd: new Date(input.salesEnd),
+            maxPerOrder: input.maxPerOrder,
+            priceTiers: input.pricingMode === "SCHEDULED" && input.earlyBirdPriceMinor && input.earlyBirdEndsAt ? {
+              create: [
+                { label: "Early bird", priceMinor: input.earlyBirdPriceMinor, startsAt: new Date(input.salesStart), endsAt: new Date(input.earlyBirdEndsAt) },
+                { label: "Regular", priceMinor: input.priceMinor, startsAt: new Date(input.earlyBirdEndsAt), endsAt: new Date(input.salesEnd) },
+              ],
+            } : undefined,
           },
         },
       },

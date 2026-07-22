@@ -44,6 +44,11 @@ enum PriceMode {
   WHOLE_TABLE
 }
 
+enum PricingMode {
+  FIXED
+  SCHEDULED
+}
+
 enum SeatingObjectType {
   TABLE
   ROUND_TABLE
@@ -115,19 +120,38 @@ model Event {
 }
 
 model TicketCategory {
-  id             String   @id @default(cuid())
+  id             String            @id @default(cuid())
   name           String
   description    String?
   priceMinor     Int
-  currency       String   @default("ILS")
+  pricingMode    PricingMode       @default(FIXED)
+  currency       String            @default("ILS")
   capacity       Int
-  sold           Int      @default(0)
+  sold           Int               @default(0)
+  salesStart     DateTime?
+  salesEnd       DateTime?
+  minPerOrder    Int               @default(1)
+  maxPerOrder    Int               @default(10)
+  hidden         Boolean           @default(false)
   eventId        String
-  event          Event    @relation(fields: [eventId], references: [id])
+  event          Event             @relation(fields: [eventId], references: [id])
   tickets        Ticket[]
   seatingObjects Table[]
+  priceTiers     TicketPriceTier[]
 
   @@unique([eventId, name])
+}
+
+model TicketPriceTier {
+  id         String         @id @default(cuid())
+  label      String
+  priceMinor Int
+  startsAt   DateTime
+  endsAt     DateTime
+  categoryId String
+  category   TicketCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId, startsAt, endsAt])
 }
 
 model Zone {

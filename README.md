@@ -8,9 +8,13 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 
 - Published event catalog and event details
 - Per-event sales mode: instant ticket delivery or organizer approval before payment
+- Event admission format chosen at creation: general admission or reserved seating
+- Fixed ticket prices or scheduled price phases such as Early Bird and Regular
+- Per-ticket sales windows and maximum quantity per order
 - Organizer application queue with approve/reject decisions and applicant eligibility answers
 - Approved applications reserve inventory for a 24-hour test-payment window
 - Three-panel venue-map builder with a zoomable canvas, object library and property inspector
+- Drag-and-drop map objects with persisted position and a collapsible property inspector
 - Rectangular and round tables, sofas, chair rows, zones, stage, bar and text objects
 - Ticket-category assignment for every map object
 - Whole table/sofa sales or individually reservable chairs
@@ -49,6 +53,16 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 6. Approval-required requests do not reserve chairs until approval. Approval claims the chosen chairs and opens the payment window.
 7. Instant checkout claims the full object or selected chairs and issues the correct number of tickets.
 8. A second request for an already claimed chair or object is rejected server-side.
+
+### Event and ticket setup flow
+
+1. A new event starts as a draft and explicitly chooses `GENERAL_ADMISSION` or `RESERVED_SEATING` behavior through `mapEnabled`.
+2. General-admission events sell named ticket types without showing a map.
+3. Reserved-seating events open the map designer, then the organizer assigns ticket types to sellable objects.
+4. Every ticket type has its own capacity, sales window, per-order limit and visibility foundation.
+5. `FIXED` pricing uses one amount throughout the sales window.
+6. `SCHEDULED` pricing selects the active server-side price tier by time. The initial workflow creates Early Bird and Regular phases.
+7. The admission format cannot be changed after an order exists.
 
 The seeded demonstration contains rectangular and round tables, two sofas, a stage, dance floor and bar using both sales modes.
 
@@ -136,6 +150,7 @@ The code is shaped for Vercel, but the local SQLite database and filesystem post
 - Approval-mode payment is simulated; production must send a secure expiring payment link and release expired holds automatically.
 - Roles exist in the schema but routes are not protected.
 - Promo and referral support is intentionally minimal.
+- Scheduled pricing is time-based. Automatic demand-based price changes are intentionally not enabled until audit logs, notification rules and organizer safeguards are designed.
 - The graphical editor supports furniture, straight chair rows and key decorative objects. Curved rows, free-form walls, multi-selection, imported CAD plans and version migration after sales open are intentionally outside this MVP.
 - Russian/Hebrew switching is implemented for navigation and the primary purchase, checkout and map-management flows. Remaining secondary back-office copy still needs full translation coverage before production.
 - SQLite provides a credible local transaction demo, not production concurrency guarantees.
