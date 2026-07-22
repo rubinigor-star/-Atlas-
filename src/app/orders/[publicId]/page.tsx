@@ -1,3 +1,86 @@
-import QRCode from "qrcode"; import {notFound} from "next/navigation"; import Link from "next/link"; import {CheckCircle2} from "lucide-react"; import {db} from "@/lib/db"; import {money,eventDate} from "@/lib/format"; import {TicketCard} from "@/components/ticket-card";
-export const dynamic="force-dynamic";
-export default async function OrderPage({params}:{params:Promise<{publicId:string}>}){const {publicId}=await params;const order=await db.order.findUnique({where:{publicId},include:{event:{include:{venue:true}},tickets:{include:{category:true}}}});if(!order)notFound();const qrs=await Promise.all(order.tickets.map(t=>QRCode.toDataURL(t.publicCode,{margin:1,width:360,errorCorrectionLevel:"M"})));return <main className="shell"><section className="panel success"><CheckCircle2 color="#0c9b66" size={58}/><h1>Заказ оформлен</h1><p className="muted">Тестовая оплата подтверждена. Деньги не списывались.</p><div className="panel"><div className="row between"><span>Заказ</span><strong>{order.publicId}</strong></div><div className="row between"><span>Событие</span><strong>{order.event.title}</strong></div><div className="row between"><span>Дата</span><strong>{eventDate(order.event.startsAt)}</strong></div><div className="row between"><span>Итого</span><strong>{money(order.totalMinor)}</strong></div></div>{order.tickets.map((t,i)=><TicketCard key={t.id} ticket={t} qr={qrs[i]}/>) }<Link href="/" className="btn dark" style={{marginTop:20}}>Вернуться к событиям</Link></section></main>}
+import QRCode from "qrcode";
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { CheckCircle2, Clock3, XCircle } from "lucide-react";
+import { db } from "@/lib/db";
+import { money, eventDate } from "@/lib/format";
+import { TicketCard } from "@/components/ticket-card";
+import { DemoPaymentButton } from "@/components/demo-payment-button";
+
+export const dynamic = "force-dynamic";
+
+export default async function OrderPage({
+  params,
+}: {
+  params: Promise<{ publicId: string }>;
+}) {
+  const { publicId } = await params;
+  const order = await db.order.findUnique({
+    where: { publicId },
+    include: {
+      event: { include: { venue: true } },
+      tickets: { include: { category: true } },
+    },
+  });
+  if (!order) notFound();
+
+  const qrs = await Promise.all(
+    order.tickets.map((ticket) =>
+      QRCode.toDataURL(ticket.publicCode, { margin: 1, width: 360, errorCorrectionLevel: "M" }),
+    ),
+  );
+  const pending = order.status === "PENDING_APPROVAL";
+  const rejected = order.status === "REJECTED";
+  const awaitingPayment = order.status === "AWAITING_PAYMENT";
+
+  return (
+    <main className="shell">
+      <section className="panel success">
+        {pending && <Clock3 color="#d68b00" size={58} />}
+        {rejected && <XCircle color="#b42318" size={58} />}
+        {!pending && !rejected && <CheckCircle2 color="#0c9b66" size={58} />}
+
+        <h1>
+          {pending
+            ? "Заявка отправлена"
+            : rejected
+              ? "Заявка отклонена"
+              : awaitingPayment
+                ? "Заявка одобрена"
+                : "Заказ оформлен"}
+        </h1>
+        <p className="muted">
+          {pending && "Организатор проверит данные. До одобрения оплата и выпуск билета недоступны."}
+          {rejected && (order.reviewNote || "Организатор не подтвердил участие в мероприятии.")}
+          {awaitingPayment &&
+            "Организатор подтвердил участие. Теперь можно завершить тестовую оплату и получить билет."}
+          {order.status === "PAID" && "Тестовая оплата подтверждена. Деньги не списывались."}
+        </p>
+
+        <div className="panel">
+          <div className="row between"><span>Номер</span><strong>{order.publicId}</strong></div>
+          <div className="row between"><span>Событие</span><strong>{order.event.title}</strong></div>
+          <div className="row between"><span>Дата</span><strong>{eventDate(order.event.startsAt)}</strong></div>
+          <div className="row between"><span>Статус</span><strong>{order.status}</strong></div>
+          <div className="row between"><span>Сумма</span><strong>{money(order.totalMinor)}</strong></div>
+        </div>
+
+        {awaitingPayment && (
+          <div style={{ marginTop: 20 }}>
+            <DemoPaymentButton publicId={order.publicId} />
+            {order.paymentDueAt && (
+              <p className="muted">Оплатить нужно до {order.paymentDueAt.toLocaleString("ru-RU")}</p>
+            )}
+          </div>
+        )}
+
+        {order.tickets.map((ticket, index) => (
+          <TicketCard key={ticket.id} ticket={ticket} qr={qrs[index]} />
+        ))}
+        <Link href="/" className="btn dark" style={{ marginTop: 20 }}>
+          Вернуться к событиям
+        </Link>
+      </section>
+    </main>
+  );
+}

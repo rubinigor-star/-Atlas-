@@ -19,8 +19,16 @@ enum EventStatus {
   PUBLISHED
 }
 
+enum SalesMode {
+  INSTANT
+  APPROVAL_REQUIRED
+}
+
 enum OrderStatus {
   PENDING
+  PENDING_APPROVAL
+  AWAITING_PAYMENT
+  REJECTED
   PAID
   CANCELLED
 }
@@ -63,26 +71,28 @@ model Venue {
 }
 
 model Event {
-  id             String           @id @default(cuid())
-  slug           String           @unique
-  title          String
-  description    String
-  posterUrl      String
-  startsAt       DateTime
-  salesStart     DateTime
-  salesEnd       DateTime
-  status         EventStatus      @default(DRAFT)
-  organizationId String
-  organization   Organization     @relation(fields: [organizationId], references: [id])
-  venueId        String
-  venue          Venue            @relation(fields: [venueId], references: [id])
-  categories     TicketCategory[]
-  zones          Zone[]
-  orders         Order[]
-  promoCodes     PromoCode[]
-  referrals      Referral[]
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id                   String           @id @default(cuid())
+  slug                 String           @unique
+  title                String
+  description          String
+  posterUrl            String
+  startsAt             DateTime
+  salesStart           DateTime
+  salesEnd             DateTime
+  status               EventStatus      @default(DRAFT)
+  salesMode            SalesMode        @default(INSTANT)
+  approvalInstructions String?
+  organizationId       String
+  organization         Organization     @relation(fields: [organizationId], references: [id])
+  venueId              String
+  venue                Venue            @relation(fields: [venueId], references: [id])
+  categories           TicketCategory[]
+  zones                Zone[]
+  orders               Order[]
+  promoCodes           PromoCode[]
+  referrals            Referral[]
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 }
 
 model TicketCategory {
@@ -111,62 +121,66 @@ model Zone {
 }
 
 model Table {
-  id          String      @id @default(cuid())
-  label       String
-  seats       Int
-  priceMinor  Int
-  priceMode   PriceMode   @default(WHOLE_TABLE)
-  reserved    Boolean     @default(false)
-  zoneId      String
-  zone        Zone        @relation(fields: [zoneId], references: [id])
-  orderItems  OrderItem[]
+  id         String      @id @default(cuid())
+  label      String
+  seats      Int
+  priceMinor Int
+  priceMode  PriceMode   @default(WHOLE_TABLE)
+  reserved   Boolean     @default(false)
+  zoneId     String
+  zone       Zone        @relation(fields: [zoneId], references: [id])
+  orderItems OrderItem[]
 
   @@unique([zoneId, label])
 }
 
 model Order {
-  id             String      @id @default(cuid())
-  publicId       String      @unique
-  idempotencyKey String      @unique
-  customerName   String
-  customerEmail  String
-  customerPhone  String
-  totalMinor     Int
-  currency       String      @default("ILS")
-  status         OrderStatus @default(PAID)
-  eventId        String
-  event          Event       @relation(fields: [eventId], references: [id])
-  items          OrderItem[]
-  tickets        Ticket[]
-  referralId     String?
-  referral       Referral?   @relation(fields: [referralId], references: [id])
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  id                String      @id @default(cuid())
+  publicId          String      @unique
+  idempotencyKey    String      @unique
+  customerName      String
+  customerEmail     String
+  customerPhone     String
+  totalMinor        Int
+  currency          String      @default("ILS")
+  status            OrderStatus @default(PAID)
+  eligibilityAnswer String?
+  reviewNote        String?
+  reviewedAt        DateTime?
+  paymentDueAt      DateTime?
+  eventId           String
+  event             Event       @relation(fields: [eventId], references: [id])
+  items             OrderItem[]
+  tickets           Ticket[]
+  referralId        String?
+  referral          Referral?   @relation(fields: [referralId], references: [id])
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 }
 
 model OrderItem {
-  id             String @id @default(cuid())
+  id             String  @id @default(cuid())
   quantity       Int
   unitPriceMinor Int
   categoryName   String
   orderId        String
-  order          Order  @relation(fields: [orderId], references: [id])
+  order          Order   @relation(fields: [orderId], references: [id])
   tableId        String?
-  table          Table? @relation(fields: [tableId], references: [id])
+  table          Table?  @relation(fields: [tableId], references: [id])
 }
 
 model Ticket {
-  id         String       @id @default(cuid())
-  publicCode String       @unique
-  status     TicketStatus @default(VALID)
+  id         String         @id @default(cuid())
+  publicCode String         @unique
+  status     TicketStatus   @default(VALID)
   holderName String
   categoryId String
   category   TicketCategory @relation(fields: [categoryId], references: [id])
   orderId    String
-  order      Order        @relation(fields: [orderId], references: [id])
+  order      Order          @relation(fields: [orderId], references: [id])
   scans      Scan[]
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
 }
 
 model Scan {

@@ -7,6 +7,9 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 ## What works
 
 - Published event catalog and event details
+- Per-event sales mode: instant ticket delivery or organizer approval before payment
+- Organizer application queue with approve/reject decisions and applicant eligibility answers
+- Approved applications reserve inventory for a 24-hour test-payment window
 - Ticket categories, capacity limits, VIP zone and whole-table selection
 - Server-side test checkout with idempotency keys
 - Amounts stored in agorot, never floating point
@@ -20,6 +23,16 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 - Ticket cancellation and code regeneration
 - Minimal promo code (`ATLAS10`) and referral data (`MALINA`)
 - Seed event, users and test order
+
+### Approval-required event flow
+
+1. The organizer selects `APPROVAL_REQUIRED` in the event manager and defines the question shown to applicants.
+2. The buyer selects a category or table and submits contact and eligibility information without payment.
+3. Atlas creates a `PENDING_APPROVAL` request without issuing tickets or reducing inventory.
+4. The organizer approves or rejects the request from `/admin/requests`.
+5. Approval atomically reserves the inventory/table and opens a 24-hour `AWAITING_PAYMENT` window.
+6. The demo payment changes the order to `PAID` and only then creates unique QR tickets and PDFs.
+7. Rejection changes the request to `REJECTED`; no ticket is issued and no payment is taken.
 
 ## Stack
 
@@ -100,6 +113,7 @@ The code is shaped for Vercel, but the local SQLite database and filesystem post
 ## Demonstration-only or incomplete
 
 - Test checkout marks orders paid without a payment provider.
+- Approval-mode payment is simulated; production must send a secure expiring payment link and release expired holds automatically.
 - Roles exist in the schema but routes are not protected.
 - Promo and referral support is intentionally minimal.
 - Seating management supports zones and whole VIP tables, but not a graphical row-and-seat editor.

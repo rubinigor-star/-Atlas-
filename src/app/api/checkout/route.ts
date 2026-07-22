@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { checkoutSchema } from "@/lib/schemas";
-import { orderNumber, ticketCode } from "@/lib/ticketing";
+import { initialOrderStatus, orderNumber, ticketCode } from "@/lib/ticketing";
 
 export async function POST(req: Request) {
   try {
@@ -12,6 +12,10 @@ export async function POST(req: Request) {
     if (existing) return NextResponse.json({ orderId: existing.publicId });
 
     const order = await db.$transaction(async (tx) => {
+      const event = await tx.event.findUnique({ where: { id: input.eventId } });
+      if (!event || event.status !== "PUBLISHED") {
+        throw new Error("Мероприятие недоступно для продажи");
+      }
       const category = await tx.ticketCategory.findUnique({
         where: { id: input.categoryId },
       });
@@ -61,7 +65,9 @@ export async function POST(req: Request) {
           customerName: input.customer.name,
           customerEmail: input.customer.email,
           customerPhone: input.customer.phone,
+          eligibilityAnswer: input.eligibilityAnswer || null,
           totalMinor: total,
+          status: initialOrderStatus(event.salesMode),
           eventId: input.eventId,
           referralId: referral?.id,
           items: {
@@ -74,21 +80,26 @@ export async function POST(req: Request) {
               tableId: table?.id,
             },
           },
-          tickets: {
-            create: Array.from({ length: quantity }, () => ({
-              publicCode: ticketCode(),
-              holderName: input.customer.name,
-              categoryId: category.id,
-            })),
-          },
+          tickets:
+            event.salesMode === "INSTANT"
+              ? {
+                  create: Array.from({ length: quantity }, () => ({
+                    publicCode: ticketCode(),
+                    holderName: input.customer.name,
+                    categoryId: category.id,
+                  })),
+                }
+              : undefined,
         },
       });
 
-      await tx.ticketCategory.update({
-        where: { id: category.id },
-        data: { sold: { increment: quantity } },
-      });
-      if (table) {
+      if (event.salesMode === "INSTANT") {
+        await tx.ticketCategory.update({
+          where: { id: category.id },
+          data: { sold: { increment: quantity } },
+        });
+      }
+      if (event.salesMode === "INSTANT" && table) {
         const claimed = await tx.table.updateMany({
           where: { id: table.id, reserved: false },
           data: { reserved: true },
@@ -100,7 +111,10 @@ export async function POST(req: Request) {
       return created;
     });
 
-    return NextResponse.json({ orderId: order.publicId }, { status: 201 });
+    return NextResponse.json(
+      { orderId: order.publicId, status: order.status },
+      { status: 201 },
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Некорректный запрос";
     return NextResponse.json({ error: message }, { status: 400 });

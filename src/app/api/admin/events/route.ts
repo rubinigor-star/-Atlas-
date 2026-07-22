@@ -22,6 +22,8 @@ export async function POST(req: Request) {
         salesStart: new Date(),
         salesEnd: new Date(input.startsAt),
         status: "PUBLISHED",
+        salesMode: input.salesMode,
+        approvalInstructions: input.approvalInstructions || null,
         organization: { connect: { id: org.id } },
         venue: {
           create: {
