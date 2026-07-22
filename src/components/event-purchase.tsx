@@ -13,10 +13,12 @@ type MapObject = {
   seats: number;
   priceMinor: number;
   priceMode: "WHOLE_TABLE" | "PER_SEAT";
-  objectType: "TABLE" | "SOFA";
+  objectType: "TABLE" | "ROUND_TABLE" | "SOFA" | "ROW" | "ZONE" | "STAGE" | "BAR" | "TEXT";
   x: number;
   y: number;
   rotation: number;
+  width: number;
+  height: number;
   reserved: boolean;
   categoryId: string | null;
   category: { name: string } | null;
@@ -81,13 +83,15 @@ export function EventPurchase({ eventId, categories, objects }: { eventId: strin
       <div className="venue-canvas buyer-map">
         <div className="map-stage">{text.stage}</div>
         {objects.map((object) => {
+          const isSellable = ["TABLE", "ROUND_TABLE", "SOFA", "ROW"].includes(object.objectType);
           const soldWhole = object.reserved;
           const selectedWhole = wholeObjectId === object.id;
           return <div
             key={object.id}
-            className={`map-object buyer-object ${object.objectType.toLowerCase()} ${selectedWhole ? "selected" : ""} ${soldWhole ? "unavailable" : ""}`}
-            style={{ left: `${object.x}%`, top: `${object.y}%`, transform: `translate(-50%, -50%) rotate(${object.rotation}deg)` }}
+            className={`map-object buyer-object object-${object.objectType.toLowerCase().replace("_", "-")} ${object.objectType.toLowerCase().replace("_", "-")} ${selectedWhole ? "selected" : ""} ${soldWhole ? "unavailable" : ""}`}
+            style={{ left: `${object.x}%`, top: `${object.y}%`, width: object.width, height: object.height, transform: `translate(-50%, -50%) rotate(${object.rotation}deg)`, zIndex: object.objectType === "ZONE" ? 1 : 2 }}
           >
+            {!isSellable ? <div className={`buyer-decoration decoration-${object.objectType.toLowerCase()}`}><strong>{object.label}</strong></div> : <>
             <button
               type="button"
               className="object-core"
@@ -99,7 +103,7 @@ export function EventPurchase({ eventId, categories, objects }: { eventId: strin
               }}
             >
               <strong>{object.label}</strong>
-              <small>{object.objectType === "TABLE" ? text.table : text.sofa}</small>
+              <small>{object.objectType === "SOFA" ? text.sofa : object.objectType === "ROW" ? "row" : text.table}</small>
             </button>
             <span className="buyer-seat-ring">
               {object.seatItems.map((seat) => <button
@@ -112,6 +116,7 @@ export function EventPurchase({ eventId, categories, objects }: { eventId: strin
               >{seat.position}</button>)}
             </span>
             <small className="object-price">{money(object.priceMinor)} {object.priceMode === "WHOLE_TABLE" ? text.whole : text.perSeat}</small>
+            </>}
           </div>;
         })}
       </div>

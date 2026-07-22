@@ -12,17 +12,23 @@ const state = {
   selectedMapObject: null,
   selectedSeats: [],
   editorObject: "T1",
+  editorTab: "design",
+  editorZoom: 0.72,
   mapObjects: [
-    { id: "T1", type: "table", label: "T1", seats: 6, mode: "whole", price: 1890, category: "VIP Seating", x: 22, y: 38 },
-    { id: "T2", type: "table", label: "T2", seats: 6, mode: "whole", price: 1890, category: "VIP Seating", x: 50, y: 38 },
-    { id: "T3", type: "table", label: "T3", seats: 6, mode: "seat", price: 349, category: "VIP Seating", x: 78, y: 38 },
-    { id: "S1", type: "sofa", label: "S1", seats: 4, mode: "whole", price: 1200, category: "VIP Seating", x: 30, y: 72 },
-    { id: "S2", type: "sofa", label: "S2", seats: 4, mode: "seat", price: 299, category: "VIP Seating", x: 70, y: 72 },
+    { id: "STAGE", type: "stage", label: "СЦЕНА", seats: 0, x: 50, y: 12, width: 440, height: 72 },
+    { id: "DANCE", type: "zone", label: "ТАНЦПОЛ", seats: 0, x: 50, y: 48, width: 390, height: 280 },
+    { id: "T1", type: "table", label: "T1", seats: 6, mode: "whole", price: 1890, category: "VIP Seating", x: 18, y: 35, width: 128, height: 76 },
+    { id: "T2", type: "round-table", label: "T2", seats: 6, mode: "whole", price: 1890, category: "VIP Seating", x: 82, y: 35, width: 104, height: 104 },
+    { id: "T3", type: "table", label: "T3", seats: 6, mode: "seat", price: 349, category: "VIP Seating", x: 18, y: 67, width: 128, height: 76 },
+    { id: "S1", type: "sofa", label: "S1", seats: 4, mode: "whole", price: 1200, category: "VIP Seating", x: 36, y: 83, width: 172, height: 70 },
+    { id: "S2", type: "sofa", label: "S2", seats: 4, mode: "seat", price: 299, category: "VIP Seating", x: 64, y: 83, width: 172, height: 70 },
+    { id: "R1", type: "row", label: "Ряд A", seats: 8, mode: "seat", price: 239, category: "Golden Ring", x: 82, y: 67, width: 210, height: 54 },
+    { id: "BAR", type: "bar", label: "ЦЕНТРАЛЬНЫЙ БАР", seats: 0, x: 50, y: 95, width: 250, height: 46 },
   ],
 };
 
 const hebrew = new Map(Object.entries({
-  "События":"אירועים","Организаторам":"למפיקים","Сканер":"סורק","Demo back-office":"ממשק מפיק","Статическая демонстрация":"הדגמה סטטית","Оплата, база данных и сканирование отключены":"תשלום, מסד נתונים וסריקה אינם פעילים","Билеты, ради которых хочется выйти из дома.":"כרטיסים שבשבילם שווה לצאת מהבית.","Ближайшие события":"אירועים קרובים","Все события":"כל האירועים","Выберите билет":"בחירת כרטיס","Выберите место на карте":"בחירת מקום במפה","СЦЕНА":"במה","Итого":"סה״כ","Продолжить":"המשך","Подать заявку":"שליחת בקשה","Количество":"כמות","Заявка на билет":"בקשה לכרטיס","Данные для проверки":"פרטים לבדיקה","Имя и фамилия":"שם מלא","Телефон":"טלפון","Промокод":"קוד הטבה","Оплаты сейчас нет":"אין תשלום כעת","Отправить заявку организатору":"שליחת בקשה למפיק","Ваш заказ":"ההזמנה שלך","Заявка отправлена":"הבקשה נשלחה","Заявка одобрена":"הבקשה אושרה","Заявка отклонена":"הבקשה נדחתה","Открыть приложение организатора":"פתיחת ממשק המפיק","Редактор карты мероприятия":"עורך מפת האירוע","Добавить стол":"הוספת שולחן","Добавить диван":"הוספת ספה","Продажа целиком":"מכירה שלמה","Продажа по местам":"מכירה לפי מקומות","Цена":"מחיר","Категория билета":"קטגוריית כרטיס","Сохранить карту":"שמירת מפה","Как продавать билеты":"איך למכור כרטיסים","Автоматическая продажа":"מכירה אוטומטית","Только после моего одобрения":"רק לאחר האישור שלי","Заявки на вход":"בקשות כניסה","Одобрить":"אישור","Отклонить":"דחייה","Посмотреть событие":"צפייה באירוע","мест":"מקומות","целиком":"שלם","за место":"למקום"
+  "События":"אירועים","Организаторам":"למפיקים","Сканер":"סורק","Demo back-office":"ממשק מפיק","Статическая демонстрация":"הדגמה סטטית","Оплата, база данных и сканирование отключены":"תשלום, מסד נתונים וסריקה אינם פעילים","Билеты, ради которых хочется выйти из дома.":"כרטיסים שבשבילם שווה לצאת מהבית.","Ближайшие события":"אירועים קרובים","Все события":"כל האירועים","Выберите билет":"בחירת כרטיס","Выберите место на карте":"בחירת מקום במפה","СЦЕНА":"במה","Итого":"סה״כ","Продолжить":"המשך","Подать заявку":"שליחת בקשה","Количество":"כמות","Заявка на билет":"בקשה לכרטיס","Данные для проверки":"פרטים לבדיקה","Имя и фамилия":"שם מלא","Телефон":"טלפון","Промокод":"קוד הטבה","Оплаты сейчас нет":"אין תשלום כעת","Отправить заявку организатору":"שליחת בקשה למפיק","Ваш заказ":"ההזמנה שלך","Заявка отправлена":"הבקשה נשלחה","Заявка одобрена":"הבקשה אושרה","Заявка отклонена":"הבקשה נדחתה","Открыть приложение организатора":"פתיחת ממשק המפיק","Редактор карты мероприятия":"עורך מפת האירוע","Добавить стол":"הוספת שולחן","Добавить диван":"הוספת ספה","Продажа целиком":"מכירה שלמה","Продажа по местам":"מכירה לפי מקומות","Цена":"מחיר","Категория билета":"קטגוריית כרטיס","Сохранить карту":"שמירת מפה","Как продавать билеты":"איך למכור כרטיסים","Автоматическая продажа":"מכירה אוטומטית","Только после моего одобрения":"רק לאחר האישור שלי","Заявки на вход":"בקשות כניסה","Одобрить":"אישור","Отклонить":"דחייה","Посмотреть событие":"צפייה באירוע","мест":"מקומות","целиком":"שלם","за место":"למקום","Дизайн схемы":"עיצוב המפה","Назначить билеты":"שיוך כרטיסים","Добавить места":"הוספת מקומות","Добавить объекты":"הוספת אובייקטים","Ряды":"שורות","Прямоугольный стол":"שולחן מלבני","Круглый стол":"שולחן עגול","Диван":"ספה","Зона":"אזור","Сцена":"במה","Бар":"בר","Текст":"טקסט","Превью":"תצוגה מקדימה","Сохранить":"שמירה","Вместимость площадки":"קיבולת המקום","посадочных мест":"מקומות ישיבה","Выбран объект":"האובייקט שנבחר","Название":"שם","Количество мест":"מספר מקומות","Ширина":"רוחב","Высота":"גובה","Как продавать этот объект":"איך למכור את האובייקט","Целиком":"הכול יחד","По местам":"לפי מקומות","Одна цена за весь объект":"מחיר אחד לכל האובייקט","Каждый стул отдельно":"כל כיסא בנפרד","Удалить объект":"מחיקת אובייקט"
 }));
 const russian = new Map([...hebrew.entries()].map(([ru, he]) => [he, ru]));
 
@@ -43,8 +49,21 @@ function applyLanguage() {
   });
 }
 
+const sellableTypes = new Set(["table", "round-table", "sofa", "row"]);
+
+function seatsMarkup(item, editor = false) {
+  return `<span class="furniture-seats">${Array.from({length:item.seats},(_,index)=>`<button class="demo-chair seat-${index + 1} ${!editor && state.selectedSeats.includes(`${item.id}-${index+1}`) ? "selected" : ""}" ${item.mode === "whole" || editor ? "disabled" : ""} data-map-seat="${item.id}-${index+1}" data-parent="${item.id}">${index+1}</button>`).join("")}</span>`;
+}
+
+function furnitureMarkup(item, editor = false) {
+  const selected = (editor ? state.editorObject : state.selectedMapObject) === item.id;
+  const style = `left:${item.x}%;top:${item.y}%;width:${item.width || 130}px;height:${item.height || 70}px`;
+  if (!sellableTypes.has(item.type)) return `<div class="venue-object decoration ${item.type} ${selected ? "selected" : ""}" style="${style}" ${editor ? `data-edit-object="${item.id}"` : ""}><strong>${item.label}</strong></div>`;
+  return `<div class="venue-object furniture ${item.type} ${selected ? "selected" : ""}" style="${style}" data-${editor ? "edit" : "map"}-object="${item.id}"><div class="furniture-body"><strong>${item.label}</strong>${item.type === "sofa" ? `<span class="sofa-cushions">${Array.from({length:item.seats},()=>"<i></i>").join("")}</span>` : ""}</div>${seatsMarkup(item, editor)}${editor ? "" : `<small class="object-price">${money(item.price)} ${item.mode === "whole" ? "целиком" : "за место"}</small>`}</div>`;
+}
+
 function mapMarkup(editor = false) {
-  return `<div class="demo-map"><div class="demo-stage">СЦЕНА</div>${state.mapObjects.map((item) => `<div class="demo-object ${item.type} ${(editor ? state.editorObject : state.selectedMapObject) === item.id ? "selected" : ""}" style="left:${item.x}%;top:${item.y}%" data-${editor ? "edit" : "map"}-object="${item.id}"><strong>${item.label}</strong><span class="demo-chairs">${Array.from({length:item.seats},(_,index)=>`<button class="demo-chair ${!editor && state.selectedSeats.includes(`${item.id}-${index+1}`) ? "selected" : ""}" ${item.mode === "whole" || editor ? "disabled" : ""} data-map-seat="${item.id}-${index+1}" data-parent="${item.id}">${index+1}</button>`).join("")}</span><small>${money(item.price)} ${item.mode === "whole" ? "целиком" : "за место"}</small></div>`).join("")}</div>`;
+  return `<div class="demo-map ${editor ? "editor-map" : ""}">${state.mapObjects.map((item) => furnitureMarkup(item, editor)).join("")}</div>`;
 }
 
 function selectedMapItem() { return state.mapObjects.find((item) => item.id === state.selectedMapObject); }
@@ -226,7 +245,24 @@ function ticket() {
 function adminMapEditorMarkup() {
   const selected = state.mapObjects.find((item) => item.id === state.editorObject) || state.mapObjects[0];
   if (selected) state.editorObject = selected.id;
-  return `<section class="panel" style="margin-top:22px"><div class="section-head row"><div><span class="eyebrow">Venue map builder</span><h2>Редактор карты мероприятия</h2></div><div class="row"><button id="add-table" class="button ghost">Добавить стол</button><button id="add-sofa" class="button ghost">Добавить диван</button></div></div><p class="muted">Создайте столы и диваны, назначьте категорию и выберите продажу целиком или отдельных мест.</p><div class="map-tools">${mapMarkup(true)}<div class="map-inspector">${selected ? `<label class="field"><span>Название</span><input id="map-label" class="input" value="${selected.label}"></label><label class="field"><span>Количество мест</span><input id="map-seats" class="input" type="number" min="1" max="12" value="${selected.seats}"></label><label class="field"><span>Категория билета</span><select id="map-category" class="input"><option ${selected.category === "VIP Seating" ? "selected" : ""}>VIP Seating</option><option ${selected.category === "Golden Ring" ? "selected" : ""}>Golden Ring</option></select></label><div><strong>Способ продажи</strong><div class="map-mode"><button class="button ${selected.mode === "whole" ? "" : "ghost"}" data-map-mode="whole">Продажа целиком</button><button class="button ${selected.mode === "seat" ? "" : "ghost"}" data-map-mode="seat">Продажа по местам</button></div></div><label class="field"><span>Цена, ₪ ${selected.mode === "whole" ? "целиком" : "за место"}</span><input id="map-price" class="input" type="number" min="1" value="${selected.price}"></label><label class="field"><span>Положение по горизонтали</span><input id="map-x" type="range" min="8" max="92" value="${selected.x}"></label><label class="field"><span>Положение по вертикали</span><input id="map-y" type="range" min="20" max="90" value="${selected.y}"></label><button id="remove-map-object" class="button ghost">Удалить объект</button>` : ""}<button id="save-map" class="button full">Сохранить карту</button></div></div></section>`;
+  const capacity = state.mapObjects.filter((item) => sellableTypes.has(item.type)).reduce((sum, item) => sum + item.seats, 0);
+  const palette = [
+    ["row", "Ряды"], ["table", "Прямоугольный стол"], ["round-table", "Круглый стол"], ["sofa", "Диван"], ["zone", "Зона"],
+    ["stage", "Сцена"], ["bar", "Бар"], ["text", "Текст"],
+  ];
+  const isSellable = selected && sellableTypes.has(selected.type);
+  return `<section class="venue-builder-demo" style="margin-top:22px">
+    <div class="builder-demo-head">
+      <div><span class="eyebrow">Venue map builder</span><h2>Редактор карты мероприятия</h2></div>
+      <div class="builder-tabs"><button class="${state.editorTab === "design" ? "active" : ""}" data-editor-tab="design">Дизайн схемы</button><button class="${state.editorTab === "tickets" ? "active" : ""}" data-editor-tab="tickets">Назначить билеты</button></div>
+      <div class="builder-actions"><button class="icon-action" title="Отменить">↶</button><button class="icon-action" title="Повторить">↷</button><button id="preview-map" class="button ghost">Превью</button><button id="save-map" class="button">Сохранить</button></div>
+    </div>
+    <div class="builder-demo-layout">
+      <aside class="object-library"><strong>Добавить места</strong>${palette.slice(0,5).map(([type,label])=>`<button data-add-object="${type}"><span class="palette-visual ${type}"><i></i><i></i><i></i></span><span>${label}</span></button>`).join("")}<strong>Добавить объекты</strong>${palette.slice(5).map(([type,label])=>`<button data-add-object="${type}"><span class="palette-visual ${type}"><i></i></span><span>${label}</span></button>`).join("")}</aside>
+      <div class="builder-workspace"><div class="floating-tools"><button>↖</button><button>☝</button><span></span><button data-zoom="out">−</button><strong>${Math.round(state.editorZoom * 100)}%</strong><button data-zoom="in">+</button></div><div class="builder-viewport"><div class="builder-world" style="transform:scale(${state.editorZoom})">${mapMarkup(true)}</div></div></div>
+      <aside class="property-panel"><div class="capacity"><span>Вместимость площадки</span><strong>${capacity}</strong><small>посадочных мест</small></div>${selected ? `<div class="selected-kind"><span class="palette-visual ${selected.type}"><i></i><i></i><i></i></span><div><small>Выбран объект</small><strong>${selected.label}</strong></div></div><label class="field"><span>Название</span><input id="map-label" class="input" value="${selected.label}"></label>${state.editorTab === "design" ? `<label class="field"><span>Количество мест</span><input id="map-seats" class="input" type="number" min="${isSellable ? 1 : 0}" max="30" value="${selected.seats}"></label><div class="dimensions"><label class="field"><span>Ширина</span><input id="map-width" class="input" type="number" value="${selected.width || 130}"></label><label class="field"><span>Высота</span><input id="map-height" class="input" type="number" value="${selected.height || 70}"></label></div><label class="field"><span>Положение по горизонтали</span><input id="map-x" type="range" min="6" max="94" value="${selected.x}"></label><label class="field"><span>Положение по вертикали</span><input id="map-y" type="range" min="6" max="96" value="${selected.y}"></label>` : isSellable ? `<label class="field"><span>Категория билета</span><select id="map-category" class="input"><option ${selected.category === "VIP Seating" ? "selected" : ""}>VIP Seating</option><option ${selected.category === "Golden Ring" ? "selected" : ""}>Golden Ring</option></select></label><div><strong>Как продавать этот объект</strong><div class="map-mode"><button class="${selected.mode === "whole" ? "active" : ""}" data-map-mode="whole"><strong>Целиком</strong><small>Одна цена за весь объект</small></button><button class="${selected.mode === "seat" ? "active" : ""}" data-map-mode="seat"><strong>По местам</strong><small>Каждый стул отдельно</small></button></div></div><label class="field"><span>Цена, ₪ ${selected.mode === "whole" ? "за весь объект" : "за одно место"}</span><input id="map-price" class="input" type="number" min="1" value="${selected.price}"></label><div class="ticket-summary"><span>${selected.seats} мест</span><strong>${selected.mode === "whole" ? money(selected.price) : `${money(selected.price)} × ${selected.seats}`}</strong></div>` : `<div class="empty-inspector">Этот объект оформляет площадку и не продаётся.</div>`}<button id="remove-map-object" class="danger-link">Удалить объект</button>` : `<div class="empty-inspector">Выберите объект на схеме, чтобы настроить его.</div>`}</aside>
+    </div>
+  </section>`;
 }
 
 function admin() {
@@ -249,11 +285,12 @@ function admin() {
     button.onclick = () => { state.salesMode = button.dataset.mode; admin(); };
   });
   document.querySelectorAll("[data-edit-object]").forEach((object) => { object.onclick = () => { state.editorObject = object.dataset.editObject; admin(); }; });
-  document.querySelector("#add-table").onclick = () => addMapObject("table");
-  document.querySelector("#add-sofa").onclick = () => addMapObject("sofa");
+  document.querySelectorAll("[data-add-object]").forEach((button) => { button.onclick = () => addMapObject(button.dataset.addObject); });
+  document.querySelectorAll("[data-editor-tab]").forEach((button) => { button.onclick = () => { state.editorTab = button.dataset.editorTab; admin(); }; });
+  document.querySelectorAll("[data-zoom]").forEach((button) => { button.onclick = () => { state.editorZoom = Math.max(.45, Math.min(1.05, state.editorZoom + (button.dataset.zoom === "in" ? .1 : -.1))); admin(); }; });
   document.querySelectorAll("[data-map-mode]").forEach((button) => { button.onclick = () => { updateEditorObject({ mode: button.dataset.mapMode }); admin(); }; });
   const bindEditor = (selector, key, numeric = false) => { const input = document.querySelector(selector); if (input) input.onchange = () => { updateEditorObject({ [key]: numeric ? Number(input.value) : input.value }); admin(); }; };
-  bindEditor("#map-label", "label"); bindEditor("#map-seats", "seats", true); bindEditor("#map-category", "category"); bindEditor("#map-price", "price", true); bindEditor("#map-x", "x", true); bindEditor("#map-y", "y", true);
+  bindEditor("#map-label", "label"); bindEditor("#map-seats", "seats", true); bindEditor("#map-category", "category"); bindEditor("#map-price", "price", true); bindEditor("#map-width", "width", true); bindEditor("#map-height", "height", true); bindEditor("#map-x", "x", true); bindEditor("#map-y", "y", true);
   const remove = document.querySelector("#remove-map-object"); if (remove) remove.onclick = () => { state.mapObjects = state.mapObjects.filter((item) => item.id !== state.editorObject); state.editorObject = state.mapObjects[0]?.id || null; admin(); };
   document.querySelector("#save-map").onclick = () => { document.querySelector("#save-map").textContent = "Карта сохранена ✓"; };
   const approve = document.querySelector("#approve");
@@ -264,7 +301,16 @@ function admin() {
 }
 
 function updateEditorObject(patch) { state.mapObjects = state.mapObjects.map((item) => item.id === state.editorObject ? { ...item, ...patch } : item); }
-function addMapObject(type) { const number = state.mapObjects.filter((item) => item.type === type).length + 1; const item = { id: `${type[0].toUpperCase()}${Date.now()}`, type, label: `${type === "table" ? "T" : "S"}${number}`, seats: type === "table" ? 6 : 4, mode: "whole", price: type === "table" ? 1890 : 1200, category: "VIP Seating", x: 18 + (state.mapObjects.length * 13) % 70, y: 30 + (state.mapObjects.length * 11) % 55 }; state.mapObjects.push(item); state.editorObject = item.id; admin(); }
+function addMapObject(type) {
+  const number = state.mapObjects.filter((item) => item.type === type).length + 1;
+  const presets = {
+    table: ["Стол", 6, 1890, 128, 76], "round-table": ["Круглый стол", 6, 1890, 104, 104], sofa: ["Диван", 4, 1200, 172, 70], row: ["Ряд", 8, 239, 210, 54],
+    zone: ["Зона", 0, 0, 280, 180], stage: ["СЦЕНА", 0, 0, 360, 70], bar: ["БАР", 0, 0, 230, 46], text: ["Надпись", 0, 0, 180, 44],
+  };
+  const [label, seats, price, width, height] = presets[type] || presets.table;
+  const item = { id: `${type[0].toUpperCase()}${Date.now()}`, type, label: `${label} ${number}`, seats, mode: type === "row" ? "seat" : "whole", price, category: sellableTypes.has(type) ? "VIP Seating" : null, width, height, x: 20 + (state.mapObjects.length * 11) % 60, y: 24 + (state.mapObjects.length * 9) % 62 };
+  state.mapObjects.push(item); state.editorObject = item.id; admin();
+}
 
 function route() {
   const page = location.hash.slice(1) || "home";

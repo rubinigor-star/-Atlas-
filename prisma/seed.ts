@@ -12,13 +12,18 @@ async function main(){
   const vip=await db.ticketCategory.create({data:{name:"VIP Seating",description:"Столы, диваны и отдельные VIP-места",priceMinor:34900,capacity:80,sold:0,eventId:event.id}});
   const zone=await db.zone.create({data:{name:"Основной зал",eventId:event.id}});
   const layout=[
-    {label:"T1",objectType:SeatingObjectType.TABLE,seats:6,priceMinor:189000,priceMode:PriceMode.WHOLE_TABLE,x:22,y:38,rotation:0},
-    {label:"T2",objectType:SeatingObjectType.TABLE,seats:6,priceMinor:189000,priceMode:PriceMode.WHOLE_TABLE,x:50,y:38,rotation:0},
-    {label:"T3",objectType:SeatingObjectType.TABLE,seats:6,priceMinor:34900,priceMode:PriceMode.PER_SEAT,x:78,y:38,rotation:0},
-    {label:"S1",objectType:SeatingObjectType.SOFA,seats:4,priceMinor:120000,priceMode:PriceMode.WHOLE_TABLE,x:30,y:72,rotation:0},
-    {label:"S2",objectType:SeatingObjectType.SOFA,seats:4,priceMinor:29900,priceMode:PriceMode.PER_SEAT,x:70,y:72,rotation:0},
+    {label:"T1",objectType:SeatingObjectType.TABLE,seats:6,priceMinor:189000,priceMode:PriceMode.WHOLE_TABLE,x:22,y:40,rotation:0,width:170,height:100},
+    {label:"T2",objectType:SeatingObjectType.ROUND_TABLE,seats:6,priceMinor:189000,priceMode:PriceMode.WHOLE_TABLE,x:50,y:40,rotation:0,width:130,height:130},
+    {label:"T3",objectType:SeatingObjectType.TABLE,seats:6,priceMinor:34900,priceMode:PriceMode.PER_SEAT,x:78,y:40,rotation:0,width:170,height:100},
+    {label:"S1",objectType:SeatingObjectType.SOFA,seats:4,priceMinor:120000,priceMode:PriceMode.WHOLE_TABLE,x:30,y:72,rotation:0,width:190,height:86},
+    {label:"S2",objectType:SeatingObjectType.SOFA,seats:4,priceMinor:29900,priceMode:PriceMode.PER_SEAT,x:70,y:72,rotation:0,width:190,height:86},
   ];
   for(const item of layout){await db.table.create({data:{...item,zoneId:zone.id,categoryId:vip.id,seatItems:{create:Array.from({length:item.seats},(_,index)=>({label:`${item.label}-${index+1}`,position:index+1}))}}});}
+  await db.table.createMany({data:[
+    {label:"СЦЕНА",objectType:SeatingObjectType.STAGE,seats:0,priceMinor:0,priceMode:PriceMode.WHOLE_TABLE,x:50,y:12,rotation:0,width:430,height:90,zoneId:zone.id},
+    {label:"ТАНЦПОЛ",objectType:SeatingObjectType.ZONE,seats:0,priceMinor:0,priceMode:PriceMode.WHOLE_TABLE,x:50,y:47,rotation:0,width:420,height:250,zoneId:zone.id},
+    {label:"ЦЕНТРАЛЬНЫЙ БАР",objectType:SeatingObjectType.BAR,seats:0,priceMinor:0,priceMode:PriceMode.WHOLE_TABLE,x:50,y:88,rotation:0,width:320,height:68,zoneId:zone.id},
+  ]});
   await db.promoCode.create({data:{code:"ATLAS10",discountPercent:10,eventId:event.id}}); await db.referral.create({data:{code:"MALINA",label:"Malina audience",eventId:event.id}});
   const order=await db.order.create({data:{publicId:orderNumber(),idempotencyKey:crypto.randomUUID(),customerName:"Demo Buyer",customerEmail:"buyer@atlas.test",customerPhone:"+972525138899",totalMinor:29800,status:OrderStatus.PAID,eventId:event.id,items:{create:{quantity:2,unitPriceMinor:14900,categoryName:regular.name}}}});
   await db.ticket.createMany({data:[{publicCode:ticketCode(),holderName:order.customerName,status:TicketStatus.VALID,categoryId:regular.id,orderId:order.id},{publicCode:ticketCode(),holderName:order.customerName,status:TicketStatus.CANCELLED,categoryId:regular.id,orderId:order.id}]});

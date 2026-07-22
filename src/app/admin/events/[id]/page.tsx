@@ -37,7 +37,9 @@ export default async function ManageEvent({ params }: { params: Promise<{ id: st
           x: item.x,
           y: item.y,
           rotation: item.rotation,
-          categoryId: item.categoryId ?? event.categories[0]?.id ?? "",
+          width: item.width,
+          height: item.height,
+          categoryId: item.categoryId,
           reserved: item.reserved || item.seatItems.some((seat) => seat.status !== "AVAILABLE"),
         })))}
       />

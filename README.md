@@ -10,7 +10,8 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 - Per-event sales mode: instant ticket delivery or organizer approval before payment
 - Organizer application queue with approve/reject decisions and applicant eligibility answers
 - Approved applications reserve inventory for a 24-hour test-payment window
-- Visual venue-map editor with stage, tables and sofas
+- Three-panel venue-map builder with a zoomable canvas, object library and property inspector
+- Rectangular and round tables, sofas, chair rows, zones, stage, bar and text objects
 - Ticket-category assignment for every map object
 - Whole table/sofa sales or individually reservable chairs
 - Buyer seat selection on the same responsive map
@@ -40,15 +41,16 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 
 ### Venue map flow
 
-1. The organizer opens an event and uses the venue-map editor to add tables or sofas.
-2. Every object receives a label, position, rotation, chair count, ticket category and price.
-3. `WHOLE_TABLE` sells and locks the full object in one atomic checkout operation.
-4. `PER_SEAT` creates a persistent opaque record for every chair; buyers can select one or more chairs behind the same object.
-5. Approval-required requests do not reserve chairs until approval. Approval claims the chosen chairs and opens the payment window.
-6. Instant checkout claims the full object or selected chairs and issues the correct number of tickets.
-7. A second request for an already claimed chair or object is rejected server-side.
+1. The organizer opens an event and first designs the venue by adding furniture, rows and decorative objects to the canvas.
+2. Every object receives a label, position, dimensions and rotation; sellable furniture also receives a chair count.
+3. In the separate `Assign tickets` mode, the organizer assigns a category, price and whole-object or per-chair selling rule.
+4. `WHOLE_TABLE` sells and locks the full table or sofa in one atomic checkout operation.
+5. `PER_SEAT` creates a persistent opaque record for every chair; buyers can select one or more chairs behind the same object.
+6. Approval-required requests do not reserve chairs until approval. Approval claims the chosen chairs and opens the payment window.
+7. Instant checkout claims the full object or selected chairs and issues the correct number of tickets.
+8. A second request for an already claimed chair or object is rejected server-side.
 
-The seeded demonstration contains three tables and two sofas using both sales modes.
+The seeded demonstration contains rectangular and round tables, two sofas, a stage, dance floor and bar using both sales modes.
 
 ## Stack
 
@@ -134,7 +136,7 @@ The code is shaped for Vercel, but the local SQLite database and filesystem post
 - Approval-mode payment is simulated; production must send a secure expiring payment link and release expired holds automatically.
 - Roles exist in the schema but routes are not protected.
 - Promo and referral support is intentionally minimal.
-- The current graphical editor supports a stage, tables, sofas and chairs. Free-form walls, curved rows, imported CAD plans and version migration after sales open are intentionally outside this MVP.
+- The graphical editor supports furniture, straight chair rows and key decorative objects. Curved rows, free-form walls, multi-selection, imported CAD plans and version migration after sales open are intentionally outside this MVP.
 - Russian/Hebrew switching is implemented for navigation and the primary purchase, checkout and map-management flows. Remaining secondary back-office copy still needs full translation coverage before production.
 - SQLite provides a credible local transaction demo, not production concurrency guarantees.
 - Camera scanning depends on browser permission and HTTPS outside localhost.

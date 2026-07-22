@@ -46,7 +46,13 @@ enum PriceMode {
 
 enum SeatingObjectType {
   TABLE
+  ROUND_TABLE
   SOFA
+  ROW
+  ZONE
+  STAGE
+  BAR
+  TEXT
 }
 
 enum SeatStatus {
@@ -144,6 +150,8 @@ model Table {
   x          Int               @default(20)
   y          Int               @default(20)
   rotation   Int               @default(0)
+  width      Int               @default(120)
+  height     Int               @default(80)
   reserved   Boolean           @default(false)
   zoneId     String
   zone       Zone              @relation(fields: [zoneId], references: [id])

@@ -12,15 +12,17 @@ const layout = z.object({
   objects: z.array(z.object({
     id: z.string().optional(),
     label: z.string().min(1).max(30),
-    objectType: z.enum(["TABLE", "SOFA"]),
-    seats: z.number().int().min(1).max(12),
+    objectType: z.enum(["TABLE", "ROUND_TABLE", "SOFA", "ROW", "ZONE", "STAGE", "BAR", "TEXT"]),
+    seats: z.number().int().min(0).max(50),
     priceMode: z.enum(["WHOLE_TABLE", "PER_SEAT"]),
-    priceMinor: z.number().int().positive(),
+    priceMinor: z.number().int().min(0),
     x: z.number().int().min(0).max(100),
     y: z.number().int().min(0).max(100),
     rotation: z.number().int().min(0).max(359),
-    categoryId: z.string().min(1),
-  })).min(1).max(100),
+    width: z.number().int().min(40).max(800),
+    height: z.number().int().min(30).max(600),
+    categoryId: z.string().min(1).nullable(),
+  })).min(1).max(300),
 });
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -49,8 +51,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       await db.$transaction(async (tx) => {
         const categories = await tx.ticketCategory.findMany({ where: { eventId: id }, select: { id: true } });
         const categoryIds = new Set(categories.map((item) => item.id));
-        if (value.objects.some((item) => !categoryIds.has(item.categoryId))) {
+        const sellableTypes = new Set(["TABLE", "ROUND_TABLE", "SOFA", "ROW"]);
+        if (value.objects.some((item) => item.categoryId && !categoryIds.has(item.categoryId))) {
           throw new Error("Категория билета не относится к этому мероприятию");
+        }
+        if (value.objects.some((item) => sellableTypes.has(item.objectType) && (!item.categoryId || item.seats < 1 || item.priceMinor < 1))) {
+          throw new Error("Для продаваемого объекта нужны места, категория билета и цена");
         }
         const existing = await tx.table.findMany({
           where: { zone: { eventId: id } },
@@ -75,9 +81,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
               x: item.x,
               y: item.y,
               rotation: item.rotation,
+              width: item.width,
+              height: item.height,
               categoryId: item.categoryId,
               seatItems: {
-                create: Array.from({ length: item.seats }, (_, index) => ({
+                create: Array.from({ length: sellableTypes.has(item.objectType) ? item.seats : 0 }, (_, index) => ({
                   label: `${item.label}-${index + 1}`,
                   position: index + 1,
                 })),
