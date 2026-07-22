@@ -5,12 +5,13 @@ import { VenueMapEditor } from "@/components/venue-map-editor";
 import { db } from "@/lib/db";
 import { money } from "@/lib/format";
 import { requireEventAccess } from "@/lib/auth";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function ManageEvent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requireEventAccess("EVENT_VIEW", id);
+  const staff=await requireEventAccess("EVENT_VIEW", id);
   const event = await db.event.findUnique({ where: { id }, include: { categories: true, zones: { include: { tables: { include: { seatItems: true } } } } } });
   if (!event) notFound();
   return (
@@ -23,9 +24,9 @@ export default async function ManageEvent({ params }: { params: Promise<{ id: st
         <div className="stat"><span className="muted">VIP-столов</span><strong>{event.zones.reduce((sum, zone) => sum + zone.tables.length, 0)}</strong></div>
       </div>
       <div className="table-wrap"><table><thead><tr><th>Категория</th><th>Цена</th><th>Продано</th><th>Остаток</th></tr></thead><tbody>{event.categories.map((item) => <tr key={item.id}><td>{item.name}</td><td>{money(item.priceMinor)}</td><td>{item.sold}</td><td>{item.capacity - item.sold}</td></tr>)}</tbody></table></div>
-      <h2>Настройки</h2>
-      <EventManager event={{ id: event.id, title: event.title, description: event.description, status: event.status, startsAt: event.startsAt.toISOString(), salesMode: event.salesMode, approvalInstructions: event.approvalInstructions, mapEnabled: event.mapEnabled }} />
-      {event.mapEnabled && <><h2 className="section-title">Карта мероприятия</h2><VenueMapEditor
+      {(staff.permissionSet.has("EVENT_MANAGE")||staff.permissionSet.has("TICKET_MANAGE"))&&<div className="row between"><h2>Настройки</h2>{staff.permissionSet.has("TICKET_MANAGE")&&<Link className="btn dark" href={`/office/events/${event.id}/ticket-design`}>Открыть редактор билета</Link>}</div>}
+      {staff.permissionSet.has("EVENT_MANAGE")&&<EventManager event={{ id: event.id, title: event.title, description: event.description, status: event.status, startsAt: event.startsAt.toISOString(), salesMode: event.salesMode, approvalInstructions: event.approvalInstructions, mapEnabled: event.mapEnabled }} />}
+      {event.mapEnabled && staff.permissionSet.has("TICKET_MANAGE") && <><h2 className="section-title">Карта мероприятия</h2><VenueMapEditor
         eventId={event.id}
         categories={event.categories.map((category) => ({ id: category.id, name: category.name, priceMinor: category.priceMinor, colorHex: category.colorHex }))}
         initialObjects={event.zones.flatMap((zone) => zone.tables.map((item) => ({

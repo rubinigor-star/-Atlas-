@@ -1,0 +1,8 @@
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { requireEventAccess } from "@/lib/auth";
+import { writeAudit } from "@/lib/audit";
+import { ticketTemplateSchema } from "@/lib/ticket-template";
+import { notifyWalletTickets } from "@/lib/wallet-push";
+
+export async function PUT(request:Request,{params}:{params:Promise<{id:string}>}){try{const{id}=await params;const actor=await requireEventAccess("TICKET_MANAGE",id);const design=ticketTemplateSchema.parse(await request.json());const template=await db.ticketTemplate.upsert({where:{eventId:id},create:{eventId:id,name:design.name,backgroundColor:design.backgroundColor,accentColor:design.accentColor,textColor:design.textColor,logoUrl:design.logoUrl,backgroundUrl:design.backgroundUrl,canvasJson:JSON.stringify(design.elements)},update:{name:design.name,backgroundColor:design.backgroundColor,accentColor:design.accentColor,textColor:design.textColor,logoUrl:design.logoUrl,backgroundUrl:design.backgroundUrl,canvasJson:JSON.stringify(design.elements)}});const tickets=await db.ticket.findMany({where:{order:{eventId:id}},select:{id:true}});await db.ticket.updateMany({where:{id:{in:tickets.map(ticket=>ticket.id)}},data:{walletUpdatedAt:new Date()}});const pushed=await notifyWalletTickets(tickets.map(ticket=>ticket.id));await writeAudit(actor,{action:"TICKET_TEMPLATE_UPDATED",entityType:"TicketTemplate",entityId:template.id,summary:"Обновлён дизайн билета",metadata:{elements:design.elements.length}});return NextResponse.json({ok:true,updatedWalletPasses:tickets.length,pushed})}catch(error){const message=error instanceof Error?error.message:"Ошибка";return NextResponse.json({error:message==="FORBIDDEN"?"Недостаточно прав":message},{status:message==="FORBIDDEN"?403:400})}}

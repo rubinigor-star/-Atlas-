@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEventAccess } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
+import { notifyWalletTickets } from "@/lib/wallet-push";
 
 const update = z.object({ action: z.literal("update"), title: z.string().min(3), description: z.string().min(20), startsAt: z.string().datetime() });
 const status = z.object({ action: z.literal("status"), status: z.enum(["DRAFT", "PUBLISHED"]) });
@@ -38,6 +39,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (body.action === "update") {
       const value = update.parse(body);
       await db.event.update({ where: { id }, data: { title: value.title, description: value.description, startsAt: new Date(value.startsAt) } });
+      const walletTickets=await db.ticket.findMany({where:{order:{eventId:id}},select:{id:true}});
+      await db.ticket.updateMany({where:{id:{in:walletTickets.map(ticket=>ticket.id)}},data:{walletUpdatedAt:new Date()}});
+      await notifyWalletTickets(walletTickets.map(ticket=>ticket.id));
     } else if (body.action === "status") {
       const value = status.parse(body);
       await db.event.update({ where: { id }, data: { status: value.status } });

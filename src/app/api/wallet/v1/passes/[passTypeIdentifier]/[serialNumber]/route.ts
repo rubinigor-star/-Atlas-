@@ -1,0 +1,4 @@
+import { db } from "@/lib/db";
+import { buildWalletPass,walletAuthorization } from "@/lib/wallet";
+export const runtime="nodejs";
+export async function GET(request:Request,{params}:{params:Promise<{passTypeIdentifier:string;serialNumber:string}>}){const{passTypeIdentifier,serialNumber}=await params;if(passTypeIdentifier!==process.env.APPLE_WALLET_PASS_TYPE_ID)return new Response(null,{status:404});const ticket=await db.ticket.findUnique({where:{walletSerial:serialNumber}});if(!ticket||!walletAuthorization(request,ticket.walletAuthToken))return new Response(null,{status:401});const modified=request.headers.get("if-modified-since");if(modified&&new Date(modified)>=ticket.walletUpdatedAt)return new Response(null,{status:304});const buffer=await buildWalletPass(ticket.id);return new Response(new Uint8Array(buffer),{headers:{"content-type":"application/vnd.apple.pkpass","last-modified":ticket.walletUpdatedAt.toUTCString(),"cache-control":"no-store"}})}

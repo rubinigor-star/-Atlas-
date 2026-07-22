@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { money, eventDate } from "@/lib/format";
 import { TicketCard } from "@/components/ticket-card";
 import { DemoPaymentButton } from "@/components/demo-payment-button";
+import { parseTicketDesign } from "@/lib/ticket-template";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function OrderPage({
   const order = await db.order.findUnique({
     where: { publicId },
     include: {
-      event: { include: { venue: true } },
+      event: { include: { venue: true, ticketTemplate: true } },
       tickets: { include: { category: true } },
     },
   });
@@ -32,6 +33,8 @@ export default async function OrderPage({
   const pending = order.status === "PENDING_APPROVAL";
   const rejected = order.status === "REJECTED";
   const awaitingPayment = order.status === "AWAITING_PAYMENT";
+  const design=parseTicketDesign(order.event.ticketTemplate);
+  const walletReady=Boolean(process.env.APPLE_WALLET_PASS_TYPE_ID&&process.env.APPLE_WALLET_TEAM_ID&&process.env.APPLE_WALLET_SIGNER_CERT_BASE64&&process.env.APPLE_WALLET_SIGNER_KEY_BASE64&&process.env.APPLE_WALLET_WWDR_CERT_BASE64);
 
   return (
     <main className="shell">
@@ -75,7 +78,7 @@ export default async function OrderPage({
         )}
 
         {order.tickets.map((ticket, index) => (
-          <TicketCard key={ticket.id} ticket={ticket} qr={qrs[index]} />
+          <TicketCard key={ticket.id} ticket={ticket} qr={qrs[index]} design={design} event={order.event} orderNumber={order.publicId} walletReady={walletReady} />
         ))}
         <Link href="/" className="btn dark" style={{ marginTop: 20 }}>
           Вернуться к событиям

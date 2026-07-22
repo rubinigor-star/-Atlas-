@@ -146,8 +146,24 @@ model Event {
   promoCodes           PromoCode[]
   referrals            Referral[]
   staffAccess          EventStaffAccess[]
+  ticketTemplate       TicketTemplate?
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
+}
+
+model TicketTemplate {
+  id              String   @id @default(cuid())
+  name            String   @default("Основной билет")
+  canvasJson      String
+  backgroundColor String   @default("#081426")
+  accentColor     String   @default("#FF5C45")
+  textColor       String   @default("#FFFFFF")
+  logoUrl         String?
+  backgroundUrl   String?
+  eventId         String   @unique
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model PermissionGrant {
@@ -310,17 +326,42 @@ model OrderItem {
 }
 
 model Ticket {
-  id         String         @id @default(cuid())
-  publicCode String         @unique
-  status     TicketStatus   @default(VALID)
-  holderName String
-  categoryId String
-  category   TicketCategory @relation(fields: [categoryId], references: [id])
-  orderId    String
-  order      Order          @relation(fields: [orderId], references: [id])
-  scans      Scan[]
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  id                  String               @id @default(cuid())
+  publicCode          String               @unique
+  status              TicketStatus         @default(VALID)
+  holderName          String
+  categoryId          String
+  category            TicketCategory       @relation(fields: [categoryId], references: [id])
+  orderId             String
+  order               Order                @relation(fields: [orderId], references: [id])
+  scans               Scan[]
+  walletSerial        String?              @unique
+  walletAuthToken     String?              @unique
+  walletUpdatedAt     DateTime             @default(now())
+  walletRegistrations WalletRegistration[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+}
+
+model WalletDevice {
+  id                String               @id @default(cuid())
+  libraryIdentifier String               @unique
+  pushToken         String
+  registrations     WalletRegistration[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+}
+
+model WalletRegistration {
+  id        String       @id @default(cuid())
+  deviceId  String
+  device    WalletDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  ticketId  String
+  ticket    Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+
+  @@unique([deviceId, ticketId])
+  @@index([ticketId])
 }
 
 model Scan {

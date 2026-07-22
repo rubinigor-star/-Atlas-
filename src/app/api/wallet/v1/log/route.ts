@@ -1,0 +1,1 @@
+export async function POST(request:Request){const body=await request.json().catch(()=>({logs:[]})) as {logs?:string[]};if(body.logs?.length)console.info("Apple Wallet:",body.logs.slice(0,20));return new Response(null,{status:200})}

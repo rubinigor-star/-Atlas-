@@ -3,7 +3,7 @@ import { orderNumber, ticketCode } from "../src/lib/ticketing";
 import { rolePermissions } from "../src/lib/permissions";
 const db = new PrismaClient();
 async function main(){
-  await db.auditLog.deleteMany(); await db.permissionGrant.deleteMany(); await db.eventStaffAccess.deleteMany(); await db.scan.deleteMany(); await db.ticket.deleteMany(); await db.orderItem.deleteMany(); await db.order.deleteMany(); await db.promoCode.deleteMany(); await db.referral.deleteMany(); await db.seat.deleteMany(); await db.table.deleteMany(); await db.zone.deleteMany(); await db.ticketCategory.deleteMany(); await db.event.deleteMany(); await db.venue.deleteMany(); await db.user.deleteMany(); await db.organization.deleteMany();
+  await db.auditLog.deleteMany(); await db.permissionGrant.deleteMany(); await db.eventStaffAccess.deleteMany(); await db.walletRegistration.deleteMany(); await db.walletDevice.deleteMany(); await db.scan.deleteMany(); await db.ticket.deleteMany(); await db.orderItem.deleteMany(); await db.order.deleteMany(); await db.promoCode.deleteMany(); await db.referral.deleteMany(); await db.seat.deleteMany(); await db.table.deleteMany(); await db.zone.deleteMany(); await db.ticketCategory.deleteMany(); await db.ticketTemplate.deleteMany(); await db.event.deleteMany(); await db.venue.deleteMany(); await db.user.deleteMany(); await db.organization.deleteMany();
   const org=await db.organization.create({data:{name:"Atlas Live Israel"}});
   const staff=[
     {name:"Maya Organizer",email:"organizer@atlas.test",role:Role.ORGANIZER,staffRole:StaffRole.OWNER,jobTitle:"Владелец организации"},

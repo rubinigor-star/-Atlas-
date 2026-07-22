@@ -35,6 +35,11 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 - Team screen for granular staff permissions: events, requests, orders, scanner, analytics and team management
 - Event creation/editing, publish controls, categories and VIP tables with local poster upload
 - Ticket cancellation and code regeneration
+- Per-event Ticket Studio: movable custom text, live event/customer fields, photos, logo, background, colors and QR placement
+- The saved ticket template drives both the customer ticket screen and downloadable PDF
+- Apple Wallet `.pkpass` generation when Apple Pass Type certificates are configured
+- PassKit web-service endpoints for device registration, changed-pass lookup, pass refresh and device logs
+- Event date/title changes, cancellation, code regeneration and first check-in version installed Wallet passes and trigger APNs updates when configured
 - Minimal promo code (`ATLAS10`) and referral data (`MALINA`)
 - Seed event, users and test order
 
@@ -119,8 +124,27 @@ Open `http://localhost:3000`. The customer site is `/`; Atlas Office is `/office
 |---|---|---|
 | `DATABASE_URL` | `file:./dev.db` | Prisma database connection |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | Canonical application URL |
+| `APPLE_WALLET_PASS_TYPE_ID` | Apple Pass Type ID | Pass namespace created in Apple Developer |
+| `APPLE_WALLET_TEAM_ID` | Apple Team ID | Signing team |
+| `APPLE_WALLET_WEB_SERVICE_URL` | Public HTTPS `/api/wallet` URL | Wallet update service |
+| `APPLE_WALLET_SIGNER_CERT_BASE64` | secret | PEM pass certificate encoded as base64 |
+| `APPLE_WALLET_SIGNER_KEY_BASE64` | secret | PEM private key encoded as base64 |
+| `APPLE_WALLET_SIGNER_KEY_PASSPHRASE` | secret | Optional key passphrase |
+| `APPLE_WALLET_WWDR_CERT_BASE64` | secret | Apple WWDR certificate encoded as base64 |
 
 Do not commit `.env` or production secrets.
+
+### Apple Wallet setup and update lifecycle
+
+1. Enroll in the Apple Developer Program and create a Pass Type ID for Atlas.
+2. Create its Pass Type certificate, export the certificate and private key as PEM, and download the current Apple WWDR certificate.
+3. Store the base64-encoded values only in the hosting secret manager using the variables above.
+4. Deploy Atlas on a public HTTPS domain and set `APPLE_WALLET_WEB_SERVICE_URL=https://your-domain/api/wallet`.
+5. After payment, the customer taps **Add to Apple Wallet** and confirms Apple’s system sheet. Apple does not permit silent installation without this explicit confirmation.
+6. Wallet registers the device through the included PassKit endpoints. When the organizer changes event information, Atlas versions every affected pass and sends an empty APNs pass-update notification to registered devices.
+7. Wallet requests the changed serial numbers and downloads a newly signed pass with the same serial number and authentication token. Date, venue and status then update on the phone.
+
+The GitHub Pages preview cannot issue a real pass because it has no secure server or certificates. Local/Vercel Wallet download remains hidden until all required Apple secrets are configured.
 
 ## Demo identities
 
@@ -159,6 +183,8 @@ The code is shaped for Vercel, but the local SQLite database and filesystem post
 - Test checkout marks orders paid without a payment provider.
 - Approval-mode payment is simulated; production must send a secure expiring payment link and release expired holds automatically.
 - Demo identity switching uses an HTTP-only cookie but is not secure production authentication. Critical organizer APIs do enforce organization, permission and event scope server-side.
+- Apple Wallet code is complete but real signing and device push updates require an Apple Developer account, production Pass Type certificate, public HTTPS deployment and on-device testing.
+- Apple requires the customer to confirm adding a pass; Atlas can present the pass immediately after purchase but cannot silently insert it into Wallet.
 - Promo and referral support is intentionally minimal.
 - Scheduled pricing is time-based. Automatic demand-based price changes are intentionally not enabled until audit logs, notification rules and organizer safeguards are designed.
 - The graphical editor supports furniture, straight chair rows and key decorative objects. Curved rows, free-form walls, multi-selection, imported CAD plans and version migration after sales open are intentionally outside this MVP.
