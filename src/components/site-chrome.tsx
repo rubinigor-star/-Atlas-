@@ -11,10 +11,9 @@ export function SiteHeader() {
         <Link href="/" className="brand">ATL<i>AS</i></Link>
         <nav className="navlinks">
           <Link href="/">{t("events")}</Link>
-          <Link href="/admin">{t("organizers")}</Link>
-          <Link href="/scanner">{t("checkin")}</Link>
+          <Link href="/office">{t("organizers")}</Link>
           <button className="language-switch" type="button" onClick={toggleLocale}>{t("language")}</button>
-          <Link href="/admin" className="btn secondary">{t("backoffice")}</Link>
+          <Link href="/office" className="btn secondary">{t("backoffice")}</Link>
         </nav>
       </div>
     </header>

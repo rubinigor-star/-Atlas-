@@ -14,6 +14,29 @@ enum Role {
   ADMIN
 }
 
+enum StaffRole {
+  OWNER
+  ADMIN
+  EVENT_MANAGER
+  APPROVER
+  CHECKIN
+  ANALYST
+  CUSTOM
+}
+
+enum StaffPermission {
+  EVENT_VIEW
+  EVENT_MANAGE
+  TICKET_MANAGE
+  REQUEST_REVIEW
+  ORDER_VIEW
+  ORDER_MANAGE
+  SCAN
+  ANALYTICS_VIEW
+  TEAM_MANAGE
+  FINANCE_VIEW
+}
+
 enum EventStatus {
   DRAFT
   PUBLISHED
@@ -67,21 +90,28 @@ enum SeatStatus {
 }
 
 model Organization {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   name      String
   users     User[]
   events    Event[]
-  createdAt DateTime @default(now())
+  auditLogs AuditLog[]
+  createdAt DateTime   @default(now())
 }
 
 model User {
-  id             String        @id @default(cuid())
+  id             String             @id @default(cuid())
   name           String
-  email          String        @unique
+  email          String             @unique
   role           Role
+  staffRole      StaffRole?         @default(CUSTOM)
+  jobTitle       String?
+  active         Boolean            @default(true)
   organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  createdAt      DateTime      @default(now())
+  organization   Organization?      @relation(fields: [organizationId], references: [id])
+  permissions    PermissionGrant[]
+  eventAccess    EventStaffAccess[]
+  auditLogs      AuditLog[]
+  createdAt      DateTime           @default(now())
 }
 
 model Venue {
@@ -93,30 +123,69 @@ model Venue {
 }
 
 model Event {
-  id                   String           @id @default(cuid())
-  slug                 String           @unique
+  id                   String             @id @default(cuid())
+  slug                 String             @unique
   title                String
   description          String
   posterUrl            String
   startsAt             DateTime
   salesStart           DateTime
   salesEnd             DateTime
-  status               EventStatus      @default(DRAFT)
-  salesMode            SalesMode        @default(INSTANT)
+  status               EventStatus        @default(DRAFT)
+  salesMode            SalesMode          @default(INSTANT)
   approvalInstructions String?
-  mapEnabled           Boolean          @default(false)
-  mapName              String?          @default("Основной зал")
+  mapEnabled           Boolean            @default(false)
+  mapName              String?            @default("Основной зал")
   organizationId       String
-  organization         Organization     @relation(fields: [organizationId], references: [id])
+  organization         Organization       @relation(fields: [organizationId], references: [id])
   venueId              String
-  venue                Venue            @relation(fields: [venueId], references: [id])
+  venue                Venue              @relation(fields: [venueId], references: [id])
   categories           TicketCategory[]
   zones                Zone[]
   orders               Order[]
   promoCodes           PromoCode[]
   referrals            Referral[]
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
+  staffAccess          EventStaffAccess[]
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+}
+
+model PermissionGrant {
+  id         String          @id @default(cuid())
+  permission StaffPermission
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permission])
+  @@index([userId])
+}
+
+model EventStaffAccess {
+  id      String @id @default(cuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([eventId])
+}
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  action         String
+  entityType     String
+  entityId       String?
+  summary        String
+  metadata       String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorId        String?
+  actor          User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([actorId])
 }
 
 model TicketCategory {

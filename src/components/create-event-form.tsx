@@ -47,7 +47,7 @@ export function CreateEventForm() {
     const response = await fetch("/api/admin/events", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
     const data = await response.json();
     if (!response.ok) { setError(data.error); setBusy(false); return; }
-    router.push(`/admin/events/${data.id}`);
+    router.push(`/office/events/${data.id}`);
     router.refresh();
   }
 

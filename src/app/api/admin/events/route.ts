@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createEventSchema } from "@/lib/schemas";
+import { requirePermission } from "@/lib/auth";
+import { writeAudit } from "@/lib/audit";
 
 export async function POST(req: Request) {
   try {
     const body: unknown = await req.json();
     const input = createEventSchema.parse(body);
-    const org = await db.organization.findFirst();
-    if (!org) throw new Error("Организация не настроена");
+    const actor = await requirePermission("EVENT_MANAGE");
+    if (!actor.organizationId) throw new Error("Организация не настроена");
     const posterUrl =
       typeof body === "object" && body && "posterUrl" in body && typeof body.posterUrl === "string"
         ? body.posterUrl
@@ -25,7 +27,7 @@ export async function POST(req: Request) {
         salesMode: input.salesMode,
         mapEnabled: input.mapEnabled,
         approvalInstructions: input.approvalInstructions || null,
-        organization: { connect: { id: org.id } },
+        organization: { connect: { id: actor.organizationId } },
         venue: {
           create: {
             name: input.venueName,
@@ -54,11 +56,12 @@ export async function POST(req: Request) {
         },
       },
     });
+    await writeAudit(actor,{action:"EVENT_CREATED",entityType:"Event",entityId:event.id,summary:`Создано мероприятие ${event.title}`});
     return NextResponse.json({ id: event.id }, { status: 201 });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Ошибка" },
-      { status: 400 },
+      { status: error instanceof Error && error.message === "FORBIDDEN" ? 403 : 400 },
     );
   }
 }

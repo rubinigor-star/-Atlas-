@@ -5,6 +5,7 @@ import { money } from "@/lib/format";
 import { AdminShell } from "@/components/admin-shell";
 import { TicketActions } from "@/components/ticket-actions";
 import { ApprovalActions } from "@/components/approval-actions";
+import { requireEventAccess } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export default async function OrderAdmin({ params }: { params: Promise<{ publicI
     include: { event: true, items: true, tickets: { include: { category: true } } },
   });
   if (!order) notFound();
+  const staff=await requireEventAccess("ORDER_VIEW",order.eventId);
 
   return (
     <AdminShell>
@@ -35,7 +37,7 @@ export default async function OrderAdmin({ params }: { params: Promise<{ publicI
         <p className="muted">Запрошено: {order.items.map((item) => `${item.categoryName} × ${item.quantity}`).join(", ")}</p>
       </div>
 
-      {order.status === "PENDING_APPROVAL" && (
+      {order.status === "PENDING_APPROVAL" && staff.permissionSet.has("REQUEST_REVIEW") && (
         <>
           <h2>Решение организатора</h2>
           <ApprovalActions publicId={order.publicId} />
@@ -47,7 +49,7 @@ export default async function OrderAdmin({ params }: { params: Promise<{ publicI
       {order.tickets.map((ticket) => (
         <div className="panel row between" style={{ marginBottom: 12 }} key={ticket.id}>
           <div><span className="pill">{ticket.status}</span><h3>{ticket.category.name}</h3><code>{ticket.publicCode}</code></div>
-          <div><TicketActions id={ticket.id} status={ticket.status} /><Link className="btn secondary" style={{ marginTop: 8 }} href={`/api/tickets/${ticket.id}/pdf`}>PDF</Link></div>
+          <div>{staff.permissionSet.has("ORDER_MANAGE")&&<TicketActions id={ticket.id} status={ticket.status} />}<Link className="btn secondary" style={{ marginTop: 8 }} href={`/api/tickets/${ticket.id}/pdf`}>PDF</Link></div>
         </div>
       ))}
     </AdminShell>

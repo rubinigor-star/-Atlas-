@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { requireEventAccess } from "@/lib/auth";
+import { writeAudit } from "@/lib/audit";
 
 const update = z.object({ action: z.literal("update"), title: z.string().min(3), description: z.string().min(20), startsAt: z.string().datetime() });
 const status = z.object({ action: z.literal("status"), status: z.enum(["DRAFT", "PUBLISHED"]) });
@@ -31,6 +33,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     const { id } = await params;
     const body = await req.json();
+    const ticketActions = new Set(["category", "table", "layout"]);
+    const actor = await requireEventAccess(ticketActions.has(body.action) ? "TICKET_MANAGE" : "EVENT_MANAGE", id);
     if (body.action === "update") {
       const value = update.parse(body);
       await db.event.update({ where: { id }, data: { title: value.title, description: value.description, startsAt: new Date(value.startsAt) } });
@@ -113,8 +117,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     } else {
       throw new Error("Unknown action");
     }
+    await writeAudit(actor,{action:`EVENT_${String(body.action).toUpperCase()}`,entityType:"Event",entityId:id,summary:`Обновлены настройки мероприятия: ${body.action}`});
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Ошибка" }, { status: 400 });
+    const message=error instanceof Error ? error.message : "Ошибка";
+    return NextResponse.json({ error: message === "FORBIDDEN" ? "Недостаточно прав" : message }, { status: message === "FORBIDDEN" ? 403 : 400 });
   }
 }

@@ -4,11 +4,13 @@ import { EventManager } from "@/components/event-manager";
 import { VenueMapEditor } from "@/components/venue-map-editor";
 import { db } from "@/lib/db";
 import { money } from "@/lib/format";
+import { requireEventAccess } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ManageEvent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  await requireEventAccess("EVENT_VIEW", id);
   const event = await db.event.findUnique({ where: { id }, include: { categories: true, zones: { include: { tables: { include: { seatItems: true } } } } } });
   if (!event) notFound();
   return (

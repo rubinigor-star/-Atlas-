@@ -29,6 +29,10 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 - Atomic first check-in, duplicate, cancelled and unknown states
 - Entry counter and scan log
 - Organizer dashboard, sales metrics and order list
+- Separate customer website and installable mobile-first `Atlas Office` PWA
+- Server-enforced organizer permissions, optional per-event staff scope and role templates
+- Mobile approval inbox for private events, one-tap approve/reject actions and audit trail
+- Team screen for granular staff permissions: events, requests, orders, scanner, analytics and team management
 - Event creation/editing, publish controls, categories and VIP tables with local poster upload
 - Ticket cancellation and code regeneration
 - Minimal promo code (`ATLAS10`) and referral data (`MALINA`)
@@ -39,7 +43,7 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 1. The organizer selects `APPROVAL_REQUIRED` in the event manager and defines the question shown to applicants.
 2. The buyer selects a category or table and submits contact and eligibility information without payment.
 3. Atlas creates a `PENDING_APPROVAL` request without issuing tickets or reducing inventory.
-4. The organizer approves or rejects the request from `/admin/requests`.
+4. An authorized organizer approves or rejects the request from the mobile Atlas Office inbox at `/office/requests`.
 5. Approval atomically reserves the inventory/table and opens a 24-hour `AWAITING_PAYMENT` window.
 6. The demo payment changes the order to `PAID` and only then creates unique QR tickets and PDFs.
 7. Rejection changes the request to `REJECTED`; no ticket is issued and no payment is taken.
@@ -85,7 +89,8 @@ SQLite was selected only so the prototype runs immediately. Before deployment, c
 prisma/                schema and deterministic seed
 public/assets/         local event poster
 src/app/               App Router pages and API routes
-  admin/               organizer back-office
+  office/              primary organizer PWA routes
+  admin/               compatibility routes for the organizer back-office
   api/                 checkout, check-in, ticket PDF, admin and upload APIs
   events/              buyer event page
   orders/              confirmation and tickets
@@ -106,7 +111,7 @@ npm run db:seed
 npm run dev
 ```
 
-Open `http://localhost:3000`. Back-office is at `/admin`; entrance control is at `/scanner`.
+Open `http://localhost:3000`. The customer site is `/`; Atlas Office is `/office`; entrance control is `/office/scanner`.
 
 ## Environment variables
 
@@ -121,8 +126,10 @@ Do not commit `.env` or production secrets.
 
 Authentication is intentionally simulated. These seeded identities document the intended roles but are not passwords or secure accounts:
 
-- Organizer: `organizer@atlas.test`
-- Door staff: `scanner@atlas.test`
+- Owner: `organizer@atlas.test` — every organization permission
+- Event manager: `manager@atlas.test` — events, tickets, orders and analytics
+- Guest approver: `approver@atlas.test` — ticket requests and order viewing
+- Door staff: `scanner@atlas.test` — event viewing and check-in only
 - Platform admin: `admin@atlas.test`
 - Demo buyer: `buyer@atlas.test`
 
@@ -151,7 +158,7 @@ The code is shaped for Vercel, but the local SQLite database and filesystem post
 
 - Test checkout marks orders paid without a payment provider.
 - Approval-mode payment is simulated; production must send a secure expiring payment link and release expired holds automatically.
-- Roles exist in the schema but routes are not protected.
+- Demo identity switching uses an HTTP-only cookie but is not secure production authentication. Critical organizer APIs do enforce organization, permission and event scope server-side.
 - Promo and referral support is intentionally minimal.
 - Scheduled pricing is time-based. Automatic demand-based price changes are intentionally not enabled until audit logs, notification rules and organizer safeguards are designed.
 - The graphical editor supports furniture, straight chair rows and key decorative objects. Curved rows, free-form walls, multi-selection, imported CAD plans and version migration after sales open are intentionally outside this MVP.
@@ -162,7 +169,7 @@ The code is shaped for Vercel, but the local SQLite database and filesystem post
 
 ## Required before real sales
 
-Real acquiring and webhook verification, authentication, strict role-based authorization, PostgreSQL reservation transactions, expiring seat holds, refunds, fiscal documents, object storage, notifications, backups, monitoring, audit logs, security review, rate limiting, load tests and a reliable offline scanner mode.
+Real acquiring and webhook verification, production authentication, PostgreSQL reservation transactions, expiring seat holds, refunds, fiscal documents, object storage, notifications, backups, monitoring, security review, rate limiting, load tests and a reliable offline scanner mode.
 
 ## Recommended next stage
 

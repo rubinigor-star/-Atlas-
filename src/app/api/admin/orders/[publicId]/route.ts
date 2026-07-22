@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { requireEventAccess } from "@/lib/auth";
+import { writeAudit } from "@/lib/audit";
 
 const reviewSchema = z.object({
   action: z.enum(["approve", "reject"]),
@@ -14,6 +16,9 @@ export async function PATCH(
   try {
     const { publicId } = await params;
     const input = reviewSchema.parse(await req.json());
+    const target = await db.order.findUnique({ where: { publicId }, select: { id: true, eventId: true, customerName: true } });
+    if (!target) throw new Error("Заявка не найдена");
+    const actor = await requireEventAccess("REQUEST_REVIEW", target.eventId);
 
     const order = await db.$transaction(async (tx) => {
       const current = await tx.order.findUnique({
@@ -78,11 +83,13 @@ export async function PATCH(
       });
     });
 
+    await writeAudit(actor,{action:input.action === "approve" ? "REQUEST_APPROVED" : "REQUEST_REJECTED",entityType:"Order",entityId:target.id,summary:`${input.action === "approve" ? "Одобрена" : "Отклонена"} заявка ${target.customerName}`,metadata:{publicId}});
+
     return NextResponse.json({ status: order.status });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Ошибка проверки заявки" },
-      { status: 400 },
+      { status: error instanceof Error && error.message === "FORBIDDEN" ? 403 : 400 },
     );
   }
 }
