@@ -10,7 +10,11 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 - Per-event sales mode: instant ticket delivery or organizer approval before payment
 - Organizer application queue with approve/reject decisions and applicant eligibility answers
 - Approved applications reserve inventory for a 24-hour test-payment window
-- Ticket categories, capacity limits, VIP zone and whole-table selection
+- Visual venue-map editor with stage, tables and sofas
+- Ticket-category assignment for every map object
+- Whole table/sofa sales or individually reservable chairs
+- Buyer seat selection on the same responsive map
+- Russian/Hebrew language switch with RTL foundations and bilingual purchase/map flows
 - Server-side test checkout with idempotency keys
 - Amounts stored in agorot, never floating point
 - Unique, opaque ticket codes and order numbers
@@ -34,6 +38,18 @@ Atlas is a mobile-first ticketing platform prototype for Israeli live events. It
 6. The demo payment changes the order to `PAID` and only then creates unique QR tickets and PDFs.
 7. Rejection changes the request to `REJECTED`; no ticket is issued and no payment is taken.
 
+### Venue map flow
+
+1. The organizer opens an event and uses the venue-map editor to add tables or sofas.
+2. Every object receives a label, position, rotation, chair count, ticket category and price.
+3. `WHOLE_TABLE` sells and locks the full object in one atomic checkout operation.
+4. `PER_SEAT` creates a persistent opaque record for every chair; buyers can select one or more chairs behind the same object.
+5. Approval-required requests do not reserve chairs until approval. Approval claims the chosen chairs and opens the payment window.
+6. Instant checkout claims the full object or selected chairs and issues the correct number of tickets.
+7. A second request for an already claimed chair or object is rejected server-side.
+
+The seeded demonstration contains three tables and two sofas using both sales modes.
+
 ## Stack
 
 - Next.js 16 App Router, React 19, TypeScript
@@ -56,6 +72,8 @@ src/app/               App Router pages and API routes
   orders/              confirmation and tickets
   scanner/             mobile entrance control
 src/components/        focused client and server UI components
+  venue-map-editor     bilingual organizer map builder
+  event-purchase       buyer category, object and seat selection
 src/lib/               database, validation, formatting and ticket logic
 ```
 
@@ -98,7 +116,7 @@ npm test
 npm run build
 ```
 
-For the full manual flow, seed the database, buy a ticket from the catalog, download its PDF, scan its QR at `/scanner`, and scan it again to confirm the duplicate state. The seed also creates one cancelled ticket for rejection testing.
+For the full manual flow, seed the database, open the venue map, buy individual chairs and a whole table/sofa, download the PDFs, scan a QR at `/scanner`, and scan it again to confirm the duplicate state. The seed also creates one cancelled ticket for rejection testing.
 
 ## Deployment
 
@@ -116,7 +134,8 @@ The code is shaped for Vercel, but the local SQLite database and filesystem post
 - Approval-mode payment is simulated; production must send a secure expiring payment link and release expired holds automatically.
 - Roles exist in the schema but routes are not protected.
 - Promo and referral support is intentionally minimal.
-- Seating management supports zones and whole VIP tables, but not a graphical row-and-seat editor.
+- The current graphical editor supports a stage, tables, sofas and chairs. Free-form walls, curved rows, imported CAD plans and version migration after sales open are intentionally outside this MVP.
+- Russian/Hebrew switching is implemented for navigation and the primary purchase, checkout and map-management flows. Remaining secondary back-office copy still needs full translation coverage before production.
 - SQLite provides a credible local transaction demo, not production concurrency guarantees.
 - Camera scanning depends on browser permission and HTTPS outside localhost.
 - No email, WhatsApp, refunds, tax invoices, settlement or organizer payouts.

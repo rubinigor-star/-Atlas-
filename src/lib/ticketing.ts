@@ -17,3 +17,13 @@ export function classifyTicket(status?: "VALID" | "USED" | "CANCELLED"): TicketS
 export function initialOrderStatus(salesMode: "INSTANT" | "APPROVAL_REQUIRED") {
   return salesMode === "APPROVAL_REQUIRED" ? "PENDING_APPROVAL" : "PAID";
 }
+
+export function seatingSelectionTotal(
+  priceMode: "WHOLE_TABLE" | "PER_SEAT",
+  priceMinor: number,
+  selectedSeatCount: number,
+) {
+  if (!Number.isInteger(priceMinor) || priceMinor <= 0) throw new Error("Invalid seating price");
+  if (!Number.isInteger(selectedSeatCount) || selectedSeatCount <= 0) throw new Error("Select at least one seat");
+  return priceMode === "WHOLE_TABLE" ? priceMinor : priceMinor * selectedSeatCount;
+}

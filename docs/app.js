@@ -1,5 +1,6 @@
 const app = document.querySelector("#app");
 const state = {
+  locale: localStorage.getItem("atlas-demo-locale") || "ru",
   category: "General Admission",
   price: 149,
   quantity: 1,
@@ -8,7 +9,48 @@ const state = {
   requestStatus: "NONE",
   applicant: "Игорь Рубин",
   eligibilityAnswer: "Клубная карта MLN-2841",
+  selectedMapObject: null,
+  selectedSeats: [],
+  editorObject: "T1",
+  mapObjects: [
+    { id: "T1", type: "table", label: "T1", seats: 6, mode: "whole", price: 1890, category: "VIP Seating", x: 22, y: 38 },
+    { id: "T2", type: "table", label: "T2", seats: 6, mode: "whole", price: 1890, category: "VIP Seating", x: 50, y: 38 },
+    { id: "T3", type: "table", label: "T3", seats: 6, mode: "seat", price: 349, category: "VIP Seating", x: 78, y: 38 },
+    { id: "S1", type: "sofa", label: "S1", seats: 4, mode: "whole", price: 1200, category: "VIP Seating", x: 30, y: 72 },
+    { id: "S2", type: "sofa", label: "S2", seats: 4, mode: "seat", price: 299, category: "VIP Seating", x: 70, y: 72 },
+  ],
 };
+
+const hebrew = new Map(Object.entries({
+  "События":"אירועים","Организаторам":"למפיקים","Сканер":"סורק","Demo back-office":"ממשק מפיק","Статическая демонстрация":"הדגמה סטטית","Оплата, база данных и сканирование отключены":"תשלום, מסד נתונים וסריקה אינם פעילים","Билеты, ради которых хочется выйти из дома.":"כרטיסים שבשבילם שווה לצאת מהבית.","Ближайшие события":"אירועים קרובים","Все события":"כל האירועים","Выберите билет":"בחירת כרטיס","Выберите место на карте":"בחירת מקום במפה","СЦЕНА":"במה","Итого":"סה״כ","Продолжить":"המשך","Подать заявку":"שליחת בקשה","Количество":"כמות","Заявка на билет":"בקשה לכרטיס","Данные для проверки":"פרטים לבדיקה","Имя и фамилия":"שם מלא","Телефон":"טלפון","Промокод":"קוד הטבה","Оплаты сейчас нет":"אין תשלום כעת","Отправить заявку организатору":"שליחת בקשה למפיק","Ваш заказ":"ההזמנה שלך","Заявка отправлена":"הבקשה נשלחה","Заявка одобрена":"הבקשה אושרה","Заявка отклонена":"הבקשה נדחתה","Открыть приложение организатора":"פתיחת ממשק המפיק","Редактор карты мероприятия":"עורך מפת האירוע","Добавить стол":"הוספת שולחן","Добавить диван":"הוספת ספה","Продажа целиком":"מכירה שלמה","Продажа по местам":"מכירה לפי מקומות","Цена":"מחיר","Категория билета":"קטגוריית כרטיס","Сохранить карту":"שמירת מפה","Как продавать билеты":"איך למכור כרטיסים","Автоматическая продажа":"מכירה אוטומטית","Только после моего одобрения":"רק לאחר האישור שלי","Заявки на вход":"בקשות כניסה","Одобрить":"אישור","Отклонить":"דחייה","Посмотреть событие":"צפייה באירוע","мест":"מקומות","целиком":"שלם","за место":"למקום"
+}));
+const russian = new Map([...hebrew.entries()].map(([ru, he]) => [he, ru]));
+
+function applyLanguage() {
+  const isHebrew = state.locale === "he";
+  document.documentElement.lang = state.locale;
+  document.documentElement.dir = isHebrew ? "rtl" : "ltr";
+  const button = document.querySelector("#language");
+  if (button) button.textContent = isHebrew ? "Русский" : "עברית";
+  const dictionary = isHebrew ? hebrew : russian;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach((node) => {
+    const raw = node.nodeValue;
+    const value = raw.trim();
+    if (dictionary.has(value)) node.nodeValue = raw.replace(value, dictionary.get(value));
+  });
+}
+
+function mapMarkup(editor = false) {
+  return `<div class="demo-map"><div class="demo-stage">СЦЕНА</div>${state.mapObjects.map((item) => `<div class="demo-object ${item.type} ${(editor ? state.editorObject : state.selectedMapObject) === item.id ? "selected" : ""}" style="left:${item.x}%;top:${item.y}%" data-${editor ? "edit" : "map"}-object="${item.id}"><strong>${item.label}</strong><span class="demo-chairs">${Array.from({length:item.seats},(_,index)=>`<button class="demo-chair ${!editor && state.selectedSeats.includes(`${item.id}-${index+1}`) ? "selected" : ""}" ${item.mode === "whole" || editor ? "disabled" : ""} data-map-seat="${item.id}-${index+1}" data-parent="${item.id}">${index+1}</button>`).join("")}</span><small>${money(item.price)} ${item.mode === "whole" ? "целиком" : "за место"}</small></div>`).join("")}</div>`;
+}
+
+function selectedMapItem() { return state.mapObjects.find((item) => item.id === state.selectedMapObject); }
+function selectionTotal() { const item=selectedMapItem(); return item ? item.mode === "whole" ? item.price : item.price * state.selectedSeats.length : state.table ? 1890 : state.price * state.quantity; }
+function selectionQuantity() { const item=selectedMapItem(); return item ? item.mode === "whole" ? item.seats : state.selectedSeats.length : state.table ? 6 : state.quantity; }
+function selectionLabel() { const item=selectedMapItem(); return item ? `${item.type === "sofa" ? "Диван" : "Стол"} ${item.label} · ${item.mode === "whole" ? "целиком" : `места ${state.selectedSeats.map((id)=>id.split("-").pop()).join(", ")}`}` : state.table ? `VIP-стол ${state.table}` : state.category; }
 
 const money = (value) =>
   new Intl.NumberFormat("he-IL", {
@@ -46,7 +88,6 @@ function home() {
 }
 
 function eventPage() {
-  const tables = ["V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8"];
   app.innerHTML = `<div class="page fade"><div class="shell">
     <a class="back" href="#home">← Все события</a>
     <div class="event-layout">
@@ -67,10 +108,11 @@ function eventPage() {
             ["Golden Ring", "Зона у сцены", 239],
             ["VIP Table", "VIP-зона со столами", 349],
           ].map((item) => `<button class="option ${state.category === item[0] && !state.table ? "selected" : ""}" data-cat="${item[0]}" data-price="${item[2]}"><span><strong>${item[0]}</strong><small>${item[1]}</small></span><strong>${money(item[2])}</strong></button>`).join("")}
-          <h3>VIP-столы</h3>
-          <div class="seats">${tables.map((table, index) => `<button class="seat ${state.table === table ? "selected" : ""} ${index === 6 ? "reserved" : ""}" ${index === 6 ? "disabled" : ""} data-table="${table}"><strong>${table}</strong><br><small>6 мест</small></button>`).join("")}</div>
-          ${state.table ? "" : `<label class="field"><span>Количество</span><select id="quantity" class="input">${[1, 2, 3, 4, 5, 6].map((number) => `<option ${state.quantity === number ? "selected" : ""}>${number}</option>`).join("")}</select></label>`}
-          <div class="total row"><div><small class="muted">${approvalRequired() ? "К оплате после одобрения" : "Итого"}</small><div class="price">${money(state.table ? 1890 : state.price * state.quantity)}</div></div><button id="continue" class="button">${approvalRequired() ? "Подать заявку" : "Продолжить"}</button></div>
+          <h3>Выберите место на карте</h3>
+          ${mapMarkup(false)}
+          ${state.selectedSeats.length ? `<div class="map-status"><span>Выбрано мест</span><strong>${state.selectedSeats.length}</strong></div>` : ""}
+          ${selectedMapItem() || state.table ? "" : `<label class="field"><span>Количество</span><select id="quantity" class="input">${[1, 2, 3, 4, 5, 6].map((number) => `<option ${state.quantity === number ? "selected" : ""}>${number}</option>`).join("")}</select></label>`}
+          <div class="total row"><div><small class="muted">${approvalRequired() ? "К оплате после одобрения" : "Итого"}</small><div class="price">${money(selectionTotal())}</div></div><button id="continue" class="button" ${selectedMapItem()?.mode === "seat" && !state.selectedSeats.length ? "disabled" : ""}>${approvalRequired() ? "Подать заявку" : "Продолжить"}</button></div>
         </div>
       </section>
     </div>
@@ -81,6 +123,8 @@ function eventPage() {
       state.category = button.dataset.cat;
       state.price = Number(button.dataset.price);
       state.table = null;
+      state.selectedMapObject = null;
+      state.selectedSeats = [];
       eventPage();
     };
   });
@@ -92,13 +136,39 @@ function eventPage() {
       eventPage();
     };
   });
+  document.querySelectorAll("[data-map-object]").forEach((object) => {
+    object.onclick = (event) => {
+      if (event.target.closest("[data-map-seat]")) return;
+      const item = state.mapObjects.find((entry) => entry.id === object.dataset.mapObject);
+      if (!item || item.mode !== "whole") return;
+      state.selectedMapObject = state.selectedMapObject === item.id ? null : item.id;
+      state.selectedSeats = [];
+      state.table = item.label;
+      state.category = item.category;
+      eventPage();
+    };
+  });
+  document.querySelectorAll("[data-map-seat]").forEach((seat) => {
+    seat.onclick = (event) => {
+      event.stopPropagation();
+      const parent = seat.dataset.parent;
+      if (state.selectedMapObject !== parent) state.selectedSeats = [];
+      state.selectedMapObject = parent;
+      state.table = null;
+      const item = state.mapObjects.find((entry) => entry.id === parent);
+      if (item) state.category = item.category;
+      state.selectedSeats = state.selectedSeats.includes(seat.dataset.mapSeat) ? state.selectedSeats.filter((id) => id !== seat.dataset.mapSeat) : [...state.selectedSeats, seat.dataset.mapSeat];
+      eventPage();
+    };
+  });
   const quantity = document.querySelector("#quantity");
   if (quantity) quantity.onchange = (event) => { state.quantity = Number(event.target.value); eventPage(); };
   document.querySelector("#continue").onclick = () => (location.hash = "checkout");
+  applyLanguage();
 }
 
 function checkout() {
-  const total = state.table ? 1890 : state.price * state.quantity;
+  const total = selectionTotal();
   app.innerHTML = `<div class="page fade"><div class="shell">
     <a class="back" href="#event">← Вернуться к выбору</a>
     <div class="checkout-layout">
@@ -112,7 +182,7 @@ function checkout() {
           <button class="button full">${approvalRequired() ? "Отправить заявку организатору" : "Подтвердить тестовый заказ"}</button>
         </form>
       </section>
-      <aside class="panel summary"><span class="pill">${approvalRequired() ? "Запрашиваемый билет" : "Ваш заказ"}</span><h2>NOA ELECTRIC - LIVE</h2><p>${state.table ? `VIP-стол ${state.table}, 6 мест` : state.category}</p><div class="summary-line row"><span class="muted">Количество</span><strong>${state.table ? 6 : state.quantity}</strong></div><div class="summary-line row"><span>${approvalRequired() ? "После одобрения" : "Итого"}</span><strong class="price">${money(total)}</strong></div></aside>
+      <aside class="panel summary"><span class="pill">${approvalRequired() ? "Запрашиваемый билет" : "Ваш заказ"}</span><h2>NOA ELECTRIC - LIVE</h2><p>${selectionLabel()}</p><div class="summary-line row"><span class="muted">Количество</span><strong>${selectionQuantity()}</strong></div><div class="summary-line row"><span>${approvalRequired() ? "После одобрения" : "Итого"}</span><strong class="price">${money(total)}</strong></div></aside>
     </div>
   </div></div>`;
   document.querySelector("#checkout-form").onsubmit = (event) => {
@@ -148,9 +218,15 @@ function requestPage() {
 function ticket() {
   app.innerHTML = `<div class="page fade"><section class="shell ticket-wrap">
     <div class="success-icon">✓</div><h1>Билет выпущен</h1><p class="lead" style="margin-inline:auto">Участие одобрено, тестовая оплата завершена.</p>
-    <article class="panel ticket"><div class="ticket-head"><div class="brand" style="color:white">ATL<span>AS</span></div><small>DIGITAL TICKET</small></div><div class="ticket-body"><span class="pill">VALID · DEMO</span><h2>NOA ELECTRIC - LIVE</h2><p>${state.table ? `VIP Table · ${state.table}` : state.category}<br><span class="muted">18 сентября 2026 · Hangar 11</span></p><img class="ticket-qr" src="./assets/demo-qr.png" alt="Демонстрационный QR-код"><div class="ticket-code">ATLAS_DEMO_NOT_VALID_FOR_ENTRY</div></div></article>
+    <article class="panel ticket"><div class="ticket-head"><div class="brand" style="color:white">ATL<span>AS</span></div><small>DIGITAL TICKET</small></div><div class="ticket-body"><span class="pill">VALID · DEMO</span><h2>NOA ELECTRIC - LIVE</h2><p>${selectionLabel()}<br><span class="muted">18 сентября 2026 · Hangar 11</span></p><img class="ticket-qr" src="./assets/demo-qr.png" alt="Демонстрационный QR-код"><div class="ticket-code">ATLAS_DEMO_NOT_VALID_FOR_ENTRY</div></div></article>
     <a class="button dark" href="#home" style="margin-top:22px">Вернуться к событиям</a>
   </section></div>`;
+}
+
+function adminMapEditorMarkup() {
+  const selected = state.mapObjects.find((item) => item.id === state.editorObject) || state.mapObjects[0];
+  if (selected) state.editorObject = selected.id;
+  return `<section class="panel" style="margin-top:22px"><div class="section-head row"><div><span class="eyebrow">Venue map builder</span><h2>Редактор карты мероприятия</h2></div><div class="row"><button id="add-table" class="button ghost">Добавить стол</button><button id="add-sofa" class="button ghost">Добавить диван</button></div></div><p class="muted">Создайте столы и диваны, назначьте категорию и выберите продажу целиком или отдельных мест.</p><div class="map-tools">${mapMarkup(true)}<div class="map-inspector">${selected ? `<label class="field"><span>Название</span><input id="map-label" class="input" value="${selected.label}"></label><label class="field"><span>Количество мест</span><input id="map-seats" class="input" type="number" min="1" max="12" value="${selected.seats}"></label><label class="field"><span>Категория билета</span><select id="map-category" class="input"><option ${selected.category === "VIP Seating" ? "selected" : ""}>VIP Seating</option><option ${selected.category === "Golden Ring" ? "selected" : ""}>Golden Ring</option></select></label><div><strong>Способ продажи</strong><div class="map-mode"><button class="button ${selected.mode === "whole" ? "" : "ghost"}" data-map-mode="whole">Продажа целиком</button><button class="button ${selected.mode === "seat" ? "" : "ghost"}" data-map-mode="seat">Продажа по местам</button></div></div><label class="field"><span>Цена, ₪ ${selected.mode === "whole" ? "целиком" : "за место"}</span><input id="map-price" class="input" type="number" min="1" value="${selected.price}"></label><label class="field"><span>Положение по горизонтали</span><input id="map-x" type="range" min="8" max="92" value="${selected.x}"></label><label class="field"><span>Положение по вертикали</span><input id="map-y" type="range" min="20" max="90" value="${selected.y}"></label><button id="remove-map-object" class="button ghost">Удалить объект</button>` : ""}<button id="save-map" class="button full">Сохранить карту</button></div></div></section>`;
 }
 
 function admin() {
@@ -164,6 +240,7 @@ function admin() {
         <button class="option ${state.salesMode === "INSTANT" ? "selected" : ""}" data-mode="INSTANT"><span><strong>Автоматическая продажа</strong><small>Клиент сразу оплачивает и получает билет.</small></span><strong>○</strong></button>
         <button class="option ${state.salesMode === "APPROVAL_REQUIRED" ? "selected" : ""}" data-mode="APPROVAL_REQUIRED"><span><strong>Только после моего одобрения</strong><small>Заявка → проверка → оплата → билет.</small></span><strong>○</strong></button>
       </div>
+      ${adminMapEditorMarkup()}
       <div class="section-head row"><h2>Заявки на вход</h2><span class="pill">${state.requestStatus === "PENDING" ? "1 ожидает" : "нет новых"}</span></div>
       <div class="table-wrap"><table><thead><tr><th>Клиент</th><th>Событие</th><th>Ответ</th><th>Решение</th></tr></thead><tbody>${pendingRow}</tbody></table></div>
     </section>
@@ -171,17 +248,31 @@ function admin() {
   document.querySelectorAll("[data-mode]").forEach((button) => {
     button.onclick = () => { state.salesMode = button.dataset.mode; admin(); };
   });
+  document.querySelectorAll("[data-edit-object]").forEach((object) => { object.onclick = () => { state.editorObject = object.dataset.editObject; admin(); }; });
+  document.querySelector("#add-table").onclick = () => addMapObject("table");
+  document.querySelector("#add-sofa").onclick = () => addMapObject("sofa");
+  document.querySelectorAll("[data-map-mode]").forEach((button) => { button.onclick = () => { updateEditorObject({ mode: button.dataset.mapMode }); admin(); }; });
+  const bindEditor = (selector, key, numeric = false) => { const input = document.querySelector(selector); if (input) input.onchange = () => { updateEditorObject({ [key]: numeric ? Number(input.value) : input.value }); admin(); }; };
+  bindEditor("#map-label", "label"); bindEditor("#map-seats", "seats", true); bindEditor("#map-category", "category"); bindEditor("#map-price", "price", true); bindEditor("#map-x", "x", true); bindEditor("#map-y", "y", true);
+  const remove = document.querySelector("#remove-map-object"); if (remove) remove.onclick = () => { state.mapObjects = state.mapObjects.filter((item) => item.id !== state.editorObject); state.editorObject = state.mapObjects[0]?.id || null; admin(); };
+  document.querySelector("#save-map").onclick = () => { document.querySelector("#save-map").textContent = "Карта сохранена ✓"; };
   const approve = document.querySelector("#approve");
   if (approve) approve.onclick = () => { state.requestStatus = "APPROVED"; location.hash = "request"; };
   const reject = document.querySelector("#reject");
   if (reject) reject.onclick = () => { state.requestStatus = "REJECTED"; location.hash = "request"; };
+  applyLanguage();
 }
+
+function updateEditorObject(patch) { state.mapObjects = state.mapObjects.map((item) => item.id === state.editorObject ? { ...item, ...patch } : item); }
+function addMapObject(type) { const number = state.mapObjects.filter((item) => item.type === type).length + 1; const item = { id: `${type[0].toUpperCase()}${Date.now()}`, type, label: `${type === "table" ? "T" : "S"}${number}`, seats: type === "table" ? 6 : 4, mode: "whole", price: type === "table" ? 1890 : 1200, category: "VIP Seating", x: 18 + (state.mapObjects.length * 13) % 70, y: 30 + (state.mapObjects.length * 11) % 55 }; state.mapObjects.push(item); state.editorObject = item.id; admin(); }
 
 function route() {
   const page = location.hash.slice(1) || "home";
   ({ home, event: eventPage, checkout, request: requestPage, ticket, admin }[page] || home)();
+  applyLanguage();
   scrollTo(0, 0);
 }
 
 window.addEventListener("hashchange", route);
+document.querySelector("#language").onclick = () => { state.locale = state.locale === "ru" ? "he" : "ru"; localStorage.setItem("atlas-demo-locale", state.locale); route(); };
 route();

@@ -1,3 +1,5 @@
-import type { Metadata } from "next"; import Link from "next/link"; import "./globals.css";
+import type { Metadata } from "next"; import "./globals.css";
+import { LocaleProvider } from "@/components/locale-provider";
+import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 export const metadata:Metadata={title:"Atlas Tickets",description:"Modern ticketing for live experiences"};
-export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="ru"><body><header className="topbar"><div className="shell nav"><Link href="/" className="brand">ATL<i>AS</i></Link><nav className="navlinks"><Link href="/">События</Link><Link href="/admin">Организаторам</Link><Link href="/scanner">Контроль входа</Link><Link href="/admin" className="btn secondary">Demo back-office</Link></nav></div></header>{children}<footer className="footer"><div className="shell row between"><span>© 2026 Atlas Tickets</span><span>MVP · test payments only</span></div></footer></body></html>}
+export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="ru" suppressHydrationWarning><body><LocaleProvider><SiteHeader />{children}<SiteFooter /></LocaleProvider></body></html>}

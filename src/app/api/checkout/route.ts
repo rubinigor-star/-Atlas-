@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { checkoutSchema } from "@/lib/schemas";
-import { initialOrderStatus, orderNumber, ticketCode } from "@/lib/ticketing";
+import { initialOrderStatus, orderNumber, seatingSelectionTotal, ticketCode } from "@/lib/ticketing";
 
 export async function POST(req: Request) {
   try {
@@ -33,8 +33,34 @@ export async function POST(req: Request) {
         throw new Error("Стол не относится к событию");
       }
       if (table?.reserved) throw new Error("Этот стол уже занят");
+      if (table && (table.priceMode !== "WHOLE_TABLE" || table.categoryId !== category.id)) {
+        throw new Error("Этот объект нельзя купить целиком по выбранному тарифу");
+      }
 
-      const quantity = table ? table.seats : input.quantity;
+      const seats = input.seatIds?.length
+        ? await tx.seat.findMany({
+            where: { id: { in: input.seatIds } },
+            include: { table: { include: { zone: true } } },
+          })
+        : [];
+      if (input.seatIds?.length && seats.length !== input.seatIds.length) {
+        throw new Error("Некоторые выбранные места не найдены");
+      }
+      if (seats.some((seat) => seat.table.zone.eventId !== input.eventId || seat.table.categoryId !== category.id)) {
+        throw new Error("Место не относится к выбранному мероприятию или тарифу");
+      }
+      if (seats.some((seat) => seat.table.priceMode !== "PER_SEAT")) {
+        throw new Error("Этот объект продаётся только целиком");
+      }
+      if (seats.some((seat) => seat.status !== "AVAILABLE")) {
+        throw new Error("Одно из выбранных мест уже занято");
+      }
+      if (new Set(seats.map((seat) => seat.tableId)).size > 1) {
+        throw new Error("Выберите места за одним столом или диваном");
+      }
+      if (table && seats.length) throw new Error("Нельзя одновременно выбрать объект целиком и отдельные места");
+
+      const quantity = table ? table.seats : seats.length || input.quantity;
       if (category.sold + quantity > category.capacity) {
         throw new Error("Недостаточно доступных билетов");
       }
@@ -52,7 +78,11 @@ export async function POST(req: Request) {
         if (promo?.active) discount = promo.discountPercent;
       }
 
-      const subtotal = table?.priceMinor ?? category.priceMinor * quantity;
+      const subtotal = table
+        ? seatingSelectionTotal("WHOLE_TABLE", table.priceMinor, quantity)
+        : seats[0]
+          ? seatingSelectionTotal("PER_SEAT", seats[0].table.priceMinor, quantity)
+          : category.priceMinor * quantity;
       const total = Math.round((subtotal * (100 - discount)) / 100);
       const referral = input.referralCode
         ? await tx.referral.findUnique({ where: { code: input.referralCode } })
@@ -71,14 +101,20 @@ export async function POST(req: Request) {
           eventId: input.eventId,
           referralId: referral?.id,
           items: {
-            create: {
-              quantity,
-              unitPriceMinor: table
-                ? Math.round(table.priceMinor / quantity)
-                : category.priceMinor,
-              categoryName: category.name,
-              tableId: table?.id,
-            },
+            create: seats.length
+              ? seats.map((seat) => ({
+                  quantity: 1,
+                  unitPriceMinor: seat.table.priceMinor,
+                  categoryName: category.name,
+                  tableId: seat.tableId,
+                  seatId: seat.id,
+                }))
+              : [{
+                  quantity,
+                  unitPriceMinor: table ? Math.round(table.priceMinor / quantity) : category.priceMinor,
+                  categoryName: category.name,
+                  tableId: table?.id,
+                }],
           },
           tickets:
             event.salesMode === "INSTANT"
@@ -107,6 +143,13 @@ export async function POST(req: Request) {
         if (claimed.count !== 1) {
           throw new Error("Этот стол только что был забронирован");
         }
+      }
+      if (event.salesMode === "INSTANT" && seats.length) {
+        const claimed = await tx.seat.updateMany({
+          where: { id: { in: seats.map((seat) => seat.id) }, status: "AVAILABLE" },
+          data: { status: "RESERVED" },
+        });
+        if (claimed.count !== seats.length) throw new Error("Одно из мест только что было забронировано");
       }
       return created;
     });

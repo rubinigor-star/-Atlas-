@@ -44,6 +44,17 @@ enum PriceMode {
   WHOLE_TABLE
 }
 
+enum SeatingObjectType {
+  TABLE
+  SOFA
+}
+
+enum SeatStatus {
+  AVAILABLE
+  RESERVED
+  BLOCKED
+}
+
 model Organization {
   id        String   @id @default(cuid())
   name      String
@@ -82,6 +93,8 @@ model Event {
   status               EventStatus      @default(DRAFT)
   salesMode            SalesMode        @default(INSTANT)
   approvalInstructions String?
+  mapEnabled           Boolean          @default(false)
+  mapName              String?          @default("Основной зал")
   organizationId       String
   organization         Organization     @relation(fields: [organizationId], references: [id])
   venueId              String
@@ -96,16 +109,17 @@ model Event {
 }
 
 model TicketCategory {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  priceMinor  Int
-  currency    String   @default("ILS")
-  capacity    Int
-  sold        Int      @default(0)
-  eventId     String
-  event       Event    @relation(fields: [eventId], references: [id])
-  tickets     Ticket[]
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  priceMinor     Int
+  currency       String   @default("ILS")
+  capacity       Int
+  sold           Int      @default(0)
+  eventId        String
+  event          Event    @relation(fields: [eventId], references: [id])
+  tickets        Ticket[]
+  seatingObjects Table[]
 
   @@unique([eventId, name])
 }
@@ -121,17 +135,36 @@ model Zone {
 }
 
 model Table {
-  id         String      @id @default(cuid())
+  id         String            @id @default(cuid())
   label      String
   seats      Int
   priceMinor Int
-  priceMode  PriceMode   @default(WHOLE_TABLE)
-  reserved   Boolean     @default(false)
+  priceMode  PriceMode         @default(WHOLE_TABLE)
+  objectType SeatingObjectType @default(TABLE)
+  x          Int               @default(20)
+  y          Int               @default(20)
+  rotation   Int               @default(0)
+  reserved   Boolean           @default(false)
   zoneId     String
-  zone       Zone        @relation(fields: [zoneId], references: [id])
+  zone       Zone              @relation(fields: [zoneId], references: [id])
+  categoryId String?
+  category   TicketCategory?   @relation(fields: [categoryId], references: [id])
+  seatItems  Seat[]
   orderItems OrderItem[]
 
   @@unique([zoneId, label])
+}
+
+model Seat {
+  id         String      @id @default(cuid())
+  label      String
+  position   Int
+  status     SeatStatus  @default(AVAILABLE)
+  tableId    String
+  table      Table       @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@unique([tableId, position])
 }
 
 model Order {
@@ -167,6 +200,8 @@ model OrderItem {
   order          Order   @relation(fields: [orderId], references: [id])
   tableId        String?
   table          Table?  @relation(fields: [tableId], references: [id])
+  seatId         String?
+  seat           Seat?   @relation(fields: [seatId], references: [id])
 }
 
 model Ticket {

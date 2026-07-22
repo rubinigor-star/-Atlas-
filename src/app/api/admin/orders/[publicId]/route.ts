@@ -18,7 +18,7 @@ export async function PATCH(
     const order = await db.$transaction(async (tx) => {
       const current = await tx.order.findUnique({
         where: { publicId },
-        include: { items: { include: { table: true } } },
+        include: { items: { include: { table: true, seat: true } } },
       });
       if (!current) throw new Error("Заявка не найдена");
       if (current.status !== "PENDING_APPROVAL") {
@@ -48,7 +48,13 @@ export async function PATCH(
         if (!category || category.sold + item.quantity > category.capacity) {
           throw new Error(`Недостаточно мест в категории ${item.categoryName}`);
         }
-        if (item.tableId) {
+        if (item.seatId) {
+          const claimed = await tx.seat.updateMany({
+            where: { id: item.seatId, status: "AVAILABLE" },
+            data: { status: "RESERVED" },
+          });
+          if (claimed.count !== 1) throw new Error("Выбранное место уже занято");
+        } else if (item.tableId) {
           const claimed = await tx.table.updateMany({
             where: { id: item.tableId, reserved: false },
             data: { reserved: true },

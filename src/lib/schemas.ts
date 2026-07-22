@@ -5,6 +5,7 @@ export const checkoutSchema = z.object({
   categoryId: z.string().min(1),
   quantity: z.number().int().min(1).max(10),
   tableId: z.string().nullable().optional(),
+  seatIds: z.array(z.string().min(1)).max(10).optional(),
   customer: z.object({
     name: z.string().min(2),
     email: z.string().email(),
