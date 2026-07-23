@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { money, eventDate } from "@/lib/format";
 import { TicketCard } from "@/components/ticket-card";
 import { DemoPaymentButton } from "@/components/demo-payment-button";
+import { ResendTicketButton } from "@/components/resend-ticket-button";
 import { parseTicketDesign } from "@/lib/ticket-template";
 
 export const dynamic = "force-dynamic";
@@ -55,9 +56,8 @@ export default async function OrderPage({
         <p className="muted">
           {pending && "Организатор проверит данные. До одобрения оплата и выпуск билета недоступны."}
           {rejected && (order.reviewNote || "Организатор не подтвердил участие в мероприятии.")}
-          {awaitingPayment &&
-            "Организатор подтвердил участие. Теперь можно завершить тестовую оплату и получить билет."}
-          {order.status === "PAID" && "Тестовая оплата подтверждена. Деньги не списывались."}
+          {awaitingPayment && "Организатор подтвердил участие. Теперь можно завершить тестовую оплату и получить билет."}
+          {order.status === "PAID" && "Тестовая оплата подтверждена. Деньги не списывались. Билеты доступны ниже и отправляются на email."}
         </p>
 
         <div className="panel">
@@ -66,16 +66,17 @@ export default async function OrderPage({
           <div className="row between"><span>Дата</span><strong>{eventDate(order.event.startsAt)}</strong></div>
           <div className="row between"><span>Статус</span><strong>{order.status}</strong></div>
           <div className="row between"><span>Сумма</span><strong>{money(order.totalMinor)}</strong></div>
+          <div className="row between"><span>Email</span><strong>{order.customerEmail}</strong></div>
         </div>
 
         {awaitingPayment && (
           <div style={{ marginTop: 20 }}>
             <DemoPaymentButton publicId={order.publicId} />
-            {order.paymentDueAt && (
-              <p className="muted">Оплатить нужно до {order.paymentDueAt.toLocaleString("ru-RU")}</p>
-            )}
+            {order.paymentDueAt && <p className="muted">Оплатить нужно до {order.paymentDueAt.toLocaleString("ru-RU")}</p>}
           </div>
         )}
+
+        {order.status === "PAID" && <ResendTicketButton publicId={order.publicId} />}
 
         {order.tickets.map((ticket, index) => (
           <TicketCard key={ticket.id} ticket={ticket} qr={qrs[index]} design={design} event={order.event} orderNumber={order.publicId} walletReady={walletReady} />
