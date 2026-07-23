@@ -1,47 +1,42 @@
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ticketCode } from "@/lib/ticketing";
 
-type Executor = Pick<typeof db, "ticket" | "scan" | "$transaction">;
+type Executor = typeof db | Prisma.TransactionClient;
 
 export type TicketValidationResult =
   | { result: "VALID"; ticketId: string; eventId: string; holderName: string; categoryName: string }
   | { result: "USED" | "CANCELLED" | "NOT_FOUND"; ticketId?: string };
 
 export async function issueTicketsForOrder(orderId: string, executor: Executor = db) {
-  const order = await executor.$transaction(async (tx) => {
-    const current = await tx.order.findUnique({
-      where: { id: orderId },
-      include: { items: true, tickets: true },
-    });
-    if (!current) throw new Error("Заказ не найден");
-    if (current.status !== "PAID" && current.status !== "PENDING_APPROVAL") {
-      throw new Error("Билеты нельзя выпустить для этого заказа");
-    }
-    if (current.tickets.length) return current;
-
-    for (const item of current.items) {
-      const category = await tx.ticketCategory.findUnique({
-        where: { eventId_name: { eventId: current.eventId, name: item.categoryName } },
-      });
-      if (!category) throw new Error(`Категория ${item.categoryName} не найдена`);
-      await tx.ticket.createMany({
-        data: Array.from({ length: item.quantity }, () => ({
-          publicCode: ticketCode(),
-          holderName: current.customerName,
-          categoryId: category.id,
-          orderId: current.id,
-        })),
-      });
-    }
-
-    return tx.order.findUniqueOrThrow({ where: { id: current.id }, include: { tickets: true } });
+  const current = await executor.order.findUnique({
+    where: { id: orderId },
+    include: { items: true, tickets: true },
   });
+  if (!current) throw new Error("Заказ не найден");
+  if (current.status !== "PAID") throw new Error("Билеты можно выпустить только после оплаты");
+  if (current.tickets.length) return current.tickets;
 
-  return order.tickets;
+  for (const item of current.items) {
+    const category = await executor.ticketCategory.findUnique({
+      where: { eventId_name: { eventId: current.eventId, name: item.categoryName } },
+    });
+    if (!category) throw new Error(`Категория ${item.categoryName} не найдена`);
+    await executor.ticket.createMany({
+      data: Array.from({ length: item.quantity }, () => ({
+        publicCode: ticketCode(),
+        holderName: current.customerName,
+        categoryId: category.id,
+        orderId: current.id,
+      })),
+    });
+  }
+
+  return executor.ticket.findMany({ where: { orderId: current.id }, orderBy: { createdAt: "asc" } });
 }
 
-export async function cancelOrderTickets(orderId: string) {
-  return db.ticket.updateMany({
+export async function cancelOrderTickets(orderId: string, executor: Executor = db) {
+  return executor.ticket.updateMany({
     where: { orderId, status: { in: ["VALID", "USED"] } },
     data: { status: "CANCELLED", walletUpdatedAt: new Date() },
   });
