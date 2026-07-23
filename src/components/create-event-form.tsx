@@ -33,7 +33,7 @@ export function CreateEventForm() {
     const date = (name: string) => new Date(String(form.get(name))).toISOString();
     const payload = {
       title: form.get("title"), slug: form.get("slug"), description: form.get("description"),
-      startsAt: date("startsAt"), venueName: form.get("venueName"), city: form.get("city"),
+      startsAt: date("startsAt"), doorsOpenAt: date("doorsOpenAt"), venueName: form.get("venueName"), city: form.get("city"), address: form.get("address"),
       mapEnabled: admissionMode === "RESERVED_SEATING", salesMode,
       approvalInstructions: form.get("approvalInstructions"), posterUrl,
       categoryName: form.get("categoryName"), categoryDescription: form.get("categoryDescription"),
@@ -57,9 +57,10 @@ export function CreateEventForm() {
       <div className="field"><label>Название мероприятия</label><input className="input" name="title" required /></div>
       <div className="field"><label>Адрес страницы</label><input className="input" name="slug" pattern="[a-z0-9-]+" required placeholder="event-name-2026" /></div>
       <div className="field"><label>Описание</label><textarea name="description" rows={5} required minLength={20} /></div>
-      <div className="field"><label>Афиша JPG, PNG или WebP</label><input className="input" name="poster" type="file" accept="image/jpeg,image/png,image/webp" /></div>
-      <div className="field"><label>Дата и время мероприятия</label><input className="input" name="startsAt" type="datetime-local" required /></div>
+      <div className="field"><label>Афиша JPG, PNG или WebP — до 2 MB</label><input className="input" name="poster" type="file" accept="image/jpeg,image/png,image/webp" /></div>
+      <div className="form-grid two"><div className="field"><label>Дата и время начала мероприятия</label><input className="input" name="startsAt" type="datetime-local" required /></div><div className="field"><label>Дата и время открытия дверей</label><input className="input" name="doorsOpenAt" type="datetime-local" required /></div></div>
       <div className="form-grid two"><div className="field"><label>Площадка</label><input className="input" name="venueName" required /></div><div className="field"><label>Город</label><input className="input" name="city" required /></div></div>
+      <div className="field"><label>Адрес мероприятия</label><input className="input" name="address" required autoComplete="street-address" placeholder="Улица, дом, дополнительное описание входа" /></div>
     </section>
 
     <section className="panel form wizard-section">
@@ -76,7 +77,7 @@ export function CreateEventForm() {
       <div className="form-grid three"><div className="field"><label>Название</label><input key={admissionMode} className="input" name="categoryName" defaultValue={admissionMode === "RESERVED_SEATING" ? "VIP Seating" : "General Admission"} required /></div><div className="field"><label>Количество</label><input className="input" name="capacity" type="number" min="1" required /></div><div className="field"><label>Цвет на карте</label><input className="input color-input" name="categoryColor" type="color" defaultValue="#2563EB" /></div></div>
       <div className="field"><label>Что входит в билет</label><textarea name="categoryDescription" rows={2} placeholder="Например: вход в танцевальную зону" /></div>
       <div className="pricing-switch"><button type="button" className={pricingMode === "FIXED" ? "active" : ""} onClick={() => setPricingMode("FIXED")}>Фиксированная цена</button><button type="button" className={pricingMode === "SCHEDULED" ? "active" : ""} onClick={() => setPricingMode("SCHEDULED")}>Цена по расписанию</button></div>
-      {pricingMode === "FIXED" ? <div className="field"><label>Цена, ₪</label><input className="input" name="price" type="number" min="0.01" step="0.01" required /></div> : <div className="form-grid three"><div className="field"><label>Ранняя цена, ₪</label><input className="input" name="earlyBirdPrice" type="number" min="0.01" step="0.01" required /></div><div className="field"><label>Ранняя цена действует до</label><input className="input" name="earlyBirdEndsAt" type="datetime-local" required /></div><div className="field"><label>Основная цена, ₪</label><input className="input" name="price" type="number" min="0.01" step="0.01" required /></div></div>}
+      {pricingMode === "FIXED" ? <div className="field"><label>Цена, ₪</label><input className="input" name="price" type="number" min="0" step="0.01" required /></div> : <div className="form-grid three"><div className="field"><label>Ранняя цена, ₪</label><input className="input" name="earlyBirdPrice" type="number" min="0" step="0.01" required /></div><div className="field"><label>Ранняя цена действует до</label><input className="input" name="earlyBirdEndsAt" type="datetime-local" required /></div><div className="field"><label>Основная цена, ₪</label><input className="input" name="price" type="number" min="0" step="0.01" required /></div></div>}
       <div className="form-grid three"><div className="field"><label>Начало продаж</label><input className="input" name="salesStart" type="datetime-local" required /></div><div className="field"><label>Окончание продаж</label><input className="input" name="salesEnd" type="datetime-local" required /></div><div className="field"><label>Максимум в одном заказе</label><input className="input" name="maxPerOrder" type="number" min="1" max="20" defaultValue="10" required /></div></div>
     </section>
 
