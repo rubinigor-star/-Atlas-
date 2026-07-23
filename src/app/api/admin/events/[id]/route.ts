@@ -9,8 +9,8 @@ const update = z.object({ action: z.literal("update"), title: z.string().min(3),
 const status = z.object({ action: z.literal("status"), status: z.enum(["DRAFT", "PUBLISHED"]) });
 const sales = z.object({ action: z.literal("sales"), salesMode: z.enum(["INSTANT", "APPROVAL_REQUIRED"]), approvalInstructions: z.string().max(1000).optional() });
 const admission = z.object({ action: z.literal("admission"), mapEnabled: z.boolean() });
-const category = z.object({ action: z.literal("category"), name: z.string().min(2), description: z.string().max(500).optional(), priceMinor: z.number().int().positive(), colorHex: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#2563EB"), capacity: z.number().int().positive(), pricingMode: z.enum(["FIXED", "SCHEDULED"]).default("FIXED"), salesStart: z.string().datetime().optional(), salesEnd: z.string().datetime().optional(), earlyBirdPriceMinor: z.number().int().positive().optional(), earlyBirdEndsAt: z.string().datetime().optional(), maxPerOrder: z.number().int().min(1).max(20).default(10) });
-const table = z.object({ action: z.literal("table"), zoneName: z.string().min(2), label: z.string().min(1), seats: z.number().int().positive(), priceMinor: z.number().int().positive() });
+const category = z.object({ action: z.literal("category"), name: z.string().min(2), description: z.string().max(500).optional(), priceMinor: z.number().int().nonnegative(), colorHex: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#2563EB"), capacity: z.number().int().positive(), pricingMode: z.enum(["FIXED", "SCHEDULED"]).default("FIXED"), salesStart: z.string().datetime().optional(), salesEnd: z.string().datetime().optional(), earlyBirdPriceMinor: z.number().int().nonnegative().optional(), earlyBirdEndsAt: z.string().datetime().optional(), maxPerOrder: z.number().int().min(1).max(20).default(10) });
+const table = z.object({ action: z.literal("table"), zoneName: z.string().min(2), label: z.string().min(1), seats: z.number().int().positive(), priceMinor: z.number().int().nonnegative() });
 const layout = z.object({
   action: z.literal("layout"),
   objects: z.array(z.object({
@@ -59,10 +59,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const salesStart = value.salesStart ? new Date(value.salesStart) : parent.salesStart;
       const salesEnd = value.salesEnd ? new Date(value.salesEnd) : parent.salesEnd;
       if (salesStart >= salesEnd) throw new Error("Начало продаж должно быть раньше окончания");
-      if (value.pricingMode === "SCHEDULED" && (!value.earlyBirdPriceMinor || !value.earlyBirdEndsAt)) throw new Error("Заполните раннюю цену и дату её окончания");
+      if (value.pricingMode === "SCHEDULED" && (value.earlyBirdPriceMinor === undefined || !value.earlyBirdEndsAt)) throw new Error("Заполните раннюю цену и дату её окончания");
       const earlyEnd = value.earlyBirdEndsAt ? new Date(value.earlyBirdEndsAt) : null;
       if (earlyEnd && (earlyEnd <= salesStart || earlyEnd >= salesEnd)) throw new Error("Дата смены цены должна находиться внутри периода продаж");
-      await db.ticketCategory.create({ data: { eventId: id, name: value.name, description: value.description || null, priceMinor: value.priceMinor, colorHex: value.colorHex, pricingMode: value.pricingMode, capacity: value.capacity, salesStart, salesEnd, maxPerOrder: value.maxPerOrder, priceTiers: value.pricingMode === "SCHEDULED" && earlyEnd && value.earlyBirdPriceMinor ? { create: [{ label: "Early bird", priceMinor: value.earlyBirdPriceMinor, startsAt: salesStart, endsAt: earlyEnd }, { label: "Regular", priceMinor: value.priceMinor, startsAt: earlyEnd, endsAt: salesEnd }] } : undefined } });
+      await db.ticketCategory.create({ data: { eventId: id, name: value.name, description: value.description || null, priceMinor: value.priceMinor, colorHex: value.colorHex, pricingMode: value.pricingMode, capacity: value.capacity, salesStart, salesEnd, maxPerOrder: value.maxPerOrder, priceTiers: value.pricingMode === "SCHEDULED" && earlyEnd && value.earlyBirdPriceMinor !== undefined ? { create: [{ label: "Early bird", priceMinor: value.earlyBirdPriceMinor, startsAt: salesStart, endsAt: earlyEnd }, { label: "Regular", priceMinor: value.priceMinor, startsAt: earlyEnd, endsAt: salesEnd }] } : undefined } });
     } else if (body.action === "table") {
       const value = table.parse(body);
       let zone = await db.zone.findUnique({ where: { eventId_name: { eventId: id, name: value.zoneName } } });
@@ -74,53 +74,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         const categories = await tx.ticketCategory.findMany({ where: { eventId: id }, select: { id: true } });
         const categoryIds = new Set(categories.map((item) => item.id));
         const sellableTypes = new Set(["TABLE", "ROUND_TABLE", "SOFA", "ROW"]);
-        if (value.objects.some((item) => item.categoryId && !categoryIds.has(item.categoryId)) || value.objects.some((item) => item.seatAssignments.some((seat) => seat.categoryId && !categoryIds.has(seat.categoryId)))) {
-          throw new Error("Категория билета не относится к этому мероприятию");
-        }
-        if (value.objects.some((item) => sellableTypes.has(item.objectType) && item.seats < 1)) {
-          throw new Error("Для продаваемого объекта нужно хотя бы одно место");
-        }
-        const existing = await tx.table.findMany({
-          where: { zone: { eventId: id } },
-          include: { seatItems: true, orderItems: true },
-        });
-        if (existing.some((item) => item.reserved || item.orderItems.length > 0 || item.seatItems.some((seat) => seat.status !== "AVAILABLE"))) {
-          throw new Error("Карту нельзя полностью перестроить после появления заказов. Создайте новую версию карты до открытия продаж.");
-        }
+        if (value.objects.some((item) => item.categoryId && !categoryIds.has(item.categoryId)) || value.objects.some((item) => item.seatAssignments.some((seat) => seat.categoryId && !categoryIds.has(seat.categoryId)))) throw new Error("Категория билета не относится к этому мероприятию");
+        if (value.objects.some((item) => sellableTypes.has(item.objectType) && item.seats < 1)) throw new Error("Для продаваемого объекта нужно хотя бы одно место");
+        const existing = await tx.table.findMany({ where: { zone: { eventId: id } }, include: { seatItems: true, orderItems: true } });
+        if (existing.some((item) => item.reserved || item.orderItems.length > 0 || item.seatItems.some((seat) => seat.status !== "AVAILABLE"))) throw new Error("Карту нельзя полностью перестроить после появления заказов. Создайте новую версию карты до открытия продаж.");
         await tx.seat.deleteMany({ where: { table: { zone: { eventId: id } } } });
         await tx.table.deleteMany({ where: { zone: { eventId: id } } });
         let zone = await tx.zone.findUnique({ where: { eventId_name: { eventId: id, name: "Основной зал" } } });
         zone ??= await tx.zone.create({ data: { eventId: id, name: "Основной зал" } });
         for (const item of value.objects) {
-          await tx.table.create({
-            data: {
-              zoneId: zone.id,
-              label: item.label,
-              objectType: item.objectType,
-              seats: item.seats,
-              priceMode: item.priceMode,
-              priceMinor: item.priceMinor,
-              x: item.x,
-              y: item.y,
-              rotation: item.rotation,
-              width: item.width,
-              height: item.height,
-              categoryId: item.categoryId,
-              seatItems: {
-                create: Array.from({ length: sellableTypes.has(item.objectType) ? item.seats : 0 }, (_, index) => ({
-                  label: `${item.label}-${index + 1}`,
-                  position: index + 1,
-                  categoryId: item.seatAssignments.find((seat) => seat.position === index + 1)?.categoryId ?? (item.priceMode === "PER_SEAT" ? item.categoryId : null),
-                })),
-              },
-            },
-          });
+          await tx.table.create({ data: { zoneId: zone.id, label: item.label, objectType: item.objectType, seats: item.seats, priceMode: item.priceMode, priceMinor: item.priceMinor, x: item.x, y: item.y, rotation: item.rotation, width: item.width, height: item.height, categoryId: item.categoryId, seatItems: { create: Array.from({ length: sellableTypes.has(item.objectType) ? item.seats : 0 }, (_, index) => ({ label: `${item.label}-${index + 1}`, position: index + 1, categoryId: item.seatAssignments.find((seat) => seat.position === index + 1)?.categoryId ?? (item.priceMode === "PER_SEAT" ? item.categoryId : null) })) } } });
         }
         await tx.event.update({ where: { id }, data: { mapEnabled: true } });
       });
-    } else {
-      throw new Error("Unknown action");
-    }
+    } else throw new Error("Unknown action");
     await writeAudit(actor,{action:`EVENT_${String(body.action).toUpperCase()}`,entityType:"Event",entityId:id,summary:`Обновлены настройки мероприятия: ${body.action}`});
     return NextResponse.json({ ok: true });
   } catch (error) {
