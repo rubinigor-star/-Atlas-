@@ -1,6 +1,5 @@
 import QRCode from "qrcode";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { Resend } from "resend";
 import { db } from "@/lib/db";
 
 function baseUrl() {
@@ -45,27 +44,34 @@ async function makePdf(order: Awaited<ReturnType<typeof getOrder>>) {
     page.drawImage(qr, { x: 105, y: 105, width: 210, height: 210 });
     page.drawText("Show this QR code at the entrance", { x: 103, y: 78, size: 10, font: regular, color: rgb(0.85, 0.88, 0.93) });
   }
-  return Buffer.from(await pdf.save());
+  return Buffer.from(await pdf.save()).toString("base64");
 }
 
 export async function sendOrderTicketEmail(publicId: string) {
-  if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) throw new Error("Resend не настроен в Vercel");
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL;
+  if (!apiKey || !from) throw new Error("Resend не настроен в Vercel");
   const order = await getOrder(publicId);
   const recipient = process.env.RESEND_TEST_TO || order.customerEmail;
-  const resend = new Resend(process.env.RESEND_API_KEY);
   const pdf = await makePdf(order);
   const orderUrl = `${baseUrl()}/orders/${encodeURIComponent(order.publicId)}`;
-  const result = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL,
-    to: recipient,
-    subject: `Ваши билеты Atlas — ${order.event.title}`,
-    html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111827"><div style="background:#081426;color:white;padding:26px;border-radius:16px 16px 0 0"><div style="font-size:13px;letter-spacing:2px">ATLAS TICKETS</div><h1 style="margin:10px 0 0">Билеты готовы</h1></div><div style="padding:26px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 16px 16px"><p>Здравствуйте, ${escapeHtml(order.customerName)}.</p><h2>${escapeHtml(order.event.title)}</h2><p><strong>Дата:</strong> ${escapeHtml(formatDate(order.event.startsAt))}<br><strong>Место:</strong> ${escapeHtml(order.event.venue.name)}, ${escapeHtml(order.event.venue.address)}<br><strong>Заказ:</strong> ${escapeHtml(order.publicId)}</p><p>В приложенном PDF находятся ${order.tickets.length} билет(а) с QR-кодами.</p><p style="text-align:center;margin-top:24px"><a href="${orderUrl}" style="display:inline-block;background:#111827;color:white;text-decoration:none;padding:13px 20px;border-radius:10px">Открыть заказ и билеты</a></p><p style="font-size:12px;color:#6b7280">Сохраните письмо до окончания мероприятия.</p></div></div>`,
-    attachments: [{ filename: `atlas-${order.publicId}.pdf`, content: pdf }],
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from,
+      to: [recipient],
+      subject: `Ваши билеты Atlas — ${order.event.title}`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111827"><div style="background:#081426;color:white;padding:26px;border-radius:16px 16px 0 0"><div style="font-size:13px;letter-spacing:2px">ATLAS TICKETS</div><h1 style="margin:10px 0 0">Билеты готовы</h1></div><div style="padding:26px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 16px 16px"><p>Здравствуйте, ${escapeHtml(order.customerName)}.</p><h2>${escapeHtml(order.event.title)}</h2><p><strong>Дата:</strong> ${escapeHtml(formatDate(order.event.startsAt))}<br><strong>Место:</strong> ${escapeHtml(order.event.venue.name)}, ${escapeHtml(order.event.venue.address)}<br><strong>Заказ:</strong> ${escapeHtml(order.publicId)}</p><p>В приложенном PDF находятся ${order.tickets.length} билет(а) с QR-кодами.</p><p style="text-align:center;margin-top:24px"><a href="${orderUrl}" style="display:inline-block;background:#111827;color:white;text-decoration:none;padding:13px 20px;border-radius:10px">Открыть заказ и билеты</a></p><p style="font-size:12px;color:#6b7280">Сохраните письмо до окончания мероприятия.</p></div></div>`,
+      attachments: [{ filename: `atlas-${order.publicId}.pdf`, content: pdf }],
+    }),
   });
-  if (result.error) {
-    console.error("[ticket-email]", { publicId, recipient, error: result.error.message });
-    throw new Error(result.error.message);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = typeof payload?.message === "string" ? payload.message : `Resend: ${response.status}`;
+    console.error("[ticket-email]", { publicId, recipient, status: response.status, message });
+    throw new Error(message);
   }
-  console.info("[ticket-email] sent", { publicId, recipient, resendId: result.data?.id });
-  return { id: result.data?.id, recipient };
+  console.info("[ticket-email] sent", { publicId, recipient, resendId: payload?.id });
+  return { id: payload?.id as string | undefined, recipient };
 }
