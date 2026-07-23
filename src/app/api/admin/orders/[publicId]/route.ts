@@ -6,6 +6,7 @@ import { writeAudit } from "@/lib/audit";
 import { ticketCode } from "@/lib/ticketing";
 import { sendOrderTicketEmail } from "@/lib/order-email";
 import { captureTestAuthorization, voidTestAuthorization } from "@/lib/payment-authorization";
+import { commitReservation, releaseReservation } from "@/lib/reservation";
 
 const reviewSchema = z.object({
   action: z.enum(["approve", "reject"]),
@@ -32,6 +33,7 @@ export async function PATCH(
       if (current.status !== "PENDING_APPROVAL") throw new Error("Эта заявка уже рассмотрена");
 
       if (input.action === "reject") {
+        await releaseReservation(current.id, tx);
         await voidTestAuthorization(current.id, tx);
         return tx.order.update({
           where: { id: current.id },
@@ -43,6 +45,7 @@ export async function PATCH(
         });
       }
 
+      await commitReservation(current.id, tx);
       await captureTestAuthorization(current.id, tx);
 
       for (const item of current.items) {
