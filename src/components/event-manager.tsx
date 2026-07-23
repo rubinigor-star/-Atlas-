@@ -9,16 +9,7 @@ const copy = {
   he: { saved: "נשמר", key: "הגדרה מרכזית", sell: "איך למכור כרטיסים", instant: "מכירה אוטומטית", instantHelp: "לאחר תשלום ניסיון הלקוח מקבל מיד כרטיס וקוד QR.", approval: "רק לאחר האישור שלי", approvalHelp: "הלקוח שולח בקשה. התשלום והכרטיס זמינים לאחר הבדיקה.", question: "מה הלקוח צריך לציין בבקשה", saveMode: "שמירת מצב המכירה", basics: "פרטים בסיסיים", title: "שם", description: "תיאור", date: "תאריך ושעה", save: "שמירה", unpublish: "הסרה מפרסום", publish: "פרסום", addCategory: "הוספת קטגוריה", name: "שם", price: "מחיר ₪", amount: "כמות", add: "הוספה", addVip: "הוספה מהירה של שולחן VIP", zone: "אזור", table: "שולחן V9", seats: "מקומות", tablePrice: "מחיר שולחן ₪", addTable: "הוספת שולחן" },
 };
 
-type ManagedEvent = {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  startsAt: string;
-  salesMode: "INSTANT" | "APPROVAL_REQUIRED";
-  approvalInstructions: string | null;
-  mapEnabled: boolean;
-};
+type ManagedEvent = { id: string; title: string; description: string; status: string; startsAt: string; salesMode: "INSTANT" | "APPROVAL_REQUIRED"; approvalInstructions: string | null; mapEnabled: boolean };
 
 export function EventManager({ event }: { event: ManagedEvent }) {
   const router = useRouter();
@@ -29,135 +20,22 @@ export function EventManager({ event }: { event: ManagedEvent }) {
 
   async function send(body: Record<string, unknown>) {
     setMessage("");
-    const response = await fetch(`/api/admin/events/${event.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const response = await fetch(`/api/admin/events/${event.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     const data = await response.json();
     setMessage(response.ok ? text.saved : data.error);
     if (response.ok) router.refresh();
   }
 
-  return (
-    <div className="form">
-      <section className="panel form">
-        <span className="eyebrow">Формат продажи</span>
-        <h2>Как покупатель выбирает билет</h2>
-        <div className="choice-grid compact">
-          <button type="button" className={`choice-card ${!event.mapEnabled ? "selected" : ""}`} onClick={() => void send({ action: "admission", mapEnabled: false })}><i>🎟</i><strong>Без схемы зала</strong><small>Выбор типа и количества билетов.</small></button>
-          <button type="button" className={`choice-card ${event.mapEnabled ? "selected" : ""}`} onClick={() => void send({ action: "admission", mapEnabled: true })}><i>▦</i><strong>С выбором мест</strong><small>Карта со столами, диванами и стульями.</small></button>
-        </div>
-        <p className="muted">После первого заказа изменить формат нельзя, чтобы не нарушить уже выданные билеты.</p>
-      </section>
-      <form
-        className="panel form"
-        onSubmit={(submitEvent) => {
-          submitEvent.preventDefault();
-          const form = new FormData(submitEvent.currentTarget);
-          void send({
-            action: "sales",
-            salesMode: form.get("salesMode"),
-            approvalInstructions: form.get("approvalInstructions"),
-          });
-        }}
-      >
-        <span className="eyebrow">{text.key}</span>
-        <h2>{text.sell}</h2>
-        <label className="option">
-          <span>
-            <strong>{text.instant}</strong>
-            <small>{text.instantHelp}</small>
-          </span>
-          <input
-            type="radio"
-            name="salesMode"
-            value="INSTANT"
-            defaultChecked={event.salesMode === "INSTANT"}
-          />
-        </label>
-        <label className="option">
-          <span>
-            <strong>{text.approval}</strong>
-            <small>{text.approvalHelp}</small>
-          </span>
-          <input
-            type="radio"
-            name="salesMode"
-            value="APPROVAL_REQUIRED"
-            defaultChecked={event.salesMode === "APPROVAL_REQUIRED"}
-          />
-        </label>
-        <div className="field">
-          <label>{text.question}</label>
-          <textarea
-            name="approvalInstructions"
-            rows={3}
-            defaultValue={event.approvalInstructions || "Укажите номер клубной карты или кто вас пригласил"}
-          />
-        </div>
-        <button className="btn">{text.saveMode}</button>
-      </form>
+  return <div className="form">
+    <section className="panel form"><span className="eyebrow">Формат продажи</span><h2>Как покупатель выбирает билет</h2><div className="choice-grid compact"><button type="button" className={`choice-card ${!event.mapEnabled ? "selected" : ""}`} onClick={() => void send({ action: "admission", mapEnabled: false })}><i>🎟</i><strong>Без схемы зала</strong><small>Выбор типа и количества билетов.</small></button><button type="button" className={`choice-card ${event.mapEnabled ? "selected" : ""}`} onClick={() => void send({ action: "admission", mapEnabled: true })}><i>▦</i><strong>С выбором мест</strong><small>Карта со столами, диванами и стульями.</small></button></div><p className="muted">После первого заказа изменить формат нельзя, чтобы не нарушить уже выданные билеты.</p></section>
 
-      <form
-        className="panel form"
-        onSubmit={(submitEvent) => {
-          submitEvent.preventDefault();
-          const form = new FormData(submitEvent.currentTarget);
-          void send({
-            action: "update",
-            title: form.get("title"),
-            description: form.get("description"),
-            startsAt: new Date(String(form.get("startsAt"))).toISOString(),
-          });
-        }}
-      >
-        <h2>{text.basics}</h2>
-        <div className="field"><label>{text.title}</label><input className="input" name="title" defaultValue={event.title} required /></div>
-        <div className="field"><label>{text.description}</label><textarea name="description" rows={5} defaultValue={event.description} required /></div>
-        <div className="field"><label>{text.date}</label><input className="input" name="startsAt" type="datetime-local" defaultValue={event.startsAt.slice(0, 16)} required /></div>
-        <div className="row">
-          <button className="btn">{text.save}</button>
-          <button type="button" className="btn secondary" onClick={() => void send({ action: "status", status: event.status === "PUBLISHED" ? "DRAFT" : "PUBLISHED" })}>
-            {event.status === "PUBLISHED" ? text.unpublish : text.publish}
-          </button>
-        </div>
-      </form>
+    <form className="panel form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); void send({ action: "sales", salesMode: f.get("salesMode"), approvalInstructions: f.get("approvalInstructions") }); }}><span className="eyebrow">{text.key}</span><h2>{text.sell}</h2><label className="option"><span><strong>{text.instant}</strong><small>{text.instantHelp}</small></span><input type="radio" name="salesMode" value="INSTANT" defaultChecked={event.salesMode === "INSTANT"} /></label><label className="option"><span><strong>{text.approval}</strong><small>{text.approvalHelp}</small></span><input type="radio" name="salesMode" value="APPROVAL_REQUIRED" defaultChecked={event.salesMode === "APPROVAL_REQUIRED"} /></label><div className="field"><label>{text.question}</label><textarea name="approvalInstructions" rows={3} defaultValue={event.approvalInstructions || "Укажите номер клубной карты или кто вас пригласил"} /></div><button className="btn">{text.saveMode}</button></form>
 
-      <form
-        className="panel form"
-        onSubmit={(submitEvent) => {
-          submitEvent.preventDefault();
-          const form = new FormData(submitEvent.currentTarget);
-          const iso = (name: string) => new Date(String(form.get(name))).toISOString();
-          void send({ action: "category", name: form.get("name"), description: form.get("description"), colorHex: form.get("colorHex"), priceMinor: Math.round(Number(form.get("price")) * 100), capacity: Number(form.get("capacity")), pricingMode, salesStart: iso("salesStart"), salesEnd: iso("salesEnd"), earlyBirdPriceMinor: pricingMode === "SCHEDULED" ? Math.round(Number(form.get("earlyBirdPrice")) * 100) : undefined, earlyBirdEndsAt: pricingMode === "SCHEDULED" ? iso("earlyBirdEndsAt") : undefined, maxPerOrder: Number(form.get("maxPerOrder")) });
-          submitEvent.currentTarget.reset();
-        }}
-      >
-        <h2>{text.addCategory}</h2>
-        <div className="form-grid three"><input className="input" name="name" placeholder={text.name} required /><input className="input" name="capacity" type="number" min="1" placeholder={text.amount} required /><label className="field"><span>Цвет на карте</span><input className="input color-input" name="colorHex" type="color" defaultValue="#2563EB" /></label></div>
-        <textarea name="description" rows={2} placeholder="Что входит в билет" />
-        <div className="pricing-switch"><button type="button" className={pricingMode === "FIXED" ? "active" : ""} onClick={() => setPricingMode("FIXED")}>Фиксированная цена</button><button type="button" className={pricingMode === "SCHEDULED" ? "active" : ""} onClick={() => setPricingMode("SCHEDULED")}>Цена по расписанию</button></div>
-        {pricingMode === "SCHEDULED" && <div className="form-grid two"><div className="field"><label>Ранняя цена, ₪</label><input className="input" name="earlyBirdPrice" type="number" min="0.01" step="0.01" required /></div><div className="field"><label>Действует до</label><input className="input" name="earlyBirdEndsAt" type="datetime-local" required /></div></div>}
-        <div className="form-grid two"><div className="field"><label>{pricingMode === "SCHEDULED" ? "Основная цена, ₪" : "Цена, ₪"}</label><input className="input" name="price" type="number" min="0.01" step="0.01" required /></div><div className="field"><label>Максимум в заказе</label><input className="input" name="maxPerOrder" type="number" min="1" max="20" defaultValue="10" required /></div></div>
-        <div className="form-grid two"><div className="field"><label>Начало продаж</label><input className="input" name="salesStart" type="datetime-local" required /></div><div className="field"><label>Окончание продаж</label><input className="input" name="salesEnd" type="datetime-local" required /></div></div>
-        <button className="btn">{text.add}</button>
-      </form>
+    <form className="panel form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); void send({ action: "update", title: f.get("title"), description: f.get("description"), startsAt: new Date(String(f.get("startsAt"))).toISOString() }); }}><h2>{text.basics}</h2><div className="field"><label>{text.title}</label><input className="input" name="title" defaultValue={event.title} required /></div><div className="field"><label>{text.description}</label><textarea name="description" rows={5} defaultValue={event.description} required /></div><div className="field"><label>{text.date}</label><input className="input" name="startsAt" type="datetime-local" defaultValue={event.startsAt.slice(0, 16)} required /></div><div className="row"><button className="btn">{text.save}</button><button type="button" className="btn secondary" onClick={() => void send({ action: "status", status: event.status === "PUBLISHED" ? "DRAFT" : "PUBLISHED" })}>{event.status === "PUBLISHED" ? text.unpublish : text.publish}</button></div></form>
 
-      {event.mapEnabled && <form
-        className="panel form"
-        onSubmit={(submitEvent) => {
-          submitEvent.preventDefault();
-          const form = new FormData(submitEvent.currentTarget);
-          void send({ action: "table", zoneName: form.get("zoneName"), label: form.get("label"), seats: Number(form.get("seats")), priceMinor: Math.round(Number(form.get("price")) * 100) });
-          submitEvent.currentTarget.reset();
-        }}
-      >
-        <h2>{text.addVip}</h2>
-        <div className="row"><input className="input" name="zoneName" placeholder={text.zone} required /><input className="input" name="label" placeholder={text.table} required /><input className="input" name="seats" type="number" min="1" placeholder={text.seats} required /><input className="input" name="price" type="number" min="1" placeholder={text.tablePrice} required /></div>
-        <button className="btn">{text.addTable}</button>
-      </form>}
-      {message && <div className="toast">{message}</div>}
-    </div>
-  );
+    <form className="panel form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); const iso = (name: string) => new Date(String(f.get(name))).toISOString(); void send({ action: "category", name: f.get("name"), description: f.get("description"), colorHex: f.get("colorHex"), priceMinor: Math.round(Number(f.get("price")) * 100), capacity: Number(f.get("capacity")), pricingMode, salesStart: iso("salesStart"), salesEnd: iso("salesEnd"), earlyBirdPriceMinor: pricingMode === "SCHEDULED" ? Math.round(Number(f.get("earlyBirdPrice")) * 100) : undefined, earlyBirdEndsAt: pricingMode === "SCHEDULED" ? iso("earlyBirdEndsAt") : undefined, maxPerOrder: Number(f.get("maxPerOrder")) }); e.currentTarget.reset(); }}><h2>{text.addCategory}</h2><div className="form-grid three"><input className="input" name="name" placeholder={text.name} required /><input className="input" name="capacity" type="number" min="1" placeholder={text.amount} required /><label className="field"><span>Цвет на карте</span><input className="input color-input" name="colorHex" type="color" defaultValue="#2563EB" /></label></div><textarea name="description" rows={2} placeholder="Что входит в билет" /><div className="pricing-switch"><button type="button" className={pricingMode === "FIXED" ? "active" : ""} onClick={() => setPricingMode("FIXED")}>Фиксированная цена</button><button type="button" className={pricingMode === "SCHEDULED" ? "active" : ""} onClick={() => setPricingMode("SCHEDULED")}>Цена по расписанию</button></div>{pricingMode === "SCHEDULED" && <div className="form-grid two"><div className="field"><label>Ранняя цена, ₪</label><input className="input" name="earlyBirdPrice" type="number" min="0" step="0.01" required /></div><div className="field"><label>Действует до</label><input className="input" name="earlyBirdEndsAt" type="datetime-local" required /></div></div>}<div className="form-grid two"><div className="field"><label>{pricingMode === "SCHEDULED" ? "Основная цена, ₪" : "Цена, ₪"}</label><input className="input" name="price" type="number" min="0" step="0.01" required /></div><div className="field"><label>Максимум в заказе</label><input className="input" name="maxPerOrder" type="number" min="1" max="20" defaultValue="10" required /></div></div><div className="form-grid two"><div className="field"><label>Начало продаж</label><input className="input" name="salesStart" type="datetime-local" required /></div><div className="field"><label>Окончание продаж</label><input className="input" name="salesEnd" type="datetime-local" required /></div></div><button className="btn">{text.add}</button></form>
+
+    {event.mapEnabled && <form className="panel form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); void send({ action: "table", zoneName: f.get("zoneName"), label: f.get("label"), seats: Number(f.get("seats")), priceMinor: Math.round(Number(f.get("price")) * 100) }); e.currentTarget.reset(); }}><h2>{text.addVip}</h2><div className="row"><input className="input" name="zoneName" placeholder={text.zone} required /><input className="input" name="label" placeholder={text.table} required /><input className="input" name="seats" type="number" min="1" placeholder={text.seats} required /><input className="input" name="price" type="number" min="0" step="0.01" placeholder={text.tablePrice} required /></div><button className="btn">{text.addTable}</button></form>}
+    {message && <div className="toast">{message}</div>}
+  </div>;
 }
