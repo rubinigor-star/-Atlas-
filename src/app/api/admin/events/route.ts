@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { db } from "@/lib/db";
 import { createEventSchema } from "@/lib/schemas";
 import { requirePermission } from "@/lib/auth";
@@ -64,9 +65,15 @@ export async function POST(req: Request) {
     await writeAudit(actor, { action: "EVENT_CREATED", entityType: "Event", entityId: event.id, summary: `Создано мероприятие ${event.title}` });
     return NextResponse.json({ id: event.id }, { status: 201 });
   } catch (error) {
+    const forbidden = error instanceof Error && error.message === "FORBIDDEN";
+    const message = error instanceof ZodError
+      ? error.issues.map((issue) => issue.message).join(". ")
+      : error instanceof Error
+        ? error.message
+        : "Ошибка";
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Ошибка" },
-      { status: error instanceof Error && error.message === "FORBIDDEN" ? 403 : 400 },
+      { error: forbidden ? "Недостаточно прав" : message },
+      { status: forbidden ? 403 : 400 },
     );
   }
 }
