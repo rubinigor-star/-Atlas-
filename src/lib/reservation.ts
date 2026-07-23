@@ -13,11 +13,31 @@ export type ReservationItemInput = {
 };
 
 export async function expireReservations(executor: SqlExecutor = db) {
-  await executor.$executeRaw`
-    UPDATE Reservation
-    SET status = 'EXPIRED', updatedAt = CURRENT_TIMESTAMP
+  const expired = await executor.$queryRaw<Array<{ id: string; orderId: string }>>`
+    SELECT id, orderId
+    FROM Reservation
     WHERE status = 'ACTIVE' AND expiresAt <= CURRENT_TIMESTAMP
   `;
+
+  for (const reservation of expired) {
+    await executor.$executeRaw`
+      UPDATE PaymentAuthorization
+      SET status = 'VOIDED', voidedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
+      WHERE orderId = ${reservation.orderId} AND status = 'AUTHORIZED'
+    `;
+    await executor.$executeRaw`
+      UPDATE "Order"
+      SET status = 'CANCELLED', reviewNote = 'Срок временного резерва истёк', updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ${reservation.orderId} AND status = 'PENDING_APPROVAL'
+    `;
+    await executor.$executeRaw`
+      UPDATE Reservation
+      SET status = 'EXPIRED', updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ${reservation.id} AND status = 'ACTIVE'
+    `;
+  }
+
+  return expired.length;
 }
 
 export async function assertInventoryAvailable(params: {
