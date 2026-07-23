@@ -30,8 +30,10 @@ export const createEventSchema = z.object({
   slug: z.string().regex(/^[a-z0-9-]+$/),
   description: z.string().min(20),
   startsAt: z.string().datetime(),
+  doorsOpenAt: z.string().datetime(),
   venueName: z.string().min(2),
   city: z.string().min(2),
+  address: z.string().min(4).max(250),
   categoryName: z.string().min(2),
   categoryDescription: z.string().max(500).optional(),
   categoryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#2563EB"),
@@ -48,8 +50,10 @@ export const createEventSchema = z.object({
   approvalInstructions: z.string().max(1000).optional(),
 }).superRefine((value, context) => {
   const eventStart = new Date(value.startsAt).getTime();
+  const doorsOpen = new Date(value.doorsOpenAt).getTime();
   const salesStart = new Date(value.salesStart).getTime();
   const salesEnd = new Date(value.salesEnd).getTime();
+  if (doorsOpen > eventStart) context.addIssue({ code: z.ZodIssueCode.custom, path: ["doorsOpenAt"], message: "Открытие дверей не может быть позже начала мероприятия" });
   if (salesStart >= salesEnd || salesEnd > eventStart) context.addIssue({ code: z.ZodIssueCode.custom, path: ["salesEnd"], message: "Период продаж должен завершаться не позже начала мероприятия" });
   if (value.pricingMode === "SCHEDULED") {
     if (value.earlyBirdPriceMinor === undefined || !value.earlyBirdEndsAt) context.addIssue({ code: z.ZodIssueCode.custom, path: ["earlyBirdEndsAt"], message: "Для цены по расписанию заполните раннюю цену и дату её окончания" });
