@@ -12,11 +12,9 @@ export type PaymentInput = {
   cvc?: string;
 };
 
-type AuthorizationRow = {
-  id: string;
-  providerReference: string;
-  status: AuthorizationStatus;
-  expiresAt: Date;
+type SqlExecutor = {
+  $executeRaw: typeof db.$executeRaw;
+  $queryRaw: typeof db.$queryRaw;
 };
 
 function normalizedCardNumber(value?: string) {
@@ -37,31 +35,32 @@ export function validateTestAuthorization(input: PaymentInput) {
   if (!/^\d{3,4}$/.test(input.cvc || "")) throw new Error("Укажите CVC");
 }
 
-async function findAuthorization(orderId: string) {
-  const rows = await db.$queryRaw<AuthorizationRow[]>`
-    SELECT id, providerReference, status, expiresAt
-    FROM PaymentAuthorization
-    WHERE orderId = ${orderId}
-    LIMIT 1
-  `;
-  return rows[0] ?? null;
-}
-
 export async function createTestAuthorization(params: {
   orderId: string;
   amountMinor: number;
   currency: string;
   input: PaymentInput;
   captureImmediately: boolean;
+  executor?: SqlExecutor;
 }) {
-  if (!Number.isInteger(params.amountMinor) || params.amountMinor < 0) {
-    throw new Error("Некорректная сумма авторизации");
+  validateTestAuthorization(params.input);
+  const executor = params.executor ?? db;
+  const existing = await executor.$queryRaw<Array<{
+    id: string;
+    providerReference: string;
+    status: AuthorizationStatus;
+    expiresAt: Date;
+    amountMinor: number;
+    currency: string;
+  }>>`SELECT id, providerReference, status, expiresAt, amountMinor, currency FROM PaymentAuthorization WHERE orderId = ${params.orderId} LIMIT 1`;
+
+  if (existing[0]) {
+    if (existing[0].amountMinor !== params.amountMinor || existing[0].currency !== params.currency) {
+      throw new Error("Сумма существующей авторизации не совпадает с заказом");
+    }
+    return existing[0];
   }
 
-  const existing = await findAuthorization(params.orderId);
-  if (existing) return existing;
-
-  validateTestAuthorization(params.input);
   const id = `auth_${randomUUID().replace(/-/g, "")}`;
   const providerReference = `atlas_test_${randomUUID().replace(/-/g, "")}`;
   const status: AuthorizationStatus = params.captureImmediately ? "CAPTURED" : "AUTHORIZED";
@@ -70,7 +69,7 @@ export async function createTestAuthorization(params: {
   const cardLast4 = params.input.method === "CARD" ? normalizedCardNumber(params.input.cardNumber).slice(-4) : null;
 
   try {
-    await db.$executeRaw`
+    await executor.$executeRaw`
       INSERT INTO PaymentAuthorization (
         id, orderId, provider, providerReference, method, status,
         amountMinor, currency, cardLast4, authorizedAt, capturedAt, expiresAt, createdAt, updatedAt
@@ -80,51 +79,64 @@ export async function createTestAuthorization(params: {
       )
     `;
   } catch (error) {
-    const concurrent = await findAuthorization(params.orderId);
-    if (concurrent) return concurrent;
+    const concurrent = await executor.$queryRaw<Array<{
+      id: string;
+      providerReference: string;
+      status: AuthorizationStatus;
+      expiresAt: Date;
+      amountMinor: number;
+      currency: string;
+    }>>`SELECT id, providerReference, status, expiresAt, amountMinor, currency FROM PaymentAuthorization WHERE orderId = ${params.orderId} LIMIT 1`;
+    if (concurrent[0]) return concurrent[0];
     throw error;
   }
 
-  return { id, providerReference, status, expiresAt };
+  return { id, providerReference, status, expiresAt, amountMinor: params.amountMinor, currency: params.currency };
 }
 
-export async function captureTestAuthorization(orderId: string) {
-  const now = new Date();
-  const updated = await db.$executeRaw`
-    UPDATE PaymentAuthorization
-    SET status = 'CAPTURED', capturedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
-    WHERE orderId = ${orderId} AND status = 'AUTHORIZED' AND expiresAt >= ${now}
-  `;
-
-  const authorization = await findAuthorization(orderId);
+export async function captureTestAuthorization(orderId: string, executor: SqlExecutor = db) {
+  const rows = await executor.$queryRaw<Array<{
+    id: string;
+    status: AuthorizationStatus;
+    expiresAt: Date;
+    amountMinor: number;
+    currency: string;
+  }>>`SELECT id, status, expiresAt, amountMinor, currency FROM PaymentAuthorization WHERE orderId = ${orderId} LIMIT 1`;
+  const authorization = rows[0];
   if (!authorization) throw new Error("Авторизация оплаты не найдена");
   if (authorization.status === "CAPTURED") return authorization;
-  if (updated === 1) return { ...authorization, status: "CAPTURED" as const };
-
-  if (authorization.status === "AUTHORIZED" && new Date(authorization.expiresAt) < now) {
-    await db.$executeRaw`
-      UPDATE PaymentAuthorization
-      SET status = 'EXPIRED', updatedAt = CURRENT_TIMESTAMP
-      WHERE id = ${authorization.id} AND status = 'AUTHORIZED'
-    `;
+  if (authorization.status !== "AUTHORIZED") throw new Error("Авторизация недоступна для списания");
+  if (new Date(authorization.expiresAt) < new Date()) {
+    await executor.$executeRaw`UPDATE PaymentAuthorization SET status = 'EXPIRED', updatedAt = CURRENT_TIMESTAMP WHERE id = ${authorization.id} AND status = 'AUTHORIZED'`;
     throw new Error("Срок авторизации оплаты истёк");
   }
 
-  throw new Error("Авторизация недоступна для списания");
+  const changed = await executor.$executeRaw`
+    UPDATE PaymentAuthorization
+    SET status = 'CAPTURED', capturedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
+    WHERE id = ${authorization.id} AND status = 'AUTHORIZED'
+  `;
+  if (changed !== 1) {
+    const refreshed = await executor.$queryRaw<Array<{ status: AuthorizationStatus }>>`SELECT status FROM PaymentAuthorization WHERE id = ${authorization.id} LIMIT 1`;
+    if (refreshed[0]?.status !== "CAPTURED") throw new Error("Авторизация была изменена другой операцией");
+  }
+  return { ...authorization, status: "CAPTURED" as const };
 }
 
-export async function voidTestAuthorization(orderId: string) {
-  await db.$executeRaw`
-    UPDATE PaymentAuthorization
-    SET status = 'VOIDED', voidedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
-    WHERE orderId = ${orderId} AND status = 'AUTHORIZED'
+export async function voidTestAuthorization(orderId: string, executor: SqlExecutor = db) {
+  const rows = await executor.$queryRaw<Array<{ id: string; status: AuthorizationStatus }>>`
+    SELECT id, status FROM PaymentAuthorization WHERE orderId = ${orderId} LIMIT 1
   `;
-
-  const authorization = await findAuthorization(orderId);
+  const authorization = rows[0];
   if (!authorization) throw new Error("Авторизация оплаты не найдена");
   if (authorization.status === "VOIDED") return authorization;
-  if (authorization.status === "CAPTURED") throw new Error("Списанную оплату нельзя отменить как авторизацию");
-  if (authorization.status === "EXPIRED") throw new Error("Авторизация оплаты уже истекла");
-  if (authorization.status === "FAILED") throw new Error("Неуспешную авторизацию нельзя отменить");
-  return authorization;
+  if (authorization.status !== "AUTHORIZED") throw new Error("Авторизация недоступна для отмены");
+
+  const changed = await executor.$executeRaw`
+    UPDATE PaymentAuthorization
+    SET status = 'VOIDED', voidedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
+    WHERE id = ${authorization.id} AND status = 'AUTHORIZED'
+  `;
+  if (changed !== 1) throw new Error("Авторизация была изменена другой операцией");
+  return { ...authorization, status: "VOIDED" as const };
 }
