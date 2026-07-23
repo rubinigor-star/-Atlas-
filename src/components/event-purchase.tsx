@@ -26,17 +26,21 @@ type MapObject = {
   seatItems: MapSeat[];
 };
 
+type Allocation = { type: "EVENT" | "CATEGORY" | "TABLE"; categoryId: string | null; tableId: string | null; customPriceMinor: number | null };
+
 const copy = {
   ru: { title: "Выберите билет", remaining: "осталось", map: "Выберите место на карте", stage: "СЦЕНА", whole: "целиком", perSeat: "за место", selected: "Выбрано мест", quantity: "Количество", total: "Итого", continue: "Продолжить", table: "стол", sofa: "диван", unavailable: "Занято", legend: "Категории и цены", unassigned: "Не продаётся" },
   he: { title: "בחירת כרטיס", remaining: "נותרו", map: "בחירת מקום במפה", stage: "במה", whole: "מחיר מלא", perSeat: "למקום", selected: "מקומות שנבחרו", quantity: "כמות", total: "סה״כ", continue: "המשך", table: "שולחן", sofa: "ספה", unavailable: "תפוס", legend: "קטגוריות ומחירים", unassigned: "לא למכירה" },
 };
 
-export function EventPurchase({ eventId, categories, objects }: { eventId: string; categories: Category[]; objects: MapObject[] }) {
+export function EventPurchase({ eventId, categories, objects, referralCode, allocation }: { eventId: string; categories: Category[]; objects: MapObject[]; referralCode?: string; allocation?: Allocation }) {
   const router = useRouter();
   const { locale } = useLocale();
   const text = copy[locale];
-  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
-  const [wholeObjectId, setWholeObjectId] = useState<string | null>(null);
+  const availableCategories = allocation?.type === "CATEGORY" ? categories.filter((item) => item.id === allocation.categoryId) : categories;
+  const availableObjects = allocation?.type === "TABLE" ? objects.filter((item) => item.id === allocation.tableId || !["TABLE", "ROUND_TABLE", "SOFA", "ROW"].includes(item.objectType)) : objects;
+  const [categoryId, setCategoryId] = useState(availableCategories[0]?.id ?? categories[0]?.id ?? "");
+  const [wholeObjectId, setWholeObjectId] = useState<string | null>(allocation?.type === "TABLE" ? allocation.tableId : null);
   const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([]);
   const [qty, setQty] = useState(1);
   const category = categories.find((item) => item.id === categoryId);
@@ -45,24 +49,24 @@ export function EventPurchase({ eventId, categories, objects }: { eventId: strin
   const seatObject = objects.find((item) => item.seatItems.some((seat) => selectedSeatIds.includes(seat.id)));
   const selectionObject = wholeObject ?? seatObject;
   const total = useMemo(() => {
-    if (wholeObject) return wholeObject.priceMinor;
+    if (allocation?.customPriceMinor && allocation.type === "TABLE" && wholeObject) return allocation.customPriceMinor;
+    if (wholeObject) return categories.find((item) => item.id === wholeObject.categoryId)?.priceMinor ?? wholeObject.priceMinor;
     if (selectedSeats.length) return selectedSeats.reduce((sum, seat) => sum + (categories.find((item) => item.id === seat.categoryId)?.priceMinor ?? 0), 0);
     return (category?.priceMinor ?? 0) * qty;
-  }, [wholeObject, selectedSeats, categories, category, qty]);
+  }, [wholeObject, selectedSeats, categories, category, qty, allocation]);
 
   function clearMapSelection() {
+    if (allocation?.type === "TABLE") return;
     setWholeObjectId(null);
     setSelectedSeatIds([]);
   }
 
   function chooseSeat(object: MapObject, seat: MapSeat) {
-    if (seat.status !== "AVAILABLE") return;
+    if (seat.status !== "AVAILABLE" || allocation?.type === "TABLE") return;
     setWholeObjectId(null);
     if (!seat.categoryId) return;
     setCategoryId(seat.categoryId);
-    setSelectedSeatIds((current) => {
-      return current.includes(seat.id) ? current.filter((id) => id !== seat.id) : [...current, seat.id];
-    });
+    setSelectedSeatIds((current) => current.includes(seat.id) ? current.filter((id) => id !== seat.id) : [...current, seat.id]);
   }
 
   function go() {
@@ -71,53 +75,28 @@ export function EventPurchase({ eventId, categories, objects }: { eventId: strin
     const query = new URLSearchParams({ eventId, categoryId, quantity: String(quantity) });
     if (wholeObject) query.set("tableId", wholeObject.id);
     if (selectedSeatIds.length > 0) query.set("seatIds", selectedSeatIds.join(","));
+    if (referralCode) query.set("ref", referralCode);
     router.push(`/checkout?${query}`);
   }
 
   return <div className="panel purchase-panel">
     <h2>{text.title}</h2>
-    <div className="options">{categories.map((item) => <button type="button" key={item.id} className={`option ${categoryId === item.id && !selectionObject ? "selected" : ""}`} onClick={() => { setCategoryId(item.id); clearMapSelection(); }}><span><strong>{item.name}</strong><br /><small className="muted">{item.description} · {text.remaining} {item.capacity - item.sold}</small></span><strong>{money(item.priceMinor)}</strong></button>)}</div>
+    <div className="options">{availableCategories.map((item) => <button type="button" key={item.id} className={`option ${categoryId === item.id && !selectionObject ? "selected" : ""}`} onClick={() => { setCategoryId(item.id); clearMapSelection(); }}><span><strong>{item.name}</strong><br /><small className="muted">{item.description} · {text.remaining} {item.capacity - item.sold}</small></span><strong>{money(item.priceMinor)}</strong></button>)}</div>
 
-    {objects.length > 0 && <>
+    {availableObjects.length > 0 && <>
       <h3 className="map-purchase-title">{text.map}</h3>
-      <div className="buyer-ticket-legend"><strong>{text.legend}</strong>{categories.map((item) => <span key={item.id}><i style={{ background: item.colorHex }} />{item.name} · {money(item.priceMinor)}</span>)}</div>
+      <div className="buyer-ticket-legend"><strong>{text.legend}</strong>{availableCategories.map((item) => <span key={item.id}><i style={{ background: item.colorHex }} />{item.name} · {money(item.priceMinor)}</span>)}</div>
       <div className="venue-canvas buyer-map">
         <div className="map-stage">{text.stage}</div>
-        {objects.map((object) => {
+        {availableObjects.map((object) => {
           const isSellable = ["TABLE", "ROUND_TABLE", "SOFA", "ROW"].includes(object.objectType);
           const soldWhole = object.reserved;
           const selectedWhole = wholeObjectId === object.id;
-          return <div
-            key={object.id}
-            className={`map-object buyer-object object-${object.objectType.toLowerCase().replace("_", "-")} ${object.objectType.toLowerCase().replace("_", "-")} ${selectedWhole ? "selected" : ""} ${soldWhole ? "unavailable" : ""}`}
-            style={{ left: `${object.x}%`, top: `${object.y}%`, width: object.width, height: object.height, transform: `translate(-50%, -50%) rotate(${object.rotation}deg)`, zIndex: object.objectType === "ZONE" ? 1 : 2 }}
-          >
+          return <div key={object.id} className={`map-object buyer-object object-${object.objectType.toLowerCase().replace("_", "-")} ${object.objectType.toLowerCase().replace("_", "-")} ${selectedWhole ? "selected" : ""} ${soldWhole ? "unavailable" : ""}`} style={{ left: `${object.x}%`, top: `${object.y}%`, width: object.width, height: object.height, transform: `translate(-50%, -50%) rotate(${object.rotation}deg)`, zIndex: object.objectType === "ZONE" ? 1 : 2 }}>
             {!isSellable ? <div className={`buyer-decoration decoration-${object.objectType.toLowerCase()}`}><strong>{object.label}</strong></div> : <>
-            <button
-              type="button"
-              className="object-core"
-              disabled={soldWhole || object.priceMode === "PER_SEAT"}
-              onClick={() => {
-                setSelectedSeatIds([]);
-                setWholeObjectId(selectedWhole ? null : object.id);
-                setCategoryId(object.categoryId ?? categoryId);
-              }}
-            >
-              <strong>{object.label}</strong>
-              <small>{object.objectType === "SOFA" ? text.sofa : object.objectType === "ROW" ? "row" : text.table}</small>
-            </button>
-            <span className="buyer-seat-ring">
-              {object.seatItems.map((seat) => <button
-                type="button"
-                key={seat.id}
-                title={seat.status === "AVAILABLE" ? seat.label : text.unavailable}
-                disabled={object.priceMode === "WHOLE_TABLE" || seat.status !== "AVAILABLE" || !seat.categoryId}
-                className={`map-seat ${selectedSeatIds.includes(seat.id) ? "selected" : ""} ${seat.status.toLowerCase()}`}
-                style={{ "--ticket-color": categories.find((item) => item.id === seat.categoryId)?.colorHex ?? "#CBD5E1" } as React.CSSProperties}
-                onClick={() => chooseSeat(object, seat)}
-              >{seat.position}</button>)}
-            </span>
-            <small className="object-price">{object.priceMode === "WHOLE_TABLE" ? `${money(categories.find((item) => item.id === object.categoryId)?.priceMinor ?? 0)} ${text.whole}` : object.seatItems.some((seat) => seat.categoryId) ? text.perSeat : text.unassigned}</small>
+            <button type="button" className="object-core" disabled={soldWhole || object.priceMode === "PER_SEAT" || allocation?.type === "TABLE"} onClick={() => { setSelectedSeatIds([]); setWholeObjectId(selectedWhole ? null : object.id); setCategoryId(object.categoryId ?? categoryId); }}><strong>{object.label}</strong><small>{object.objectType === "SOFA" ? text.sofa : object.objectType === "ROW" ? "row" : text.table}</small></button>
+            <span className="buyer-seat-ring">{object.seatItems.map((seat) => <button type="button" key={seat.id} title={seat.status === "AVAILABLE" ? seat.label : text.unavailable} disabled={object.priceMode === "WHOLE_TABLE" || seat.status !== "AVAILABLE" || !seat.categoryId || allocation?.type === "TABLE"} className={`map-seat ${selectedSeatIds.includes(seat.id) ? "selected" : ""} ${seat.status.toLowerCase()}`} style={{ "--ticket-color": categories.find((item) => item.id === seat.categoryId)?.colorHex ?? "#CBD5E1" } as React.CSSProperties} onClick={() => chooseSeat(object, seat)}>{seat.position}</button>)}</span>
+            <small className="object-price">{object.priceMode === "WHOLE_TABLE" ? `${money(allocation?.type === "TABLE" && allocation.customPriceMinor ? allocation.customPriceMinor : categories.find((item) => item.id === object.categoryId)?.priceMinor ?? 0)} ${text.whole}` : object.seatItems.some((seat) => seat.categoryId) ? text.perSeat : text.unassigned}</small>
             </>}
           </div>;
         })}
