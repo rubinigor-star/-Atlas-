@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { StaffPermission } from "@prisma/client";
-import { BarChart3, CalendarDays, ClipboardCheck, LayoutDashboard, QrCode, ReceiptText, Share2, Users } from "lucide-react";
+import { BarChart3, CalendarDays, ClipboardCheck, ContactRound, LayoutDashboard, QrCode, ReceiptText, Share2, Users } from "lucide-react";
 
 const links: Array<{ href: string; label: string; permission?: StaffPermission; icon: typeof LayoutDashboard }> = [
   { href: "/office", label: "Обзор", permission: "EVENT_VIEW", icon: LayoutDashboard },
   { href: "/office/requests", label: "Заявки", permission: "REQUEST_REVIEW", icon: ClipboardCheck },
   { href: "/office/events/new", label: "Мероприятия", permission: "EVENT_MANAGE", icon: CalendarDays },
+  { href: "/office/guests", label: "Гости", permission: "ORDER_VIEW", icon: ContactRound },
   { href: "/office/promoters", label: "Промоутеры", permission: "ANALYTICS_VIEW", icon: Share2 },
   { href: "/office/orders", label: "Заказы", permission: "ORDER_VIEW", icon: ReceiptText },
   { href: "/office/scanner", label: "Сканер", permission: "SCAN", icon: QrCode },
