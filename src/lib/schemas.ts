@@ -14,6 +14,7 @@ export const checkoutSchema = z.object({
   eligibilityAnswer: z.string().max(1000).optional(),
   promoCode: z.string().optional(),
   referralCode: z.string().optional(),
+  promoterCode: z.string().optional(),
   idempotencyKey: z.string().uuid(),
 });
 
@@ -29,13 +30,13 @@ export const createEventSchema = z.object({
   categoryName: z.string().min(2),
   categoryDescription: z.string().max(500).optional(),
   categoryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#2563EB"),
-  priceMinor: z.number().int().positive(),
+  priceMinor: z.number().int().nonnegative(),
   capacity: z.number().int().positive(),
   mapEnabled: z.boolean().default(false),
   pricingMode: z.enum(["FIXED", "SCHEDULED"]).default("FIXED"),
   salesStart: z.string().datetime(),
   salesEnd: z.string().datetime(),
-  earlyBirdPriceMinor: z.number().int().positive().optional(),
+  earlyBirdPriceMinor: z.number().int().nonnegative().optional(),
   earlyBirdEndsAt: z.string().datetime().optional(),
   maxPerOrder: z.number().int().min(1).max(20).default(10),
   salesMode: z.enum(["INSTANT", "APPROVAL_REQUIRED"]).default("INSTANT"),
@@ -46,7 +47,7 @@ export const createEventSchema = z.object({
   const salesEnd = new Date(value.salesEnd).getTime();
   if (salesStart >= salesEnd || salesEnd > eventStart) context.addIssue({ code: z.ZodIssueCode.custom, path: ["salesEnd"], message: "Период продаж должен завершаться не позже начала мероприятия" });
   if (value.pricingMode === "SCHEDULED") {
-    if (!value.earlyBirdPriceMinor || !value.earlyBirdEndsAt) context.addIssue({ code: z.ZodIssueCode.custom, path: ["earlyBirdEndsAt"], message: "Для цены по расписанию заполните раннюю цену и дату её окончания" });
+    if (value.earlyBirdPriceMinor === undefined || !value.earlyBirdEndsAt) context.addIssue({ code: z.ZodIssueCode.custom, path: ["earlyBirdEndsAt"], message: "Для цены по расписанию заполните раннюю цену и дату её окончания" });
     else {
       const earlyEnd = new Date(value.earlyBirdEndsAt).getTime();
       if (earlyEnd <= salesStart || earlyEnd >= salesEnd) context.addIssue({ code: z.ZodIssueCode.custom, path: ["earlyBirdEndsAt"], message: "Окончание ранней цены должно находиться внутри периода продаж" });
