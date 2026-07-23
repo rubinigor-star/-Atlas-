@@ -3,10 +3,10 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEventAccess } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
-import { ticketCode } from "@/lib/ticketing";
 import { sendOrderTicketEmail } from "@/lib/order-email";
 import { captureTestAuthorization, voidTestAuthorization } from "@/lib/payment-authorization";
 import { commitReservation, releaseReservation } from "@/lib/reservation";
+import { cancelOrderTickets, issueTicketsForOrder } from "@/lib/ticket-engine";
 
 const reviewSchema = z.object({
   action: z.enum(["approve", "reject"]),
@@ -35,6 +35,7 @@ export async function PATCH(
       if (input.action === "reject") {
         await releaseReservation(current.id, tx);
         await voidTestAuthorization(current.id, tx);
+        await cancelOrderTickets(current.id, tx);
         return tx.order.update({
           where: { id: current.id },
           data: {
@@ -72,17 +73,9 @@ export async function PATCH(
           where: { id: category.id },
           data: { sold: { increment: item.quantity } },
         });
-        await tx.ticket.createMany({
-          data: Array.from({ length: item.quantity }, () => ({
-            publicCode: ticketCode(),
-            holderName: current.customerName,
-            categoryId: category.id,
-            orderId: current.id,
-          })),
-        });
       }
 
-      return tx.order.update({
+      const paid = await tx.order.update({
         where: { id: current.id },
         data: {
           status: "PAID",
@@ -91,6 +84,8 @@ export async function PATCH(
           paymentDueAt: null,
         },
       });
+      await issueTicketsForOrder(current.id, tx);
+      return paid;
     });
 
     await writeAudit(actor,{
