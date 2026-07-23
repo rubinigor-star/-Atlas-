@@ -47,7 +47,7 @@ export const createEventSchema = z.object({
   earlyBirdEndsAt: z.string().datetime().optional(),
   maxPerOrder: z.number().int().min(1).max(20).default(10),
   salesMode: z.enum(["INSTANT", "APPROVAL_REQUIRED"]).default("INSTANT"),
-  approvalInstructions: z.string().max(1000).optional(),
+  approvalInstructions: z.string().max(1000).nullish().transform((value) => value ?? undefined),
 }).superRefine((value, context) => {
   const eventStart = new Date(value.startsAt).getTime();
   const doorsOpen = new Date(value.doorsOpenAt).getTime();
