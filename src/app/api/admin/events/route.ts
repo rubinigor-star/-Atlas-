@@ -14,11 +14,16 @@ export async function POST(req: Request) {
       typeof body === "object" && body && "posterUrl" in body && typeof body.posterUrl === "string"
         ? body.posterUrl
         : "/assets/noa-live-tel-aviv.png";
+
+    // Persist doors opening time without blocking the current production schema.
+    // A dedicated Event field will replace this metadata marker in the next schema migration.
+    const description = `${input.description}\n<!--ATLAS_DOORS_OPEN:${input.doorsOpenAt}-->`;
+
     const event = await db.event.create({
       data: {
         title: input.title,
         slug: input.slug,
-        description: input.description,
+        description,
         posterUrl,
         startsAt: new Date(input.startsAt),
         salesStart: new Date(input.salesStart),
@@ -32,7 +37,7 @@ export async function POST(req: Request) {
           create: {
             name: input.venueName,
             city: input.city,
-            address: input.city,
+            address: input.address,
           },
         },
         categories: {
@@ -46,7 +51,7 @@ export async function POST(req: Request) {
             salesStart: new Date(input.salesStart),
             salesEnd: new Date(input.salesEnd),
             maxPerOrder: input.maxPerOrder,
-            priceTiers: input.pricingMode === "SCHEDULED" && input.earlyBirdPriceMinor && input.earlyBirdEndsAt ? {
+            priceTiers: input.pricingMode === "SCHEDULED" && input.earlyBirdPriceMinor !== undefined && input.earlyBirdEndsAt ? {
               create: [
                 { label: "Early bird", priceMinor: input.earlyBirdPriceMinor, startsAt: new Date(input.salesStart), endsAt: new Date(input.earlyBirdEndsAt) },
                 { label: "Regular", priceMinor: input.priceMinor, startsAt: new Date(input.earlyBirdEndsAt), endsAt: new Date(input.salesEnd) },
@@ -56,7 +61,7 @@ export async function POST(req: Request) {
         },
       },
     });
-    await writeAudit(actor,{action:"EVENT_CREATED",entityType:"Event",entityId:event.id,summary:`Создано мероприятие ${event.title}`});
+    await writeAudit(actor, { action: "EVENT_CREATED", entityType: "Event", entityId: event.id, summary: `Создано мероприятие ${event.title}` });
     return NextResponse.json({ id: event.id }, { status: 201 });
   } catch (error) {
     return NextResponse.json(
