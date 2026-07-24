@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+const paymentSchema = z.discriminatedUnion("method", [
+  z.object({
+    method: z.literal("CARD"),
+    cardNumber: z.string().trim().min(12).max(23),
+    cardholderName: z.string().trim().min(2).max(120),
+    expiry: z.string().regex(/^\d{2}\/\d{2}$/),
+    cvc: z.string().regex(/^\d{3,4}$/),
+  }),
+  z.object({ method: z.literal("APPLE_PAY") }),
+  z.object({ method: z.literal("GOOGLE_PAY") }),
+  z.object({ method: z.literal("PAYPAL") }),
+]);
+
 export const checkoutSchema = z.object({
   eventId: z.string().min(1),
   categoryId: z.string().min(1),
@@ -16,6 +29,7 @@ export const checkoutSchema = z.object({
     facebook: z.string().trim().min(2).max(250),
     instagram: z.string().trim().min(2).max(250),
   }),
+  payment: paymentSchema,
   eligibilityAnswer: z.string().max(1000).optional(),
   promoCode: z.string().optional(),
   referralCode: z.string().optional(),
@@ -25,7 +39,7 @@ export const checkoutSchema = z.object({
 
 export const checkinSchema = z.object({ code: z.string().min(8).max(200) });
 
-const fieldRule=z.object({visible:z.boolean(),required:z.boolean()});
+const fieldRule = z.object({ visible: z.boolean(), required: z.boolean() });
 export const createEventSchema = z.object({
   title: z.string().min(3),
   slug: z.string().regex(/^[a-z0-9-]+$/),
@@ -49,7 +63,16 @@ export const createEventSchema = z.object({
   maxPerOrder: z.number().int().min(1).max(20).default(10),
   salesMode: z.enum(["INSTANT", "APPROVAL_REQUIRED"]).default("INSTANT"),
   approvalInstructions: z.string().max(1000).optional(),
-  guestFields:z.object({firstName:fieldRule,lastName:fieldRule,phone:fieldRule,email:fieldRule,birthDate:fieldRule,city:fieldRule,facebook:fieldRule,instagram:fieldRule}),
+  guestFields: z.object({
+    firstName: fieldRule,
+    lastName: fieldRule,
+    phone: fieldRule,
+    email: fieldRule,
+    birthDate: fieldRule,
+    city: fieldRule,
+    facebook: fieldRule,
+    instagram: fieldRule,
+  }),
 }).superRefine((value, context) => {
   const eventStart = new Date(value.startsAt).getTime();
   const doorsOpen = new Date(value.doorsOpenAt).getTime();

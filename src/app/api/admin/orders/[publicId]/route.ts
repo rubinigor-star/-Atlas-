@@ -3,6 +3,10 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEventAccess } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
+import { sendOrderTicketEmail } from "@/lib/order-email";
+import { captureTestAuthorization, voidTestAuthorization } from "@/lib/payment-authorization";
+import { commitReservation, releaseReservation } from "@/lib/reservation";
+import { cancelOrderTickets, issueTicketsForOrder } from "@/lib/ticket-engine";
 
 const reviewSchema = z.object({
   action: z.enum(["approve", "reject"]),
@@ -23,14 +27,15 @@ export async function PATCH(
     const order = await db.$transaction(async (tx) => {
       const current = await tx.order.findUnique({
         where: { publicId },
-        include: { items: { include: { table: true, seat: true } } },
+        include: { items: { include: { table: true, seat: true } }, tickets: true },
       });
       if (!current) throw new Error("Заявка не найдена");
-      if (current.status !== "PENDING_APPROVAL") {
-        throw new Error("Эта заявка уже рассмотрена");
-      }
+      if (current.status !== "PENDING_APPROVAL") throw new Error("Эта заявка уже рассмотрена");
 
       if (input.action === "reject") {
+        await releaseReservation(current.id, tx);
+        await voidTestAuthorization(current.id, tx);
+        await cancelOrderTickets(current.id, tx);
         return tx.order.update({
           where: { id: current.id },
           data: {
@@ -41,14 +46,12 @@ export async function PATCH(
         });
       }
 
+      await commitReservation(current.id, tx);
+      await captureTestAuthorization(current.id, tx);
+
       for (const item of current.items) {
         const category = await tx.ticketCategory.findUnique({
-          where: {
-            eventId_name: {
-              eventId: current.eventId,
-              name: item.categoryName,
-            },
-          },
+          where: { eventId_name: { eventId: current.eventId, name: item.categoryName } },
         });
         if (!category || category.sold + item.quantity > category.capacity) {
           throw new Error(`Недостаточно мест в категории ${item.categoryName}`);
@@ -72,20 +75,39 @@ export async function PATCH(
         });
       }
 
-      return tx.order.update({
+      const paid = await tx.order.update({
         where: { id: current.id },
         data: {
-          status: "AWAITING_PAYMENT",
+          status: "PAID",
           reviewNote: input.note || null,
           reviewedAt: new Date(),
-          paymentDueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          paymentDueAt: null,
         },
       });
+      await issueTicketsForOrder(current.id, tx);
+      return paid;
     });
 
-    await writeAudit(actor,{action:input.action === "approve" ? "REQUEST_APPROVED" : "REQUEST_REJECTED",entityType:"Order",entityId:target.id,summary:`${input.action === "approve" ? "Одобрена" : "Отклонена"} заявка ${target.customerName}`,metadata:{publicId}});
+    await writeAudit(actor,{
+      action:input.action === "approve" ? "REQUEST_APPROVED_AND_CAPTURED" : "REQUEST_REJECTED_AND_VOIDED",
+      entityType:"Order",
+      entityId:target.id,
+      summary:`${input.action === "approve" ? "Одобрена и оплачена" : "Отклонена"} заявка ${target.customerName}`,
+      metadata:{publicId},
+    });
 
-    return NextResponse.json({ status: order.status });
+    let emailSent = false;
+    let emailError: string | undefined;
+    if (order.status === "PAID") {
+      try {
+        await sendOrderTicketEmail(publicId);
+        emailSent = true;
+      } catch (error) {
+        emailError = error instanceof Error ? error.message : "Ошибка отправки билета";
+      }
+    }
+
+    return NextResponse.json({ status: order.status, emailSent, emailError });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Ошибка проверки заявки" },
