@@ -13,24 +13,7 @@ const sales = z.object({ action: z.literal("sales"), salesMode: z.enum(["INSTANT
 const admission = z.object({ action: z.literal("admission"), mapEnabled: z.boolean() });
 const category = z.object({ action: z.literal("category"), name: z.string().min(2), description: z.string().max(500).optional(), priceMinor: z.number().int().nonnegative(), colorHex: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#2563EB"), capacity: z.number().int().positive(), pricingMode: z.enum(["FIXED", "SCHEDULED"]).default("FIXED"), salesStart: z.string().datetime().optional(), salesEnd: z.string().datetime().optional(), earlyBirdPriceMinor: z.number().int().nonnegative().optional(), earlyBirdEndsAt: z.string().datetime().optional(), maxPerOrder: z.number().int().min(1).max(20).default(10) });
 const table = z.object({ action: z.literal("table"), zoneName: z.string().min(2), label: z.string().min(1), seats: z.number().int().positive(), priceMinor: z.number().int().nonnegative() });
-const layout = z.object({
-  action: z.literal("layout"),
-  objects: z.array(z.object({
-    id: z.string().optional(),
-    label: z.string().min(1).max(30),
-    objectType: z.enum(["TABLE", "ROUND_TABLE", "SOFA", "ROW", "ZONE", "STAGE", "BAR", "TEXT"]),
-    seats: z.number().int().min(0).max(50),
-    priceMode: z.enum(["WHOLE_TABLE", "PER_SEAT"]),
-    priceMinor: z.number().int().min(0),
-    x: z.number().int().min(0).max(100),
-    y: z.number().int().min(0).max(100),
-    rotation: z.number().int().min(0).max(359),
-    width: z.number().int().min(40).max(800),
-    height: z.number().int().min(30).max(600),
-    categoryId: z.string().min(1).nullable(),
-    seatAssignments: z.array(z.object({ position: z.number().int().min(1).max(50), categoryId: z.string().min(1).nullable() })).max(50).default([]),
-  })).min(1).max(300),
-});
+const layout = z.object({ action: z.literal("layout"), objects: z.array(z.object({ id: z.string().optional(), label: z.string().min(1).max(30), objectType: z.enum(["TABLE", "ROUND_TABLE", "SOFA", "ROW", "ZONE", "STAGE", "BAR", "TEXT"]), seats: z.number().int().min(0).max(50), priceMode: z.enum(["WHOLE_TABLE", "PER_SEAT"]), priceMinor: z.number().int().min(0), x: z.number().int().min(0).max(100), y: z.number().int().min(0).max(100), rotation: z.number().int().min(0).max(359), width: z.number().int().min(40).max(800), height: z.number().int().min(30).max(600), categoryId: z.string().min(1).nullable(), seatAssignments: z.array(z.object({ position: z.number().int().min(1).max(50), categoryId: z.string().min(1).nullable() })).max(50).default([]) })).min(1).max(300) });
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -38,12 +21,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const body = await req.json();
     const ticketActions = new Set(["category", "table", "layout"]);
     const actor = await requireEventAccess(ticketActions.has(body.action) ? "TICKET_MANAGE" : "EVENT_MANAGE", id);
+
     if (body.action === "update") {
       const value = update.parse(body);
       await db.event.update({ where: { id }, data: { title: value.title, description: withEventMedia(value.description, value.media), startsAt: new Date(value.startsAt) } });
-      const walletTickets=await db.ticket.findMany({where:{order:{eventId:id}},select:{id:true}});
-      await db.ticket.updateMany({where:{id:{in:walletTickets.map(ticket=>ticket.id)}},data:{walletUpdatedAt:new Date()}});
-      await notifyWalletTickets(walletTickets.map(ticket=>ticket.id));
+      const walletTickets = await db.ticket.findMany({ where: { order: { eventId: id } }, select: { id: true } });
+      await db.ticket.updateMany({ where: { id: { in: walletTickets.map((ticket) => ticket.id) } }, data: { walletUpdatedAt: new Date() } });
+      await notifyWalletTickets(walletTickets.map((ticket) => ticket.id));
     } else if (body.action === "status") {
       const value = status.parse(body);
       await db.event.update({ where: { id }, data: { status: value.status } });
@@ -68,7 +52,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     } else if (body.action === "table") {
       const value = table.parse(body);
       let zone = await db.zone.findUnique({ where: { eventId_name: { eventId: id, name: value.zoneName } } });
-      zone ??= await db.zone.create({ data: { zoneId: zone.id, label: value.label, seats: value.seats, priceMinor: value.priceMinor } } as never);
+      zone ??= await db.zone.create({ data: { eventId: id, name: value.zoneName } });
+      await db.table.create({ data: { zoneId: zone.id, label: value.label, seats: value.seats, priceMinor: value.priceMinor } });
     } else if (body.action === "layout") {
       const value = layout.parse(body);
       await db.$transaction(async (tx) => {
@@ -88,11 +73,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         }
         await tx.event.update({ where: { id }, data: { mapEnabled: true } });
       });
-    } else throw new Error("Unknown action");
-    await writeAudit(actor,{action:`EVENT_${String(body.action).toUpperCase()}`,entityType:"Event",entityId:id,summary:`Обновлены настройки мероприятия: ${body.action}`});
+    } else {
+      throw new Error("Unknown action");
+    }
+
+    await writeAudit(actor, { action: `EVENT_${String(body.action).toUpperCase()}`, entityType: "Event", entityId: id, summary: `Обновлены настройки мероприятия: ${body.action}` });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    const message=error instanceof Error ? error.message : "Ошибка";
+    const message = error instanceof Error ? error.message : "Ошибка";
     return NextResponse.json({ error: message === "FORBIDDEN" ? "Недостаточно прав" : message }, { status: message === "FORBIDDEN" ? 403 : 400 });
   }
 }
