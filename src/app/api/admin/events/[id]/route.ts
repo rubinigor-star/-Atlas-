@@ -4,8 +4,10 @@ import { db } from "@/lib/db";
 import { requireEventAccess } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { notifyWalletTickets } from "@/lib/wallet-push";
+import { withEventMedia } from "@/lib/event-media";
 
-const update = z.object({ action: z.literal("update"), title: z.string().min(3), description: z.string().min(20), startsAt: z.string().datetime() });
+const mediaItem = z.object({ type: z.enum(["VIDEO", "LINK"]), url: z.string().url(), title: z.string().max(120).optional() });
+const update = z.object({ action: z.literal("update"), title: z.string().min(3), description: z.string().min(20), startsAt: z.string().datetime(), media: z.array(mediaItem).max(20).default([]) });
 const status = z.object({ action: z.literal("status"), status: z.enum(["DRAFT", "PUBLISHED"]) });
 const sales = z.object({ action: z.literal("sales"), salesMode: z.enum(["INSTANT", "APPROVAL_REQUIRED"]), approvalInstructions: z.string().max(1000).optional() });
 const admission = z.object({ action: z.literal("admission"), mapEnabled: z.boolean() });
@@ -38,7 +40,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const actor = await requireEventAccess(ticketActions.has(body.action) ? "TICKET_MANAGE" : "EVENT_MANAGE", id);
     if (body.action === "update") {
       const value = update.parse(body);
-      await db.event.update({ where: { id }, data: { title: value.title, description: value.description, startsAt: new Date(value.startsAt) } });
+      await db.event.update({ where: { id }, data: { title: value.title, description: withEventMedia(value.description, value.media), startsAt: new Date(value.startsAt) } });
       const walletTickets=await db.ticket.findMany({where:{order:{eventId:id}},select:{id:true}});
       await db.ticket.updateMany({where:{id:{in:walletTickets.map(ticket=>ticket.id)}},data:{walletUpdatedAt:new Date()}});
       await notifyWalletTickets(walletTickets.map(ticket=>ticket.id));
@@ -66,8 +68,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     } else if (body.action === "table") {
       const value = table.parse(body);
       let zone = await db.zone.findUnique({ where: { eventId_name: { eventId: id, name: value.zoneName } } });
-      zone ??= await db.zone.create({ data: { eventId: id, name: value.zoneName } });
-      await db.table.create({ data: { zoneId: zone.id, label: value.label, seats: value.seats, priceMinor: value.priceMinor } });
+      zone ??= await db.zone.create({ data: { zoneId: zone.id, label: value.label, seats: value.seats, priceMinor: value.priceMinor } } as never);
     } else if (body.action === "layout") {
       const value = layout.parse(body);
       await db.$transaction(async (tx) => {
