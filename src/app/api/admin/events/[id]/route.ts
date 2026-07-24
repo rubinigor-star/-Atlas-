@@ -5,11 +5,12 @@ import { requireEventAccess } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { notifyWalletTickets } from "@/lib/wallet-push";
 import { withEventMedia } from "@/lib/event-media";
+import { parseEventRejectionMessage, withEventRejectionMessage } from "@/lib/event-approval-message";
 
 const mediaItem = z.object({ type: z.enum(["VIDEO", "LINK"]), url: z.string().url(), title: z.string().max(120).optional() });
 const update = z.object({ action: z.literal("update"), title: z.string().min(3), description: z.string().min(20), startsAt: z.string().datetime(), media: z.array(mediaItem).max(20).default([]) });
 const status = z.object({ action: z.literal("status"), status: z.enum(["DRAFT", "PUBLISHED"]) });
-const sales = z.object({ action: z.literal("sales"), salesMode: z.enum(["INSTANT", "APPROVAL_REQUIRED"]), approvalInstructions: z.string().max(1000).optional() });
+const sales = z.object({ action: z.literal("sales"), salesMode: z.enum(["INSTANT", "APPROVAL_REQUIRED"]), approvalInstructions: z.string().max(1000).optional(), rejectionMessage: z.string().min(20).max(2000).optional() });
 const admission = z.object({ action: z.literal("admission"), mapEnabled: z.boolean() });
 const category = z.object({ action: z.literal("category"), name: z.string().min(2), description: z.string().max(500).optional(), priceMinor: z.number().int().nonnegative(), colorHex: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#2563EB"), capacity: z.number().int().positive(), pricingMode: z.enum(["FIXED", "SCHEDULED"]).default("FIXED"), salesStart: z.string().datetime().optional(), salesEnd: z.string().datetime().optional(), earlyBirdPriceMinor: z.number().int().nonnegative().optional(), earlyBirdEndsAt: z.string().datetime().optional(), maxPerOrder: z.number().int().min(1).max(20).default(10) });
 const table = z.object({ action: z.literal("table"), zoneName: z.string().min(2), label: z.string().min(1), seats: z.number().int().positive(), priceMinor: z.number().int().nonnegative() });
@@ -24,7 +25,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if (body.action === "update") {
       const value = update.parse(body);
-      await db.event.update({ where: { id }, data: { title: value.title, description: withEventMedia(value.description, value.media), startsAt: new Date(value.startsAt) } });
+      const current = await db.event.findUniqueOrThrow({ where: { id }, select: { description: true } });
+      const rejectionMessage = parseEventRejectionMessage(current.description);
+      const description = withEventRejectionMessage(withEventMedia(value.description, value.media), rejectionMessage);
+      await db.event.update({ where: { id }, data: { title: value.title, description, startsAt: new Date(value.startsAt) } });
       const walletTickets = await db.ticket.findMany({ where: { order: { eventId: id } }, select: { id: true } });
       await db.ticket.updateMany({ where: { id: { in: walletTickets.map((ticket) => ticket.id) } }, data: { walletUpdatedAt: new Date() } });
       await notifyWalletTickets(walletTickets.map((ticket) => ticket.id));
@@ -33,7 +37,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       await db.event.update({ where: { id }, data: { status: value.status } });
     } else if (body.action === "sales") {
       const value = sales.parse(body);
-      await db.event.update({ where: { id }, data: { salesMode: value.salesMode, approvalInstructions: value.approvalInstructions || null } });
+      const current = await db.event.findUniqueOrThrow({ where: { id }, select: { description: true } });
+      const description = withEventRejectionMessage(current.description, value.rejectionMessage || parseEventRejectionMessage(current.description));
+      await db.event.update({ where: { id }, data: { salesMode: value.salesMode, approvalInstructions: value.approvalInstructions || null, description } });
     } else if (body.action === "admission") {
       const value = admission.parse(body);
       const sold = await db.order.count({ where: { eventId: id } });
@@ -68,14 +74,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         await tx.table.deleteMany({ where: { zone: { eventId: id } } });
         let zone = await tx.zone.findUnique({ where: { eventId_name: { eventId: id, name: "Основной зал" } } });
         zone ??= await tx.zone.create({ data: { eventId: id, name: "Основной зал" } });
-        for (const item of value.objects) {
-          await tx.table.create({ data: { zoneId: zone.id, label: item.label, objectType: item.objectType, seats: item.seats, priceMode: item.priceMode, priceMinor: item.priceMinor, x: item.x, y: item.y, rotation: item.rotation, width: item.width, height: item.height, categoryId: item.categoryId, seatItems: { create: Array.from({ length: sellableTypes.has(item.objectType) ? item.seats : 0 }, (_, index) => ({ label: `${item.label}-${index + 1}`, position: index + 1, categoryId: item.seatAssignments.find((seat) => seat.position === index + 1)?.categoryId ?? (item.priceMode === "PER_SEAT" ? item.categoryId : null) })) } } });
-        }
+        for (const item of value.objects) await tx.table.create({ data: { zoneId: zone.id, label: item.label, objectType: item.objectType, seats: item.seats, priceMode: item.priceMode, priceMinor: item.priceMinor, x: item.x, y: item.y, rotation: item.rotation, width: item.width, height: item.height, categoryId: item.categoryId, seatItems: { create: Array.from({ length: sellableTypes.has(item.objectType) ? item.seats : 0 }, (_, index) => ({ label: `${item.label}-${index + 1}`, position: index + 1, categoryId: item.seatAssignments.find((seat) => seat.position === index + 1)?.categoryId ?? (item.priceMode === "PER_SEAT" ? item.categoryId : null) })) } } });
         await tx.event.update({ where: { id }, data: { mapEnabled: true } });
       });
-    } else {
-      throw new Error("Unknown action");
-    }
+    } else throw new Error("Unknown action");
 
     await writeAudit(actor, { action: `EVENT_${String(body.action).toUpperCase()}`, entityType: "Event", entityId: id, summary: `Обновлены настройки мероприятия: ${body.action}` });
     return NextResponse.json({ ok: true });
