@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEventAccess } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
-import { sendOrderTicketEmail } from "@/lib/order-email";
+import { sendOrderRejectionEmail, sendOrderTicketEmail } from "@/lib/order-email";
 import { captureTestAuthorization, voidTestAuthorization } from "@/lib/payment-authorization";
 import { commitReservation, releaseReservation } from "@/lib/reservation";
 import { cancelOrderTickets, issueTicketsForOrder } from "@/lib/ticket-engine";
@@ -40,7 +40,7 @@ export async function PATCH(
           where: { id: current.id },
           data: {
             status: "REJECTED",
-            reviewNote: input.note || null,
+            reviewNote: input.note || "Заявка перенесена в список ожидания из-за высокой загрузки мероприятия.",
             reviewedAt: new Date(),
           },
         });
@@ -92,19 +92,22 @@ export async function PATCH(
       action:input.action === "approve" ? "REQUEST_APPROVED_AND_CAPTURED" : "REQUEST_REJECTED_AND_VOIDED",
       entityType:"Order",
       entityId:target.id,
-      summary:`${input.action === "approve" ? "Одобрена и оплачена" : "Отклонена"} заявка ${target.customerName}`,
+      summary:`${input.action === "approve" ? "Одобрена и оплачена" : "Отклонена и добавлена в лист ожидания"} заявка ${target.customerName}`,
       metadata:{publicId},
     });
 
     let emailSent = false;
     let emailError: string | undefined;
-    if (order.status === "PAID") {
-      try {
+    try {
+      if (order.status === "PAID") {
         await sendOrderTicketEmail(publicId);
         emailSent = true;
-      } catch (error) {
-        emailError = error instanceof Error ? error.message : "Ошибка отправки билета";
+      } else if (order.status === "REJECTED") {
+        await sendOrderRejectionEmail(publicId);
+        emailSent = true;
       }
+    } catch (error) {
+      emailError = error instanceof Error ? error.message : "Ошибка отправки уведомления";
     }
 
     return NextResponse.json({ status: order.status, emailSent, emailError });
