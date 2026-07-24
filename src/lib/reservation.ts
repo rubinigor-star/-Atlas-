@@ -65,13 +65,9 @@ export async function assertInventoryAvailable(params: {
     if (!category) throw new Error("Категория билета не найдена");
 
     await executor.$executeRaw`
-      INSERT OR IGNORE INTO ReservationInventoryLock (categoryId, updatedAt)
+      INSERT INTO ReservationInventoryLock (categoryId, updatedAt)
       VALUES (${categoryId}, CURRENT_TIMESTAMP)
-    `;
-    await executor.$executeRaw`
-      UPDATE ReservationInventoryLock
-      SET updatedAt = CURRENT_TIMESTAMP
-      WHERE categoryId = ${categoryId}
+      ON CONFLICT (categoryId) DO UPDATE SET updatedAt = CURRENT_TIMESTAMP
     `;
 
     const reservedRows = await executor.$queryRaw<Array<{ quantity: number | bigint | null }>>`
