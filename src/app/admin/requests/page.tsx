@@ -33,8 +33,6 @@ export default async function RequestsPage() {
         initialRequests={requests.map((request) => {
           const previous = request.guest?.orders.filter((order) => order.id !== request.id) ?? [];
           const visits = previous.flatMap((order) => order.tickets).filter((ticket) => ticket.scans.length > 0).length;
-          const expiresAt = request.paymentDueAt ?? new Date(request.createdAt.getTime() + 24 * 60 * 60 * 1000);
-          const inactive = request.status === "PENDING_APPROVAL" && expiresAt.getTime() <= Date.now();
           return {
             id: request.id,
             publicId: request.publicId,
@@ -53,8 +51,8 @@ export default async function RequestsPage() {
             eventTitle: request.event.title,
             eventDate: request.event.startsAt.toISOString(),
             createdAt: request.createdAt.toISOString(),
-            expiresAt: expiresAt.toISOString(),
-            inactive,
+            expiresAt: request.event.startsAt.toISOString(),
+            inactive: false,
             totalMinor: request.totalMinor,
             items: request.items.map((item) => ({ name: item.categoryName, quantity: item.quantity })),
           };
