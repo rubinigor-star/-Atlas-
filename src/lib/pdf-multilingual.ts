@@ -1,29 +1,46 @@
 import type { PDFPage, PDFFont, RGB } from "pdf-lib";
 
 export type PdfFontSet = {
-  regular: PDFFont;
-  bold: PDFFont;
+  latinRegular: PDFFont;
+  latinBold: PDFFont;
+  cyrillicRegular: PDFFont;
+  cyrillicBold: PDFFont;
   hebrew: PDFFont;
 };
 
-type Segment = { text: string; hebrew: boolean };
+type Script = "latin" | "cyrillic" | "hebrew";
+type Segment = { text: string; script: Script };
 
-function visualHebrew(value: string) {
-  return Array.from(value).reverse().join("");
+function scriptFor(char: string): Script {
+  if (/\p{Script=Hebrew}/u.test(char)) return "hebrew";
+  if (/\p{Script=Cyrillic}/u.test(char)) return "cyrillic";
+  return "latin";
 }
 
 function splitSegments(value: string): Segment[] {
-  const parts = value.match(/[\u0590-\u05FF]+|[^\u0590-\u05FF]+/g) ?? [value];
-  const segments = parts.map((text) => ({ text, hebrew: /[\u0590-\u05FF]/.test(text) }));
-  if (/^[\s\u0590-\u05FF]/.test(value)) segments.reverse();
-  return segments.map((segment) => ({ ...segment, text: segment.hebrew ? visualHebrew(segment.text) : segment.text }));
+  const result: Segment[] = [];
+  for (const char of Array.from(value)) {
+    const script = scriptFor(char);
+    const last = result[result.length - 1];
+    if (last?.script === script) last.text += char;
+    else result.push({ text: char, script });
+  }
+
+  return result.map((segment) =>
+    segment.script === "hebrew"
+      ? { ...segment, text: Array.from(segment.text).reverse().join("") }
+      : segment,
+  );
+}
+
+function fontFor(segment: Segment, fonts: PdfFontSet, bold: boolean) {
+  if (segment.script === "hebrew") return fonts.hebrew;
+  if (segment.script === "cyrillic") return bold ? fonts.cyrillicBold : fonts.cyrillicRegular;
+  return bold ? fonts.latinBold : fonts.latinRegular;
 }
 
 export function multilingualWidth(value: string, size: number, fonts: PdfFontSet, bold = false) {
-  return splitSegments(value).reduce((sum, segment) => {
-    const font = segment.hebrew ? fonts.hebrew : bold ? fonts.bold : fonts.regular;
-    return sum + font.widthOfTextAtSize(segment.text, size);
-  }, 0);
+  return splitSegments(value).reduce((sum, segment) => sum + fontFor(segment, fonts, bold).widthOfTextAtSize(segment.text, size), 0);
 }
 
 export function drawMultilingualText(params: {
@@ -40,7 +57,7 @@ export function drawMultilingualText(params: {
   const { page, value, y, size, color, fonts, bold = false, maxWidth } = params;
   let x = params.x;
   for (const segment of splitSegments(value)) {
-    const font = segment.hebrew ? fonts.hebrew : bold ? fonts.bold : fonts.regular;
+    const font = fontFor(segment, fonts, bold);
     const width = font.widthOfTextAtSize(segment.text, size);
     if (maxWidth !== undefined && x + width > params.x + maxWidth) break;
     page.drawText(segment.text, { x, y, size, font, color });
