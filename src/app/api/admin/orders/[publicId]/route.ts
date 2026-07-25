@@ -12,48 +12,41 @@ import { parseEventRejectionMessage } from "@/lib/event-approval-message";
 const DISMISSED_EXPIRED_NOTE = "__DISMISSED_EXPIRED__";
 const reviewSchema = z.object({ action: z.enum(["approve", "reject"]), note: z.string().max(500).optional() });
 
+type LegacyRuntimeRow = { exists: number | bigint };
+
+async function runtimeRecordExists(table: "PaymentAuthorization" | "Reservation", orderId: string, tx: typeof db) {
+  const rows = table === "PaymentAuthorization"
+    ? await tx.$queryRaw<LegacyRuntimeRow[]>`SELECT COUNT(*) AS exists FROM PaymentAuthorization WHERE orderId = ${orderId}`
+    : await tx.$queryRaw<LegacyRuntimeRow[]>`SELECT COUNT(*) AS exists FROM Reservation WHERE orderId = ${orderId}`;
+  return Number(rows[0]?.exists ?? 0) > 0;
+}
+
 export async function DELETE(_: Request, { params }: { params: Promise<{ publicId: string }> }) {
   const { publicId } = await params;
   try {
     const target = await db.order.findUnique({
       where: { publicId },
-      select: {
-        id: true,
-        eventId: true,
-        customerName: true,
-        status: true,
-        createdAt: true,
-        paymentDueAt: true,
-        _count: { select: { tickets: true } },
-      },
+      select: { id: true, eventId: true, customerName: true, status: true, _count: { select: { tickets: true } } },
     });
     if (!target) throw new Error("Заявка не найдена");
     const actor = await requireEventAccess("REQUEST_REVIEW", target.eventId);
-    const expiresAt = target.paymentDueAt ?? new Date(target.createdAt.getTime() + 24 * 60 * 60 * 1000);
-    const expired = expiresAt.getTime() <= Date.now();
-    const removable = target.status === "CANCELLED" || target.status === "REJECTED" || (target.status === "PENDING_APPROVAL" && expired);
-    if (!removable) throw new Error("Удалить из очереди можно только неактивную, отменённую или отклонённую заявку");
+    const removable = target.status === "CANCELLED" || target.status === "REJECTED";
+    if (!removable) throw new Error("Удалить из очереди можно только отменённую или отклонённую заявку");
     if (target._count.tickets > 0) throw new Error("Заявку с выпущенными билетами нельзя удалить из очереди");
 
-    await db.$transaction(async (tx) => {
-      if (target.status === "PENDING_APPROVAL") {
-        await releaseReservation(target.id, tx);
-        await voidTestAuthorization(target.id, tx);
-      }
-      await tx.order.update({
-        where: { id: target.id },
-        data: { status: "CANCELLED", reviewNote: DISMISSED_EXPIRED_NOTE, reviewedAt: new Date(), paymentDueAt: null },
-      });
+    await db.order.update({
+      where: { id: target.id },
+      data: { reviewNote: DISMISSED_EXPIRED_NOTE, reviewedAt: new Date(), paymentDueAt: null },
     });
 
     await writeAudit(actor, {
-      action: "EXPIRED_REQUEST_DISMISSED",
+      action: "REQUEST_DISMISSED",
       entityType: "Order",
       entityId: target.id,
-      summary: `Неактивная заявка ${target.customerName} удалена из очереди`,
+      summary: `Заявка ${target.customerName} удалена из рабочей очереди`,
       metadata: { publicId },
     });
-    return NextResponse.json({ status: "CANCELLED", dismissed: true });
+    return NextResponse.json({ status: target.status, dismissed: true });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Не удалось удалить заявку из очереди" },
@@ -70,21 +63,29 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ public
     if (!target) throw new Error("Заявка не найдена");
     const actor = await requireEventAccess("REQUEST_REVIEW", target.eventId);
 
+    let legacyDemoOrder = false;
     const order = await db.$transaction(async (tx) => {
       const current = await tx.order.findUnique({ where: { publicId }, include: { event: { select: { description: true } }, items: { include: { table: true, seat: true } }, tickets: true } });
       if (!current) throw new Error("Заявка не найдена");
       if (current.status !== "PENDING_APPROVAL") throw new Error("Эта заявка уже рассмотрена");
 
+      const [hasAuthorization, hasReservation] = await Promise.all([
+        runtimeRecordExists("PaymentAuthorization", current.id, tx as typeof db),
+        runtimeRecordExists("Reservation", current.id, tx as typeof db),
+      ]);
+      legacyDemoOrder = !hasAuthorization && !hasReservation;
+
       if (input.action === "reject") {
-        await releaseReservation(current.id, tx);
-        await voidTestAuthorization(current.id, tx);
+        if (hasReservation) await releaseReservation(current.id, tx);
+        if (hasAuthorization) await voidTestAuthorization(current.id, tx);
         await cancelOrderTickets(current.id, tx);
         const rejectionMessage = parseEventRejectionMessage(current.event.description);
-        return tx.order.update({ where: { id: current.id }, data: { status: "REJECTED", reviewNote: input.note?.trim() || rejectionMessage, reviewedAt: new Date() } });
+        return tx.order.update({ where: { id: current.id }, data: { status: "REJECTED", reviewNote: input.note?.trim() || rejectionMessage, reviewedAt: new Date(), paymentDueAt: null } });
       }
 
-      await commitReservation(current.id, tx);
-      await captureTestAuthorization(current.id, tx);
+      if (hasReservation) await commitReservation(current.id, tx);
+      if (hasAuthorization) await captureTestAuthorization(current.id, tx);
+
       for (const item of current.items) {
         const category = await tx.ticketCategory.findUnique({ where: { eventId_name: { eventId: current.eventId, name: item.categoryName } } });
         if (!category || category.sold + item.quantity > category.capacity) throw new Error(`Недостаточно мест в категории ${item.categoryName}`);
@@ -98,12 +99,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ public
         await tx.ticketCategory.update({ where: { id: category.id }, data: { sold: { increment: item.quantity } } });
       }
 
-      const paid = await tx.order.update({ where: { id: current.id }, data: { status: "PAID", reviewNote: input.note || null, reviewedAt: new Date(), paymentDueAt: null } });
+      const paid = await tx.order.update({ where: { id: current.id }, data: { status: "PAID", reviewNote: input.note || (legacyDemoOrder ? "Одобрено как демо-заказ без авторизации оплаты" : null), reviewedAt: new Date(), paymentDueAt: null } });
       await issueTicketsForOrder(current.id, tx);
       return paid;
     });
 
-    await writeAudit(actor,{ action:input.action === "approve" ? "REQUEST_APPROVED_AND_CAPTURED" : "REQUEST_REJECTED_AND_VOIDED", entityType:"Order", entityId:target.id, summary:`${input.action === "approve" ? "Одобрена и оплачена" : "Отклонена"} заявка ${target.customerName}`, metadata:{publicId} });
+    await writeAudit(actor, {
+      action: input.action === "approve" ? (legacyDemoOrder ? "LEGACY_REQUEST_APPROVED" : "REQUEST_APPROVED_AND_CAPTURED") : "REQUEST_REJECTED_AND_VOIDED",
+      entityType: "Order",
+      entityId: target.id,
+      summary: `${input.action === "approve" ? "Одобрена" : "Отклонена"} заявка ${target.customerName}${legacyDemoOrder ? " (демо-заказ без оплаты)" : ""}`,
+      metadata: { publicId, legacyDemoOrder },
+    });
 
     let emailSent = false;
     let emailError: string | undefined;
@@ -114,7 +121,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ public
       emailError = error instanceof Error ? error.message : "Ошибка отправки уведомления";
     }
 
-    return NextResponse.json({ status: order.status, emailSent, emailError });
+    return NextResponse.json({ status: order.status, emailSent, emailError, legacyDemoOrder });
   } catch (error) {
     const current = await db.order.findUnique({ where: { publicId }, select: { status: true } }).catch(() => null);
     return NextResponse.json(
