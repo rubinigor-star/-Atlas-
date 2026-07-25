@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, Clock3, Search, UserRoundCheck, X } from "lucide-react";
+import { Check, Clock3, Search, Trash2, UserRoundCheck, X } from "lucide-react";
 import { money } from "@/lib/format";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
 
@@ -25,6 +25,8 @@ export type RequestRecord = {
   eventTitle: string;
   eventDate: string;
   createdAt: string;
+  expiresAt: string;
+  inactive: boolean;
   totalMinor: number;
   items: RequestItem[];
 };
@@ -84,6 +86,10 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
   );
 
   async function decide(item: RequestRecord, action: "approve" | "reject") {
+    if (item.inactive) {
+      setError("Срок действия заявки истёк. Её больше нельзя одобрить или отклонить — удалите её из очереди.");
+      return;
+    }
     setBusy(item.id);
     setError("");
     setNotice("");
@@ -98,7 +104,7 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
     const data = await response.json();
 
     if (data.status) {
-      setRequests((current) => current.map((record) => (record.id === item.id ? { ...record, status: data.status } : record)));
+      setRequests((current) => current.map((record) => (record.id === item.id ? { ...record, status: data.status, inactive: false } : record)));
     }
 
     if (!response.ok) {
@@ -112,6 +118,27 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
     } else {
       setNotice(data.emailSent ? "Заявка отклонена, уведомление отправлено клиенту." : `Заявка отклонена, но email не отправлен${data.emailError ? `: ${data.emailError}` : "."}`);
     }
+    setBusy("");
+  }
+
+  async function dismiss(item: RequestRecord) {
+    if (!window.confirm("Удалить эту неактивную заявку из очереди? Она останется в журнале действий, но больше не будет отображаться в списке.")) return;
+    setBusy(item.id);
+    setError("");
+    setNotice("");
+    const response = await fetch(`/api/admin/orders/${item.publicId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "dismiss" }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setError(data.error || "Не удалось удалить заявку из очереди");
+      setBusy("");
+      return;
+    }
+    setRequests((current) => current.filter((record) => record.id !== item.id));
+    setNotice("Неактивная заявка удалена из очереди.");
     setBusy("");
   }
 
@@ -153,9 +180,11 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
 
       <div className="request-grid">
         {visible.map((item) => {
-          const meta = statusMeta[item.status] || { label: item.status, background: "#e5e7eb", color: "#111827" };
+          const meta = item.inactive
+            ? { label: "Неактивна · срок истёк", background: "#f3f4f6", color: "#6b7280" }
+            : statusMeta[item.status] || { label: item.status, background: "#e5e7eb", color: "#111827" };
           return (
-            <article className="request-card" key={item.id}>
+            <article className="request-card" key={item.id} style={item.inactive ? { opacity: 0.78, borderStyle: "dashed" } : undefined}>
               <header>
                 <div className="request-avatar">{item.customerName.split(" ").map((part) => part[0]).slice(0, 2).join("")}</div>
                 <div>
@@ -164,6 +193,12 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
                 </div>
                 <span className="request-status" style={{ background: meta.background, color: meta.color }}>{meta.label}</span>
               </header>
+
+              {item.inactive && (
+                <div className="toast" style={{ background: "#f8fafc", color: "#475569", marginBottom: 12 }}>
+                  Срок резерва истёк {new Date(item.expiresAt).toLocaleString("ru-RU")}. Места и авторизация оплаты освобождены. Заявку больше нельзя одобрить.
+                </div>
+              )}
 
               <div className="request-event">
                 <small>{item.eventTitle}</small>
@@ -192,7 +227,7 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
                 </div>
               </footer>
 
-              {item.status === "PENDING_APPROVAL" && (
+              {item.status === "PENDING_APPROVAL" && !item.inactive && (
                 <div className="request-actions">
                   <select aria-label={`Изменить статус заявки ${item.customerName}`} defaultValue="" disabled={busy === item.id} onChange={(event) => { const value = event.target.value; event.target.value = ""; void changeStatus(item, value); }}>
                     <option value="" disabled>{busy === item.id ? "Обрабатываем…" : "Изменить статус"}</option>
@@ -201,6 +236,14 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
                   </select>
                   <button disabled={busy === item.id} className="approve" onClick={() => void decide(item, "approve")}><Check size={18} />{busy === item.id ? "Обрабатываем…" : "Одобрить"}</button>
                   <button disabled={busy === item.id} className="reject" onClick={() => void decide(item, "reject")}><X size={18} />Отклонить</button>
+                </div>
+              )}
+
+              {(item.inactive || item.status === "CANCELLED" || item.status === "REJECTED") && !compact && (
+                <div className="request-actions">
+                  <button disabled={busy === item.id} className="reject" onClick={() => void dismiss(item)}>
+                    <Trash2 size={18} />{busy === item.id ? "Удаляем…" : "Удалить из очереди"}
+                  </button>
                 </div>
               )}
             </article>
