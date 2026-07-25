@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 import { LocaleProvider } from "@/components/locale-provider";
 import { AppChrome } from "@/components/app-chrome";
 import { PwaRegister } from "@/components/pwa-register";
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AppChrome>{children}</AppChrome>
         </LocaleProvider>
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
