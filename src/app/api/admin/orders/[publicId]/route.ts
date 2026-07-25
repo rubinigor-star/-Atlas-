@@ -12,8 +12,8 @@ import { parseEventRejectionMessage } from "@/lib/event-approval-message";
 const reviewSchema = z.object({ action: z.enum(["approve", "reject"]), note: z.string().max(500).optional() });
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ publicId: string }> }) {
+  const { publicId } = await params;
   try {
-    const { publicId } = await params;
     const input = reviewSchema.parse(await req.json());
     const target = await db.order.findUnique({ where: { publicId }, select: { id: true, eventId: true, customerName: true } });
     if (!target) throw new Error("Заявка не найдена");
@@ -52,7 +52,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ public
       return paid;
     });
 
-    await writeAudit(actor,{ action:input.action === "approve" ? "REQUEST_APPROVED_AND_CAPTURED" : "REQUEST_REJECTED_AND_VOIDED", entityType:"Order", entityId:target.id, summary:`${input.action === "approve" ? "Одобрена и оплачена" : "Отклонена и добавлена в лист ожидания"} заявка ${target.customerName}`, metadata:{publicId} });
+    await writeAudit(actor,{ action:input.action === "approve" ? "REQUEST_APPROVED_AND_CAPTURED" : "REQUEST_REJECTED_AND_VOIDED", entityType:"Order", entityId:target.id, summary:`${input.action === "approve" ? "Одобрена и оплачена" : "Отклонена"} заявка ${target.customerName}`, metadata:{publicId} });
 
     let emailSent = false;
     let emailError: string | undefined;
@@ -65,6 +65,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ public
 
     return NextResponse.json({ status: order.status, emailSent, emailError });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Ошибка проверки заявки" }, { status: error instanceof Error && error.message === "FORBIDDEN" ? 403 : 400 });
+    const current = await db.order.findUnique({ where: { publicId }, select: { status: true } }).catch(() => null);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Ошибка проверки заявки", status: current?.status },
+      { status: error instanceof Error && error.message === "FORBIDDEN" ? 403 : 400 },
+    );
   }
 }
