@@ -126,11 +126,7 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
     setBusy(item.id);
     setError("");
     setNotice("");
-    const response = await fetch(`/api/admin/orders/${item.publicId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: "dismiss" }),
-    });
+    const response = await fetch(`/api/admin/orders/${item.publicId}`, { method: "DELETE" });
     const data = await response.json();
     if (!response.ok) {
       setError(data.error || "Не удалось удалить заявку из очереди");
