@@ -60,6 +60,7 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   const counts = Object.fromEntries(
     ["PENDING_APPROVAL", "AWAITING_PAYMENT", "PAID", "REJECTED", "CANCELLED"].map((status) => [
@@ -85,6 +86,7 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
   async function decide(item: RequestRecord, action: "approve" | "reject") {
     setBusy(item.id);
     setError("");
+    setNotice("");
     const response = await fetch(`/api/admin/orders/${item.publicId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -94,12 +96,22 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
       }),
     });
     const data = await response.json();
+
+    if (data.status) {
+      setRequests((current) => current.map((record) => (record.id === item.id ? { ...record, status: data.status } : record)));
+    }
+
     if (!response.ok) {
       setError(data.error || "Не удалось обработать заявку");
       setBusy("");
       return;
     }
-    setRequests((current) => current.map((record) => (record.id === item.id ? { ...record, status: data.status } : record)));
+
+    if (action === "approve") {
+      setNotice(data.emailSent ? "Заявка одобрена, оплата завершена, билеты и email отправлены клиенту." : `Заявка одобрена, но email не отправлен${data.emailError ? `: ${data.emailError}` : "."}`);
+    } else {
+      setNotice(data.emailSent ? "Заявка отклонена, уведомление отправлено клиенту." : `Заявка отклонена, но email не отправлен${data.emailError ? `: ${data.emailError}` : "."}`);
+    }
     setBusy("");
   }
 
@@ -136,7 +148,8 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
         </label>
       </div>
 
-      {error && <div className="toast">{error}</div>}
+      {error && <div className="toast" style={{ background: "#fff1f0", color: "#b42318" }}>{error}</div>}
+      {notice && <div className="toast" style={{ background: "#ecfdf3", color: "#166534" }}>{notice}</div>}
 
       <div className="request-grid">
         {visible.map((item) => {
@@ -172,44 +185,22 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
               <footer>
                 <small>Получена {new Date(item.createdAt).toLocaleString("ru-RU")}</small>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                  <a
-                    className="btn secondary"
-                    style={{ color: "#128C7E" }}
-                    target="_blank"
-                    rel="noreferrer"
-                    href={whatsapp(item.customerPhone, item.customerName, item.eventTitle)}
-                    aria-label={`Открыть WhatsApp с ${item.customerName}`}
-                  >
+                  <a className="btn secondary" style={{ color: "#128C7E" }} target="_blank" rel="noreferrer" href={whatsapp(item.customerPhone, item.customerName, item.eventTitle)} aria-label={`Открыть WhatsApp с ${item.customerName}`}>
                     <WhatsAppIcon size={18} /> WhatsApp
                   </a>
-                  <Link className="btn secondary" href={`/office/orders/${item.publicId}?returnTo=${encodeURIComponent("/office/requests")}`}>
-                    Подробнее
-                  </Link>
+                  <Link className="btn secondary" href={`/office/orders/${item.publicId}?returnTo=${encodeURIComponent("/office/requests")}`}>Подробнее</Link>
                 </div>
               </footer>
 
               {item.status === "PENDING_APPROVAL" && (
                 <div className="request-actions">
-                  <select
-                    aria-label={`Изменить статус заявки ${item.customerName}`}
-                    defaultValue=""
-                    disabled={busy === item.id}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      event.target.value = "";
-                      void changeStatus(item, value);
-                    }}
-                  >
+                  <select aria-label={`Изменить статус заявки ${item.customerName}`} defaultValue="" disabled={busy === item.id} onChange={(event) => { const value = event.target.value; event.target.value = ""; void changeStatus(item, value); }}>
                     <option value="" disabled>{busy === item.id ? "Обрабатываем…" : "Изменить статус"}</option>
-                    <option value="approve">Одобрить и завершить оплату</option>
+                    <option value="approve">Одобрить, списать оплату и выдать билет</option>
                     <option value="reject">Отклонить заявку</option>
                   </select>
-                  <button disabled={busy === item.id} className="approve" onClick={() => void decide(item, "approve")}>
-                    <Check size={18} />{busy === item.id ? "Обрабатываем…" : "Одобрить"}
-                  </button>
-                  <button disabled={busy === item.id} className="reject" onClick={() => void decide(item, "reject")}>
-                    <X size={18} />Отклонить
-                  </button>
+                  <button disabled={busy === item.id} className="approve" onClick={() => void decide(item, "approve")}><Check size={18} />{busy === item.id ? "Обрабатываем…" : "Одобрить"}</button>
+                  <button disabled={busy === item.id} className="reject" onClick={() => void decide(item, "reject")}><X size={18} />Отклонить</button>
                 </div>
               )}
             </article>
@@ -217,11 +208,7 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
         })}
 
         {visible.length === 0 && (
-          <div className="office-empty">
-            <UserRoundCheck size={38} />
-            <h3>В этой категории заявок нет</h3>
-            <p>Смените фильтр или поисковый запрос.</p>
-          </div>
+          <div className="office-empty"><UserRoundCheck size={38} /><h3>В этой категории заявок нет</h3><p>Смените фильтр или поисковый запрос.</p></div>
         )}
       </div>
 
