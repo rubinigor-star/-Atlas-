@@ -18,10 +18,22 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
   const design=parseTicketDesign(ticket.order.event.ticketTemplate);
   const pdf=await PDFDocument.create();
   pdf.registerFontkit(fontkit);
-  const regularBytes=await readFile(path.join(process.cwd(),"node_modules/@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff"));
-  const boldBytes=await readFile(path.join(process.cwd(),"node_modules/@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff"));
-  const hebrewBytes=await readFile(path.join(process.cwd(),"node_modules/@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff"));
-  const fonts={regular:await pdf.embedFont(regularBytes,{subset:true}),bold:await pdf.embedFont(boldBytes,{subset:true}),hebrew:await pdf.embedFont(hebrewBytes,{subset:true})};
+  const root=path.join(process.cwd(),"node_modules");
+  const read=(relative:string)=>readFile(path.join(root,relative));
+  const [latinRegular,latinBold,cyrillicRegular,cyrillicBold,hebrew]=await Promise.all([
+    read("@fontsource/noto-sans/files/noto-sans-latin-400-normal.woff"),
+    read("@fontsource/noto-sans/files/noto-sans-latin-700-normal.woff"),
+    read("@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff"),
+    read("@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff"),
+    read("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff"),
+  ]);
+  const fonts={
+    latinRegular:await pdf.embedFont(latinRegular,{subset:false}),
+    latinBold:await pdf.embedFont(latinBold,{subset:false}),
+    cyrillicRegular:await pdf.embedFont(cyrillicRegular,{subset:false}),
+    cyrillicBold:await pdf.embedFont(cyrillicBold,{subset:false}),
+    hebrew:await pdf.embedFont(hebrew,{subset:false}),
+  };
   const width=420,height=724;
   const page=pdf.addPage([width,height]);
   page.drawRectangle({x:0,y:0,width,height,color:color(design.backgroundColor)});
