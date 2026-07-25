@@ -8,9 +8,9 @@ import { withEventMedia } from "@/lib/event-media";
 import { parseEventRejectionMessage, withEventRejectionMessage } from "@/lib/event-approval-message";
 
 const mediaItem = z.object({ type: z.enum(["VIDEO", "LINK"]), url: z.string().url(), title: z.string().max(120).optional() });
-const update = z.object({ action: z.literal("update"), title: z.string().min(3), description: z.string().min(20), startsAt: z.string().datetime(), media: z.array(mediaItem).max(20).default([]) });
+const update = z.object({ action: z.literal("update"), title: z.string().min(3), description: z.string().min(20), posterUrl: z.string().url(), startsAt: z.string().datetime(), media: z.array(mediaItem).max(20).default([]) });
 const status = z.object({ action: z.literal("status"), status: z.enum(["DRAFT", "PUBLISHED"]) });
-const sales = z.object({ action: z.literal("sales"), salesMode: z.enum(["INSTANT", "APPROVAL_REQUIRED"]), approvalInstructions: z.string().max(1000).optional(), rejectionMessage: z.string().min(20).max(2000).optional() });
+const sales = z.object({ action: z.literal("sales"), salesMode: z.enum(["INSTANT", "APPROVAL_REQUIRED"]), askApprovalQuestion: z.boolean().default(false), approvalInstructions: z.string().max(1000).optional(), rejectionMessage: z.string().min(20).max(2000).optional() });
 const admission = z.object({ action: z.literal("admission"), mapEnabled: z.boolean() });
 const category = z.object({ action: z.literal("category"), name: z.string().min(2), description: z.string().max(500).optional(), priceMinor: z.number().int().nonnegative(), colorHex: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#2563EB"), capacity: z.number().int().positive(), pricingMode: z.enum(["FIXED", "SCHEDULED"]).default("FIXED"), salesStart: z.string().datetime().optional(), salesEnd: z.string().datetime().optional(), earlyBirdPriceMinor: z.number().int().nonnegative().optional(), earlyBirdEndsAt: z.string().datetime().optional(), maxPerOrder: z.number().int().min(1).max(20).default(10) });
 const table = z.object({ action: z.literal("table"), zoneName: z.string().min(2), label: z.string().min(1), seats: z.number().int().positive(), priceMinor: z.number().int().nonnegative() });
@@ -28,7 +28,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const current = await db.event.findUniqueOrThrow({ where: { id }, select: { description: true } });
       const rejectionMessage = parseEventRejectionMessage(current.description);
       const description = withEventRejectionMessage(withEventMedia(value.description, value.media), rejectionMessage);
-      await db.event.update({ where: { id }, data: { title: value.title, description, startsAt: new Date(value.startsAt) } });
+      await db.event.update({ where: { id }, data: { title: value.title, description, posterUrl: value.posterUrl, startsAt: new Date(value.startsAt) } });
       const walletTickets = await db.ticket.findMany({ where: { order: { eventId: id } }, select: { id: true } });
       await db.ticket.updateMany({ where: { id: { in: walletTickets.map((ticket) => ticket.id) } }, data: { walletUpdatedAt: new Date() } });
       await notifyWalletTickets(walletTickets.map((ticket) => ticket.id));
@@ -39,7 +39,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const value = sales.parse(body);
       const current = await db.event.findUniqueOrThrow({ where: { id }, select: { description: true } });
       const description = withEventRejectionMessage(current.description, value.rejectionMessage || parseEventRejectionMessage(current.description));
-      await db.event.update({ where: { id }, data: { salesMode: value.salesMode, approvalInstructions: value.approvalInstructions || null, description } });
+      await db.event.update({ where: { id }, data: { salesMode: value.salesMode, approvalInstructions: value.salesMode === "APPROVAL_REQUIRED" && value.askApprovalQuestion ? (value.approvalInstructions?.trim() || null) : null, description } });
     } else if (body.action === "admission") {
       const value = admission.parse(body);
       const sold = await db.order.count({ where: { eventId: id } });
