@@ -8,7 +8,7 @@ import { BarChart3, CalendarDays, ClipboardCheck, ContactRound, LayoutDashboard,
 const links: Array<{ href: string; label: string; permission?: StaffPermission; icon: typeof LayoutDashboard }> = [
   { href: "/office", label: "Обзор", permission: "EVENT_VIEW", icon: LayoutDashboard },
   { href: "/office/requests", label: "Заявки", permission: "REQUEST_REVIEW", icon: ClipboardCheck },
-  { href: "/office/events/new", label: "Мероприятия", permission: "EVENT_MANAGE", icon: CalendarDays },
+  { href: "/office/events", label: "Мероприятия", permission: "EVENT_VIEW", icon: CalendarDays },
   { href: "/office/guest-lists", label: "Гостевые списки", permission: "EVENT_MANAGE", icon: ListChecks },
   { href: "/office/guests", label: "Гости", permission: "ORDER_VIEW", icon: ContactRound },
   { href: "/office/promoters", label: "Промоутеры", permission: "ANALYTICS_VIEW", icon: Share2 },
