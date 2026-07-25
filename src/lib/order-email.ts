@@ -44,18 +44,18 @@ async function getOrder(publicId: string) {
 async function loadFonts(pdf: PDFDocument) {
   const root = path.join(process.cwd(), "node_modules");
   const read = (relative: string) => readFile(path.join(root, relative));
-  const [latinRegular, latinBold, cyrillicRegular, cyrillicBold, hebrew] = await Promise.all([
-    read("@fontsource/noto-sans/files/noto-sans-latin-400-normal.woff"),
-    read("@fontsource/noto-sans/files/noto-sans-latin-700-normal.woff"),
+  const [regular, bold, hebrew] = await Promise.all([
     read("@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff"),
     read("@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff"),
     read("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff"),
   ]);
+  const regularFont = await pdf.embedFont(regular, { subset: false });
+  const boldFont = await pdf.embedFont(bold, { subset: false });
   return {
-    latinRegular: await pdf.embedFont(latinRegular, { subset: false }),
-    latinBold: await pdf.embedFont(latinBold, { subset: false }),
-    cyrillicRegular: await pdf.embedFont(cyrillicRegular, { subset: false }),
-    cyrillicBold: await pdf.embedFont(cyrillicBold, { subset: false }),
+    latinRegular: regularFont,
+    latinBold: boldFont,
+    cyrillicRegular: regularFont,
+    cyrillicBold: boldFont,
     hebrew: await pdf.embedFont(hebrew, { subset: false }),
   };
 }
