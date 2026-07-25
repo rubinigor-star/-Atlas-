@@ -21,19 +21,13 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
   const root=path.join(process.cwd(),"node_modules");
   const read=(relative:string)=>readFile(path.join(root,relative));
   const [regular,bold,hebrew]=await Promise.all([
-    read("@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff"),
-    read("@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff"),
-    read("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff"),
+    read("@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff2"),
+    read("@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff2"),
+    read("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff2"),
   ]);
   const regularFont=await pdf.embedFont(regular,{subset:false});
   const boldFont=await pdf.embedFont(bold,{subset:false});
-  const fonts={
-    latinRegular:regularFont,
-    latinBold:boldFont,
-    cyrillicRegular:regularFont,
-    cyrillicBold:boldFont,
-    hebrew:await pdf.embedFont(hebrew,{subset:false}),
-  };
+  const fonts={latinRegular:regularFont,latinBold:boldFont,cyrillicRegular:regularFont,cyrillicBold:boldFont,hebrew:await pdf.embedFont(hebrew,{subset:false})};
   const width=420,height=724;
   const page=pdf.addPage([width,height]);
   page.drawRectangle({x:0,y:0,width,height,color:color(design.backgroundColor)});
@@ -56,5 +50,5 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
     drawMultilingualText({page,value:text,x:textX,y:y+Math.max(0,(h-size)/2),size,fonts,bold:item.bold,color:color(item.color),maxWidth:w});
   }
   const bytes=await pdf.save();
-  return new Response(Buffer.from(bytes),{headers:{"content-type":"application/pdf","content-disposition":`attachment; filename="atlas-${ticket.id}.pdf"`,"cache-control":"no-store"}});
+  return new Response(Buffer.from(bytes),{headers:{"content-type":"application/pdf","content-disposition":`attachment; filename="atlas-one-${ticket.id}.pdf"`,"cache-control":"no-store"}});
 }
