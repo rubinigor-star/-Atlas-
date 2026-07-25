@@ -4,6 +4,7 @@ import fontkit from "@pdf-lib/fontkit";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { db } from "@/lib/db";
+import { drawMultilingualText } from "@/lib/pdf-multilingual";
 
 function baseUrl() {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://atlas-atlasteam1.vercel.app").replace(/\/$/, "");
@@ -43,38 +44,32 @@ async function getOrder(publicId: string) {
 async function makePdf(order: Awaited<ReturnType<typeof getOrder>>) {
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
-
   const regularBytes = await readFile(path.join(process.cwd(), "node_modules/@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff"));
   const boldBytes = await readFile(path.join(process.cwd(), "node_modules/@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff"));
   const hebrewBytes = await readFile(path.join(process.cwd(), "node_modules/@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff"));
-  const regular = await pdf.embedFont(regularBytes, { subset: true });
-  const bold = await pdf.embedFont(boldBytes, { subset: true });
-  const hebrew = await pdf.embedFont(hebrewBytes, { subset: true });
-  const fontFor = (value: string, strong = false) => /[\u0590-\u05FF]/.test(value) ? hebrew : (strong ? bold : regular);
+  const fonts = {
+    regular: await pdf.embedFont(regularBytes, { subset: true }),
+    bold: await pdf.embedFont(boldBytes, { subset: true }),
+    hebrew: await pdf.embedFont(hebrewBytes, { subset: true }),
+  };
 
   for (const ticket of order.tickets) {
     const page = pdf.addPage([420, 595]);
     page.drawRectangle({ x: 0, y: 0, width: 420, height: 595, color: rgb(0.035, 0.078, 0.145) });
-    page.drawText("ATLAS", { x: 28, y: 545, size: 22, font: bold, color: rgb(1, 1, 1) });
-
-    const title = order.event.title.slice(0, 40);
-    const date = formatDate(order.event.startsAt);
-    const venue = `${order.event.venue.name}, ${order.event.venue.address}`.slice(0, 65);
-    const holder = `Владелец: ${ticket.holderName}`.slice(0, 60);
-    const category = `Категория: ${ticket.category.name}`.slice(0, 60);
-    const orderNumber = `Заказ: ${order.publicId}`;
-
-    page.drawText(title, { x: 28, y: 500, size: 18, font: fontFor(title, true), color: rgb(1, 1, 1), maxWidth: 364 });
-    page.drawText(date, { x: 28, y: 468, size: 11, font: fontFor(date), color: rgb(0.85, 0.88, 0.93), maxWidth: 364 });
-    page.drawText(venue, { x: 28, y: 445, size: 10, font: fontFor(venue), color: rgb(0.85, 0.88, 0.93), maxWidth: 364 });
-    page.drawText(holder, { x: 28, y: 400, size: 12, font: fontFor(holder, true), color: rgb(1, 1, 1), maxWidth: 364 });
-    page.drawText(category, { x: 28, y: 378, size: 11, font: fontFor(category), color: rgb(1, 1, 1), maxWidth: 364 });
-    page.drawText(orderNumber, { x: 28, y: 356, size: 10, font: fontFor(orderNumber), color: rgb(0.85, 0.88, 0.93), maxWidth: 364 });
-
+    drawMultilingualText({ page, value: "ATLAS", x: 28, y: 545, size: 22, fonts, bold: true, color: rgb(1, 1, 1), maxWidth: 364 });
+    const rows = [
+      { value: order.event.title.slice(0, 60), y: 500, size: 18, bold: true, color: rgb(1, 1, 1) },
+      { value: formatDate(order.event.startsAt), y: 468, size: 11, bold: false, color: rgb(0.85, 0.88, 0.93) },
+      { value: `${order.event.venue.name}, ${order.event.venue.address}`.slice(0, 80), y: 445, size: 10, bold: false, color: rgb(0.85, 0.88, 0.93) },
+      { value: `Владелец: ${ticket.holderName}`.slice(0, 80), y: 400, size: 12, bold: true, color: rgb(1, 1, 1) },
+      { value: `Категория: ${ticket.category.name}`.slice(0, 80), y: 378, size: 11, bold: false, color: rgb(1, 1, 1) },
+      { value: `Заказ: ${order.publicId}`, y: 356, size: 10, bold: false, color: rgb(0.85, 0.88, 0.93) },
+    ];
+    for (const row of rows) drawMultilingualText({ page, value: row.value, x: 28, y: row.y, size: row.size, fonts, bold: row.bold, color: row.color, maxWidth: 364 });
     const qrData = await QRCode.toDataURL(ticket.publicCode, { margin: 1, width: 500, errorCorrectionLevel: "M" });
     const qr = await pdf.embedPng(Buffer.from(qrData.split(",")[1], "base64"));
     page.drawImage(qr, { x: 105, y: 105, width: 210, height: 210 });
-    page.drawText("Покажите этот QR-код на входе", { x: 103, y: 78, size: 10, font: regular, color: rgb(0.85, 0.88, 0.93) });
+    drawMultilingualText({ page, value: "Покажите этот QR-код на входе", x: 103, y: 78, size: 10, fonts, color: rgb(0.85, 0.88, 0.93), maxWidth: 240 });
   }
   return Buffer.from(await pdf.save()).toString("base64");
 }
