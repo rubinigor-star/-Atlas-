@@ -29,9 +29,13 @@ const filters = [
   { value: "CANCELLED", label: "Отменённые" },
 ];
 
+function isInactiveStatus(status: string) {
+  return status === "CANCELLED" || status === "ARCHIVED";
+}
+
 function matchesFilter(event: { status: string; startsAt: Date }, filter: string, now: Date) {
   if (filter === "all") return true;
-  if (filter === "active") return event.startsAt >= now && event.status !== "CANCELLED" && event.status !== "ARCHIVED";
+  if (filter === "active") return event.startsAt >= now && !isInactiveStatus(event.status);
   if (filter === "past") return event.startsAt < now;
   return event.status === filter;
 }
@@ -76,7 +80,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
       <div className="stats">
         <div className="stat"><span className="muted">Всего мероприятий</span><strong>{visibleEvents.length}</strong></div>
         <div className="stat"><span className="muted">Опубликовано</span><strong>{visibleEvents.filter((event) => event.status === "PUBLISHED").length}</strong></div>
-        <div className="stat"><span className="muted">Предстоящие</span><strong>{visibleEvents.filter((event) => event.startsAt >= now && event.status !== "CANCELLED").length}</strong></div>
+        <div className="stat"><span className="muted">Предстоящие</span><strong>{visibleEvents.filter((event) => event.startsAt >= now && !isInactiveStatus(String(event.status))).length}</strong></div>
       </div>
 
       {filteredEvents.length === 0 ? (
