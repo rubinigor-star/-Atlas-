@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useLocale } from "@/components/locale-provider";
+import { AtlasLogo } from "@/components/atlas-logo";
 
 export function SiteHeader() {
   const { t, toggleLocale } = useLocale();
   return (
     <header className="topbar">
       <div className="shell nav">
-        <Link href="/" className="brand">ATL<i>AS</i></Link>
+        <AtlasLogo />
         <nav className="navlinks">
           <Link href="/">{t("events")}</Link>
           <Link href="/office">{t("organizers")}</Link>
@@ -22,5 +23,5 @@ export function SiteHeader() {
 
 export function SiteFooter() {
   const { t } = useLocale();
-  return <footer className="footer"><div className="shell row between"><span>© 2026 Atlas Tickets</span><span>{t("testOnly")}</span></div></footer>;
+  return <footer className="footer"><div className="shell row between"><AtlasLogo /><span>© 2026 Atlas One</span><span>{t("testOnly")}</span></div></footer>;
 }
