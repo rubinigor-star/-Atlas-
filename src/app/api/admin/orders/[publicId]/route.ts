@@ -10,33 +10,65 @@ import { cancelOrderTickets, issueTicketsForOrder } from "@/lib/ticket-engine";
 import { parseEventRejectionMessage } from "@/lib/event-approval-message";
 
 const DISMISSED_EXPIRED_NOTE = "__DISMISSED_EXPIRED__";
-const reviewSchema = z.object({ action: z.enum(["approve", "reject", "dismiss"]), note: z.string().max(500).optional() });
+const reviewSchema = z.object({ action: z.enum(["approve", "reject"]), note: z.string().max(500).optional() });
+
+export async function DELETE(_: Request, { params }: { params: Promise<{ publicId: string }> }) {
+  const { publicId } = await params;
+  try {
+    const target = await db.order.findUnique({
+      where: { publicId },
+      select: {
+        id: true,
+        eventId: true,
+        customerName: true,
+        status: true,
+        createdAt: true,
+        paymentDueAt: true,
+        _count: { select: { tickets: true } },
+      },
+    });
+    if (!target) throw new Error("Заявка не найдена");
+    const actor = await requireEventAccess("REQUEST_REVIEW", target.eventId);
+    const expiresAt = target.paymentDueAt ?? new Date(target.createdAt.getTime() + 24 * 60 * 60 * 1000);
+    const expired = expiresAt.getTime() <= Date.now();
+    const removable = target.status === "CANCELLED" || target.status === "REJECTED" || (target.status === "PENDING_APPROVAL" && expired);
+    if (!removable) throw new Error("Удалить из очереди можно только неактивную, отменённую или отклонённую заявку");
+    if (target._count.tickets > 0) throw new Error("Заявку с выпущенными билетами нельзя удалить из очереди");
+
+    await db.$transaction(async (tx) => {
+      if (target.status === "PENDING_APPROVAL") {
+        await releaseReservation(target.id, tx);
+        await voidTestAuthorization(target.id, tx);
+      }
+      await tx.order.update({
+        where: { id: target.id },
+        data: { status: "CANCELLED", reviewNote: DISMISSED_EXPIRED_NOTE, reviewedAt: new Date(), paymentDueAt: null },
+      });
+    });
+
+    await writeAudit(actor, {
+      action: "EXPIRED_REQUEST_DISMISSED",
+      entityType: "Order",
+      entityId: target.id,
+      summary: `Неактивная заявка ${target.customerName} удалена из очереди`,
+      metadata: { publicId },
+    });
+    return NextResponse.json({ status: "CANCELLED", dismissed: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Не удалось удалить заявку из очереди" },
+      { status: error instanceof Error && error.message === "FORBIDDEN" ? 403 : 400 },
+    );
+  }
+}
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ publicId: string }> }) {
   const { publicId } = await params;
   try {
     const input = reviewSchema.parse(await req.json());
-    const target = await db.order.findUnique({ where: { publicId }, select: { id: true, eventId: true, customerName: true, status: true, createdAt: true, paymentDueAt: true, tickets: { select: { id: true } } } });
+    const target = await db.order.findUnique({ where: { publicId }, select: { id: true, eventId: true, customerName: true } });
     if (!target) throw new Error("Заявка не найдена");
     const actor = await requireEventAccess("REQUEST_REVIEW", target.eventId);
-
-    if (input.action === "dismiss") {
-      const expiresAt = target.paymentDueAt ?? new Date(target.createdAt.getTime() + 24 * 60 * 60 * 1000);
-      const expired = expiresAt.getTime() <= Date.now();
-      const removableStatus = target.status === "CANCELLED" || target.status === "REJECTED" || (target.status === "PENDING_APPROVAL" && expired);
-      if (!removableStatus) throw new Error("Удалить из очереди можно только неактивную, отменённую или отклонённую заявку");
-      if (target.tickets.length > 0) throw new Error("Заявку с выпущенными билетами нельзя удалить из очереди");
-
-      await db.$transaction(async (tx) => {
-        if (target.status === "PENDING_APPROVAL") {
-          await releaseReservation(target.id, tx).catch(() => undefined);
-          await voidTestAuthorization(target.id, tx).catch(() => undefined);
-        }
-        await tx.order.update({ where: { id: target.id }, data: { status: "CANCELLED", reviewNote: DISMISSED_EXPIRED_NOTE, reviewedAt: new Date(), paymentDueAt: null } });
-      });
-      await writeAudit(actor, { action: "EXPIRED_REQUEST_DISMISSED", entityType: "Order", entityId: target.id, summary: `Неактивная заявка ${target.customerName} удалена из очереди`, metadata: { publicId } });
-      return NextResponse.json({ status: "CANCELLED", dismissed: true });
-    }
 
     const order = await db.$transaction(async (tx) => {
       const current = await tx.order.findUnique({ where: { publicId }, include: { event: { select: { description: true } }, items: { include: { table: true, seat: true } }, tickets: true } });
