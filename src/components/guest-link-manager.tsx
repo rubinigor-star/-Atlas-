@@ -2,20 +2,29 @@
 
 import { useState } from "react";
 
+type GuestLink = { id: string; label: string; code: string; guestLimit: number | null; publicPath: string; managePath: string };
 type Props = {
   eventId: string;
   categories: Array<{ id: string; name: string; priceMinor: number }>;
   tables: Array<{ id: string; label: string; seats: number; categoryId: string | null }>;
+  existingLinks: GuestLink[];
 };
 
-export function GuestLinkManager({ eventId, categories, tables }: Props) {
+export function GuestLinkManager({ eventId, categories, tables, existingLinks }: Props) {
   const freeCategories = categories.filter((item) => item.priceMinor === 0);
   const freeCategoryIds = new Set(freeCategories.map((item) => item.id));
   const freeTables = tables.filter((item) => item.categoryId && freeCategoryIds.has(item.categoryId));
   const [type, setType] = useState<"CATEGORY" | "TABLE">(freeTables.length ? "TABLE" : "CATEGORY");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState("");
   const [result, setResult] = useState<{ publicPath: string; managePath: string } | null>(null);
+
+  async function copyValue(value: string, key: string) {
+    await navigator.clipboard.writeText(value);
+    setCopied(key);
+    window.setTimeout(() => setCopied(""), 1600);
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -26,15 +35,7 @@ export function GuestLinkManager({ eventId, categories, tables }: Props) {
     const response = await fetch("/api/admin/guest-links", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        eventId,
-        displayName: form.get("displayName"),
-        allocationType: type,
-        categoryId: type === "CATEGORY" ? form.get("categoryId") : null,
-        tableId: type === "TABLE" ? form.get("tableId") : null,
-        guestLimit: Number(form.get("guestLimit")),
-        code: form.get("code") || undefined,
-      }),
+      body: JSON.stringify({ eventId, displayName: form.get("displayName"), allocationType: type, categoryId: type === "CATEGORY" ? form.get("categoryId") : null, tableId: type === "TABLE" ? form.get("tableId") : null, guestLimit: Number(form.get("guestLimit")), code: form.get("code") || undefined }),
     });
     const data = await response.json();
     setBusy(false);
@@ -43,10 +44,13 @@ export function GuestLinkManager({ eventId, categories, tables }: Props) {
   }
 
   const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const CopyRow = ({ label, value, copyKey }: { label: string; value: string; copyKey: string }) => <div className="field"><label>{label}</label><div className="row" style={{gap:8}}><input className="input" readOnly value={value} onFocus={(e) => e.currentTarget.select()} /><button type="button" className="btn secondary" onClick={() => void copyValue(value, copyKey)}>{copied === copyKey ? "Скопировано" : "Копировать"}</button></div></div>;
 
   return <section className="panel form">
     <span className="eyebrow">Гостевой список</span>
-    <h2>Создать ссылку без аккаунта</h2>
+    <h2>Гостевые ссылки</h2>
+    {existingLinks.length > 0 && <div className="form" style={{marginBottom:24}}>{existingLinks.map((link) => <details className="panel" key={link.id}><summary><strong>{link.label}</strong> · {link.guestLimit ?? "—"} гостей</summary><div style={{marginTop:14}}><CopyRow label="Ссылка управления" value={`${origin}${link.managePath}`} copyKey={`${link.id}-manage`} /><CopyRow label="Публичная ссылка" value={`${origin}${link.publicPath}`} copyKey={`${link.id}-public`} /></div></details>)}</div>}
+    <h3>Создать ссылку без аккаунта</h3>
     <p className="muted">Именинник или ответственный человек сможет самостоятельно добавлять гостей. Для такого списка используется билет с ценой 0.</p>
     {!freeCategories.length ? <div className="toast">Сначала создайте билет с ценой 0.</div> : <form onSubmit={submit} className="form">
       <div className="field"><label>Название списка</label><input className="input" name="displayName" required placeholder="День рождения Васи" /></div>
@@ -57,6 +61,6 @@ export function GuestLinkManager({ eventId, categories, tables }: Props) {
       {error && <div className="toast">{error}</div>}
       <button className="btn" disabled={busy}>{busy ? "Создаём..." : "Создать гостевую ссылку"}</button>
     </form>}
-    {result && <div className="panel" style={{ marginTop: 16 }}><strong>Ссылки созданы</strong><p className="muted">Основную ссылку можно отправить гостям для просмотра. Ссылку управления отправьте Васе — по ней он сможет добавлять и удалять гостей.</p><div className="field"><label>Ссылка управления</label><input className="input" readOnly value={`${origin}${result.managePath}`} onFocus={(e) => e.currentTarget.select()} /></div><div className="field"><label>Публичная ссылка</label><input className="input" readOnly value={`${origin}${result.publicPath}`} onFocus={(e) => e.currentTarget.select()} /></div></div>}
+    {result && <div className="panel" style={{ marginTop: 16 }}><strong>Ссылки созданы</strong><p className="muted">Основную ссылку можно отправить гостям для просмотра. Ссылку управления отправьте ответственному человеку.</p><CopyRow label="Ссылка управления" value={`${origin}${result.managePath}`} copyKey="new-manage" /><CopyRow label="Публичная ссылка" value={`${origin}${result.publicPath}`} copyKey="new-public" /></div>}
   </section>;
 }
