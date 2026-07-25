@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./logo.css";
+import "./tour.css";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { LocaleProvider } from "@/components/locale-provider";
 import { AppChrome } from "@/components/app-chrome";
