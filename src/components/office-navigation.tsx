@@ -4,24 +4,38 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { StaffPermission } from "@prisma/client";
 import { BarChart3, CalendarDays, ClipboardCheck, ContactRound, LayoutDashboard, ListChecks, QrCode, ReceiptText, Share2, Users } from "lucide-react";
+import { useLocale } from "@/components/locale-provider";
 
-const links: Array<{ href: string; label: string; permission?: StaffPermission; icon: typeof LayoutDashboard }> = [
-  { href: "/office", label: "Обзор", permission: "EVENT_VIEW", icon: LayoutDashboard },
-  { href: "/office/requests", label: "Заявки", permission: "REQUEST_REVIEW", icon: ClipboardCheck },
-  { href: "/office/events", label: "Мероприятия", permission: "EVENT_VIEW", icon: CalendarDays },
-  { href: "/office/guest-lists", label: "Гостевые списки", permission: "EVENT_MANAGE", icon: ListChecks },
-  { href: "/office/guests", label: "Гости", permission: "ORDER_VIEW", icon: ContactRound },
-  { href: "/office/promoters", label: "Промоутеры", permission: "ANALYTICS_VIEW", icon: Share2 },
-  { href: "/office/orders", label: "Заказы", permission: "ORDER_VIEW", icon: ReceiptText },
-  { href: "/office/scanner", label: "Сканер", permission: "SCAN", icon: QrCode },
-  { href: "/office/team", label: "Команда", permission: "TEAM_MANAGE", icon: Users },
-  { href: "/office/audit", label: "Журнал", permission: "TEAM_MANAGE", icon: BarChart3 },
+const links: Array<{ href: string; key: "overview" | "requests" | "events" | "guestLists" | "guests" | "promoters" | "orders" | "scanner" | "team" | "audit"; permission?: StaffPermission; icon: typeof LayoutDashboard }> = [
+  { href: "/office", key: "overview", permission: "EVENT_VIEW", icon: LayoutDashboard },
+  { href: "/office/requests", key: "requests", permission: "REQUEST_REVIEW", icon: ClipboardCheck },
+  { href: "/office/events", key: "events", permission: "EVENT_VIEW", icon: CalendarDays },
+  { href: "/office/guest-lists", key: "guestLists", permission: "EVENT_MANAGE", icon: ListChecks },
+  { href: "/office/guests", key: "guests", permission: "ORDER_VIEW", icon: ContactRound },
+  { href: "/office/promoters", key: "promoters", permission: "ANALYTICS_VIEW", icon: Share2 },
+  { href: "/office/orders", key: "orders", permission: "ORDER_VIEW", icon: ReceiptText },
+  { href: "/office/scanner", key: "scanner", permission: "SCAN", icon: QrCode },
+  { href: "/office/team", key: "team", permission: "TEAM_MANAGE", icon: Users },
+  { href: "/office/audit", key: "audit", permission: "TEAM_MANAGE", icon: BarChart3 },
 ];
 
 export function OfficeNavigation({ permissions, mobile = false }: { permissions: StaffPermission[]; mobile?: boolean }) {
   const pathname = usePathname();
+  const { messages } = useLocale();
   const allowed = new Set(permissions);
   const visible = links.filter((link) => !link.permission || allowed.has(link.permission));
   const shown = mobile ? visible.slice(0, 5) : visible;
-  return <nav className={mobile ? "office-bottom-nav" : "office-nav"}>{shown.map((link) => { const Icon=link.icon; const active=link.href==="/office"?pathname===link.href:pathname.startsWith(link.href); return <Link key={link.href} href={link.href} className={active?"active":""}><Icon size={19}/><span>{link.label}</span></Link>; })}</nav>;
+  const labels = {
+    overview: messages.common.overview,
+    requests: messages.common.requests,
+    events: messages.nav.events,
+    guestLists: messages.nav.guestLists,
+    guests: messages.nav.guests,
+    promoters: messages.nav.promoters,
+    orders: messages.common.orders,
+    scanner: messages.common.scanner,
+    team: messages.nav.team,
+    audit: messages.nav.audit,
+  };
+  return <nav className={mobile ? "office-bottom-nav" : "office-nav"}>{shown.map((link) => { const Icon=link.icon; const active=link.href==="/office"?pathname===link.href:pathname.startsWith(link.href); return <Link key={link.href} href={link.href} className={active?"active":""}><Icon size={19}/><span>{labels[link.key]}</span></Link>; })}</nav>;
 }
