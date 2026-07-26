@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
       "./node_modules/@sparticuz/chromium/bin/**/*",
       "./node_modules/@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff",
       "./node_modules/@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff",
-      "./public/branding/atlas-one-logo-official.jpg.b64",
+      "./public/branding/atlas-one-logo.jpg",
     ],
   },
 };
