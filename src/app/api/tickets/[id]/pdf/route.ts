@@ -21,9 +21,9 @@ export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
   const root=path.join(process.cwd(),"node_modules");
   const read=(relative:string)=>readFile(path.join(root,relative));
   const [regular,bold,hebrew]=await Promise.all([
-    read("@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff2"),
-    read("@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff2"),
-    read("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff2"),
+    read("@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff"),
+    read("@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff"),
+    read("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff"),
   ]);
   const regularFont=await pdf.embedFont(regular,{subset:false});
   const boldFont=await pdf.embedFont(bold,{subset:false});
