@@ -1,11 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
   outputFileTracingIncludes: {
-    "/*": [
-      "./node_modules/@fontsource/noto-sans/files/*.woff",
-      "./node_modules/@fontsource/noto-sans-hebrew/files/*.woff",
-    ],
+    "/api/tickets/*/pdf": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+    "/api/ticket-pdf-test": ["./node_modules/@sparticuz/chromium/bin/**/*"],
   },
 };
 
