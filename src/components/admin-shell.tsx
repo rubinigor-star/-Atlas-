@@ -5,10 +5,11 @@ import { roleLabels } from "@/lib/permissions";
 import { OfficeNavigation } from "@/components/office-navigation";
 import { OfficeAccountMenu } from "@/components/office-account-menu";
 import { AtlasLogo } from "@/components/atlas-logo";
+import { getServerI18n } from "@/lib/server-locale";
 
 export async function AdminShell({ children }: { children: React.ReactNode }) {
-  const staff = await getCurrentStaff();
-  if (!staff?.organizationId || !staff.organization) return <main className="office-denied"><div><span>ATLAS ONE OFFICE</span><h1>Доступ закрыт</h1><p>Выберите демонстрационного сотрудника организации или войдите в рабочий аккаунт.</p><Link className="btn" href="/">Вернуться на сайт</Link></div></main>;
+  const [staff, i18n] = await Promise.all([getCurrentStaff(), getServerI18n()]);
+  if (!staff?.organizationId || !staff.organization) return <main className="office-denied"><div><span>ATLAS ONE OFFICE</span><h1>{i18n.messages.office.denied}</h1><p>{i18n.messages.office.deniedText}</p><Link className="btn" href="/">{i18n.messages.office.backToSite}</Link></div></main>;
   const colleagues = await db.user.findMany({ where: { organizationId: staff.organizationId, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true, staffRole: true } });
   const accounts=colleagues.map(member=>({...member,staffRole:member.staffRole??"CUSTOM" as const}));
   return <div className="office-shell">
