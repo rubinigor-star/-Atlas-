@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { generateTicketPdf } from "@/lib/ticket-pdf";
+import { parseTicketDesign } from "@/lib/ticket-template";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     where: { id },
     include: {
       category: true,
-      order: { include: { event: { include: { venue: true } } } },
+      order: { include: { event: { include: { venue: true, ticketTemplate: true } } } },
     },
   });
   if (!ticket) return new Response("Ticket not found", { status: 404 });
@@ -26,6 +27,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       categoryName: ticket.category.name,
       orderNumber: ticket.order.publicId,
       ticketCode: ticket.publicCode,
+      status: ticket.status,
+      design: parseTicketDesign(event.ticketTemplate),
     },
   ]);
 
