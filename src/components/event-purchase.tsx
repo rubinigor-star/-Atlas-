@@ -30,27 +30,23 @@ type MapObject = {
 
 type Allocation = { type: "EVENT" | "CATEGORY" | "TABLE"; categoryId: string | null; tableId: string | null; customPriceMinor: number | null };
 
-const copy = {
-  ru: { title: "Выберите билет", remaining: "осталось", map: "Выберите место на карте", stage: "СЦЕНА", whole: "целиком", perSeat: "за место", selected: "Выбрано мест", quantity: "Количество", total: "Итого", continue: "Продолжить", table: "стол", sofa: "диван", unavailable: "Занято", legend: "Категории и цены", unassigned: "Не продаётся", endsSoon: "Текущий этап продаж заканчивается скоро", sold: "Уже куплено", tickets: "билетов", next: "Следующая цена" },
-  he: { title: "בחירת כרטיס", remaining: "נותרו", map: "בחירת מקום במפה", stage: "במה", whole: "מחיר מלא", perSeat: "למקום", selected: "מקומות שנבחרו", quantity: "כמות", total: "סה״כ", continue: "המשך", table: "שולחן", sofa: "ספה", unavailable: "תפוס", legend: "קטגוריות ומחירים", unassigned: "לא למכירה", endsSoon: "שלב המכירה הנוכחי מסתיים בקרוב", sold: "כבר נרכשו", tickets: "כרטיסים", next: "המחיר הבא" },
-};
-
-function countdown(nextAt: string | null, now: number) {
+function countdown(nextAt: string | null, now: number, units: { days: string; hours: string; minutes: string }) {
   if (!nextAt) return "";
   const diff = new Date(nextAt).getTime() - now;
   if (diff <= 0) return "";
   const days = Math.floor(diff / 86400000);
   const hours = Math.floor((diff % 86400000) / 3600000);
   const minutes = Math.max(1, Math.floor((diff % 3600000) / 60000));
-  if (days > 0) return `${days} дн. ${hours} ч.`;
-  if (hours > 0) return `${hours} ч. ${minutes} мин.`;
-  return `${minutes} мин.`;
+  if (days > 0) return `${days} ${units.days} ${hours} ${units.hours}`;
+  if (hours > 0) return `${hours} ${units.hours} ${minutes} ${units.minutes}`;
+  return `${minutes} ${units.minutes}`;
 }
 
 export function EventPurchase({ eventId, categories, objects, referralCode, allocation }: { eventId: string; categories: Category[]; objects: MapObject[]; referralCode?: string; allocation?: Allocation }) {
   const router = useRouter();
-  const { locale } = useLocale();
-  const text = copy[locale];
+  const { locale, messages } = useLocale();
+  const text = messages.purchase;
+  const common = messages.common;
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30000); return () => window.clearInterval(timer); }, []);
   const availableCategories = allocation?.type === "CATEGORY" ? categories.filter((item) => item.id === allocation.categoryId) : categories;
@@ -88,7 +84,7 @@ export function EventPurchase({ eventId, categories, objects, referralCode, allo
   function go() {
     if (!categoryId || (seatObject && selectedSeatIds.length === 0)) return;
     const quantity = wholeObject ? wholeObject.seats : seatObject ? selectedSeatIds.length : qty;
-    const query = new URLSearchParams({ eventId, categoryId, quantity: String(quantity) });
+    const query = new URLSearchParams({ eventId, categoryId, quantity: String(quantity), locale });
     if (wholeObject) query.set("tableId", wholeObject.id);
     if (selectedSeatIds.length > 0) query.set("seatIds", selectedSeatIds.join(","));
     if (referralCode) query.set("ref", referralCode);
@@ -99,24 +95,24 @@ export function EventPurchase({ eventId, categories, objects, referralCode, allo
     <h2>{text.title}</h2>
     <div className="options">{availableCategories.map((item) => {
       const strategy = item.marketingStrategy;
-      const timeLeft = strategy.showCountdown ? countdown(item.pricingPresentation.nextAt, now) : "";
+      const timeLeft = strategy.showCountdown ? countdown(item.pricingPresentation.nextAt, now, text) : "";
       return <button type="button" key={item.id} className={`option ${categoryId === item.id && !selectionObject ? "selected" : ""}`} onClick={() => { setCategoryId(item.id); clearMapSelection(); }}>
         <span><strong>{item.name}</strong><br /><small className="muted">{item.description}</small>
           <span className="pricing-pressure">
             <b>{item.pricingPresentation.stageLabel}</b>
-            {timeLeft && <small>⏰ Цена повысится через {timeLeft}</small>}
-            {strategy.showNextPrice && item.pricingPresentation.nextPriceMinor !== null && <small>{text.next}: {money(item.pricingPresentation.nextPriceMinor)}</small>}
+            {timeLeft && <small>⏰ {text.priceRisesIn} {timeLeft}</small>}
+            {strategy.showNextPrice && item.pricingPresentation.nextPriceMinor !== null && <small>{text.next}: {money(item.pricingPresentation.nextPriceMinor,"ILS",locale)}</small>}
             {strategy.showStageRemaining && <small>🔥 {text.endsSoon}</small>}
             {strategy.showTotalRemaining && <small>🎟 {text.remaining} {item.capacity - item.sold}</small>}
             {strategy.showSoldCount && <small>✓ {text.sold} {item.sold} {text.tickets}</small>}
           </span>
-        </span><strong>{money(item.priceMinor)}</strong>
+        </span><strong>{money(item.priceMinor,"ILS",locale)}</strong>
       </button>;
     })}</div>
 
     {availableObjects.length > 0 && <>
       <h3 className="map-purchase-title">{text.map}</h3>
-      <div className="buyer-ticket-legend"><strong>{text.legend}</strong>{availableCategories.map((item) => <span key={item.id}><i style={{ background: item.colorHex }} />{item.name} · {money(item.priceMinor)}</span>)}</div>
+      <div className="buyer-ticket-legend"><strong>{text.legend}</strong>{availableCategories.map((item) => <span key={item.id}><i style={{ background: item.colorHex }} />{item.name} · {money(item.priceMinor,"ILS",locale)}</span>)}</div>
       <div className="venue-canvas buyer-map">
         <div className="map-stage">{text.stage}</div>
         {availableObjects.map((object) => {
@@ -125,9 +121,9 @@ export function EventPurchase({ eventId, categories, objects, referralCode, allo
           const selectedWhole = wholeObjectId === object.id;
           return <div key={object.id} className={`map-object buyer-object object-${object.objectType.toLowerCase().replace("_", "-")} ${object.objectType.toLowerCase().replace("_", "-")} ${selectedWhole ? "selected" : ""} ${soldWhole ? "unavailable" : ""}`} style={{ left: `${object.x}%`, top: `${object.y}%`, width: object.width, height: object.height, transform: `translate(-50%, -50%) rotate(${object.rotation}deg)`, zIndex: object.objectType === "ZONE" ? 1 : 2 }}>
             {!isSellable ? <div className={`buyer-decoration decoration-${object.objectType.toLowerCase()}`}><strong>{object.label}</strong></div> : <>
-            <button type="button" className="object-core" disabled={soldWhole || object.priceMode === "PER_SEAT" || allocation?.type === "TABLE"} onClick={() => { setSelectedSeatIds([]); setWholeObjectId(selectedWhole ? null : object.id); setCategoryId(object.categoryId ?? categoryId); }}><strong>{object.label}</strong><small>{object.objectType === "SOFA" ? text.sofa : object.objectType === "ROW" ? "row" : text.table}</small></button>
+            <button type="button" className="object-core" disabled={soldWhole || object.priceMode === "PER_SEAT" || allocation?.type === "TABLE"} onClick={() => { setSelectedSeatIds([]); setWholeObjectId(selectedWhole ? null : object.id); setCategoryId(object.categoryId ?? categoryId); }}><strong>{object.label}</strong><small>{object.objectType === "SOFA" ? text.sofa : object.objectType === "ROW" ? text.row : text.table}</small></button>
             <span className="buyer-seat-ring">{object.seatItems.map((seat) => <button type="button" key={seat.id} title={seat.status === "AVAILABLE" ? seat.label : text.unavailable} disabled={object.priceMode === "WHOLE_TABLE" || seat.status !== "AVAILABLE" || !seat.categoryId || allocation?.type === "TABLE"} className={`map-seat ${selectedSeatIds.includes(seat.id) ? "selected" : ""} ${seat.status.toLowerCase()}`} style={{ "--ticket-color": categories.find((item) => item.id === seat.categoryId)?.colorHex ?? "#CBD5E1" } as React.CSSProperties} onClick={() => chooseSeat(object, seat)}>{seat.position}</button>)}</span>
-            <small className="object-price">{object.priceMode === "WHOLE_TABLE" ? `${money(allocation?.type === "TABLE" && allocation.customPriceMinor !== null ? allocation.customPriceMinor : categories.find((item) => item.id === object.categoryId)?.priceMinor ?? 0)} ${text.whole}` : object.seatItems.some((seat) => seat.categoryId) ? text.perSeat : text.unassigned}</small>
+            <small className="object-price">{object.priceMode === "WHOLE_TABLE" ? `${money(allocation?.type === "TABLE" && allocation.customPriceMinor !== null ? allocation.customPriceMinor : categories.find((item) => item.id === object.categoryId)?.priceMinor ?? 0,"ILS",locale)} ${text.whole}` : object.seatItems.some((seat) => seat.categoryId) ? text.perSeat : text.unassigned}</small>
             </>}
           </div>;
         })}
@@ -135,7 +131,7 @@ export function EventPurchase({ eventId, categories, objects, referralCode, allo
       {selectedSeatIds.length > 0 && <div className="seat-selection-summary"><span>{text.selected}</span><strong>{selectedSeatIds.length}</strong></div>}
     </>}
 
-    {!selectionObject && <div className="field" style={{ marginTop: 16 }}><label>{text.quantity}</label><select value={qty} onChange={(event) => setQty(Number(event.target.value))}>{[1, 2, 3, 4, 5, 6].map((number) => <option key={number}>{number}</option>)}</select></div>}
-    <div className="row between" style={{ marginTop: 20 }}><div><small className="muted">{text.total}</small><br /><strong style={{ fontSize: 24 }}>{money(total)}</strong></div><button className="btn" disabled={Boolean(seatObject) && selectedSeatIds.length === 0} onClick={go}>{text.continue}</button></div>
+    {!selectionObject && <div className="field" style={{ marginTop: 16 }}><label>{common.quantity}</label><select value={qty} onChange={(event) => setQty(Number(event.target.value))}>{[1, 2, 3, 4, 5, 6].map((number) => <option key={number}>{number}</option>)}</select></div>}
+    <div className="row between" style={{ marginTop: 20 }}><div><small className="muted">{common.total}</small><br /><strong style={{ fontSize: 24 }}>{money(total,"ILS",locale)}</strong></div><button className="btn" disabled={Boolean(seatObject) && selectedSeatIds.length === 0} onClick={go}>{common.continue}</button></div>
   </div>;
 }
