@@ -1,54 +1,39 @@
-import {PDFDocument,rgb} from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
-import QRCode from "qrcode";
-import {readFile} from "node:fs/promises";
-import path from "node:path";
-import {db} from "@/lib/db";
-import {parseTicketDesign,resolveTicketText} from "@/lib/ticket-template";
-import {drawMultilingualText,multilingualWidth} from "@/lib/pdf-multilingual";
+import { db } from "@/lib/db";
+import { generateTicketPdf } from "@/lib/ticket-pdf";
 
-export const runtime="nodejs";
-const color=(hex:string)=>{const value=hex.replace("#","");return rgb(Number.parseInt(value.slice(0,2),16)/255,Number.parseInt(value.slice(2,4),16)/255,Number.parseInt(value.slice(4,6),16)/255)};
-async function localImage(url:string|null){if(!url||!url.startsWith("/")||url.includes(".."))return null;try{return await readFile(path.join(process.cwd(),"public",url))}catch{return null}}
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
-  const{id}=await params;
-  const ticket=await db.ticket.findUnique({where:{id},include:{category:true,order:{include:{event:{include:{venue:true,ticketTemplate:true}}}}}});
-  if(!ticket)return new Response("Ticket not found",{status:404});
-  const design=parseTicketDesign(ticket.order.event.ticketTemplate);
-  const pdf=await PDFDocument.create();
-  pdf.registerFontkit(fontkit);
-  const root=path.join(process.cwd(),"node_modules");
-  const read=(relative:string)=>readFile(path.join(root,relative));
-  const [regular,bold,hebrew]=await Promise.all([
-    read("@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff"),
-    read("@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff"),
-    read("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff"),
+export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const ticket = await db.ticket.findUnique({
+    where: { id },
+    include: {
+      category: true,
+      order: { include: { event: { include: { venue: true } } } },
+    },
+  });
+  if (!ticket) return new Response("Ticket not found", { status: 404 });
+
+  const event = ticket.order.event;
+  const bytes = await generateTicketPdf([
+    {
+      eventTitle: event.title,
+      startsAt: event.startsAt,
+      venueName: event.venue.name,
+      venueAddress: event.venue.address,
+      holderName: ticket.holderName,
+      categoryName: ticket.category.name,
+      orderNumber: ticket.order.publicId,
+      ticketCode: ticket.publicCode,
+    },
   ]);
-  const regularFont=await pdf.embedFont(regular,{subset:false});
-  const boldFont=await pdf.embedFont(bold,{subset:false});
-  const fonts={latinRegular:regularFont,latinBold:boldFont,cyrillicRegular:regularFont,cyrillicBold:boldFont,hebrew:await pdf.embedFont(hebrew,{subset:false})};
-  const width=420,height=724;
-  const page=pdf.addPage([width,height]);
-  page.drawRectangle({x:0,y:0,width,height,color:color(design.backgroundColor)});
-  const background=await localImage(design.backgroundUrl);
-  if(background){try{const image=design.backgroundUrl?.toLowerCase().endsWith(".png")?await pdf.embedPng(background):await pdf.embedJpg(background);page.drawImage(image,{x:0,y:0,width,height,opacity:.42})}catch{}}
-  const event=ticket.order.event;
-  const data={eventTitle:event.title,startsAt:event.startsAt,venue:event.venue.name,address:event.venue.address,customerName:ticket.holderName,ticketType:ticket.category.name,orderNumber:ticket.order.publicId,ticketCode:ticket.publicCode};
-  const qrData=await QRCode.toBuffer(ticket.publicCode,{width:500,margin:1,errorCorrectionLevel:"M"});
-  const qr=await pdf.embedPng(qrData);
-  for(const item of design.elements.filter(element=>!element.hidden)){
-    const x=width*item.x/100,y=height-height*(item.y+item.height)/100,w=width*item.width/100,h=height*item.height/100;
-    if(item.binding==="QR"){page.drawRectangle({x,y,width:w,height:h,color:rgb(1,1,1),opacity:.97});page.drawImage(qr,{x:x+5,y:y+5,width:Math.max(10,w-10),height:Math.max(10,h-10)});continue}
-    if(item.binding==="IMAGE"){const bytes=await localImage(item.content);if(bytes)try{const image=item.content.toLowerCase().endsWith(".png")?await pdf.embedPng(bytes):await pdf.embedJpg(bytes);page.drawImage(image,{x,y,width:w,height:h})}catch{}continue}
-    const text=resolveTicketText(item,data);
-    const size=Math.min(item.fontSize,h*.8);
-    const textWidth=multilingualWidth(text,size,fonts,item.bold);
-    let textX=x;
-    if(item.align==="center")textX=x+Math.max(0,(w-textWidth)/2);
-    if(item.align==="right")textX=x+Math.max(0,w-textWidth);
-    drawMultilingualText({page,value:text,x:textX,y:y+Math.max(0,(h-size)/2),size,fonts,bold:item.bold,color:color(item.color),maxWidth:w});
-  }
-  const bytes=await pdf.save();
-  return new Response(Buffer.from(bytes),{headers:{"content-type":"application/pdf","content-disposition":`attachment; filename="atlas-one-${ticket.id}.pdf"`,"cache-control":"no-store"}});
+
+  return new Response(bytes, {
+    headers: {
+      "content-type": "application/pdf",
+      "content-disposition": `attachment; filename="atlas-one-${ticket.id}.pdf"`,
+      "cache-control": "no-store, max-age=0",
+    },
+  });
 }
