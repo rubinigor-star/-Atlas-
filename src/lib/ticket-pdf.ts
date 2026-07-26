@@ -27,6 +27,7 @@ const PALE = rgb(0.949, 0.965, 0.98);
 const BORDER = rgb(0.859, 0.886, 0.922);
 const WHITE = rgb(1, 1, 1);
 let fontBytesPromise: Promise<Uint8Array> | null = null;
+let atlasLogoBytesPromise: Promise<Buffer> | null = null;
 
 function clean(value: string) { return value.replace(/\s+/g, " ").trim(); }
 function clip(value: string, max: number) { const normalized = clean(value); return normalized.length > max ? `${normalized.slice(0, Math.max(1, max - 1))}…` : normalized; }
@@ -56,6 +57,21 @@ async function loadPoster(pdf: PDFDocument, posterUrl?: string | null): Promise<
     return null;
   }
 }
+async function loadOfficialAtlasLogo(pdf: PDFDocument) {
+  if (!atlasLogoBytesPromise) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="560" height="190" viewBox="0 0 560 190">
+      <rect width="560" height="190" rx="16" fill="#ffffff" fill-opacity="0.97"/>
+      <text x="280" y="92" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="78" font-weight="900" letter-spacing="-5">
+        <tspan fill="#0b1830">ATL</tspan><tspan fill="#ff5c45">AS</tspan>
+      </text>
+      <line x1="120" y1="130" x2="220" y2="130" stroke="#ff5c45" stroke-width="3"/>
+      <text x="283" y="142" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="900" letter-spacing="13" fill="#ff5c45">ONE</text>
+      <line x1="340" y1="130" x2="440" y2="130" stroke="#ff5c45" stroke-width="3"/>
+    </svg>`;
+    atlasLogoBytesPromise = sharp(Buffer.from(svg)).png().toBuffer();
+  }
+  return pdf.embedPng(await atlasLogoBytesPromise);
+}
 function width(font: PDFFont, value: string, size: number) { return font.widthOfTextAtSize(visualText(value), size); }
 function fit(font: PDFFont, value: string, maxWidth: number, preferred: number, minimum: number) { let size = preferred; while (size > minimum && width(font, value, size) > maxWidth) size -= 0.5; return size; }
 function draw(page: PDFPage, font: PDFFont, value: string, x: number, y: number, size: number, color = INK, maxWidth?: number) {
@@ -68,14 +84,6 @@ function infoRow(page: PDFPage, font: PDFFont, label: string, value: string, y: 
   const display = clip(value, maxChars);
   draw(page, font, display, 40, y - 20, fit(font, display, 330, 13.5, 9.5), INK, 330);
 }
-function drawMandatoryAtlasOneLogo(page: PDFPage, font: PDFFont) {
-  page.drawRectangle({ x: 28, y: 607, width: 178, height: 56, color: WHITE, opacity: 0.96, borderColor: BORDER, borderWidth: 0.7 });
-  draw(page, font, "ATL", 40, 630, 24, NAVY, 72);
-  draw(page, font, "AS", 111, 630, 24, CORAL, 58);
-  page.drawLine({ start: { x: 42, y: 620 }, end: { x: 84, y: 620 }, thickness: 1.3, color: CORAL });
-  draw(page, font, "ONE", 91, 614, 10.5, CORAL, 38);
-  page.drawLine({ start: { x: 132, y: 620 }, end: { x: 190, y: 620 }, thickness: 1.3, color: CORAL });
-}
 async function drawTicketPage(pdf: PDFDocument, font: PDFFont, ticket: TicketPdfInput) {
   const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   page.drawRectangle({ x: 0, y: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT, color: PALE });
@@ -83,7 +91,8 @@ async function drawTicketPage(pdf: PDFDocument, font: PDFFont, ticket: TicketPdf
   if (poster) page.drawImage(poster, { x: 0, y: 470, width: PAGE_WIDTH, height: 210 });
   page.drawRectangle({ x: 0, y: 470, width: PAGE_WIDTH, height: 210, color: NAVY, opacity: poster ? 0.7 : 1 });
   page.drawRectangle({ x: 0, y: 465, width: PAGE_WIDTH, height: 5, color: CORAL });
-  drawMandatoryAtlasOneLogo(page, font);
+  const atlasLogo = await loadOfficialAtlasLogo(pdf);
+  page.drawImage(atlasLogo, { x: 28, y: 607, width: 178, height: 60.4 });
   const title = clip(ticket.eventTitle, 58);
   draw(page, font, title, 30, 565, fit(font, title, 360, 21, 13), WHITE, 360);
   draw(page, font, formatDate(ticket.startsAt), 30, 535, 10.5, rgb(0.88, 0.92, 0.97), 360);
