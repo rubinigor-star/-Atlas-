@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import fontkit from "@pdf-lib/fontkit";
 import QRCode from "qrcode";
 import sharp from "sharp";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, rgb, type PDFImage, type PDFFont, type PDFPage } from "pdf-lib";
+import { drawMultilingualText, multilingualWidth, type PdfFontSet } from "@/lib/pdf-multilingual";
 
 export type TicketPdfInput = {
   eventTitle: string;
@@ -17,16 +19,15 @@ export type TicketPdfInput = {
   ticketCode: string;
 };
 
-const WIDTH = 840;
-const HEIGHT = 1360;
-const BRAND_NAVY = "#071426";
-const BRAND_CORAL = "#ff5c45";
-
-let embeddedFontsPromise: Promise<string> | null = null;
-
-function escapeXml(value: string) {
-  return value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&apos;", '"': "&quot;" })[char] || char);
-}
+const PAGE_WIDTH = 420;
+const PAGE_HEIGHT = 680;
+const NAVY = rgb(0.027, 0.078, 0.149);
+const CORAL = rgb(1, 0.361, 0.271);
+const INK = rgb(0.063, 0.094, 0.153);
+const MUTED = rgb(0.275, 0.322, 0.404);
+const PALE = rgb(0.949, 0.965, 0.98);
+const BORDER = rgb(0.859, 0.886, 0.922);
+const WHITE = rgb(1, 1, 1);
 
 function clean(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -50,82 +51,51 @@ function formatDate(value: Date) {
   }).format(value);
 }
 
-function isHebrew(value: string) {
-  return /[\u0590-\u05FF]/.test(value);
+async function loadFonts(pdf: PDFDocument): Promise<PdfFontSet> {
+  const modules = path.join(process.cwd(), "node_modules");
+  const load = (relativePath: string) => readFile(path.join(modules, relativePath));
+  const [regular, bold, hebrew] = await Promise.all([
+    load("@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff"),
+    load("@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff"),
+    load("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff"),
+  ]);
+
+  const regularFont = await pdf.embedFont(regular, { subset: false });
+  const boldFont = await pdf.embedFont(bold, { subset: false });
+  const hebrewFont = await pdf.embedFont(hebrew, { subset: false });
+
+  return {
+    latinRegular: regularFont,
+    latinBold: boldFont,
+    cyrillicRegular: regularFont,
+    cyrillicBold: boldFont,
+    hebrew: hebrewFont,
+  };
 }
 
-async function loadEmbeddedFonts() {
-  if (embeddedFontsPromise) return embeddedFontsPromise;
-
-  embeddedFontsPromise = (async () => {
-    const modules = path.join(process.cwd(), "node_modules");
-    const load = (relativePath: string) => readFile(path.join(modules, relativePath));
-    const [sansRegular, sansBold, hebrewRegular, hebrewBold] = await Promise.all([
-      load("@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff"),
-      load("@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff"),
-      load("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff"),
-      load("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-700-normal.woff"),
-    ]);
-
-    const face = (family: string, weight: number, bytes: Buffer) => `
-      @font-face {
-        font-family: '${family}';
-        src: url(data:font/woff;base64,${bytes.toString("base64")}) format('woff');
-        font-style: normal;
-        font-weight: ${weight};
-      }`;
-
-    return [
-      face("AtlasSans", 400, sansRegular),
-      face("AtlasSans", 700, sansBold),
-      face("AtlasHebrew", 400, hebrewRegular),
-      face("AtlasHebrew", 700, hebrewBold),
-    ].join("\n");
-  })();
-
-  return embeddedFontsPromise;
-}
-
-function text(params: {
-  x: number;
-  y: number;
-  value: string;
-  size: number;
-  fill: string;
-  weight?: number;
-  anchor?: "start" | "middle" | "end";
-  letterSpacing?: number;
-}) {
-  const direction = isHebrew(params.value) ? "rtl" : "ltr";
-  const anchor = params.anchor || (direction === "rtl" ? "end" : "start");
-  const family = direction === "rtl" ? "AtlasHebrew" : "AtlasSans";
-  const weight = (params.weight || 400) >= 600 ? 700 : 400;
-  return `<text x="${params.x}" y="${params.y}" fill="${params.fill}" font-family="${family}" font-size="${params.size}" font-weight="${weight}" text-anchor="${anchor}" direction="${direction}" unicode-bidi="plaintext" letter-spacing="${params.letterSpacing || 0}">${escapeXml(params.value)}</text>`;
-}
-
-async function loadPosterDataUrl(posterUrl?: string | null) {
+async function loadPoster(pdf: PDFDocument, posterUrl?: string | null): Promise<PDFImage | null> {
   if (!posterUrl) return null;
   try {
     let source: Buffer;
     if (posterUrl.startsWith("/")) {
       if (posterUrl.includes("..")) return null;
-      const relativePath = posterUrl.replace(/^\/+/, "");
-      source = await readFile(path.join(process.cwd(), "public", relativePath));
+      source = await readFile(path.join(process.cwd(), "public", posterUrl.replace(/^\/+/, "")));
     } else if (/^https?:\/\//i.test(posterUrl)) {
       const response = await fetch(posterUrl, {
         signal: AbortSignal.timeout(8000),
-        headers: { "user-agent": "Atlas-One-Ticket-Service/1.0" },
+        headers: { "user-agent": "Atlas-One-Ticket-Service/2.0" },
       });
       if (!response.ok) return null;
       source = Buffer.from(await response.arrayBuffer());
     } else {
       return null;
     }
-    const image = await sharp(source)
+
+    const jpeg = await sharp(source)
       .resize(840, 420, { fit: "cover", position: "attention" })
-      .jpeg({ quality: 84, progressive: true })
+      .jpeg({ quality: 86 })
       .toBuffer();
-    return `data:image/jpeg;base64,${image.toString("base64")}`;
+    return pdf.embedJpg(jpeg);
   } catch (error) {
     console.warn("[ticket-pdf] poster unavailable", {
       posterUrl,
@@ -135,68 +105,75 @@ async function loadPosterDataUrl(posterUrl?: string | null) {
   }
 }
 
-function infoRow(label: string, value: string, y: number, max: number) {
-  const display = clip(value, max);
-  const x = isHebrew(display) ? 760 : 80;
-  return `${text({ x: 80, y, value: label, size: 17, fill: BRAND_CORAL, weight: 700, letterSpacing: 1.2 })}${text({ x, y: y + 39, value: display, size: 27, fill: "#101827", weight: 700 })}`;
+function fitSize(value: string, maxWidth: number, preferred: number, minimum: number, fonts: PdfFontSet, bold = false) {
+  let size = preferred;
+  while (size > minimum && multilingualWidth(value, size, fonts, bold) > maxWidth) size -= 0.5;
+  return size;
 }
 
-async function renderTicketPng(input: TicketPdfInput) {
-  const [qr, poster, fontCss] = await Promise.all([
-    QRCode.toDataURL(input.ticketCode, {
-      width: 900,
-      margin: 2,
-      errorCorrectionLevel: "Q",
-      color: { dark: "#071426", light: "#ffffff" },
-    }),
-    loadPosterDataUrl(input.posterUrl),
-    loadEmbeddedFonts(),
-  ]);
-  const eventTitle = clip(input.eventTitle, 54);
-  const location = [input.venueCity, input.venueName].filter(Boolean).join(" · ");
-  const address = clip(input.venueAddress, 70);
-  const titleX = isHebrew(eventTitle) ? 780 : 60;
+function drawText(page: PDFPage, fonts: PdfFontSet, value: string, x: number, y: number, size: number, color = INK, bold = false, maxWidth?: number) {
+  drawMultilingualText({ page, fonts, value, x, y, size, color, bold, maxWidth });
+}
 
-  const svg = `
-  <svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
-    <defs><style><![CDATA[${fontCss}]]></style></defs>
-    <rect width="${WIDTH}" height="${HEIGHT}" fill="#f2f5f9"/>
-    ${poster ? `<image x="0" y="0" width="840" height="420" href="${poster}" preserveAspectRatio="xMidYMid slice"/><rect width="840" height="420" fill="#071426" opacity="0.68"/>` : `<rect width="840" height="420" fill="${BRAND_NAVY}"/>`}
-    <rect y="410" width="840" height="10" fill="${BRAND_CORAL}"/>
+function drawInfoRow(page: PDFPage, fonts: PdfFontSet, label: string, value: string, y: number, maxChars: number) {
+  drawText(page, fonts, label, 40, y, 8.5, CORAL, true, 330);
+  const display = clip(value, maxChars);
+  const size = fitSize(display, 330, 13.5, 9.5, fonts, true);
+  drawText(page, fonts, display, 40, y - 20, size, INK, true, 330);
+}
 
-    ${text({ x: 60, y: 82, value: "ATLAS", size: 52, fill: "#ffffff", weight: 700, letterSpacing: 2 })}
-    ${text({ x: 64, y: 121, value: "ONE", size: 20, fill: BRAND_CORAL, weight: 700, letterSpacing: 5 })}
-    ${text({ x: titleX, y: 244, value: eventTitle, size: 41, fill: "#ffffff", weight: 700 })}
-    ${text({ x: 60, y: 302, value: formatDate(input.startsAt), size: 23, fill: "#e0e8f2", weight: 700 })}
-    ${text({ x: isHebrew(location) ? 780 : 60, y: 345, value: clip(location, 58), size: 22, fill: "#ffffff", weight: 700 })}
+async function drawTicketPage(pdf: PDFDocument, fonts: PdfFontSet, ticket: TicketPdfInput) {
+  const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  page.drawRectangle({ x: 0, y: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT, color: PALE });
 
-    <rect x="44" y="458" width="752" height="386" rx="24" fill="#ffffff" stroke="#dbe2eb" stroke-width="2"/>
-    ${infoRow("ПЛОЩАДКА", input.venueName, 514, 48)}
-    ${infoRow("АДРЕС", [input.venueCity, address].filter(Boolean).join(", "), 598, 66)}
-    ${infoRow("ВЛАДЕЛЕЦ", input.holderName, 682, 48)}
-    ${infoRow("КАТЕГОРИЯ", input.categoryName, 766, 48)}
+  const poster = await loadPoster(pdf, ticket.posterUrl);
+  if (poster) page.drawImage(poster, { x: 0, y: 470, width: PAGE_WIDTH, height: 210 });
+  else page.drawRectangle({ x: 0, y: 470, width: PAGE_WIDTH, height: 210, color: NAVY });
+  page.drawRectangle({ x: 0, y: 470, width: PAGE_WIDTH, height: 210, color: NAVY, opacity: poster ? 0.68 : 1 });
+  page.drawRectangle({ x: 0, y: 465, width: PAGE_WIDTH, height: 5, color: CORAL });
 
-    <rect x="44" y="874" width="752" height="424" rx="24" fill="#ffffff" stroke="#dbe2eb" stroke-width="2"/>
-    <rect x="71" y="903" width="370" height="370" rx="18" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
-    <image x="87" y="919" width="338" height="338" href="${qr}"/>
+  drawText(page, fonts, "ATLAS", 30, 638, 26, WHITE, true, 170);
+  drawText(page, fonts, "ONE", 32, 619, 10, CORAL, true, 80);
 
-    ${text({ x: 482, y: 948, value: "БИЛЕТ", size: 17, fill: BRAND_CORAL, weight: 700, letterSpacing: 1.2 })}
-    ${text({ x: 482, y: 991, value: clip(input.ticketCode, 24), size: 19, fill: "#101827", weight: 700 })}
-    ${text({ x: 482, y: 1061, value: "ЗАКАЗ", size: 17, fill: BRAND_CORAL, weight: 700, letterSpacing: 1.2 })}
-    ${text({ x: 482, y: 1104, value: clip(input.orderNumber, 24), size: 22, fill: "#101827", weight: 700 })}
-    ${text({ x: 482, y: 1180, value: "Покажите QR-код", size: 20, fill: "#465267", weight: 700 })}
-    ${text({ x: 482, y: 1213, value: "при входе", size: 20, fill: "#465267", weight: 700 })}
+  const title = clip(ticket.eventTitle, 58);
+  const titleSize = fitSize(title, 360, 21, 13, fonts, true);
+  drawText(page, fonts, title, 30, 565, titleSize, WHITE, true, 360);
+  drawText(page, fonts, formatDate(ticket.startsAt), 30, 535, 11, rgb(0.88, 0.92, 0.97), true, 360);
+  drawText(page, fonts, clip([ticket.venueCity, ticket.venueName].filter(Boolean).join(" · "), 65), 30, 512, 10.5, WHITE, true, 360);
 
-    ${text({ x: 420, y: 1332, value: "atlas-one.co", size: 16, fill: "#687489", weight: 700, anchor: "middle", letterSpacing: 1 })}
-  </svg>`;
+  page.drawRectangle({ x: 22, y: 255, width: 376, height: 190, color: WHITE, borderColor: BORDER, borderWidth: 1 });
+  drawInfoRow(page, fonts, "ПЛОЩАДКА", ticket.venueName, 414, 52);
+  drawInfoRow(page, fonts, "АДРЕС", [ticket.venueCity, ticket.venueAddress].filter(Boolean).join(", "), 371, 72);
+  drawInfoRow(page, fonts, "ВЛАДЕЛЕЦ", ticket.holderName, 328, 52);
+  drawInfoRow(page, fonts, "КАТЕГОРИЯ", ticket.categoryName, 285, 52);
 
-  return sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer();
+  page.drawRectangle({ x: 22, y: 26, width: 376, height: 210, color: WHITE, borderColor: BORDER, borderWidth: 1 });
+  const qrBytes = await QRCode.toBuffer(ticket.ticketCode, {
+    width: 900,
+    margin: 2,
+    errorCorrectionLevel: "Q",
+    color: { dark: "#071426", light: "#ffffff" },
+  });
+  const qr = await pdf.embedPng(qrBytes);
+  page.drawRectangle({ x: 34, y: 40, width: 182, height: 182, color: WHITE, borderColor: BORDER, borderWidth: 1 });
+  page.drawImage(qr, { x: 43, y: 49, width: 164, height: 164 });
+
+  drawText(page, fonts, "БИЛЕТ", 240, 195, 8.5, CORAL, true, 145);
+  drawText(page, fonts, clip(ticket.ticketCode, 24), 240, 174, 9.5, INK, true, 145);
+  drawText(page, fonts, "ЗАКАЗ", 240, 139, 8.5, CORAL, true, 145);
+  drawText(page, fonts, clip(ticket.orderNumber, 24), 240, 116, 11, INK, true, 145);
+  drawText(page, fonts, "Покажите QR-код", 240, 75, 10, MUTED, true, 145);
+  drawText(page, fonts, "при входе", 240, 59, 10, MUTED, true, 145);
+  drawText(page, fonts, "atlas-one.co", 170, 10, 8, MUTED, true, 100);
 }
 
 export async function generateTicketPdf(tickets: TicketPdfInput[]) {
   if (!tickets.length) throw new Error("Для генерации PDF не переданы билеты");
 
   const pdf = await PDFDocument.create();
+  pdf.registerFontkit(fontkit);
+  const fonts = await loadFonts(pdf);
+
   pdf.setTitle(`Atlas One tickets - ${tickets[0].orderNumber}`);
   pdf.setAuthor("Atlas One");
   pdf.setCreator("Atlas One Ticket Service");
@@ -204,12 +181,7 @@ export async function generateTicketPdf(tickets: TicketPdfInput[]) {
   pdf.setCreationDate(new Date());
   pdf.setModificationDate(new Date());
 
-  for (const ticket of tickets) {
-    const png = await renderTicketPng(ticket);
-    const image = await pdf.embedPng(png);
-    const page = pdf.addPage([420, 680]);
-    page.drawImage(image, { x: 0, y: 0, width: 420, height: 680 });
-  }
+  for (const ticket of tickets) await drawTicketPage(pdf, fonts, ticket);
 
   return Buffer.from(await pdf.save({ useObjectStreams: false, addDefaultPage: false }));
 }
