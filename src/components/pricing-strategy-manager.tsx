@@ -2,79 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/components/locale-provider";
 import type { PricingMarketingIntensity, PricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 
-const intensityCopy: Record<PricingMarketingIntensity, { title: string; help: string }> = {
-  CALM: { title: "Спокойный", help: "Показываем только этап цены и, при наличии, таймер." },
-  STANDARD: { title: "Стандартный", help: "Таймер и следующая цена без раскрытия количества продаж." },
-  ACTIVE: { title: "Активный", help: "Добавляем ощущение ограниченности текущего этапа, но не показываем общие продажи." },
-  MAXIMUM: { title: "Максимальный", help: "Можно дополнительно показать остаток и социальное доказательство." },
-};
+const copy={
+ ru:{eyebrow:"Маркетинг цены",title:"Стратегия продаж",intro:"Создавайте срочность без обязательного раскрытия слабых продаж. По умолчанию клиент видит этап, таймер и следующую цену, но не видит, сколько билетов уже продано.",empty:"Сначала создайте хотя бы одну категорию билетов.",intensity:"Интенсивность маркетинга",countdown:"Показывать обратный отсчёт",countdownHelp:"Например: «Цена повысится через 2 дня».",next:"Показывать следующую цену",nextHelp:"Клиент понимает финансовую выгоду покупки сейчас.",stage:"Показывать ограниченность текущего этапа",stageHelp:"Формулировка без общей статистики: «Текущий этап заканчивается скоро».",remaining:"Показывать общий остаток билетов",remainingHelp:"Включайте только когда эта цифра помогает продажам.",sold:"Показывать количество проданных билетов",soldHelp:"По умолчанию выключено. Используйте только для сильного социального доказательства.",fixedHelp:"У этой категории фиксированная цена, поэтому таймер и следующая цена появятся только после настройки этапов цены.",saving:"Сохраняем...",save:"Сохранить стратегию",saved:"✓ Стратегия сохранена",error:"Не удалось сохранить стратегию",levels:{CALM:["Спокойный","Показываем только этап цены и, при наличии, таймер."],STANDARD:["Стандартный","Таймер и следующая цена без раскрытия количества продаж."],ACTIVE:["Активный","Добавляем ощущение ограниченности текущего этапа, но не показываем общие продажи."],MAXIMUM:["Максимальный","Можно дополнительно показать остаток и социальное доказательство."]}},
+ he:{eyebrow:"שיווק מחיר",title:"אסטרטגיית מכירה",intro:"צרו תחושת דחיפות בלי לחשוף בהכרח נתוני מכירה חלשים. כברירת מחדל הלקוח רואה שלב מחיר, טיימר ומחיר הבא, אך לא את מספר הכרטיסים שנמכרו.",empty:"יש ליצור תחילה לפחות קטגוריית כרטיסים אחת.",intensity:"עוצמת השיווק",countdown:"הצגת ספירה לאחור",countdownHelp:"לדוגמה: ״המחיר יעלה בעוד יומיים״.",next:"הצגת המחיר הבא",nextHelp:"הלקוח מבין את היתרון הכספי ברכישה עכשיו.",stage:"הצגת מוגבלות השלב הנוכחי",stageHelp:"ניסוח ללא סטטיסטיקה כוללת: ״השלב הנוכחי מסתיים בקרוב״.",remaining:"הצגת יתרת הכרטיסים הכוללת",remainingHelp:"הפעילו רק כאשר המספר מסייע למכירות.",sold:"הצגת מספר הכרטיסים שנמכרו",soldHelp:"כבוי כברירת מחדל. השתמשו רק כהוכחה חברתית חזקה.",fixedHelp:"לקטגוריה זו מחיר קבוע, ולכן טיימר והמחיר הבא יוצגו רק לאחר הגדרת שלבי מחיר.",saving:"שומר...",save:"שמירת אסטרטגיה",saved:"✓ האסטרטגיה נשמרה",error:"לא ניתן לשמור את האסטרטגיה",levels:{CALM:["רגוע","מציגים רק את שלב המחיר וטיימר, אם קיים."],STANDARD:["רגיל","טיימר והמחיר הבא ללא חשיפת נתוני מכירה."],ACTIVE:["פעיל","מוסיפים תחושת מוגבלות לשלב הנוכחי ללא הצגת כלל המכירות."],MAXIMUM:["מרבי","ניתן להציג גם יתרה והוכחה חברתית."]}},
+ en:{eyebrow:"Price marketing",title:"Sales strategy",intro:"Create urgency without having to reveal weak sales. By default, buyers see the price stage, countdown and next price, but not how many tickets have been sold.",empty:"Create at least one ticket category first.",intensity:"Marketing intensity",countdown:"Show countdown",countdownHelp:"For example: “Price increases in 2 days.”",next:"Show next price",nextHelp:"Buyers understand the financial benefit of purchasing now.",stage:"Show current-stage scarcity",stageHelp:"A message without total sales data: “The current stage ends soon.”",remaining:"Show total tickets remaining",remainingHelp:"Enable only when this number helps sales.",sold:"Show number of tickets sold",soldHelp:"Off by default. Use only as strong social proof.",fixedHelp:"This category has a fixed price, so countdown and next price appear only after price stages are configured.",saving:"Saving...",save:"Save strategy",saved:"✓ Strategy saved",error:"Could not save strategy",levels:{CALM:["Calm","Show only the price stage and countdown when available."],STANDARD:["Standard","Countdown and next price without revealing sales volume."],ACTIVE:["Active","Add scarcity around the current stage without showing total sales."],MAXIMUM:["Maximum","Optionally show remaining inventory and social proof."]}}
+} as const;
 
-type CategoryStrategy = {
-  id: string;
-  name: string;
-  pricingMode: "FIXED" | "SCHEDULED";
-  strategy: PricingMarketingStrategy;
-};
-
-export function PricingStrategyManager({ eventId, categories }: { eventId: string; categories: CategoryStrategy[] }) {
-  const router = useRouter();
-  const [busyId, setBusyId] = useState("");
-  const [message, setMessage] = useState("");
-  const [values, setValues] = useState<Record<string, PricingMarketingStrategy>>(
-    Object.fromEntries(categories.map((category) => [category.id, category.strategy])),
-  );
-
-  function patch(id: string, value: Partial<PricingMarketingStrategy>) {
-    setValues((current) => ({ ...current, [id]: { ...current[id], ...value } }));
-  }
-
-  async function save(categoryId: string) {
-    setBusyId(categoryId);
-    setMessage("");
-    const response = await fetch(`/api/admin/events/${eventId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: "pricingStrategy", categoryId, ...values[categoryId] }),
-    });
-    const data = await response.json();
-    setBusyId("");
-    setMessage(response.ok ? "✓ Стратегия сохранена" : data.error || "Не удалось сохранить стратегию");
-    if (response.ok) router.refresh();
-    window.setTimeout(() => setMessage(""), 2800);
-  }
-
-  return <section className="panel form">
-    <span className="eyebrow">Маркетинг цены</span>
-    <h2>Стратегия продаж</h2>
-    <p className="muted">Создавайте срочность без обязательного раскрытия слабых продаж. По умолчанию клиент видит этап, таймер и следующую цену, но не видит, сколько билетов уже продано.</p>
-    {categories.length === 0 ? <div className="toast">Сначала создайте хотя бы одну категорию билетов.</div> : categories.map((category) => {
-      const strategy = values[category.id];
-      return <details className="panel" key={category.id} open={categories.length === 1}>
-        <summary><strong>{category.name}</strong> · {intensityCopy[strategy.intensity].title}</summary>
-        <div className="form" style={{ marginTop: 16 }}>
-          <div className="field"><label>Интенсивность маркетинга</label><select value={strategy.intensity} onChange={(event) => {
-            const intensity = event.target.value as PricingMarketingIntensity;
-            patch(category.id, {
-              intensity,
-              showCountdown: true,
-              showNextPrice: intensity !== "CALM",
-              showStageRemaining: intensity === "ACTIVE" || intensity === "MAXIMUM",
-              showTotalRemaining: intensity === "MAXIMUM" ? strategy.showTotalRemaining : false,
-              showSoldCount: intensity === "MAXIMUM" ? strategy.showSoldCount : false,
-            });
-          }}>{Object.entries(intensityCopy).map(([key, item]) => <option key={key} value={key}>{item.title}</option>)}</select><small className="muted">{intensityCopy[strategy.intensity].help}</small></div>
-          <label className="option"><span><strong>Показывать обратный отсчёт</strong><small>Например: «Цена повысится через 2 дня».</small></span><input type="checkbox" checked={strategy.showCountdown} onChange={(event) => patch(category.id, { showCountdown: event.target.checked })} /></label>
-          <label className="option"><span><strong>Показывать следующую цену</strong><small>Клиент понимает финансовую выгоду покупки сейчас.</small></span><input type="checkbox" checked={strategy.showNextPrice} onChange={(event) => patch(category.id, { showNextPrice: event.target.checked })} /></label>
-          <label className="option"><span><strong>Показывать ограниченность текущего этапа</strong><small>Формулировка без общей статистики: «Текущий этап заканчивается скоро».</small></span><input type="checkbox" checked={strategy.showStageRemaining} onChange={(event) => patch(category.id, { showStageRemaining: event.target.checked })} /></label>
-          <label className="option"><span><strong>Показывать общий остаток билетов</strong><small>Включайте только когда эта цифра помогает продажам.</small></span><input type="checkbox" checked={strategy.showTotalRemaining} onChange={(event) => patch(category.id, { showTotalRemaining: event.target.checked })} /></label>
-          <label className="option"><span><strong>Показывать количество проданных билетов</strong><small>По умолчанию выключено. Используйте только для сильного социального доказательства.</small></span><input type="checkbox" checked={strategy.showSoldCount} onChange={(event) => patch(category.id, { showSoldCount: event.target.checked })} /></label>
-          {category.pricingMode === "FIXED" && <p className="muted">У этой категории фиксированная цена, поэтому таймер и следующая цена появятся только после настройки этапов цены.</p>}
-          <button type="button" className="btn" disabled={busyId === category.id} onClick={() => void save(category.id)}>{busyId === category.id ? "Сохраняем..." : "Сохранить стратегию"}</button>
-        </div>
-      </details>;
-    })}
-    {message && <div className="toast save-feedback" role="status">{message}</div>}
-  </section>;
+type CategoryStrategy={id:string;name:string;pricingMode:"FIXED"|"SCHEDULED";strategy:PricingMarketingStrategy};
+export function PricingStrategyManager({eventId,categories}:{eventId:string;categories:CategoryStrategy[]}){
+ const router=useRouter();const{locale}=useLocale();const text=copy[locale];const[busyId,setBusyId]=useState("");const[message,setMessage]=useState("");const[values,setValues]=useState<Record<string,PricingMarketingStrategy>>(Object.fromEntries(categories.map(c=>[c.id,c.strategy])));
+ function patch(id:string,value:Partial<PricingMarketingStrategy>){setValues(current=>({...current,[id]:{...current[id],...value}}));}
+ async function save(categoryId:string){setBusyId(categoryId);setMessage("");const response=await fetch(`/api/admin/events/${eventId}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({action:"pricingStrategy",categoryId,...values[categoryId]})});const data=await response.json();setBusyId("");setMessage(response.ok?text.saved:data.error||text.error);if(response.ok)router.refresh();window.setTimeout(()=>setMessage(""),2800);}
+ return <section className="panel form"><span className="eyebrow">{text.eyebrow}</span><h2>{text.title}</h2><p className="muted">{text.intro}</p>{categories.length===0?<div className="toast">{text.empty}</div>:categories.map(category=>{const strategy=values[category.id];return <details className="panel" key={category.id} open={categories.length===1}><summary><strong>{category.name}</strong> · {text.levels[strategy.intensity][0]}</summary><div className="form" style={{marginTop:16}}><div className="field"><label>{text.intensity}</label><select value={strategy.intensity} onChange={event=>{const intensity=event.target.value as PricingMarketingIntensity;patch(category.id,{intensity,showCountdown:true,showNextPrice:intensity!=="CALM",showStageRemaining:intensity==="ACTIVE"||intensity==="MAXIMUM",showTotalRemaining:intensity==="MAXIMUM"?strategy.showTotalRemaining:false,showSoldCount:intensity==="MAXIMUM"?strategy.showSoldCount:false});}}>{(Object.keys(text.levels) as PricingMarketingIntensity[]).map(key=><option key={key} value={key}>{text.levels[key][0]}</option>)}</select><small className="muted">{text.levels[strategy.intensity][1]}</small></div><label className="option"><span><strong>{text.countdown}</strong><small>{text.countdownHelp}</small></span><input type="checkbox" checked={strategy.showCountdown} onChange={e=>patch(category.id,{showCountdown:e.target.checked})}/></label><label className="option"><span><strong>{text.next}</strong><small>{text.nextHelp}</small></span><input type="checkbox" checked={strategy.showNextPrice} onChange={e=>patch(category.id,{showNextPrice:e.target.checked})}/></label><label className="option"><span><strong>{text.stage}</strong><small>{text.stageHelp}</small></span><input type="checkbox" checked={strategy.showStageRemaining} onChange={e=>patch(category.id,{showStageRemaining:e.target.checked})}/></label><label className="option"><span><strong>{text.remaining}</strong><small>{text.remainingHelp}</small></span><input type="checkbox" checked={strategy.showTotalRemaining} onChange={e=>patch(category.id,{showTotalRemaining:e.target.checked})}/></label><label className="option"><span><strong>{text.sold}</strong><small>{text.soldHelp}</small></span><input type="checkbox" checked={strategy.showSoldCount} onChange={e=>patch(category.id,{showSoldCount:e.target.checked})}/></label>{category.pricingMode==="FIXED"&&<p className="muted">{text.fixedHelp}</p>}<button type="button" className="btn" disabled={busyId===category.id} onClick={()=>void save(category.id)}>{busyId===category.id?text.saving:text.save}</button></div></details>;})}{message&&<div className="toast save-feedback" role="status">{message}</div>}</section>;
 }
