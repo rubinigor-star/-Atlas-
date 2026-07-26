@@ -16,6 +16,7 @@ export type TicketPdfInput = {
   categoryName: string;
   orderNumber: string;
   ticketCode: string;
+  ticketStatus?: "VALID" | "USED" | "CANCELLED" | "REFUNDED";
 };
 
 const PAGE_WIDTH = 420;
@@ -28,6 +29,9 @@ const MUTED = rgb(0.275, 0.322, 0.404);
 const PALE = rgb(0.949, 0.965, 0.98);
 const BORDER = rgb(0.859, 0.886, 0.922);
 const WHITE = rgb(1, 1, 1);
+const GREEN = rgb(0.09, 0.55, 0.32);
+const AMBER = rgb(0.86, 0.52, 0.08);
+const RED = rgb(0.78, 0.16, 0.18);
 let fontBytesPromise: Promise<Uint8Array> | null = null;
 let atlasLogoBytesPromise: Promise<Buffer> | null = null;
 
@@ -61,7 +65,7 @@ async function loadPoster(pdf: PDFDocument, posterUrl?: string | null): Promise<
 }
 async function loadOfficialAtlasLogo(pdf: PDFDocument) {
   if (!atlasLogoBytesPromise) {
-    const logoPath = path.join(process.cwd(), "public", "branding", "atlas-one-logo-official-fixed.png");
+    const logoPath = path.join(process.cwd(), "public", "branding", "atlas-one-logo-official.jpg.b64");
     atlasLogoBytesPromise = readFile(logoPath, "utf8").then((encoded) => Buffer.from(encoded.trim(), "base64"));
   }
   const bytes = await atlasLogoBytesPromise;
@@ -79,6 +83,11 @@ function infoRow(page: PDFPage, font: PDFFont, label: string, value: string, y: 
   draw(page, font, label, 40, y, 8.5, CORAL, 330);
   const display = clip(value, maxChars);
   draw(page, font, display, 40, y - 20, fit(font, display, 330, 13.5, 9.5), INK, 330);
+}
+function statusColor(status: NonNullable<TicketPdfInput["ticketStatus"]>) {
+  if (status === "VALID") return GREEN;
+  if (status === "USED") return AMBER;
+  return RED;
 }
 async function drawTicketPage(pdf: PDFDocument, font: PDFFont, ticket: TicketPdfInput) {
   const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -99,15 +108,18 @@ async function drawTicketPage(pdf: PDFDocument, font: PDFFont, ticket: TicketPdf
   infoRow(page, font, "ВЛАДЕЛЕЦ", ticket.holderName, 328, 52);
   infoRow(page, font, "КАТЕГОРИЯ", ticket.categoryName, 285, 52);
   page.drawRectangle({ x: 22, y: 26, width: 376, height: 210, color: WHITE, borderColor: BORDER, borderWidth: 1 });
-  const qrBytes = await QRCode.toBuffer(ticket.ticketCode, { width: 900, margin: 2, errorCorrectionLevel: "Q" });
+  const qrBytes = await QRCode.toBuffer(ticket.ticketCode, { width: 1000, margin: 2, errorCorrectionLevel: "Q" });
   const qr = await pdf.embedPng(qrBytes);
-  page.drawImage(qr, { x: 42, y: 48, width: 166, height: 166 });
-  draw(page, font, "БИЛЕТ", 240, 195, 8.5, CORAL, 145);
-  draw(page, font, clip(ticket.ticketCode, 24), 240, 174, 9.5, INK, 145);
-  draw(page, font, "ЗАКАЗ", 240, 139, 8.5, CORAL, 145);
-  draw(page, font, clip(ticket.orderNumber, 24), 240, 116, 11, INK, 145);
-  draw(page, font, "Покажите QR-код", 240, 75, 10, MUTED, 145);
-  draw(page, font, "при входе", 240, 59, 10, MUTED, 145);
+  page.drawImage(qr, { x: 34, y: 40, width: 182, height: 182 });
+  const status = ticket.ticketStatus ?? "VALID";
+  page.drawRectangle({ x: 238, y: 202, width: 118, height: 20, color: statusColor(status), opacity: 0.12, borderColor: statusColor(status), borderWidth: 0.8 });
+  draw(page, font, status, 252, 208, 8.5, statusColor(status), 92);
+  draw(page, font, "БИЛЕТ", 240, 180, 8.5, CORAL, 145);
+  draw(page, font, clip(ticket.ticketCode, 24), 240, 159, 9.5, INK, 145);
+  draw(page, font, "ЗАКАЗ", 240, 125, 8.5, CORAL, 145);
+  draw(page, font, clip(ticket.orderNumber, 24), 240, 102, 11, INK, 145);
+  draw(page, font, "Покажите QR-код", 240, 66, 10, MUTED, 145);
+  draw(page, font, "при входе", 240, 50, 10, MUTED, 145);
   draw(page, font, "Powered by Atlas One · atlas-one.co", 118, 10, 8, MUTED, 205);
 }
 export async function generateTicketPdf(tickets: TicketPdfInput[]) {
