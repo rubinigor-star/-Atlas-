@@ -39,11 +39,11 @@ async function loadAssets() {
     assetsPromise = Promise.all([
       readFile(path.join(process.cwd(), "node_modules", "@fontsource", "noto-sans", "files", "noto-sans-cyrillic-400-normal.woff")),
       readFile(path.join(process.cwd(), "node_modules", "@fontsource", "noto-sans-hebrew", "files", "noto-sans-hebrew-hebrew-400-normal.woff")),
-      readFile(path.join(process.cwd(), "public", "branding", "atlas-one-logo-official.jpg.b64"), "utf8"),
+      readFile(path.join(process.cwd(), "public", "branding", "atlas-one-logo.jpg")),
     ]).then(([latin, hebrew, logo]) => ({
       latin: latin.toString("base64"),
       hebrew: hebrew.toString("base64"),
-      logo: logo.trim(),
+      logo: logo.toString("base64"),
     }));
   }
   return assetsPromise;
