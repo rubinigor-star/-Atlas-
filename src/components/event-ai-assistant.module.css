@@ -1,0 +1,323 @@
+.hero {
+  position: relative;
+  overflow: hidden;
+  margin: 20px 0 26px;
+  border: 1px solid rgba(96, 165, 250, .24);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 82% 18%, rgba(92, 119, 255, .34), transparent 29%),
+    radial-gradient(circle at 70% 90%, rgba(25, 171, 255, .18), transparent 38%),
+    linear-gradient(135deg, #06162f 0%, #0c2a57 58%, #0a4a79 100%);
+  color: #fff;
+  box-shadow: 0 26px 70px rgba(7, 21, 43, .2);
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  width: 270px;
+  height: 270px;
+  right: -100px;
+  top: -120px;
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: 50%;
+  box-shadow: 0 0 0 34px rgba(255,255,255,.028), 0 0 0 70px rgba(255,255,255,.018);
+  pointer-events: none;
+}
+
+.main {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 270px);
+  gap: 34px;
+  align-items: center;
+  padding: 32px 34px 28px;
+}
+
+.copy {
+  min-width: 0;
+}
+
+.brandRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.iconBox {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(255,255,255,.17), rgba(255,255,255,.08));
+  border: 1px solid rgba(255,255,255,.2);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+}
+
+.brand {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.level {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.08);
+  color: rgba(255,255,255,.8);
+  font-size: 12px;
+}
+
+.title {
+  max-width: 680px;
+  margin: 0 0 13px;
+  color: #fff;
+  font-size: clamp(30px, 4vw, 48px);
+  line-height: 1.04;
+  letter-spacing: -.035em;
+}
+
+.description {
+  max-width: 660px;
+  margin: 0;
+  color: rgba(255,255,255,.72);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.actionWrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+}
+
+.openButton {
+  width: 100%;
+  min-height: 58px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px 20px;
+  border: 0;
+  border-radius: 18px;
+  background: #fff;
+  color: #0b2345;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 14px 36px rgba(0,0,0,.18);
+  transition: transform .18s ease, box-shadow .18s ease;
+  white-space: normal;
+  text-align: center;
+}
+
+.openButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 42px rgba(0,0,0,.22);
+}
+
+.meta {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid rgba(255,255,255,.11);
+}
+
+.metaItem {
+  min-width: 0;
+  padding: 17px 24px;
+  color: rgba(255,255,255,.66);
+  font-size: 13px;
+}
+
+.metaItem + .metaItem {
+  border-left: 1px solid rgba(255,255,255,.09);
+}
+
+.metaItem b {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(2,8,23,.58);
+  backdrop-filter: blur(8px);
+}
+
+.drawer {
+  width: min(620px, 100vw);
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: #f7f9fc;
+  box-shadow: -30px 0 90px rgba(2,8,23,.24);
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px;
+  background: linear-gradient(135deg,#07152b,#123a68);
+  color: #fff;
+}
+
+.drawerBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.drawerBrandText { min-width: 0; }
+.drawerBrandText strong, .drawerBrandText small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drawerBrandText small { color: rgba(255,255,255,.68); }
+
+.closeButton {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255,255,255,.1);
+  color: #fff;
+  cursor: pointer;
+}
+
+.drawerBody {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 22px;
+  overflow-y: auto;
+}
+
+.drawerFooter {
+  padding: 16px;
+  border-top: 1px solid #e3e9f1;
+  background: #fff;
+}
+
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  gap: 10px;
+  align-items: end;
+}
+
+.textarea {
+  width: 100%;
+  resize: none;
+  box-sizing: border-box;
+  border: 1px solid #ccd7e5;
+  border-radius: 14px;
+  padding: 13px;
+  font: inherit;
+}
+
+.sendButton {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+@media (max-width: 760px) {
+  .hero {
+    margin: 16px 0 22px;
+    border-radius: 24px;
+  }
+
+  .main {
+    grid-template-columns: 1fr;
+    gap: 22px;
+    padding: 24px 20px 22px;
+    text-align: center;
+  }
+
+  .brandRow {
+    justify-content: center;
+  }
+
+  .title {
+    margin-left: auto;
+    margin-right: auto;
+    font-size: clamp(31px, 9vw, 42px);
+    line-height: 1.06;
+  }
+
+  .description {
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 15px;
+  }
+
+  .actionWrap {
+    width: 100%;
+  }
+
+  .openButton {
+    max-width: 100%;
+    min-height: 56px;
+    border-radius: 16px;
+  }
+
+  .meta {
+    grid-template-columns: 1fr;
+  }
+
+  .metaItem {
+    padding: 14px 20px;
+    text-align: center;
+  }
+
+  .metaItem + .metaItem {
+    border-left: 0;
+    border-top: 1px solid rgba(255,255,255,.09);
+  }
+
+  .metaItem b {
+    white-space: normal;
+  }
+
+  .drawer {
+    width: 100vw;
+  }
+
+  .drawerBody {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 420px) {
+  .main { padding-left: 16px; padding-right: 16px; }
+  .brandRow { gap: 8px; }
+  .level { width: 100%; max-width: max-content; margin: 0 auto; }
+  .drawerHeader { padding: 16px; }
+  .composer { grid-template-columns: minmax(0, 1fr) 46px; }
+  .sendButton { width: 46px; height: 46px; }
+}
