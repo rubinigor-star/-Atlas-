@@ -3,8 +3,7 @@ import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
 import QRCode from "qrcode";
 import sharp from "sharp";
-import { PDFDocument, rgb, type PDFImage, type PDFFont, type PDFPage } from "pdf-lib";
-import { drawMultilingualText, multilingualWidth, type PdfFontSet } from "@/lib/pdf-multilingual";
+import { PDFDocument, rgb, type PDFImage, type PDFPage, type RGB } from "pdf-lib";
 
 export type TicketPdfInput = {
   eventTitle: string;
@@ -17,6 +16,21 @@ export type TicketPdfInput = {
   categoryName: string;
   orderNumber: string;
   ticketCode: string;
+};
+
+type VectorFont = {
+  unitsPerEm: number;
+  layout: (value: string) => {
+    glyphs: Array<{ path: { toSVG: () => string } }>;
+    positions: Array<{ xAdvance: number; xOffset: number; yOffset: number }>;
+  };
+};
+
+type VectorFonts = {
+  regular: VectorFont;
+  bold: VectorFont;
+  hebrewRegular: VectorFont;
+  hebrewBold: VectorFont;
 };
 
 const PAGE_WIDTH = 420;
@@ -51,26 +65,94 @@ function formatDate(value: Date) {
   }).format(value);
 }
 
-async function loadFonts(pdf: PDFDocument): Promise<PdfFontSet> {
+function isHebrew(value: string) {
+  return /[\u0590-\u05FF]/.test(value);
+}
+
+function splitByScript(value: string) {
+  const parts: Array<{ value: string; hebrew: boolean }> = [];
+  for (const char of Array.from(value)) {
+    const hebrew = isHebrew(char);
+    const last = parts[parts.length - 1];
+    if (last?.hebrew === hebrew) last.value += char;
+    else parts.push({ value: char, hebrew });
+  }
+  return parts;
+}
+
+async function loadVectorFonts(): Promise<VectorFonts> {
   const modules = path.join(process.cwd(), "node_modules");
   const load = (relativePath: string) => readFile(path.join(modules, relativePath));
-  const [regular, bold, hebrew] = await Promise.all([
+  const [regular, bold, hebrewRegular, hebrewBold] = await Promise.all([
     load("@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff"),
     load("@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff"),
     load("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff"),
+    load("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-700-normal.woff"),
   ]);
-
-  const regularFont = await pdf.embedFont(regular, { subset: false });
-  const boldFont = await pdf.embedFont(bold, { subset: false });
-  const hebrewFont = await pdf.embedFont(hebrew, { subset: false });
-
+  const create = (fontkit as unknown as { create: (bytes: Uint8Array) => VectorFont }).create;
   return {
-    latinRegular: regularFont,
-    latinBold: boldFont,
-    cyrillicRegular: regularFont,
-    cyrillicBold: boldFont,
-    hebrew: hebrewFont,
+    regular: create(regular),
+    bold: create(bold),
+    hebrewRegular: create(hebrewRegular),
+    hebrewBold: create(hebrewBold),
   };
+}
+
+function pathData(svg: string) {
+  return svg.match(/d="([^"]+)"/)?.[1] || "";
+}
+
+function segmentLayout(font: VectorFont, value: string, size: number) {
+  const layout = font.layout(value);
+  const scale = size / font.unitsPerEm;
+  const width = layout.positions.reduce((sum, position) => sum + position.xAdvance * scale, 0);
+  return { ...layout, scale, width };
+}
+
+function vectorTextWidth(fonts: VectorFonts, value: string, size: number, bold = false) {
+  return splitByScript(value).reduce((sum, part) => {
+    const font = part.hebrew ? (bold ? fonts.hebrewBold : fonts.hebrewRegular) : (bold ? fonts.bold : fonts.regular);
+    const rendered = part.hebrew ? Array.from(part.value).reverse().join("") : part.value;
+    return sum + segmentLayout(font, rendered, size).width;
+  }, 0);
+}
+
+function drawVectorText(params: {
+  page: PDFPage;
+  fonts: VectorFonts;
+  value: string;
+  x: number;
+  y: number;
+  size: number;
+  color: RGB;
+  bold?: boolean;
+  maxWidth?: number;
+}) {
+  const { page, fonts, value, y, size, color, bold = false, maxWidth } = params;
+  const width = vectorTextWidth(fonts, value, size, bold);
+  let cursor = params.x;
+  if (isHebrew(value) && maxWidth) cursor = params.x + Math.max(0, maxWidth - width);
+
+  for (const part of splitByScript(value)) {
+    const font = part.hebrew ? (bold ? fonts.hebrewBold : fonts.hebrewRegular) : (bold ? fonts.bold : fonts.regular);
+    const rendered = part.hebrew ? Array.from(part.value).reverse().join("") : part.value;
+    const layout = segmentLayout(font, rendered, size);
+    for (let index = 0; index < layout.glyphs.length; index += 1) {
+      const glyph = layout.glyphs[index];
+      const position = layout.positions[index];
+      const d = pathData(glyph.path.toSVG());
+      if (d) {
+        page.drawSvgPath(d, {
+          x: cursor + position.xOffset * layout.scale,
+          y: y + position.yOffset * layout.scale,
+          scale: layout.scale,
+          color,
+        });
+      }
+      cursor += position.xAdvance * layout.scale;
+      if (maxWidth && cursor > params.x + maxWidth) return;
+    }
+  }
 }
 
 async function loadPoster(pdf: PDFDocument, posterUrl?: string | null): Promise<PDFImage | null> {
@@ -83,46 +165,35 @@ async function loadPoster(pdf: PDFDocument, posterUrl?: string | null): Promise<
     } else if (/^https?:\/\//i.test(posterUrl)) {
       const response = await fetch(posterUrl, {
         signal: AbortSignal.timeout(8000),
-        headers: { "user-agent": "Atlas-One-Ticket-Service/2.0" },
+        headers: { "user-agent": "Atlas-One-Ticket-Service/3.0" },
       });
       if (!response.ok) return null;
       source = Buffer.from(await response.arrayBuffer());
     } else {
       return null;
     }
-
-    const jpeg = await sharp(source)
-      .resize(840, 420, { fit: "cover", position: "attention" })
-      .jpeg({ quality: 86 })
-      .toBuffer();
+    const jpeg = await sharp(source).resize(840, 420, { fit: "cover", position: "attention" }).jpeg({ quality: 86 }).toBuffer();
     return pdf.embedJpg(jpeg);
   } catch (error) {
-    console.warn("[ticket-pdf] poster unavailable", {
-      posterUrl,
-      message: error instanceof Error ? error.message : "unknown error",
-    });
+    console.warn("[ticket-pdf] poster unavailable", { posterUrl, message: error instanceof Error ? error.message : "unknown error" });
     return null;
   }
 }
 
-function fitSize(value: string, maxWidth: number, preferred: number, minimum: number, fonts: PdfFontSet, bold = false) {
+function fitSize(value: string, maxWidth: number, preferred: number, minimum: number, fonts: VectorFonts, bold = false) {
   let size = preferred;
-  while (size > minimum && multilingualWidth(value, size, fonts, bold) > maxWidth) size -= 0.5;
+  while (size > minimum && vectorTextWidth(fonts, value, size, bold) > maxWidth) size -= 0.5;
   return size;
 }
 
-function drawText(page: PDFPage, fonts: PdfFontSet, value: string, x: number, y: number, size: number, color = INK, bold = false, maxWidth?: number) {
-  drawMultilingualText({ page, fonts, value, x, y, size, color, bold, maxWidth });
-}
-
-function drawInfoRow(page: PDFPage, fonts: PdfFontSet, label: string, value: string, y: number, maxChars: number) {
-  drawText(page, fonts, label, 40, y, 8.5, CORAL, true, 330);
+function drawInfoRow(page: PDFPage, fonts: VectorFonts, label: string, value: string, y: number, maxChars: number) {
+  drawVectorText({ page, fonts, value: label, x: 40, y, size: 8.5, color: CORAL, bold: true, maxWidth: 330 });
   const display = clip(value, maxChars);
   const size = fitSize(display, 330, 13.5, 9.5, fonts, true);
-  drawText(page, fonts, display, 40, y - 20, size, INK, true, 330);
+  drawVectorText({ page, fonts, value: display, x: 40, y: y - 20, size, color: INK, bold: true, maxWidth: 330 });
 }
 
-async function drawTicketPage(pdf: PDFDocument, fonts: PdfFontSet, ticket: TicketPdfInput) {
+async function drawTicketPage(pdf: PDFDocument, fonts: VectorFonts, ticket: TicketPdfInput) {
   const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   page.drawRectangle({ x: 0, y: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT, color: PALE });
 
@@ -132,14 +203,13 @@ async function drawTicketPage(pdf: PDFDocument, fonts: PdfFontSet, ticket: Ticke
   page.drawRectangle({ x: 0, y: 470, width: PAGE_WIDTH, height: 210, color: NAVY, opacity: poster ? 0.68 : 1 });
   page.drawRectangle({ x: 0, y: 465, width: PAGE_WIDTH, height: 5, color: CORAL });
 
-  drawText(page, fonts, "ATLAS", 30, 638, 26, WHITE, true, 170);
-  drawText(page, fonts, "ONE", 32, 619, 10, CORAL, true, 80);
-
+  drawVectorText({ page, fonts, value: "ATLAS", x: 30, y: 638, size: 26, color: WHITE, bold: true, maxWidth: 170 });
+  drawVectorText({ page, fonts, value: "ONE", x: 32, y: 619, size: 10, color: CORAL, bold: true, maxWidth: 80 });
   const title = clip(ticket.eventTitle, 58);
   const titleSize = fitSize(title, 360, 21, 13, fonts, true);
-  drawText(page, fonts, title, 30, 565, titleSize, WHITE, true, 360);
-  drawText(page, fonts, formatDate(ticket.startsAt), 30, 535, 11, rgb(0.88, 0.92, 0.97), true, 360);
-  drawText(page, fonts, clip([ticket.venueCity, ticket.venueName].filter(Boolean).join(" · "), 65), 30, 512, 10.5, WHITE, true, 360);
+  drawVectorText({ page, fonts, value: title, x: 30, y: 565, size: titleSize, color: WHITE, bold: true, maxWidth: 360 });
+  drawVectorText({ page, fonts, value: formatDate(ticket.startsAt), x: 30, y: 535, size: 11, color: rgb(0.88, 0.92, 0.97), bold: true, maxWidth: 360 });
+  drawVectorText({ page, fonts, value: clip([ticket.venueCity, ticket.venueName].filter(Boolean).join(" · "), 65), x: 30, y: 512, size: 10.5, color: WHITE, bold: true, maxWidth: 360 });
 
   page.drawRectangle({ x: 22, y: 255, width: 376, height: 190, color: WHITE, borderColor: BORDER, borderWidth: 1 });
   drawInfoRow(page, fonts, "ПЛОЩАДКА", ticket.venueName, 414, 52);
@@ -148,40 +218,30 @@ async function drawTicketPage(pdf: PDFDocument, fonts: PdfFontSet, ticket: Ticke
   drawInfoRow(page, fonts, "КАТЕГОРИЯ", ticket.categoryName, 285, 52);
 
   page.drawRectangle({ x: 22, y: 26, width: 376, height: 210, color: WHITE, borderColor: BORDER, borderWidth: 1 });
-  const qrBytes = await QRCode.toBuffer(ticket.ticketCode, {
-    width: 900,
-    margin: 2,
-    errorCorrectionLevel: "Q",
-    color: { dark: "#071426", light: "#ffffff" },
-  });
+  const qrBytes = await QRCode.toBuffer(ticket.ticketCode, { width: 900, margin: 2, errorCorrectionLevel: "Q", color: { dark: "#071426", light: "#ffffff" } });
   const qr = await pdf.embedPng(qrBytes);
   page.drawRectangle({ x: 34, y: 40, width: 182, height: 182, color: WHITE, borderColor: BORDER, borderWidth: 1 });
   page.drawImage(qr, { x: 43, y: 49, width: 164, height: 164 });
 
-  drawText(page, fonts, "БИЛЕТ", 240, 195, 8.5, CORAL, true, 145);
-  drawText(page, fonts, clip(ticket.ticketCode, 24), 240, 174, 9.5, INK, true, 145);
-  drawText(page, fonts, "ЗАКАЗ", 240, 139, 8.5, CORAL, true, 145);
-  drawText(page, fonts, clip(ticket.orderNumber, 24), 240, 116, 11, INK, true, 145);
-  drawText(page, fonts, "Покажите QR-код", 240, 75, 10, MUTED, true, 145);
-  drawText(page, fonts, "при входе", 240, 59, 10, MUTED, true, 145);
-  drawText(page, fonts, "atlas-one.co", 170, 10, 8, MUTED, true, 100);
+  drawVectorText({ page, fonts, value: "БИЛЕТ", x: 240, y: 195, size: 8.5, color: CORAL, bold: true, maxWidth: 145 });
+  drawVectorText({ page, fonts, value: clip(ticket.ticketCode, 24), x: 240, y: 174, size: 9.5, color: INK, bold: true, maxWidth: 145 });
+  drawVectorText({ page, fonts, value: "ЗАКАЗ", x: 240, y: 139, size: 8.5, color: CORAL, bold: true, maxWidth: 145 });
+  drawVectorText({ page, fonts, value: clip(ticket.orderNumber, 24), x: 240, y: 116, size: 11, color: INK, bold: true, maxWidth: 145 });
+  drawVectorText({ page, fonts, value: "Покажите QR-код", x: 240, y: 75, size: 10, color: MUTED, bold: true, maxWidth: 145 });
+  drawVectorText({ page, fonts, value: "при входе", x: 240, y: 59, size: 10, color: MUTED, bold: true, maxWidth: 145 });
+  drawVectorText({ page, fonts, value: "atlas-one.co", x: 170, y: 10, size: 8, color: MUTED, bold: true, maxWidth: 100 });
 }
 
 export async function generateTicketPdf(tickets: TicketPdfInput[]) {
   if (!tickets.length) throw new Error("Для генерации PDF не переданы билеты");
-
   const pdf = await PDFDocument.create();
-  pdf.registerFontkit(fontkit);
-  const fonts = await loadFonts(pdf);
-
+  const fonts = await loadVectorFonts();
   pdf.setTitle(`Atlas One tickets - ${tickets[0].orderNumber}`);
   pdf.setAuthor("Atlas One");
   pdf.setCreator("Atlas One Ticket Service");
   pdf.setProducer("Atlas One");
   pdf.setCreationDate(new Date());
   pdf.setModificationDate(new Date());
-
   for (const ticket of tickets) await drawTicketPage(pdf, fonts, ticket);
-
   return Buffer.from(await pdf.save({ useObjectStreams: false, addDefaultPage: false }));
 }
