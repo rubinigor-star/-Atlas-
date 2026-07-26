@@ -21,7 +21,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       eventTitle: event.title,
       startsAt: event.startsAt,
       venueName: event.venue.name,
+      venueCity: event.venue.city,
       venueAddress: event.venue.address,
+      posterUrl: event.posterUrl,
       holderName: ticket.holderName,
       categoryName: ticket.category.name,
       orderNumber: ticket.order.publicId,
@@ -34,6 +36,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       "content-type": "application/pdf",
       "content-disposition": `attachment; filename="atlas-one-${ticket.id}.pdf"`,
       "cache-control": "no-store, max-age=0",
+      "x-content-type-options": "nosniff",
     },
   });
 }
