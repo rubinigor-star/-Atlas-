@@ -53,3 +53,34 @@ export function ticketPricePresentation(category: PriceCategory, now = new Date(
     nextAt: next?.startsAt.toISOString() ?? null,
   };
 }
+
+export type CategoryPriceStatus = {
+  /** null when the category currently has no valid price (sales not started/ended, or gap between tiers) */
+  currentPriceMinor: number | null;
+  statusLabel: string;
+  scheduled: boolean;
+  nextTier?: { priceMinor: number; startsAt: Date };
+};
+
+/**
+ * Non-throwing version of effectiveTicketPrice for admin/organizer displays.
+ * Also surfaces the next scheduled tier change, if any, so an organizer can see
+ * that a SCHEDULED category is actually wired up rather than just a flat price.
+ */
+export function describeCategoryPrice(
+  category: { priceMinor: number; pricingMode: "FIXED" | "SCHEDULED"; salesStart: Date | null; salesEnd: Date | null; priceTiers: PriceTier[] },
+  now = new Date(),
+): CategoryPriceStatus {
+  const scheduled = category.pricingMode === "SCHEDULED";
+  const nextTier = scheduled
+    ? category.priceTiers
+        .filter((tier) => tier.startsAt > now)
+        .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())[0]
+    : undefined;
+  try {
+    const currentPriceMinor = effectiveTicketPrice(category, now);
+    return { currentPriceMinor, statusLabel: "Активна", scheduled, nextTier };
+  } catch (error) {
+    return { currentPriceMinor: null, statusLabel: error instanceof Error ? error.message : "Ошибка", scheduled, nextTier };
+  }
+}

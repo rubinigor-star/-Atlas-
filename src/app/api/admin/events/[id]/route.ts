@@ -15,6 +15,8 @@ const sales = z.object({ action: z.literal("sales"), salesMode: z.enum(["INSTANT
 const admission = z.object({ action: z.literal("admission"), mapEnabled: z.boolean() });
 const category = z.object({ action: z.literal("category"), name: z.string().min(2), description: z.string().max(500).optional(), priceMinor: z.number().int().nonnegative(), colorHex: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#2563EB"), capacity: z.number().int().positive(), pricingMode: z.enum(["FIXED", "SCHEDULED"]).default("FIXED"), salesStart: z.string().datetime().optional(), salesEnd: z.string().datetime().optional(), earlyBirdPriceMinor: z.number().int().nonnegative().optional(), earlyBirdEndsAt: z.string().datetime().optional(), maxPerOrder: z.number().int().min(1).max(20).default(10) });
 const pricingStrategy = z.object({ action: z.literal("pricingStrategy"), categoryId: z.string().min(1), intensity: z.enum(["CALM", "STANDARD", "ACTIVE", "MAXIMUM"]), showCountdown: z.boolean(), showNextPrice: z.boolean(), showStageRemaining: z.boolean(), showTotalRemaining: z.boolean(), showSoldCount: z.boolean() });
+const categoryUpdate = category.extend({ action: z.literal("category-update"), categoryId: z.string().min(1) });
+const categoryVisibility = z.object({ action: z.literal("category-visibility"), categoryId: z.string().min(1), hidden: z.boolean() });
 const table = z.object({ action: z.literal("table"), zoneName: z.string().min(2), label: z.string().min(1), seats: z.number().int().positive(), priceMinor: z.number().int().nonnegative() });
 const layout = z.object({ action: z.literal("layout"), objects: z.array(z.object({ id: z.string().optional(), label: z.string().min(1).max(30), objectType: z.enum(["TABLE", "ROUND_TABLE", "SOFA", "ROW", "ZONE", "STAGE", "BAR", "TEXT"]), seats: z.number().int().min(0).max(50), priceMode: z.enum(["WHOLE_TABLE", "PER_SEAT"]), priceMinor: z.number().int().min(0), x: z.number().int().min(0).max(100), y: z.number().int().min(0).max(100), rotation: z.number().int().min(0).max(359), width: z.number().int().min(40).max(800), height: z.number().int().min(30).max(600), categoryId: z.string().min(1).nullable(), seatAssignments: z.array(z.object({ position: z.number().int().min(1).max(50), categoryId: z.string().min(1).nullable() })).max(50).default([]) })).min(1).max(300) });
 
@@ -22,7 +24,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     const { id } = await params;
     const body = await req.json();
-    const ticketActions = new Set(["category", "pricingStrategy", "table", "layout"]);
+    const ticketActions = new Set(["category", "pricingStrategy", "category-update", "category-visibility", "table", "layout"]);
     const actor = await requireEventAccess(ticketActions.has(body.action) ? "TICKET_MANAGE" : "EVENT_MANAGE", id);
 
     if (body.action === "update") {
@@ -64,6 +66,36 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const value = pricingStrategy.parse(body);
       const current = await db.ticketCategory.findFirstOrThrow({ where: { id: value.categoryId, eventId: id }, select: { description: true } });
       await db.ticketCategory.update({ where: { id: value.categoryId }, data: { description: withPricingMarketingStrategy(current.description, { intensity: value.intensity, showCountdown: value.showCountdown, showNextPrice: value.showNextPrice, showStageRemaining: value.showStageRemaining, showTotalRemaining: value.showTotalRemaining, showSoldCount: value.showSoldCount }) } });
+    } else if (body.action === "category-update") {
+      const value = categoryUpdate.parse(body);
+      const existing = await db.ticketCategory.findUniqueOrThrow({ where: { id: value.categoryId } });
+      if (existing.eventId !== id) throw new Error("Категория не относится к этому мероприятию");
+      const parent = await db.event.findUniqueOrThrow({ where: { id } });
+      const salesStart = value.salesStart ? new Date(value.salesStart) : (existing.salesStart ?? parent.salesStart);
+      const salesEnd = value.salesEnd ? new Date(value.salesEnd) : (existing.salesEnd ?? parent.salesEnd);
+      if (salesStart >= salesEnd) throw new Error("Начало продаж должно быть раньше окончания");
+      if (value.capacity < existing.sold) throw new Error(`Уже продано ${existing.sold} билетов — количество нельзя уменьшить ниже этого числа`);
+      if (value.pricingMode === "SCHEDULED" && (value.earlyBirdPriceMinor === undefined || !value.earlyBirdEndsAt)) throw new Error("Заполните раннюю цену и дату её окончания");
+      const earlyEnd = value.earlyBirdEndsAt ? new Date(value.earlyBirdEndsAt) : null;
+      if (earlyEnd && (earlyEnd <= salesStart || earlyEnd >= salesEnd)) throw new Error("Дата смены цены должна находиться внутри периода продаж");
+      await db.$transaction([
+        db.ticketPriceTier.deleteMany({ where: { categoryId: value.categoryId } }),
+        db.ticketCategory.update({
+          where: { id: value.categoryId },
+          data: {
+            name: value.name, description: value.description || null, colorHex: value.colorHex, priceMinor: value.priceMinor,
+            capacity: value.capacity, pricingMode: value.pricingMode, salesStart, salesEnd, maxPerOrder: value.maxPerOrder,
+            priceTiers: value.pricingMode === "SCHEDULED" && earlyEnd && value.earlyBirdPriceMinor !== undefined
+              ? { create: [{ label: "Early bird", priceMinor: value.earlyBirdPriceMinor, startsAt: salesStart, endsAt: earlyEnd }, { label: "Regular", priceMinor: value.priceMinor, startsAt: earlyEnd, endsAt: salesEnd }] }
+              : undefined,
+          },
+        }),
+      ]);
+    } else if (body.action === "category-visibility") {
+      const value = categoryVisibility.parse(body);
+      const existing = await db.ticketCategory.findUniqueOrThrow({ where: { id: value.categoryId } });
+      if (existing.eventId !== id) throw new Error("Категория не относится к этому мероприятию");
+      await db.ticketCategory.update({ where: { id: value.categoryId }, data: { hidden: value.hidden } });
     } else if (body.action === "table") {
       const value = table.parse(body);
       let zone = await db.zone.findUnique({ where: { eventId_name: { eventId: id, name: value.zoneName } } });
