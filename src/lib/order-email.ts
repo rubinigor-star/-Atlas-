@@ -1,10 +1,5 @@
-import QRCode from "qrcode";
-import { PDFDocument, rgb } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { db } from "@/lib/db";
-import { drawMultilingualText } from "@/lib/pdf-multilingual";
+import { generateTicketPdf } from "@/lib/ticket-pdf";
 
 function baseUrl() {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, "");
@@ -41,69 +36,19 @@ async function getOrder(publicId: string) {
   return order;
 }
 
-async function loadFonts(pdf: PDFDocument) {
-  const root = path.join(process.cwd(), "node_modules");
-  const read = (relative: string) => readFile(path.join(root, relative));
-  const [regular, bold, hebrew] = await Promise.all([
-    read("@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff"),
-    read("@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff"),
-    read("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff"),
-  ]);
-  const regularFont = await pdf.embedFont(regular, { subset: false });
-  const boldFont = await pdf.embedFont(bold, { subset: false });
-  return {
-    latinRegular: regularFont,
-    latinBold: boldFont,
-    cyrillicRegular: regularFont,
-    cyrillicBold: boldFont,
-    hebrew: await pdf.embedFont(hebrew, { subset: false }),
-  };
-}
-
 async function makePdf(order: Awaited<ReturnType<typeof getOrder>>) {
   try {
-    const pdf = await PDFDocument.create();
-    pdf.registerFontkit(fontkit);
-    const fonts = await loadFonts(pdf);
-    const navy = rgb(0.031, 0.075, 0.145);
-    const coral = rgb(1, 0.35, 0.28);
-    const ink = rgb(0.06, 0.09, 0.15);
-    const muted = rgb(0.38, 0.44, 0.55);
-    const pale = rgb(0.95, 0.97, 0.99);
-
-    for (const ticket of order.tickets) {
-      const page = pdf.addPage([420, 680]);
-      page.drawRectangle({ x: 0, y: 0, width: 420, height: 680, color: pale });
-      page.drawRectangle({ x: 0, y: 505, width: 420, height: 175, color: navy });
-      page.drawRectangle({ x: 0, y: 498, width: 420, height: 7, color: coral });
-
-      drawMultilingualText({ page, value: "ATLAS", x: 28, y: 632, size: 24, fonts, bold: true, color: rgb(1, 1, 1), maxWidth: 170 });
-      drawMultilingualText({ page, value: "ONE", x: 31, y: 609, size: 10, fonts, bold: true, color: coral, maxWidth: 80 });
-      drawMultilingualText({ page, value: order.event.title.slice(0, 72), x: 28, y: 555, size: 19, fonts, bold: true, color: rgb(1, 1, 1), maxWidth: 364 });
-      drawMultilingualText({ page, value: formatDate(order.event.startsAt), x: 28, y: 526, size: 11, fonts, color: rgb(0.82, 0.87, 0.94), maxWidth: 364 });
-
-      page.drawRectangle({ x: 24, y: 285, width: 372, height: 190, color: rgb(1, 1, 1), borderColor: rgb(0.86, 0.89, 0.93), borderWidth: 1 });
-      const infoRows = [
-        ["Место", `${order.event.venue.name}, ${order.event.venue.address}`],
-        ["Владелец", ticket.holderName],
-        ["Категория", ticket.category.name],
-        ["Номер заказа", order.publicId],
-      ] as const;
-      let y = 443;
-      for (const [label, value] of infoRows) {
-        drawMultilingualText({ page, value: label.toUpperCase(), x: 42, y, size: 8, fonts, bold: true, color: coral, maxWidth: 130 });
-        drawMultilingualText({ page, value: value.slice(0, 90), x: 42, y: y - 20, size: 12, fonts, bold: label === "Владелец", color: ink, maxWidth: 330 });
-        y -= 43;
-      }
-
-      const qrData = await QRCode.toDataURL(ticket.publicCode, { margin: 1, width: 700, errorCorrectionLevel: "M" });
-      const qr = await pdf.embedPng(Buffer.from(qrData.split(",")[1], "base64"));
-      page.drawRectangle({ x: 105, y: 55, width: 210, height: 210, color: rgb(1, 1, 1), borderColor: rgb(0.86, 0.89, 0.93), borderWidth: 1 });
-      page.drawImage(qr, { x: 119, y: 69, width: 182, height: 182 });
-      drawMultilingualText({ page, value: "Покажите QR-код на входе", x: 112, y: 32, size: 10, fonts, bold: true, color: muted, maxWidth: 230 });
-      drawMultilingualText({ page, value: ticket.publicCode, x: 28, y: 12, size: 7, fonts, color: muted, maxWidth: 364 });
-    }
-    return Buffer.from(await pdf.save()).toString("base64");
+    const bytes = await generateTicketPdf(order.tickets.map((ticket) => ({
+      eventTitle: order.event.title,
+      startsAt: order.event.startsAt,
+      venueName: order.event.venue.name,
+      venueAddress: order.event.venue.address,
+      holderName: ticket.holderName,
+      categoryName: ticket.category.name,
+      orderNumber: order.publicId,
+      ticketCode: ticket.publicCode,
+    })));
+    return bytes.toString("base64");
   } catch (error) {
     const message = error instanceof Error ? error.message : "неизвестная ошибка";
     console.error("[ticket-pdf] generation failed", { publicId: order.publicId, message });
