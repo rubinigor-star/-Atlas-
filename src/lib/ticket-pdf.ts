@@ -1,6 +1,8 @@
 import fontkit from "@pdf-lib/fontkit";
 import QRCode from "qrcode";
 import sharp from "sharp";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { PDFDocument, rgb, type PDFImage, type PDFFont, type PDFPage } from "pdf-lib";
 
 export type TicketPdfInput = {
@@ -59,16 +61,8 @@ async function loadPoster(pdf: PDFDocument, posterUrl?: string | null): Promise<
 }
 async function loadOfficialAtlasLogo(pdf: PDFDocument) {
   if (!atlasLogoBytesPromise) {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="560" height="190" viewBox="0 0 560 190">
-      <rect width="560" height="190" rx="16" fill="#ffffff" fill-opacity="0.97"/>
-      <text x="280" y="92" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="78" font-weight="900" letter-spacing="-5">
-        <tspan fill="#0b1830">ATL</tspan><tspan fill="#ff5c45">AS</tspan>
-      </text>
-      <line x1="120" y1="130" x2="220" y2="130" stroke="#ff5c45" stroke-width="3"/>
-      <text x="283" y="142" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="900" letter-spacing="13" fill="#ff5c45">ONE</text>
-      <line x1="340" y1="130" x2="440" y2="130" stroke="#ff5c45" stroke-width="3"/>
-    </svg>`;
-    atlasLogoBytesPromise = sharp(Buffer.from(svg)).png().toBuffer();
+    const logoPath = path.join(process.cwd(), "public", "branding", "atlas-one-logo-official.png");
+    atlasLogoBytesPromise = readFile(logoPath);
   }
   return pdf.embedPng(await atlasLogoBytesPromise);
 }
@@ -92,7 +86,7 @@ async function drawTicketPage(pdf: PDFDocument, font: PDFFont, ticket: TicketPdf
   page.drawRectangle({ x: 0, y: 470, width: PAGE_WIDTH, height: 210, color: NAVY, opacity: poster ? 0.7 : 1 });
   page.drawRectangle({ x: 0, y: 465, width: PAGE_WIDTH, height: 5, color: CORAL });
   const atlasLogo = await loadOfficialAtlasLogo(pdf);
-  page.drawImage(atlasLogo, { x: 28, y: 607, width: 178, height: 60.4 });
+  page.drawImage(atlasLogo, { x: 28, y: 602, width: 185, height: 62 });
   const title = clip(ticket.eventTitle, 58);
   draw(page, font, title, 30, 565, fit(font, title, 360, 21, 13), WHITE, 360);
   draw(page, font, formatDate(ticket.startsAt), 30, 535, 10.5, rgb(0.88, 0.92, 0.97), 360);
