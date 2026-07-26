@@ -61,10 +61,12 @@ async function loadPoster(pdf: PDFDocument, posterUrl?: string | null): Promise<
 }
 async function loadOfficialAtlasLogo(pdf: PDFDocument) {
   if (!atlasLogoBytesPromise) {
-    const logoPath = path.join(process.cwd(), "public", "branding", "atlas-one-logo-official.png");
-    atlasLogoBytesPromise = readFile(logoPath);
+    const logoPath = path.join(process.cwd(), "public", "branding", "atlas-one-logo-official-fixed.png");
+    atlasLogoBytesPromise = readFile(logoPath, "utf8").then((encoded) => Buffer.from(encoded.trim(), "base64"));
   }
-  return pdf.embedPng(await atlasLogoBytesPromise);
+  const bytes = await atlasLogoBytesPromise;
+  if (!bytes.length) throw new Error("Atlas One logo asset is empty");
+  return pdf.embedPng(bytes);
 }
 function width(font: PDFFont, value: string, size: number) { return font.widthOfTextAtSize(visualText(value), size); }
 function fit(font: PDFFont, value: string, maxWidth: number, preferred: number, minimum: number) { let size = preferred; while (size > minimum && width(font, value, size) > maxWidth) size -= 0.5; return size; }
