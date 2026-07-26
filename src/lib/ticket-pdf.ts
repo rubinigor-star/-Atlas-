@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import QRCode from "qrcode";
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import type { TicketDesign, TicketElement } from "@/lib/ticket-template-types";
 import { defaultTicketDesign, resolveTicketText } from "@/lib/ticket-template";
@@ -54,24 +54,18 @@ async function readFont(relativePath: string) {
 
 async function embedFonts(pdf: PDFDocument): Promise<FontSet> {
   pdf.registerFontkit(fontkit);
-  try {
-    const [latinRegularBytes, latinBoldBytes, hebrewRegularBytes, hebrewBoldBytes] = await Promise.all([
-      readFont("@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff"),
-      readFont("@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff"),
-      readFont("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff"),
-      readFont("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-700-normal.woff"),
-    ]);
-    return {
-      latinRegular: await pdf.embedFont(latinRegularBytes, { subset: true }),
-      latinBold: await pdf.embedFont(latinBoldBytes, { subset: true }),
-      hebrewRegular: await pdf.embedFont(hebrewRegularBytes, { subset: true }),
-      hebrewBold: await pdf.embedFont(hebrewBoldBytes, { subset: true }),
-    };
-  } catch {
-    const regular = await pdf.embedFont(StandardFonts.Helvetica);
-    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-    return { latinRegular: regular, latinBold: bold, hebrewRegular: regular, hebrewBold: bold };
-  }
+  const [latinRegularBytes, latinBoldBytes, hebrewRegularBytes, hebrewBoldBytes] = await Promise.all([
+    readFont("@fontsource/noto-sans/files/noto-sans-cyrillic-400-normal.woff"),
+    readFont("@fontsource/noto-sans/files/noto-sans-cyrillic-700-normal.woff"),
+    readFont("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff"),
+    readFont("@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-700-normal.woff"),
+  ]);
+  return {
+    latinRegular: await pdf.embedFont(latinRegularBytes, { subset: true }),
+    latinBold: await pdf.embedFont(latinBoldBytes, { subset: true }),
+    hebrewRegular: await pdf.embedFont(hebrewRegularBytes, { subset: true }),
+    hebrewBold: await pdf.embedFont(hebrewBoldBytes, { subset: true }),
+  };
 }
 
 function fontFor(value: string, bold: boolean, fonts: FontSet) {
@@ -88,29 +82,18 @@ function fitText(value: string, font: PDFFont, requestedSize: number, maxWidth: 
 function drawTextElement(page: PDFPage, element: TicketElement, value: string, fonts: FontSet) {
   const text = safeText(value);
   if (!text) return;
-
   const boxX = PAGE_WIDTH * element.x / 100;
   const boxTop = PAGE_HEIGHT * element.y / 100;
   const boxWidth = PAGE_WIDTH * element.width / 100;
   const boxHeight = PAGE_HEIGHT * element.height / 100;
   const font = fontFor(text, element.bold, fonts);
-  const requestedSize = Math.max(6, element.fontSize * 0.82);
-  const size = fitText(text, font, requestedSize, boxWidth);
+  const size = fitText(text, font, Math.max(6, element.fontSize * 0.82), boxWidth);
   const measuredWidth = font.widthOfTextAtSize(text, size);
-
   let x = boxX;
   if (element.align === "center") x = boxX + (boxWidth - measuredWidth) / 2;
   if (element.align === "right") x = boxX + boxWidth - measuredWidth;
-
   const y = PAGE_HEIGHT - boxTop - Math.min(boxHeight, size * 1.25);
-  page.drawText(text, {
-    x: Math.max(0, x),
-    y: Math.max(0, y),
-    size,
-    font,
-    color: hexColor(element.color),
-    maxWidth: boxWidth,
-  });
+  page.drawText(text, { x: Math.max(0, x), y: Math.max(0, y), size, font, color: hexColor(element.color), maxWidth: boxWidth });
 }
 
 async function embedRemoteImage(pdf: PDFDocument, url: string | null | undefined): Promise<PDFImage | null> {
@@ -146,7 +129,6 @@ async function drawTicketPage(pdf: PDFDocument, input: TicketPdfInput, fonts: Fo
   if (background) page.drawImage(background, { x: 0, y: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT, opacity: 0.42 });
 
   page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 6, width: PAGE_WIDTH, height: 6, color: hexColor(design.accentColor) });
-
   const dark = ["#081426", "#0c1930", "#07172e"].includes(design.backgroundColor.toLowerCase());
   const logo = await embedRemoteImage(pdf, design.logoUrl);
   if (logo) {
@@ -180,7 +162,7 @@ async function drawTicketPage(pdf: PDFDocument, input: TicketPdfInput, fonts: Fo
     const y = PAGE_HEIGHT - top - height;
 
     if (element.binding === "QR") {
-      page.drawRectangle({ x, y, width, height, color: rgb(1, 1, 1), borderColor: hexColor("#D8E0EA"), borderWidth: 1, borderRadius: 7 });
+      page.drawRectangle({ x, y, width, height, color: rgb(1, 1, 1), borderColor: hexColor("#D8E0EA"), borderWidth: 1 });
       const padding = Math.min(8, width * 0.05, height * 0.05);
       page.drawImage(qrImage, { x: x + padding, y: y + padding, width: width - padding * 2, height: height - padding * 2 });
       continue;
@@ -195,11 +177,10 @@ async function drawTicketPage(pdf: PDFDocument, input: TicketPdfInput, fonts: Fo
     drawTextElement(page, element, resolveTicketText(element, data), fonts);
   }
 
-  const footerFont = fonts.latinRegular;
   const footerColor = hexColor(dark ? "#D8E1ED" : "#667085");
-  page.drawText("Powered by Atlas One", { x: 28, y: 18, size: 8, font: footerFont, color: footerColor });
+  page.drawText("Powered by Atlas One", { x: 28, y: 18, size: 8, font: fonts.latinRegular, color: footerColor });
   const site = "atlas-one.co";
-  page.drawText(site, { x: PAGE_WIDTH - 28 - footerFont.widthOfTextAtSize(site, 8), y: 18, size: 8, font: footerFont, color: footerColor });
+  page.drawText(site, { x: PAGE_WIDTH - 28 - fonts.latinRegular.widthOfTextAtSize(site, 8), y: 18, size: 8, font: fonts.latinRegular, color: footerColor });
 }
 
 export async function generateTicketPdf(tickets: TicketPdfInput[]) {
