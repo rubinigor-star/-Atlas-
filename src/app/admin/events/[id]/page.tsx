@@ -4,12 +4,14 @@ import { EventManager } from "@/components/event-manager";
 import { VenueMapEditor } from "@/components/venue-map-editor";
 import { FullscreenVenueEditor } from "@/components/fullscreen-venue-editor";
 import { GuestLinkManager } from "@/components/guest-link-manager";
+import { PricingStrategyManager } from "@/components/pricing-strategy-manager";
 import { db } from "@/lib/db";
 import { money } from "@/lib/format";
 import { requireEventAccess } from "@/lib/auth";
 import { parseEventMedia, stripEventMedia } from "@/lib/event-media";
 import { parseEventRejectionMessage, stripEventRejectionMessage } from "@/lib/event-approval-message";
 import { guestManagementToken } from "@/lib/guest-links";
+import { parsePricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +24,7 @@ export default async function ManageEvent({params}:{params:Promise<{id:string}>}
  <div className="table-wrap"><table><thead><tr><th>Категория билета</th><th>Цена</th><th>Продано</th><th>Остаток</th></tr></thead><tbody>{event.categories.map(item=><tr key={item.id}><td>{item.name}</td><td>{money(item.priceMinor)}</td><td>{item.sold}</td><td>{item.capacity-item.sold}</td></tr>)}</tbody></table></div>
  {(staff.permissionSet.has("EVENT_MANAGE")||staff.permissionSet.has("TICKET_MANAGE"))&&<div className="row between"><h2>Настройки</h2>{staff.permissionSet.has("TICKET_MANAGE")&&<Link className="btn dark" href={`/office/events/${event.id}/ticket-design`}>Открыть редактор билета</Link>}</div>}
  {staff.permissionSet.has("EVENT_MANAGE")&&<EventManager event={{id:event.id,title:event.title,description:cleanDescription,posterUrl:event.posterUrl,media,rejectionMessage,status:event.status,startsAt:event.startsAt.toISOString(),salesMode:event.salesMode,approvalInstructions:event.approvalInstructions,mapEnabled:event.mapEnabled,venueName:event.venue.name,city:event.venue.city,address:event.venue.address}}/>}
+ {staff.permissionSet.has("TICKET_MANAGE")&&<PricingStrategyManager eventId={event.id} categories={event.categories.map(item=>({id:item.id,name:item.name,pricingMode:item.pricingMode,strategy:parsePricingMarketingStrategy(item.description)}))}/>} 
  {staff.permissionSet.has("EVENT_MANAGE")&&<GuestLinkManager eventId={event.id} categories={event.categories.map(item=>({id:item.id,name:item.name,priceMinor:item.priceMinor}))} tables={tables} existingLinks={event.promoterLinks.map(item=>{const guest=item.promoter.name.startsWith("__GUEST_LIST__")||item.promoter.name.startsWith("__CHANNEL__:GUEST:");const allocation=item.table?`Стол ${item.table.label}`:item.category?`Категория ${item.category.name}`:"Все билеты";const priceLabel=item.customPriceMinor===0?"0 ₪":item.customPriceMinor!=null?money(item.customPriceMinor):"обычная цена";return{id:item.id,label:item.label,code:item.code,kind:guest?"GUEST" as const:"SALES" as const,allocation,priceLabel,limit:item.guestLimit,publicPath:guest?`/g/${item.code}`:`/events/${event.slug}?channel=${item.code}`,managePath:guest?`/g/${item.code}?token=${guestManagementToken(item.id)}`:null}})}/>} 
  {event.mapEnabled&&staff.permissionSet.has("TICKET_MANAGE")&&<FullscreenVenueEditor><VenueMapEditor eventId={event.id} categories={event.categories.map(category=>({id:category.id,name:category.name,priceMinor:category.priceMinor,colorHex:category.colorHex}))} initialObjects={event.zones.flatMap(zone=>zone.tables.map(item=>({id:item.id,label:item.label,objectType:item.objectType,seats:item.seats,priceMode:item.priceMode,priceMinor:item.priceMinor,x:item.x,y:item.y,rotation:item.rotation,width:item.width,height:item.height,categoryId:item.categoryId,reserved:item.reserved||item.seatItems.some(seat=>seat.status!=="AVAILABLE"),seatAssignments:item.seatItems.map(seat=>({position:seat.position,categoryId:seat.categoryId}))})))}/></FullscreenVenueEditor>}
  </AdminShell>;
