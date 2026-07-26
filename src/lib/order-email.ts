@@ -6,7 +6,7 @@ function baseUrl() {
 }
 
 function formatDate(value: Date) {
-  return new Intl.DateTimeFormat("ru-RU", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Jerusalem" }).format(value);
+  return new Intl.DateTimeFormat("ru-IL", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Jerusalem" }).format(value);
 }
 
 function escapeHtml(value: string) {
@@ -42,7 +42,9 @@ async function makePdf(order: Awaited<ReturnType<typeof getOrder>>) {
       eventTitle: order.event.title,
       startsAt: order.event.startsAt,
       venueName: order.event.venue.name,
+      venueCity: order.event.venue.city,
       venueAddress: order.event.venue.address,
+      posterUrl: order.event.posterUrl,
       holderName: ticket.holderName,
       categoryName: ticket.category.name,
       orderNumber: order.publicId,
@@ -61,7 +63,7 @@ export async function sendOrderTicketEmail(publicId: string) {
   const recipient = process.env.RESEND_TEST_TO || order.customerEmail;
   const pdf = await makePdf(order);
   const orderUrl = `${baseUrl()}/orders/${encodeURIComponent(order.publicId)}`;
-  return sendResendEmail({ publicId, recipient, subject: `Ваши билеты Atlas One — ${order.event.title}`, html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111827"><div style="background:#081426;color:white;padding:26px;border-radius:16px 16px 0 0"><div style="font-size:13px;letter-spacing:2px;color:#ff5947">ATLAS ONE</div><h1 style="margin:10px 0 0">Билеты готовы</h1></div><div style="padding:26px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 16px 16px"><p>Здравствуйте, ${escapeHtml(order.customerName)}.</p><h2>${escapeHtml(order.event.title)}</h2><p><strong>Дата:</strong> ${escapeHtml(formatDate(order.event.startsAt))}<br><strong>Место:</strong> ${escapeHtml(order.event.venue.name)}, ${escapeHtml(order.event.venue.address)}<br><strong>Заказ:</strong> ${escapeHtml(order.publicId)}</p><p>Во вложении находится билет Atlas One с QR-кодом.</p><p style="text-align:center;margin-top:24px"><a href="${orderUrl}" style="display:inline-block;background:#111827;color:white;text-decoration:none;padding:13px 20px;border-radius:10px">Открыть заказ и билеты</a></p><p style="font-size:12px;color:#6b7280">Сохраните письмо до окончания мероприятия.</p></div></div>`, attachments: [{ filename: `atlas-one-${order.publicId}.pdf`, content: pdf }], logType: "ticket-email" });
+  return sendResendEmail({ publicId, recipient, subject: `Ваши билеты Atlas One - ${order.event.title}`, html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111827"><div style="background:#081426;color:white;padding:26px;border-radius:16px 16px 0 0"><div style="font-size:13px;letter-spacing:2px;color:#ff5947">ATLAS ONE</div><h1 style="margin:10px 0 0">Билеты готовы</h1></div><div style="padding:26px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 16px 16px"><p>Здравствуйте, ${escapeHtml(order.customerName)}.</p><h2>${escapeHtml(order.event.title)}</h2><p><strong>Дата:</strong> ${escapeHtml(formatDate(order.event.startsAt))}<br><strong>Место:</strong> ${escapeHtml(order.event.venue.name)}, ${escapeHtml(order.event.venue.city)}, ${escapeHtml(order.event.venue.address)}<br><strong>Заказ:</strong> ${escapeHtml(order.publicId)}</p><p>Во вложении находится PDF с ${order.tickets.length === 1 ? "билетом" : "билетами"} Atlas One и уникальными QR-кодами.</p><p style="text-align:center;margin-top:24px"><a href="${orderUrl}" style="display:inline-block;background:#111827;color:white;text-decoration:none;padding:13px 20px;border-radius:10px">Открыть заказ и билеты</a></p><p style="font-size:12px;color:#6b7280">Сохраните письмо до окончания мероприятия.</p></div></div>`, attachments: [{ filename: `atlas-one-${order.publicId}.pdf`, content: pdf }], logType: "ticket-email" });
 }
 
 export async function sendOrderRejectionEmail(publicId: string) {
@@ -71,5 +73,5 @@ export async function sendOrderRejectionEmail(publicId: string) {
   const recipient = process.env.RESEND_TEST_TO || order.customerEmail;
   const orderUrl = `${baseUrl()}/orders/${encodeURIComponent(order.publicId)}`;
   const rejectionMessage = order.reviewNote || "К сожалению, ваша заявка не была подтверждена. Авторизация оплаты отменена, списание не производилось.";
-  return sendResendEmail({ publicId, recipient, subject: `Статус вашей заявки — ${order.event.title}`, html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111827"><div style="background:#081426;color:white;padding:26px;border-radius:16px 16px 0 0"><div style="font-size:13px;letter-spacing:2px">ATLAS ONE</div><h1 style="margin:10px 0 0">Обновление по вашей заявке</h1></div><div style="padding:26px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 16px 16px"><p>Здравствуйте, ${escapeHtml(order.customerName)}.</p><h2>${escapeHtml(order.event.title)}</h2><p style="white-space:pre-line;line-height:1.6">${escapeHtml(rejectionMessage)}</p><p><strong>Дата:</strong> ${escapeHtml(formatDate(order.event.startsAt))}<br><strong>Место:</strong> ${escapeHtml(order.event.venue.name)}, ${escapeHtml(order.event.venue.address)}<br><strong>Номер заявки:</strong> ${escapeHtml(order.publicId)}</p><p style="text-align:center;margin-top:24px"><a href="${orderUrl}" style="display:inline-block;background:#111827;color:white;text-decoration:none;padding:13px 20px;border-radius:10px">Открыть заявку</a></p><p style="font-size:12px;color:#6b7280">Это автоматическое уведомление Atlas One.</p></div></div>`, logType: "rejection-email" });
+  return sendResendEmail({ publicId, recipient, subject: `Статус вашей заявки - ${order.event.title}`, html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111827"><div style="background:#081426;color:white;padding:26px;border-radius:16px 16px 0 0"><div style="font-size:13px;letter-spacing:2px">ATLAS ONE</div><h1 style="margin:10px 0 0">Обновление по вашей заявке</h1></div><div style="padding:26px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 16px 16px"><p>Здравствуйте, ${escapeHtml(order.customerName)}.</p><h2>${escapeHtml(order.event.title)}</h2><p style="white-space:pre-line;line-height:1.6">${escapeHtml(rejectionMessage)}</p><p><strong>Дата:</strong> ${escapeHtml(formatDate(order.event.startsAt))}<br><strong>Место:</strong> ${escapeHtml(order.event.venue.name)}, ${escapeHtml(order.event.venue.address)}<br><strong>Номер заявки:</strong> ${escapeHtml(order.publicId)}</p><p style="text-align:center;margin-top:24px"><a href="${orderUrl}" style="display:inline-block;background:#111827;color:white;text-decoration:none;padding:13px 20px;border-radius:10px">Открыть заявку</a></p><p style="font-size:12px;color:#6b7280">Это автоматическое уведомление Atlas One.</p></div></div>`, logType: "rejection-email" });
 }

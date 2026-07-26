@@ -1,91 +1,169 @@
+import fontkit from "@pdf-lib/fontkit";
 import QRCode from "qrcode";
 import sharp from "sharp";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, rgb, type PDFImage, type PDFFont, type PDFPage } from "pdf-lib";
 
-type TicketPdfInput = {
+export type TicketPdfInput = {
   eventTitle: string;
   startsAt: Date;
   venueName: string;
+  venueCity: string;
   venueAddress: string;
+  posterUrl?: string | null;
   holderName: string;
   categoryName: string;
   orderNumber: string;
   ticketCode: string;
 };
 
-const WIDTH = 840;
-const HEIGHT = 1360;
+const PAGE_WIDTH = 420;
+const PAGE_HEIGHT = 680;
+const FONT_URL = "https://raw.githubusercontent.com/google/fonts/main/ofl/opensans/OpenSans%5Bwdth,wght%5D.ttf";
+const NAVY = rgb(0.027, 0.078, 0.149);
+const CORAL = rgb(1, 0.361, 0.271);
+const INK = rgb(0.063, 0.094, 0.153);
+const MUTED = rgb(0.275, 0.322, 0.404);
+const PALE = rgb(0.949, 0.965, 0.98);
+const BORDER = rgb(0.859, 0.886, 0.922);
+const WHITE = rgb(1, 1, 1);
 
-function escapeXml(value: string) {
-  return value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&apos;", '"': "&quot;" })[char] || char);
+let fontBytesPromise: Promise<Uint8Array> | null = null;
+
+function clean(value: string) {
+  return value.replace(/\s+/g, " ").trim();
 }
 
-function clip(value: string, max = 58) {
-  const clean = value.replace(/\s+/g, " ").trim();
-  return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
+function clip(value: string, max: number) {
+  const normalized = clean(value);
+  return normalized.length > max ? `${normalized.slice(0, Math.max(1, max - 1))}…` : normalized;
+}
+
+function containsHebrew(value: string) {
+  return /[\u0590-\u05FF]/.test(value);
+}
+
+function visualText(value: string) {
+  return containsHebrew(value) ? Array.from(value).reverse().join("") : value;
 }
 
 function formatDate(value: Date) {
-  return new Intl.DateTimeFormat("ru-RU", {
-    dateStyle: "long",
-    timeStyle: "short",
+  return new Intl.DateTimeFormat("ru-IL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
     timeZone: "Asia/Jerusalem",
   }).format(value);
 }
 
-function isHebrew(value: string) {
-  return /[\u0590-\u05FF]/.test(value);
+async function getFontBytes() {
+  if (!fontBytesPromise) {
+    fontBytesPromise = fetch(FONT_URL, {
+      signal: AbortSignal.timeout(15000),
+      headers: { "user-agent": "Atlas-One-Ticket-Service/3.0" },
+    }).then(async (response) => {
+      if (!response.ok) throw new Error(`Не удалось загрузить TTF-шрифт: ${response.status}`);
+      return new Uint8Array(await response.arrayBuffer());
+    });
+  }
+  return fontBytesPromise;
 }
 
-function text(params: { x: number; y: number; value: string; size: number; fill: string; weight?: number; anchor?: "start" | "middle" | "end" }) {
-  const direction = isHebrew(params.value) ? "rtl" : "ltr";
-  const anchor = params.anchor || (direction === "rtl" ? "end" : "start");
-  return `<text x="${params.x}" y="${params.y}" fill="${params.fill}" font-family="DejaVu Sans, Noto Sans, Arial, sans-serif" font-size="${params.size}" font-weight="${params.weight || 400}" text-anchor="${anchor}" direction="${direction}" unicode-bidi="plaintext">${escapeXml(params.value)}</text>`;
+async function loadPoster(pdf: PDFDocument, posterUrl?: string | null): Promise<PDFImage | null> {
+  if (!posterUrl) return null;
+  try {
+    const absolute = posterUrl.startsWith("http")
+      ? posterUrl
+      : `${(process.env.NEXT_PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, "")}/${posterUrl.replace(/^\/+/, "")}`;
+    const response = await fetch(absolute, {
+      signal: AbortSignal.timeout(10000),
+      headers: { "user-agent": "Atlas-One-Ticket-Service/3.0" },
+    });
+    if (!response.ok) return null;
+    const source = Buffer.from(await response.arrayBuffer());
+    const jpeg = await sharp(source).resize(840, 420, { fit: "cover", position: "attention" }).jpeg({ quality: 88 }).toBuffer();
+    return pdf.embedJpg(jpeg);
+  } catch (error) {
+    console.warn("[ticket-pdf] poster unavailable", {
+      posterUrl,
+      message: error instanceof Error ? error.message : "unknown error",
+    });
+    return null;
+  }
 }
 
-async function ticketPng(input: TicketPdfInput) {
-  const qr = await QRCode.toDataURL(input.ticketCode, { width: 700, margin: 1, errorCorrectionLevel: "M" });
-  const venue = clip(`${input.venueName}, ${input.venueAddress}`, 72);
-  const holder = clip(input.holderName, 44);
-  const category = clip(input.categoryName, 44);
-  const eventTitle = clip(input.eventTitle, 48);
-  const qrBase64 = qr.split(",")[1];
+function width(font: PDFFont, value: string, size: number) {
+  return font.widthOfTextAtSize(visualText(value), size);
+}
 
-  const svg = `
-  <svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
-    <rect width="840" height="1360" fill="#f3f6fa"/>
-    <rect width="840" height="420" fill="#081426"/>
-    <rect y="410" width="840" height="10" fill="#ff5947"/>
+function fit(font: PDFFont, value: string, maxWidth: number, preferred: number, minimum: number) {
+  let size = preferred;
+  while (size > minimum && width(font, value, size) > maxWidth) size -= 0.5;
+  return size;
+}
 
-    ${text({ x: 60, y: 92, value: "ATLAS", size: 54, fill: "#ffffff", weight: 800 })}
-    ${text({ x: 64, y: 132, value: "ONE", size: 22, fill: "#ff5947", weight: 700 })}
-    ${text({ x: 60, y: 235, value: eventTitle, size: 42, fill: "#ffffff", weight: 800 })}
-    ${text({ x: 60, y: 295, value: formatDate(input.startsAt), size: 24, fill: "#d3deec", weight: 500 })}
+function draw(page: PDFPage, font: PDFFont, value: string, x: number, y: number, size: number, color = INK, maxWidth?: number) {
+  const text = visualText(value);
+  const actualX = containsHebrew(value) && maxWidth ? x + Math.max(0, maxWidth - font.widthOfTextAtSize(text, size)) : x;
+  page.drawText(text, { x: actualX, y, size, font, color, maxWidth });
+}
 
-    <rect x="48" y="470" width="744" height="380" rx="22" fill="#ffffff" stroke="#dce3ec" stroke-width="2"/>
-    ${text({ x: 82, y: 530, value: "МЕСТО", size: 18, fill: "#ff5947", weight: 800 })}
-    ${text({ x: 82, y: 572, value: venue, size: 27, fill: "#101827", weight: 500 })}
-    ${text({ x: 82, y: 642, value: "ВЛАДЕЛЕЦ", size: 18, fill: "#ff5947", weight: 800 })}
-    ${text({ x: isHebrew(holder) ? 758 : 82, y: 684, value: holder, size: 29, fill: "#101827", weight: 700 })}
-    ${text({ x: 82, y: 754, value: "КАТЕГОРИЯ", size: 18, fill: "#ff5947", weight: 800 })}
-    ${text({ x: isHebrew(category) ? 758 : 82, y: 796, value: category, size: 27, fill: "#101827", weight: 600 })}
-    ${text({ x: 82, y: 838, value: `ЗАКАЗ ${input.orderNumber}`, size: 18, fill: "#687489", weight: 600 })}
+function infoRow(page: PDFPage, font: PDFFont, label: string, value: string, y: number, maxChars: number) {
+  draw(page, font, label, 40, y, 8.5, CORAL, 330);
+  const display = clip(value, maxChars);
+  draw(page, font, display, 40, y - 20, fit(font, display, 330, 13.5, 9.5), INK, 330);
+}
 
-    <rect x="205" y="885" width="430" height="430" rx="18" fill="#ffffff" stroke="#dce3ec" stroke-width="2"/>
-    <image x="225" y="905" width="390" height="390" href="data:image/png;base64,${qrBase64}"/>
-    ${text({ x: 420, y: 1340, value: clip(input.ticketCode, 62), size: 14, fill: "#687489", weight: 500, anchor: "middle" })}
-  </svg>`;
+async function drawTicketPage(pdf: PDFDocument, font: PDFFont, ticket: TicketPdfInput) {
+  const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  page.drawRectangle({ x: 0, y: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT, color: PALE });
 
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  const poster = await loadPoster(pdf, ticket.posterUrl);
+  if (poster) page.drawImage(poster, { x: 0, y: 470, width: PAGE_WIDTH, height: 210 });
+  page.drawRectangle({ x: 0, y: 470, width: PAGE_WIDTH, height: 210, color: NAVY, opacity: poster ? 0.7 : 1 });
+  page.drawRectangle({ x: 0, y: 465, width: PAGE_WIDTH, height: 5, color: CORAL });
+
+  draw(page, font, "ATLAS ONE", 30, 635, 22, WHITE, 180);
+  const title = clip(ticket.eventTitle, 58);
+  draw(page, font, title, 30, 565, fit(font, title, 360, 21, 13), WHITE, 360);
+  draw(page, font, formatDate(ticket.startsAt), 30, 535, 10.5, rgb(0.88, 0.92, 0.97), 360);
+  draw(page, font, clip([ticket.venueCity, ticket.venueName].filter(Boolean).join(" · "), 65), 30, 512, 10, WHITE, 360);
+
+  page.drawRectangle({ x: 22, y: 255, width: 376, height: 190, color: WHITE, borderColor: BORDER, borderWidth: 1 });
+  infoRow(page, font, "ПЛОЩАДКА", ticket.venueName, 414, 52);
+  infoRow(page, font, "АДРЕС", [ticket.venueCity, ticket.venueAddress].filter(Boolean).join(", "), 371, 72);
+  infoRow(page, font, "ВЛАДЕЛЕЦ", ticket.holderName, 328, 52);
+  infoRow(page, font, "КАТЕГОРИЯ", ticket.categoryName, 285, 52);
+
+  page.drawRectangle({ x: 22, y: 26, width: 376, height: 210, color: WHITE, borderColor: BORDER, borderWidth: 1 });
+  const qrBytes = await QRCode.toBuffer(ticket.ticketCode, { width: 900, margin: 2, errorCorrectionLevel: "Q" });
+  const qr = await pdf.embedPng(qrBytes);
+  page.drawImage(qr, { x: 42, y: 48, width: 166, height: 166 });
+
+  draw(page, font, "БИЛЕТ", 240, 195, 8.5, CORAL, 145);
+  draw(page, font, clip(ticket.ticketCode, 24), 240, 174, 9.5, INK, 145);
+  draw(page, font, "ЗАКАЗ", 240, 139, 8.5, CORAL, 145);
+  draw(page, font, clip(ticket.orderNumber, 24), 240, 116, 11, INK, 145);
+  draw(page, font, "Покажите QR-код", 240, 75, 10, MUTED, 145);
+  draw(page, font, "при входе", 240, 59, 10, MUTED, 145);
+  draw(page, font, "atlas-one.co", 170, 10, 8, MUTED, 100);
 }
 
 export async function generateTicketPdf(tickets: TicketPdfInput[]) {
+  if (!tickets.length) throw new Error("Для генерации PDF не переданы билеты");
+
   const pdf = await PDFDocument.create();
-  for (const ticket of tickets) {
-    const png = await ticketPng(ticket);
-    const image = await pdf.embedPng(png);
-    const page = pdf.addPage([420, 680]);
-    page.drawImage(image, { x: 0, y: 0, width: 420, height: 680 });
-  }
-  return Buffer.from(await pdf.save());
+  pdf.registerFontkit(fontkit);
+  const font = await pdf.embedFont(await getFontBytes(), { subset: true });
+
+  pdf.setTitle(`Atlas One tickets - ${tickets[0].orderNumber}`);
+  pdf.setAuthor("Atlas One");
+  pdf.setCreator("Atlas One Ticket Service");
+
+  for (const ticket of tickets) await drawTicketPage(pdf, font, ticket);
+
+  return Buffer.from(await pdf.save({ useObjectStreams: false, addDefaultPage: false }));
 }
