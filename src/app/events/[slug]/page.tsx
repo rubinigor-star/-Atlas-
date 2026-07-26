@@ -3,10 +3,11 @@ import { notFound } from "next/navigation";
 import { CalendarDays, ExternalLink, MapPin, ShieldCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { eventDate } from "@/lib/format";
-import { effectiveTicketPrice } from "@/lib/ticketing";
+import { effectiveTicketPrice, ticketPricePresentation } from "@/lib/ticketing";
 import { EventPurchase } from "@/components/event-purchase";
 import { parseEventMedia, stripEventMedia, videoEmbedUrl } from "@/lib/event-media";
 import { stripEventRejectionMessage } from "@/lib/event-approval-message";
+import { parsePricingMarketingStrategy, stripPricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,9 @@ export default async function EventPage({ params, searchParams }: { params: Prom
   });
   if (!event || event.status !== "PUBLISHED") notFound();
 
+  const channelCode = query.ref || query.channel;
   const [promoterLink, zones] = await Promise.all([
-    query.ref ? db.promoterLink.findUnique({ where: { code: query.ref.toUpperCase() } }) : Promise.resolve(null),
+    channelCode ? db.promoterLink.findUnique({ where: { code: channelCode.toUpperCase() } }) : Promise.resolve(null),
     event.mapEnabled
       ? db.zone.findMany({
           where: { eventId: event.id },
@@ -39,11 +41,20 @@ export default async function EventPage({ params, searchParams }: { params: Prom
       : Promise.resolve([]),
   ]);
 
-  const validPromoterLink = promoterLink && promoterLink.eventId === event.id && promoterLink.active && (!promoterLink.startsAt || promoterLink.startsAt <= new Date()) && (!promoterLink.endsAt || promoterLink.endsAt >= new Date()) ? promoterLink : null;
+  const now = new Date();
+  const validPromoterLink = promoterLink && promoterLink.eventId === event.id && promoterLink.active && (!promoterLink.startsAt || promoterLink.startsAt <= now) && (!promoterLink.endsAt || promoterLink.endsAt >= now) ? promoterLink : null;
   const categories = event.categories.flatMap((category) => {
     if (category.hidden) return [];
     try {
-      return [{ ...category, priceMinor: validPromoterLink?.allocationType === "CATEGORY" && validPromoterLink.categoryId === category.id && validPromoterLink.customPriceMinor ? validPromoterLink.customPriceMinor : effectiveTicketPrice(category) }];
+      const standardPrice = effectiveTicketPrice(category, now);
+      const channelPrice = validPromoterLink?.allocationType === "CATEGORY" && validPromoterLink.categoryId === category.id && validPromoterLink.customPriceMinor !== null ? validPromoterLink.customPriceMinor : standardPrice;
+      return [{
+        ...category,
+        description: stripPricingMarketingStrategy(category.description),
+        priceMinor: channelPrice,
+        pricingPresentation: ticketPricePresentation(category, now),
+        marketingStrategy: parsePricingMarketingStrategy(category.description),
+      }];
     } catch {
       return [];
     }
