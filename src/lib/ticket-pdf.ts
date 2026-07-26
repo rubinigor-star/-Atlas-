@@ -70,7 +70,7 @@ async function loadOfficialAtlasLogo(pdf: PDFDocument) {
   }
   const bytes = await atlasLogoBytesPromise;
   if (!bytes.length) throw new Error("Atlas One logo asset is empty");
-  return pdf.embedPng(bytes);
+  return pdf.embedJpg(bytes);
 }
 function width(font: PDFFont, value: string, size: number) { return font.widthOfTextAtSize(visualText(value), size); }
 function fit(font: PDFFont, value: string, maxWidth: number, preferred: number, minimum: number) { let size = preferred; while (size > minimum && width(font, value, size) > maxWidth) size -= 0.5; return size; }
