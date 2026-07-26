@@ -3,181 +3,32 @@
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { money } from "@/lib/format";
+import { useLocale } from "@/components/locale-provider";
 
-type Tier = { id: string; label: string; priceMinor: number; startsAt: string; endsAt: string };
-export type ManagedCategory = {
-  id: string;
-  name: string;
-  description: string | null;
-  priceMinor: number;
-  pricingMode: "FIXED" | "SCHEDULED";
-  capacity: number;
-  sold: number;
-  hidden: boolean;
-  colorHex: string;
-  maxPerOrder: number;
-  salesStart: string | null;
-  salesEnd: string | null;
-  priceTiers: Tier[];
-  currentPriceMinor: number | null;
-  statusLabel: string;
-  nextTierPriceMinor?: number;
-  nextTierStartsAt?: string;
-};
+const copy={
+ ru:{name:"Название",quantity:"Количество",mapColor:"Цвет на карте",includes:"Что входит в билет",fixed:"Фиксированная цена",scheduled:"Цена по расписанию",earlyPrice:"Ранняя цена, ₪",validUntil:"Действует до",mainPrice:"Основная цена, ₪",price:"Цена, ₪",maxOrder:"Максимум в заказе",salesStart:"Начало продаж",salesEnd:"Окончание продаж",soldHelp:"Уже продано билетов: {n}. Количество нельзя опустить ниже этого числа.",saveChanges:"Сохранить изменения",saved:"Сохранено",category:"Категория",currentPrice:"Цена сейчас",sold:"Продано",remaining:"Остаток",hidden:"Скрыта от покупателей",bySchedule:"по расписанию",cancel:"Отмена",edit:"Редактировать",show:"Показать",hide:"Скрыть"},
+ he:{name:"שם",quantity:"כמות",mapColor:"צבע במפה",includes:"מה כלול בכרטיס",fixed:"מחיר קבוע",scheduled:"מחיר לפי לוח זמנים",earlyPrice:"מחיר מוקדם, ₪",validUntil:"בתוקף עד",mainPrice:"מחיר רגיל, ₪",price:"מחיר, ₪",maxOrder:"מקסימום בהזמנה",salesStart:"תחילת מכירה",salesEnd:"סיום מכירה",soldHelp:"נמכרו כבר {n} כרטיסים. לא ניתן להקטין את הכמות מתחת למספר זה.",saveChanges:"שמירת שינויים",saved:"נשמר",category:"קטגוריה",currentPrice:"מחיר נוכחי",sold:"נמכרו",remaining:"נותרו",hidden:"מוסתר מהרוכשים",bySchedule:"לפי לוח זמנים",cancel:"ביטול",edit:"עריכה",show:"הצגה",hide:"הסתרה"},
+ en:{name:"Name",quantity:"Quantity",mapColor:"Map color",includes:"What is included",fixed:"Fixed price",scheduled:"Scheduled price",earlyPrice:"Early price, ₪",validUntil:"Valid until",mainPrice:"Main price, ₪",price:"Price, ₪",maxOrder:"Maximum per order",salesStart:"Sales start",salesEnd:"Sales end",soldHelp:"{n} tickets have already been sold. Capacity cannot be reduced below this number.",saveChanges:"Save changes",saved:"Saved",category:"Category",currentPrice:"Current price",sold:"Sold",remaining:"Remaining",hidden:"Hidden from buyers",bySchedule:"scheduled",cancel:"Cancel",edit:"Edit",show:"Show",hide:"Hide"}
+} as const;
 
-function toLocalInput(iso: string | null) {
-  return iso ? iso.slice(0, 16) : "";
+type Tier={id:string;label:string;priceMinor:number;startsAt:string;endsAt:string};
+export type ManagedCategory={id:string;name:string;description:string|null;priceMinor:number;pricingMode:"FIXED"|"SCHEDULED";capacity:number;sold:number;hidden:boolean;colorHex:string;maxPerOrder:number;salesStart:string|null;salesEnd:string|null;priceTiers:Tier[];currentPriceMinor:number|null;statusLabel:string;nextTierPriceMinor?:number;nextTierStartsAt?:string};
+function toLocalInput(iso:string|null){return iso?iso.slice(0,16):"";}
+
+function CategoryEditForm({category,onSave}:{category:ManagedCategory;onSave:(body:Record<string,unknown>)=>void}){
+ const{locale}=useLocale();const text=copy[locale];const[pricingMode,setPricingMode]=useState<"FIXED"|"SCHEDULED">(category.pricingMode);const earlyTier=category.priceTiers.find(t=>t.label==="Early bird");const regularTier=category.priceTiers.find(t=>t.label==="Regular");
+ return <form className="form" style={{padding:"18px 4px"}} onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);const iso=(name:string)=>new Date(String(form.get(name))).toISOString();onSave({name:form.get("name"),description:form.get("description"),colorHex:form.get("colorHex"),priceMinor:Math.round(Number(form.get("price"))*100),capacity:Number(form.get("capacity")),pricingMode,salesStart:iso("salesStart"),salesEnd:iso("salesEnd"),earlyBirdPriceMinor:pricingMode==="SCHEDULED"?Math.round(Number(form.get("earlyBirdPrice"))*100):undefined,earlyBirdEndsAt:pricingMode==="SCHEDULED"?iso("earlyBirdEndsAt"):undefined,maxPerOrder:Number(form.get("maxPerOrder"))});}}>
+  <div className="form-grid three"><input className="input" name="name" defaultValue={category.name} placeholder={text.name} required/><input className="input" name="capacity" type="number" min={category.sold} defaultValue={category.capacity} placeholder={text.quantity} required/><label className="field"><span>{text.mapColor}</span><input className="input color-input" name="colorHex" type="color" defaultValue={category.colorHex}/></label></div>
+  <textarea name="description" rows={2} defaultValue={category.description??""} placeholder={text.includes}/><div className="pricing-switch"><button type="button" className={pricingMode==="FIXED"?"active":""} onClick={()=>setPricingMode("FIXED")}>{text.fixed}</button><button type="button" className={pricingMode==="SCHEDULED"?"active":""} onClick={()=>setPricingMode("SCHEDULED")}>{text.scheduled}</button></div>
+  {pricingMode==="SCHEDULED"&&<div className="form-grid two"><div className="field"><label>{text.earlyPrice}</label><input className="input" name="earlyBirdPrice" type="number" min="0" step="0.01" defaultValue={earlyTier?earlyTier.priceMinor/100:undefined} required/></div><div className="field"><label>{text.validUntil}</label><input className="input" name="earlyBirdEndsAt" type="datetime-local" defaultValue={toLocalInput(earlyTier?.endsAt??null)} required/></div></div>}
+  <div className="form-grid two"><div className="field"><label>{pricingMode==="SCHEDULED"?text.mainPrice:text.price}</label><input className="input" name="price" type="number" min="0" step="0.01" defaultValue={(regularTier?regularTier.priceMinor:category.priceMinor)/100} required/></div><div className="field"><label>{text.maxOrder}</label><input className="input" name="maxPerOrder" type="number" min="1" max="20" defaultValue={category.maxPerOrder} required/></div></div>
+  <div className="form-grid two"><div className="field"><label>{text.salesStart}</label><input className="input" name="salesStart" type="datetime-local" defaultValue={toLocalInput(category.salesStart)} required/></div><div className="field"><label>{text.salesEnd}</label><input className="input" name="salesEnd" type="datetime-local" defaultValue={toLocalInput(category.salesEnd)} required/></div></div>
+  <p className="muted" style={{fontSize:13}}>{text.soldHelp.replace("{n}",String(category.sold))}</p><button className="btn">{text.saveChanges}</button>
+ </form>;
 }
 
-function CategoryEditForm({ category, onSave }: { category: ManagedCategory; onSave: (body: Record<string, unknown>) => void }) {
-  const [pricingMode, setPricingMode] = useState<"FIXED" | "SCHEDULED">(category.pricingMode);
-  const earlyTier = category.priceTiers.find((tier) => tier.label === "Early bird");
-  const regularTier = category.priceTiers.find((tier) => tier.label === "Regular");
-
-  return (
-    <form
-      className="form"
-      style={{ padding: "18px 4px" }}
-      onSubmit={(event) => {
-        event.preventDefault();
-        const form = new FormData(event.currentTarget);
-        const iso = (name: string) => new Date(String(form.get(name))).toISOString();
-        onSave({
-          name: form.get("name"),
-          description: form.get("description"),
-          colorHex: form.get("colorHex"),
-          priceMinor: Math.round(Number(form.get("price")) * 100),
-          capacity: Number(form.get("capacity")),
-          pricingMode,
-          salesStart: iso("salesStart"),
-          salesEnd: iso("salesEnd"),
-          earlyBirdPriceMinor: pricingMode === "SCHEDULED" ? Math.round(Number(form.get("earlyBirdPrice")) * 100) : undefined,
-          earlyBirdEndsAt: pricingMode === "SCHEDULED" ? iso("earlyBirdEndsAt") : undefined,
-          maxPerOrder: Number(form.get("maxPerOrder")),
-        });
-      }}
-    >
-      <div className="form-grid three">
-        <input className="input" name="name" defaultValue={category.name} placeholder="Название" required />
-        <input className="input" name="capacity" type="number" min={category.sold} defaultValue={category.capacity} placeholder="Количество" required />
-        <label className="field">
-          <span>Цвет на карте</span>
-          <input className="input color-input" name="colorHex" type="color" defaultValue={category.colorHex} />
-        </label>
-      </div>
-      <textarea name="description" rows={2} defaultValue={category.description ?? ""} placeholder="Что входит в билет" />
-      <div className="pricing-switch">
-        <button type="button" className={pricingMode === "FIXED" ? "active" : ""} onClick={() => setPricingMode("FIXED")}>Фиксированная цена</button>
-        <button type="button" className={pricingMode === "SCHEDULED" ? "active" : ""} onClick={() => setPricingMode("SCHEDULED")}>Цена по расписанию</button>
-      </div>
-      {pricingMode === "SCHEDULED" && (
-        <div className="form-grid two">
-          <div className="field">
-            <label>Ранняя цена, ₪</label>
-            <input className="input" name="earlyBirdPrice" type="number" min="0" step="0.01" defaultValue={earlyTier ? earlyTier.priceMinor / 100 : undefined} required />
-          </div>
-          <div className="field">
-            <label>Действует до</label>
-            <input className="input" name="earlyBirdEndsAt" type="datetime-local" defaultValue={toLocalInput(earlyTier?.endsAt ?? null)} required />
-          </div>
-        </div>
-      )}
-      <div className="form-grid two">
-        <div className="field">
-          <label>{pricingMode === "SCHEDULED" ? "Основная цена, ₪" : "Цена, ₪"}</label>
-          <input className="input" name="price" type="number" min="0" step="0.01" defaultValue={(regularTier ? regularTier.priceMinor : category.priceMinor) / 100} required />
-        </div>
-        <div className="field">
-          <label>Максимум в заказе</label>
-          <input className="input" name="maxPerOrder" type="number" min="1" max="20" defaultValue={category.maxPerOrder} required />
-        </div>
-      </div>
-      <div className="form-grid two">
-        <div className="field">
-          <label>Начало продаж</label>
-          <input className="input" name="salesStart" type="datetime-local" defaultValue={toLocalInput(category.salesStart)} required />
-        </div>
-        <div className="field">
-          <label>Окончание продаж</label>
-          <input className="input" name="salesEnd" type="datetime-local" defaultValue={toLocalInput(category.salesEnd)} required />
-        </div>
-      </div>
-      <p className="muted" style={{ fontSize: 13 }}>Уже продано билетов: {category.sold}. Количество нельзя опустить ниже этого числа.</p>
-      <button className="btn">Сохранить изменения</button>
-    </form>
-  );
-}
-
-export function CategoryManager({ eventId, categories }: { eventId: string; categories: ManagedCategory[] }) {
-  const router = useRouter();
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
-
-  async function send(body: Record<string, unknown>) {
-    setMessage("");
-    const response = await fetch(`/api/admin/events/${eventId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    const data = await response.json();
-    setMessage(response.ok ? "Сохранено" : data.error);
-    if (response.ok) {
-      setEditingId(null);
-      router.refresh();
-    }
-  }
-
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Категория</th>
-            <th>Цена сейчас</th>
-            <th>Продано</th>
-            <th>Остаток</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {categories.map((item) => (
-            <Fragment key={item.id}>
-              <tr style={item.hidden ? { opacity: 0.55 } : undefined}>
-                <td>
-                  <strong>{item.name}</strong>
-                  {item.hidden && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Скрыта от покупателей</div>}
-                </td>
-                <td>
-                  {item.currentPriceMinor !== null ? money(item.currentPriceMinor) : <span className="muted">{item.statusLabel}</span>}
-                  {item.pricingMode === "SCHEDULED" && <div className="pill" style={{ marginTop: 6 }}>по расписанию</div>}
-                  {item.nextTierPriceMinor !== undefined && item.nextTierStartsAt && (
-                    <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                      {money(item.nextTierPriceMinor)} c {new Date(item.nextTierStartsAt).toLocaleString("ru-RU")}
-                    </div>
-                  )}
-                </td>
-                <td>{item.sold}</td>
-                <td>{item.capacity - item.sold}</td>
-                <td>
-                  <div className="row">
-                    <button type="button" className="btn secondary" onClick={() => setEditingId(editingId === item.id ? null : item.id)}>
-                      {editingId === item.id ? "Отмена" : "Редактировать"}
-                    </button>
-                    <button type="button" className="btn secondary" onClick={() => void send({ action: "category-visibility", categoryId: item.id, hidden: !item.hidden })}>
-                      {item.hidden ? "Показать" : "Скрыть"}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-              {editingId === item.id && (
-                <tr>
-                  <td colSpan={5}>
-                    <CategoryEditForm category={item} onSave={(body) => void send({ action: "category-update", categoryId: item.id, ...body })} />
-                  </td>
-                </tr>
-              )}
-            </Fragment>
-          ))}
-        </tbody>
-      </table>
-      {message && <div className="toast">{message}</div>}
-    </div>
-  );
+export function CategoryManager({eventId,categories}:{eventId:string;categories:ManagedCategory[]}){
+ const router=useRouter();const{locale}=useLocale();const text=copy[locale];const[editingId,setEditingId]=useState<string|null>(null);const[message,setMessage]=useState("");
+ async function send(body:Record<string,unknown>){setMessage("");const response=await fetch(`/api/admin/events/${eventId}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const data=await response.json();setMessage(response.ok?text.saved:data.error);if(response.ok){setEditingId(null);router.refresh();}}
+ return <div className="table-wrap"><table><thead><tr><th>{text.category}</th><th>{text.currentPrice}</th><th>{text.sold}</th><th>{text.remaining}</th><th/></tr></thead><tbody>{categories.map(item=><Fragment key={item.id}><tr style={item.hidden?{opacity:.55}:undefined}><td><strong>{item.name}</strong>{item.hidden&&<div className="muted" style={{fontSize:12,marginTop:2}}>{text.hidden}</div>}</td><td>{item.currentPriceMinor!==null?money(item.currentPriceMinor):<span className="muted">{item.statusLabel}</span>}{item.pricingMode==="SCHEDULED"&&<div className="pill" style={{marginTop:6}}>{text.bySchedule}</div>}{item.nextTierPriceMinor!==undefined&&item.nextTierStartsAt&&<div className="muted" style={{fontSize:12,marginTop:4}}>{money(item.nextTierPriceMinor)} · {new Date(item.nextTierStartsAt).toLocaleString(locale==="he"?"he-IL":locale==="en"?"en-IL":"ru-RU")}</div>}</td><td>{item.sold}</td><td>{item.capacity-item.sold}</td><td><div className="row"><button type="button" className="btn secondary" onClick={()=>setEditingId(editingId===item.id?null:item.id)}>{editingId===item.id?text.cancel:text.edit}</button><button type="button" className="btn secondary" onClick={()=>void send({action:"category-visibility",categoryId:item.id,hidden:!item.hidden})}>{item.hidden?text.show:text.hide}</button></div></td></tr>{editingId===item.id&&<tr><td colSpan={5}><CategoryEditForm category={item} onSave={body=>void send({action:"category-update",categoryId:item.id,...body})}/></td></tr>}</Fragment>)}</tbody></table>{message&&<div className="toast">{message}</div>}</div>;
 }
