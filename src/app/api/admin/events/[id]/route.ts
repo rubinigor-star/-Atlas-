@@ -8,7 +8,7 @@ import { withEventMedia } from "@/lib/event-media";
 import { parseEventRejectionMessage, withEventRejectionMessage } from "@/lib/event-approval-message";
 
 const mediaItem = z.object({ type: z.enum(["VIDEO", "LINK"]), url: z.string().url(), title: z.string().max(120).optional() });
-const update = z.object({ action: z.literal("update"), title: z.string().min(3), description: z.string().min(20), posterUrl: z.string().url(), startsAt: z.string().datetime(), media: z.array(mediaItem).max(20).default([]) });
+const update = z.object({ action: z.literal("update"), title: z.string().min(3), description: z.string().min(20), posterUrl: z.string().url(), startsAt: z.string().datetime(), venueName:z.string().min(2).max(160), city:z.string().min(2).max(120), address:z.string().min(3).max(300), media: z.array(mediaItem).max(20).default([]) });
 const status = z.object({ action: z.literal("status"), status: z.enum(["DRAFT", "PUBLISHED"]) });
 const sales = z.object({ action: z.literal("sales"), salesMode: z.enum(["INSTANT", "APPROVAL_REQUIRED"]), askApprovalQuestion: z.boolean().default(false), approvalInstructions: z.string().max(1000).optional(), rejectionMessage: z.string().min(20).max(2000).optional() });
 const admission = z.object({ action: z.literal("admission"), mapEnabled: z.boolean() });
@@ -25,10 +25,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if (body.action === "update") {
       const value = update.parse(body);
-      const current = await db.event.findUniqueOrThrow({ where: { id }, select: { description: true } });
+      const current = await db.event.findUniqueOrThrow({ where: { id }, select: { description: true, venueId:true } });
       const rejectionMessage = parseEventRejectionMessage(current.description);
       const description = withEventRejectionMessage(withEventMedia(value.description, value.media), rejectionMessage);
-      await db.event.update({ where: { id }, data: { title: value.title, description, posterUrl: value.posterUrl, startsAt: new Date(value.startsAt) } });
+      await db.$transaction([
+        db.event.update({ where: { id }, data: { title: value.title, description, posterUrl: value.posterUrl, startsAt: new Date(value.startsAt) } }),
+        db.venue.update({where:{id:current.venueId},data:{name:value.venueName,city:value.city,address:value.address}}),
+      ]);
       const walletTickets = await db.ticket.findMany({ where: { order: { eventId: id } }, select: { id: true } });
       await db.ticket.updateMany({ where: { id: { in: walletTickets.map((ticket) => ticket.id) } }, data: { walletUpdatedAt: new Date() } });
       await notifyWalletTickets(walletTickets.map((ticket) => ticket.id));
