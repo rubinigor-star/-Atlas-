@@ -1,30 +1,89 @@
 import { z } from "zod";
 
-export const ticketBindingSchema=z.enum(["CUSTOM","EVENT_TITLE","EVENT_DATE","EVENT_TIME","VENUE","ADDRESS","CUSTOMER_NAME","TICKET_TYPE","ORDER_NUMBER","TICKET_CODE","QR","IMAGE"]);
-export const ticketElementSchema=z.object({id:z.string(),binding:ticketBindingSchema,x:z.number().min(0).max(100),y:z.number().min(0).max(100),width:z.number().min(5).max(100),height:z.number().min(3).max(100),content:z.string().max(500).default(""),fontSize:z.number().min(8).max(54).default(16),color:z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#FFFFFF"),align:z.enum(["left","center","right"]).default("left"),bold:z.boolean().default(false),hidden:z.boolean().default(false)});
-export const ticketTemplateSchema=z.object({name:z.string().min(2).max(80),backgroundColor:z.string().regex(/^#[0-9A-Fa-f]{6}$/),accentColor:z.string().regex(/^#[0-9A-Fa-f]{6}$/),textColor:z.string().regex(/^#[0-9A-Fa-f]{6}$/),logoUrl:z.string().max(500).nullable(),backgroundUrl:z.string().max(500).nullable(),elements:z.array(ticketElementSchema).min(1).max(40)}).refine(template=>template.elements.some(element=>element.binding==="QR"&&!element.hidden),{message:"Шаблон должен содержать видимый QR-код",path:["elements"]});
-export type TicketElement=z.infer<typeof ticketElementSchema>;
-export type TicketDesign=z.infer<typeof ticketTemplateSchema>;
+export const ticketBindingSchema = z.enum(["CUSTOM", "EVENT_TITLE", "EVENT_DATE", "EVENT_TIME", "VENUE", "ADDRESS", "CUSTOMER_NAME", "TICKET_TYPE", "ORDER_NUMBER", "TICKET_CODE", "QR", "IMAGE"]);
+export const ticketElementSchema = z.object({
+  id: z.string(), binding: ticketBindingSchema, x: z.number().min(0).max(100), y: z.number().min(0).max(100),
+  width: z.number().min(5).max(100), height: z.number().min(3).max(100), content: z.string().max(500).default(""),
+  fontSize: z.number().min(8).max(54).default(16), color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#FFFFFF"),
+  align: z.enum(["left", "center", "right"]).default("left"), bold: z.boolean().default(false), hidden: z.boolean().default(false),
+});
+export const ticketTemplateSchema = z.object({
+  name: z.string().min(2).max(80), backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/), accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+  textColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/), logoUrl: z.string().max(500).nullable(), backgroundUrl: z.string().max(500).nullable(),
+  elements: z.array(ticketElementSchema).min(1).max(40),
+}).refine(template => template.elements.some(element => element.binding === "QR" && !element.hidden), { message: "Шаблон должен содержать видимый QR-код", path: ["elements"] });
+export type TicketElement = z.infer<typeof ticketElementSchema>;
+export type TicketDesign = z.infer<typeof ticketTemplateSchema>;
 
-export const defaultTicketElements:TicketElement[]=[
-  {id:"event-title",binding:"EVENT_TITLE",x:7,y:8,width:86,height:12,content:"",fontSize:30,color:"#FFFFFF",align:"left",bold:true,hidden:false},
-  {id:"ticket-type",binding:"TICKET_TYPE",x:7,y:22,width:86,height:6,content:"",fontSize:14,color:"#FFB4A8",align:"left",bold:true,hidden:false},
-  {id:"date",binding:"EVENT_DATE",x:7,y:31,width:42,height:7,content:"",fontSize:15,color:"#FFFFFF",align:"left",bold:true,hidden:false},
-  {id:"time",binding:"EVENT_TIME",x:52,y:31,width:41,height:7,content:"",fontSize:15,color:"#FFFFFF",align:"right",bold:true,hidden:false},
-  {id:"venue",binding:"VENUE",x:7,y:40,width:86,height:7,content:"",fontSize:14,color:"#D8E1ED",align:"left",bold:false,hidden:false},
-  {id:"holder",binding:"CUSTOMER_NAME",x:7,y:51,width:86,height:7,content:"",fontSize:16,color:"#FFFFFF",align:"left",bold:true,hidden:false},
-  {id:"qr",binding:"QR",x:23,y:62,width:54,height:26,content:"",fontSize:14,color:"#FFFFFF",align:"center",bold:false,hidden:false},
-  {id:"code",binding:"TICKET_CODE",x:7,y:91,width:86,height:4,content:"",fontSize:9,color:"#B5C0CF",align:"center",bold:false,hidden:false},
+const e = (id: string, binding: TicketElement["binding"], x: number, y: number, width: number, height: number, fontSize: number, color: string, bold = false, align: TicketElement["align"] = "left"): TicketElement => ({ id, binding, x, y, width, height, content: "", fontSize, color, align, bold, hidden: false });
+
+export const classicTicketPresets: { id: string; label: string; description: string; design: TicketDesign }[] = [
+  {
+    id: "classic-balanced", label: "Classic 1", description: "Сбалансированный вертикальный билет",
+    design: { name: "Classic 1", backgroundColor: "#F7F9FC", accentColor: "#FF5C45", textColor: "#081426", logoUrl: null, backgroundUrl: null, elements: [
+      e("event-title", "EVENT_TITLE", 7, 17, 86, 9, 29, "#081426", true), e("date", "EVENT_DATE", 7, 31, 42, 6, 14, "#153A72", true),
+      e("time", "EVENT_TIME", 7, 39, 42, 6, 14, "#153A72", true), e("venue", "VENUE", 7, 47, 50, 6, 13, "#081426", true),
+      e("address", "ADDRESS", 7, 53, 50, 5, 11, "#667085"), e("qr", "QR", 61, 31, 32, 27, 14, "#081426", false, "center"),
+      e("holder", "CUSTOMER_NAME", 7, 66, 28, 7, 14, "#081426", true), e("type", "TICKET_TYPE", 37, 66, 24, 7, 14, "#081426", true),
+      e("order", "ORDER_NUMBER", 63, 66, 30, 7, 12, "#081426", true), e("code", "TICKET_CODE", 7, 89, 86, 4, 9, "#667085", false, "center"),
+    ] },
+  },
+  {
+    id: "classic-compact", label: "Classic 2", description: "Компактные данные и крупный QR",
+    design: { name: "Classic 2", backgroundColor: "#FFFFFF", accentColor: "#FF5C45", textColor: "#081426", logoUrl: null, backgroundUrl: null, elements: [
+      e("event-title", "EVENT_TITLE", 7, 17, 86, 9, 27, "#081426", true), e("date", "EVENT_DATE", 7, 30, 38, 6, 13, "#081426", true),
+      e("time", "EVENT_TIME", 7, 37, 38, 6, 13, "#081426", true), e("venue", "VENUE", 7, 44, 42, 6, 12, "#081426", true),
+      e("address", "ADDRESS", 7, 50, 42, 5, 10, "#667085"), e("qr", "QR", 52, 29, 41, 31, 14, "#081426", false, "center"),
+      e("holder", "CUSTOMER_NAME", 7, 66, 86, 6, 14, "#081426", true), e("type", "TICKET_TYPE", 7, 74, 42, 6, 13, "#081426", true),
+      e("order", "ORDER_NUMBER", 52, 74, 41, 6, 12, "#081426", true), e("code", "TICKET_CODE", 7, 90, 86, 4, 9, "#667085", false, "center"),
+    ] },
+  },
+  {
+    id: "classic-airline", label: "Classic 3", description: "Посадочный талон с нижним блоком",
+    design: { name: "Classic 3", backgroundColor: "#F8FAFC", accentColor: "#2563EB", textColor: "#081426", logoUrl: null, backgroundUrl: null, elements: [
+      e("event-title", "EVENT_TITLE", 7, 17, 86, 9, 28, "#081426", true), e("date", "EVENT_DATE", 7, 31, 42, 6, 14, "#153A72", true),
+      e("time", "EVENT_TIME", 52, 31, 41, 6, 14, "#153A72", true, "right"), e("venue", "VENUE", 7, 40, 86, 6, 13, "#081426", true),
+      e("address", "ADDRESS", 7, 46, 86, 5, 11, "#667085"), e("holder", "CUSTOMER_NAME", 7, 58, 42, 7, 14, "#081426", true),
+      e("type", "TICKET_TYPE", 52, 58, 41, 7, 14, "#081426", true, "right"), e("qr", "QR", 7, 68, 36, 24, 14, "#081426", false, "center"),
+      e("order", "ORDER_NUMBER", 49, 72, 44, 6, 13, "#081426", true), e("code", "TICKET_CODE", 49, 82, 44, 5, 9, "#667085"),
+    ] },
+  },
+  {
+    id: "classic-navy", label: "Classic 4", description: "Фирменный тёмно-синий вариант",
+    design: { name: "Classic 4", backgroundColor: "#081426", accentColor: "#FF5C45", textColor: "#FFFFFF", logoUrl: null, backgroundUrl: null, elements: [
+      e("event-title", "EVENT_TITLE", 7, 18, 86, 10, 29, "#FFFFFF", true), e("type", "TICKET_TYPE", 7, 29, 86, 5, 13, "#FF8C7D", true),
+      e("date", "EVENT_DATE", 7, 39, 42, 6, 14, "#FFFFFF", true), e("time", "EVENT_TIME", 52, 39, 41, 6, 14, "#FFFFFF", true, "right"),
+      e("venue", "VENUE", 7, 48, 86, 6, 13, "#D8E1ED", true), e("address", "ADDRESS", 7, 54, 86, 5, 11, "#AEBBCD"),
+      e("qr", "QR", 23, 62, 54, 25, 14, "#FFFFFF", false, "center"), e("holder", "CUSTOMER_NAME", 7, 89, 42, 5, 12, "#FFFFFF", true),
+      e("order", "ORDER_NUMBER", 52, 89, 41, 5, 10, "#B5C0CF", true, "right"),
+    ] },
+  },
+  {
+    id: "classic-wide", label: "Classic 5", description: "Широкая карточная композиция",
+    design: { name: "Classic 5", backgroundColor: "#FFFFFF", accentColor: "#FF5C45", textColor: "#081426", logoUrl: null, backgroundUrl: null, elements: [
+      e("event-title", "EVENT_TITLE", 7, 18, 58, 11, 27, "#081426", true), e("qr", "QR", 68, 17, 25, 22, 14, "#081426", false, "center"),
+      e("date", "EVENT_DATE", 7, 35, 42, 6, 13, "#153A72", true), e("time", "EVENT_TIME", 52, 35, 41, 6, 13, "#153A72", true, "right"),
+      e("venue", "VENUE", 7, 45, 86, 6, 13, "#081426", true), e("address", "ADDRESS", 7, 51, 86, 5, 11, "#667085"),
+      e("holder", "CUSTOMER_NAME", 7, 64, 42, 7, 14, "#081426", true), e("type", "TICKET_TYPE", 52, 64, 41, 7, 14, "#081426", true, "right"),
+      e("order", "ORDER_NUMBER", 7, 76, 86, 6, 13, "#081426", true), e("code", "TICKET_CODE", 7, 90, 86, 4, 9, "#667085", false, "center"),
+    ] },
+  },
 ];
 
-export function defaultTicketDesign():TicketDesign{return{name:"Основной билет",backgroundColor:"#081426",accentColor:"#FF5C45",textColor:"#FFFFFF",logoUrl:null,backgroundUrl:null,elements:defaultTicketElements}}
-
-export function nextTicketElementPosition(elementCount:number){const added=Math.max(0,elementCount-defaultTicketElements.length);return{x:8+(added*13)%48,y:54+(added*11)%31}}
-
-export function parseTicketDesign(input:{name:string;backgroundColor:string;accentColor:string;textColor:string;logoUrl:string|null;backgroundUrl:string|null;canvasJson:string}|null|undefined):TicketDesign{
-  if(!input)return defaultTicketDesign();
-  try{return ticketTemplateSchema.parse({...input,elements:JSON.parse(input.canvasJson)})}catch{return defaultTicketDesign()}
+export const defaultTicketElements: TicketElement[] = classicTicketPresets[0].design.elements;
+export function defaultTicketDesign(): TicketDesign { return structuredClone(classicTicketPresets[0].design); }
+export function nextTicketElementPosition(elementCount: number) { const added = Math.max(0, elementCount - defaultTicketElements.length); return { x: 8 + (added * 13) % 48, y: 54 + (added * 11) % 31 }; }
+export function parseTicketDesign(input: { name: string; backgroundColor: string; accentColor: string; textColor: string; logoUrl: string | null; backgroundUrl: string | null; canvasJson: string } | null | undefined): TicketDesign {
+  if (!input) return defaultTicketDesign();
+  try { return ticketTemplateSchema.parse({ ...input, elements: JSON.parse(input.canvasJson) }); } catch { return defaultTicketDesign(); }
 }
-
-export type TicketRenderData={eventTitle:string;startsAt:Date;venue:string;address:string;customerName:string;ticketType:string;orderNumber:string;ticketCode:string};
-export function resolveTicketText(element:TicketElement,data:TicketRenderData){switch(element.binding){case"CUSTOM":return element.content;case"EVENT_TITLE":return data.eventTitle;case"EVENT_DATE":return data.startsAt.toLocaleDateString("ru-RU",{day:"numeric",month:"long",year:"numeric"});case"EVENT_TIME":return data.startsAt.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});case"VENUE":return data.venue;case"ADDRESS":return data.address;case"CUSTOMER_NAME":return data.customerName;case"TICKET_TYPE":return data.ticketType;case"ORDER_NUMBER":return data.orderNumber;case"TICKET_CODE":return data.ticketCode;default:return element.content}}
+export type TicketRenderData = { eventTitle: string; startsAt: Date; venue: string; address: string; customerName: string; ticketType: string; orderNumber: string; ticketCode: string };
+export function resolveTicketText(element: TicketElement, data: TicketRenderData) {
+  switch (element.binding) {
+    case "CUSTOM": return element.content; case "EVENT_TITLE": return data.eventTitle;
+    case "EVENT_DATE": return data.startsAt.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+    case "EVENT_TIME": return data.startsAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+    case "VENUE": return data.venue; case "ADDRESS": return data.address; case "CUSTOMER_NAME": return data.customerName;
+    case "TICKET_TYPE": return data.ticketType; case "ORDER_NUMBER": return data.orderNumber; case "TICKET_CODE": return data.ticketCode; default: return element.content;
+  }
+}
