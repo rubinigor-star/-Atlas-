@@ -5,7 +5,6 @@ import path from "node:path";
 import { PDFDocument, rgb, type PDFImage, type PDFPage } from "pdf-lib";
 import type { TicketDesign, TicketElement } from "@/lib/ticket-template";
 import { defaultTicketDesign, resolveTicketText } from "@/lib/ticket-template";
-import { atlasLogoJpegBase64 } from "@/lib/atlas-logo";
 import { drawMultilingualText, multilingualWidth, type PdfFontSet } from "@/lib/pdf-multilingual";
 
 export type TicketPdfInput = { eventTitle:string; startsAt:Date; venueName:string; venueCity:string; venueAddress:string; posterUrl?:string|null; holderName:string; categoryName:string; orderNumber:string; ticketCode:string; ticketStatus?:"VALID"|"USED"|"CANCELLED"|"REFUNDED"; design?:TicketDesign };
@@ -25,7 +24,7 @@ function clean(value:string){return value.replace(/\s+/g," ").trim()}
 function clip(value:string,max=90){const text=clean(value);return text.length>max?`${text.slice(0,max-1)}…`:text}
 async function loadFontFile(filePath:string){return new Uint8Array(await readFile(filePath))}
 function getFontBytes(key:keyof typeof FONT_FILES){if(!fontBytesCache[key])fontBytesCache[key]=loadFontFile(FONT_FILES[key]);return fontBytesCache[key]!}
-async function loadOfficialAtlasLogo(pdf:PDFDocument){const bytes=Buffer.from(atlasLogoJpegBase64,"base64");if(!bytes.length)throw new Error("Official Atlas One logo is empty");return pdf.embedJpg(bytes)}
+async function loadOfficialAtlasLogo(pdf:PDFDocument){const logo=await loadImage(pdf,"/branding/atlas-one-logo.jpg");if(!logo)throw new Error("Official Atlas One logo could not be loaded");return logo}
 async function loadImage(pdf:PDFDocument,url?:string|null):Promise<PDFImage|null>{if(!url)return null;try{const absolute=url.startsWith("http")?url:`${(process.env.NEXT_PUBLIC_APP_URL||"https://www.atlas-one.co").replace(/\/$/,"")}/${url.replace(/^\/+/,"")}`;const response=await fetch(absolute,{signal:AbortSignal.timeout(8000)});if(!response.ok)return null;const bytes=new Uint8Array(await response.arrayBuffer());const type=response.headers.get("content-type")||"";return type.includes("png")||absolute.toLowerCase().endsWith(".png")?pdf.embedPng(bytes):pdf.embedJpg(bytes)}catch{return null}}
 function fit(fonts:PdfFontSet,value:string,preferred:number,maxWidth:number,bold:boolean){let size=preferred;while(size>6&&multilingualWidth(value,size,fonts,bold)>maxWidth)size-=0.5;return size}
 function drawTextElement(page:PDFPage,fonts:PdfFontSet,element:TicketElement,value:string){const text=clip(value);if(!text)return;const x0=PAGE_WIDTH*element.x/100,top=PAGE_HEIGHT*element.y/100,width=PAGE_WIDTH*element.width/100,height=PAGE_HEIGHT*element.height/100;const size=fit(fonts,text,Math.max(7,element.fontSize*0.72),width,element.bold);const measured=multilingualWidth(text,size,fonts,element.bold);let x=x0;if(element.align==="center")x=x0+(width-measured)/2;if(element.align==="right"||containsHebrew(value))x=x0+width-measured;const y=PAGE_HEIGHT-top-Math.min(height,size*1.25);drawMultilingualText({page,value:text,x:Math.max(0,x),y:Math.max(0,y),size,color:hex(element.color),fonts,bold:element.bold,maxWidth:width})}
