@@ -39,7 +39,7 @@ export function GuestLinkManager({ eventId, categories, tables, existingLinks }:
     });
     const data = await response.json();
     setBusy(false);
-    if (!response.ok) return setError(data.error || "Не удалось создать ссылку");
+    if (!response.ok) return setError(data.error || "Не удалось создать канал");
     setResult({ publicPath: data.publicPath, managePath: data.managePath });
   }
 
@@ -47,20 +47,21 @@ export function GuestLinkManager({ eventId, categories, tables, existingLinks }:
   const CopyRow = ({ label, value, copyKey }: { label: string; value: string; copyKey: string }) => <div className="field"><label>{label}</label><div className="row" style={{gap:8}}><input className="input" readOnly value={value} onFocus={(e) => e.currentTarget.select()} /><button type="button" className="btn secondary" onClick={() => void copyValue(value, copyKey)}>{copied === copyKey ? "Скопировано" : "Копировать"}</button></div></div>;
 
   return <section className="panel form">
-    <span className="eyebrow">Гостевой список</span>
-    <h2>Гостевые ссылки</h2>
-    {existingLinks.length > 0 && <div className="form" style={{marginBottom:24}}>{existingLinks.map((link) => <details className="panel" key={link.id}><summary><strong>{link.label}</strong> · {link.guestLimit ?? "—"} гостей</summary><div style={{marginTop:14}}><CopyRow label="Ссылка управления" value={`${origin}${link.managePath}`} copyKey={`${link.id}-manage`} /><CopyRow label="Публичная ссылка" value={`${origin}${link.publicPath}`} copyKey={`${link.id}-public`} /></div></details>)}</div>}
-    <h3>Создать ссылку без аккаунта</h3>
-    <p className="muted">Именинник или ответственный человек сможет самостоятельно добавлять гостей. Для такого списка используется билет с ценой 0.</p>
-    {!freeCategories.length ? <div className="toast">Сначала создайте билет с ценой 0.</div> : <form onSubmit={submit} className="form">
-      <div className="field"><label>Название списка</label><input className="input" name="displayName" required placeholder="День рождения Васи" /></div>
-      <div className="field"><label>Короткий код ссылки — необязательно</label><input className="input" name="code" pattern="[A-Za-z0-9_-]{3,40}" placeholder="VASYA" /></div>
-      <div className="pricing-switch"><button type="button" className={type === "TABLE" ? "active" : ""} disabled={!freeTables.length} onClick={() => setType("TABLE")}>Конкретный стол</button><button type="button" className={type === "CATEGORY" ? "active" : ""} onClick={() => setType("CATEGORY")}>Бесплатный билет</button></div>
-      {type === "TABLE" ? <div className="field"><label>Стол</label><select name="tableId" required>{freeTables.map((item) => <option key={item.id} value={item.id}>{item.label} · {item.seats} мест</option>)}</select></div> : <div className="field"><label>Билет</label><select name="categoryId" required>{freeCategories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>}
-      <div className="field"><label>Максимальное количество гостей</label><input className="input" name="guestLimit" type="number" min="1" max="500" required defaultValue={type === "TABLE" ? freeTables[0]?.seats ?? 10 : 10} /></div>
+    <span className="eyebrow">Ссылки и источники</span>
+    <h2>Каналы продаж</h2>
+    <p className="muted">Создавайте отдельные ссылки для гостей, дней рождения, друзей и других источников. Следующим этапом здесь появятся рекламные каналы Facebook, Instagram и партнёрские ссылки с кликами, продажами и конверсией.</p>
+    {existingLinks.length > 0 && <div className="form" style={{marginBottom:24}}>{existingLinks.map((link) => <details className="panel" key={link.id}><summary><strong>{link.label}</strong> · лимит {link.guestLimit ?? "—"}</summary><div style={{marginTop:14}}><CopyRow label="Ссылка управления" value={`${origin}${link.managePath}`} copyKey={`${link.id}-manage`} /><CopyRow label="Публичная ссылка" value={`${origin}${link.publicPath}`} copyKey={`${link.id}-public`} /></div></details>)}</div>}
+    <h3>Создать канал гостевого доступа</h3>
+    <p className="muted">Подходит для дня рождения, VIP-списка, друга или ответственного человека. Он сможет добавлять гостей без аккаунта. Для такого канала используется категория билета с ценой 0.</p>
+    {!freeCategories.length ? <div className="toast">Сначала создайте бесплатную категорию билета с ценой 0 ₪.</div> : <form onSubmit={submit} className="form">
+      <div className="field"><label>Название канала</label><input className="input" name="displayName" required placeholder="День рождения Васи / VIP friends" /></div>
+      <div className="field"><label>Короткий код ссылки - необязательно</label><input className="input" name="code" pattern="[A-Za-z0-9_-]{3,40}" placeholder="VASYA" /></div>
+      <div className="pricing-switch"><button type="button" className={type === "TABLE" ? "active" : ""} disabled={!freeTables.length} onClick={() => setType("TABLE")}>Конкретный стол</button><button type="button" className={type === "CATEGORY" ? "active" : ""} onClick={() => setType("CATEGORY")}>Категория бесплатных билетов</button></div>
+      {type === "TABLE" ? <div className="field"><label>Стол</label><select name="tableId" required>{freeTables.map((item) => <option key={item.id} value={item.id}>{item.label} · {item.seats} мест</option>)}</select></div> : <div className="field"><label>Категория билета</label><select name="categoryId" required>{freeCategories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>}
+      <div className="field"><label>Лимит приглашённых</label><input className="input" name="guestLimit" type="number" min="1" max="500" required defaultValue={type === "TABLE" ? freeTables[0]?.seats ?? 10 : 10} /></div>
       {error && <div className="toast">{error}</div>}
-      <button className="btn" disabled={busy}>{busy ? "Создаём..." : "Создать гостевую ссылку"}</button>
+      <button className="btn" disabled={busy}>{busy ? "Создаём..." : "Создать канал"}</button>
     </form>}
-    {result && <div className="panel" style={{ marginTop: 16 }}><strong>Ссылки созданы</strong><p className="muted">Основную ссылку можно отправить гостям для просмотра. Ссылку управления отправьте ответственному человеку.</p><CopyRow label="Ссылка управления" value={`${origin}${result.managePath}`} copyKey="new-manage" /><CopyRow label="Публичная ссылка" value={`${origin}${result.publicPath}`} copyKey="new-public" /></div>}
+    {result && <div className="panel" style={{ marginTop: 16 }}><strong>✓ Канал создан</strong><p className="muted">Публичную ссылку можно отправлять гостям. Ссылку управления передайте ответственному человеку.</p><CopyRow label="Ссылка управления" value={`${origin}${result.managePath}`} copyKey="new-manage" /><CopyRow label="Публичная ссылка" value={`${origin}${result.publicPath}`} copyKey="new-public" /></div>}
   </section>;
 }
