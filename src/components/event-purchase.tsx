@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { money } from "@/lib/format";
 import { useLocale } from "@/components/locale-provider";
+import type { PricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 
-type Category = { id: string; name: string; description: string | null; priceMinor: number; colorHex: string; capacity: number; sold: number };
+type PricingPresentation = { stageLabel: string; nextPriceMinor: number | null; nextAt: string | null };
+type Category = { id: string; name: string; description: string | null; priceMinor: number; colorHex: string; capacity: number; sold: number; pricingPresentation: PricingPresentation; marketingStrategy: PricingMarketingStrategy };
 type MapSeat = { id: string; label: string; position: number; status: "AVAILABLE" | "RESERVED" | "BLOCKED"; categoryId: string | null };
 type MapObject = {
   id: string;
@@ -29,14 +31,28 @@ type MapObject = {
 type Allocation = { type: "EVENT" | "CATEGORY" | "TABLE"; categoryId: string | null; tableId: string | null; customPriceMinor: number | null };
 
 const copy = {
-  ru: { title: "Выберите билет", remaining: "осталось", map: "Выберите место на карте", stage: "СЦЕНА", whole: "целиком", perSeat: "за место", selected: "Выбрано мест", quantity: "Количество", total: "Итого", continue: "Продолжить", table: "стол", sofa: "диван", unavailable: "Занято", legend: "Категории и цены", unassigned: "Не продаётся" },
-  he: { title: "בחירת כרטיס", remaining: "נותרו", map: "בחירת מקום במפה", stage: "במה", whole: "מחיר מלא", perSeat: "למקום", selected: "מקומות שנבחרו", quantity: "כמות", total: "סה״כ", continue: "המשך", table: "שולחן", sofa: "ספה", unavailable: "תפוס", legend: "קטגוריות ומחירים", unassigned: "לא למכירה" },
+  ru: { title: "Выберите билет", remaining: "осталось", map: "Выберите место на карте", stage: "СЦЕНА", whole: "целиком", perSeat: "за место", selected: "Выбрано мест", quantity: "Количество", total: "Итого", continue: "Продолжить", table: "стол", sofa: "диван", unavailable: "Занято", legend: "Категории и цены", unassigned: "Не продаётся", endsSoon: "Текущий этап продаж заканчивается скоро", sold: "Уже куплено", tickets: "билетов", next: "Следующая цена" },
+  he: { title: "בחירת כרטיס", remaining: "נותרו", map: "בחירת מקום במפה", stage: "במה", whole: "מחיר מלא", perSeat: "למקום", selected: "מקומות שנבחרו", quantity: "כמות", total: "סה״כ", continue: "המשך", table: "שולחן", sofa: "ספה", unavailable: "תפוס", legend: "קטגוריות ומחירים", unassigned: "לא למכירה", endsSoon: "שלב המכירה הנוכחי מסתיים בקרוב", sold: "כבר נרכשו", tickets: "כרטיסים", next: "המחיר הבא" },
 };
+
+function countdown(nextAt: string | null, now: number) {
+  if (!nextAt) return "";
+  const diff = new Date(nextAt).getTime() - now;
+  if (diff <= 0) return "";
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const minutes = Math.max(1, Math.floor((diff % 3600000) / 60000));
+  if (days > 0) return `${days} дн. ${hours} ч.`;
+  if (hours > 0) return `${hours} ч. ${minutes} мин.`;
+  return `${minutes} мин.`;
+}
 
 export function EventPurchase({ eventId, categories, objects, referralCode, allocation }: { eventId: string; categories: Category[]; objects: MapObject[]; referralCode?: string; allocation?: Allocation }) {
   const router = useRouter();
   const { locale } = useLocale();
   const text = copy[locale];
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30000); return () => window.clearInterval(timer); }, []);
   const availableCategories = allocation?.type === "CATEGORY" ? categories.filter((item) => item.id === allocation.categoryId) : categories;
   const availableObjects = allocation?.type === "TABLE" ? objects.filter((item) => item.id === allocation.tableId || !["TABLE", "ROUND_TABLE", "SOFA", "ROW"].includes(item.objectType)) : objects;
   const [categoryId, setCategoryId] = useState(availableCategories[0]?.id ?? categories[0]?.id ?? "");
@@ -49,7 +65,7 @@ export function EventPurchase({ eventId, categories, objects, referralCode, allo
   const seatObject = objects.find((item) => item.seatItems.some((seat) => selectedSeatIds.includes(seat.id)));
   const selectionObject = wholeObject ?? seatObject;
   const total = useMemo(() => {
-    if (allocation?.customPriceMinor && allocation.type === "TABLE" && wholeObject) return allocation.customPriceMinor;
+    if (allocation?.customPriceMinor !== null && allocation?.customPriceMinor !== undefined && allocation.type === "TABLE" && wholeObject) return allocation.customPriceMinor;
     if (wholeObject) return categories.find((item) => item.id === wholeObject.categoryId)?.priceMinor ?? wholeObject.priceMinor;
     if (selectedSeats.length) return selectedSeats.reduce((sum, seat) => sum + (categories.find((item) => item.id === seat.categoryId)?.priceMinor ?? 0), 0);
     return (category?.priceMinor ?? 0) * qty;
@@ -81,7 +97,22 @@ export function EventPurchase({ eventId, categories, objects, referralCode, allo
 
   return <div className="panel purchase-panel">
     <h2>{text.title}</h2>
-    <div className="options">{availableCategories.map((item) => <button type="button" key={item.id} className={`option ${categoryId === item.id && !selectionObject ? "selected" : ""}`} onClick={() => { setCategoryId(item.id); clearMapSelection(); }}><span><strong>{item.name}</strong><br /><small className="muted">{item.description} · {text.remaining} {item.capacity - item.sold}</small></span><strong>{money(item.priceMinor)}</strong></button>)}</div>
+    <div className="options">{availableCategories.map((item) => {
+      const strategy = item.marketingStrategy;
+      const timeLeft = strategy.showCountdown ? countdown(item.pricingPresentation.nextAt, now) : "";
+      return <button type="button" key={item.id} className={`option ${categoryId === item.id && !selectionObject ? "selected" : ""}`} onClick={() => { setCategoryId(item.id); clearMapSelection(); }}>
+        <span><strong>{item.name}</strong><br /><small className="muted">{item.description}</small>
+          <span className="pricing-pressure">
+            <b>{item.pricingPresentation.stageLabel}</b>
+            {timeLeft && <small>⏰ Цена повысится через {timeLeft}</small>}
+            {strategy.showNextPrice && item.pricingPresentation.nextPriceMinor !== null && <small>{text.next}: {money(item.pricingPresentation.nextPriceMinor)}</small>}
+            {strategy.showStageRemaining && <small>🔥 {text.endsSoon}</small>}
+            {strategy.showTotalRemaining && <small>🎟 {text.remaining} {item.capacity - item.sold}</small>}
+            {strategy.showSoldCount && <small>✓ {text.sold} {item.sold} {text.tickets}</small>}
+          </span>
+        </span><strong>{money(item.priceMinor)}</strong>
+      </button>;
+    })}</div>
 
     {availableObjects.length > 0 && <>
       <h3 className="map-purchase-title">{text.map}</h3>
@@ -96,7 +127,7 @@ export function EventPurchase({ eventId, categories, objects, referralCode, allo
             {!isSellable ? <div className={`buyer-decoration decoration-${object.objectType.toLowerCase()}`}><strong>{object.label}</strong></div> : <>
             <button type="button" className="object-core" disabled={soldWhole || object.priceMode === "PER_SEAT" || allocation?.type === "TABLE"} onClick={() => { setSelectedSeatIds([]); setWholeObjectId(selectedWhole ? null : object.id); setCategoryId(object.categoryId ?? categoryId); }}><strong>{object.label}</strong><small>{object.objectType === "SOFA" ? text.sofa : object.objectType === "ROW" ? "row" : text.table}</small></button>
             <span className="buyer-seat-ring">{object.seatItems.map((seat) => <button type="button" key={seat.id} title={seat.status === "AVAILABLE" ? seat.label : text.unavailable} disabled={object.priceMode === "WHOLE_TABLE" || seat.status !== "AVAILABLE" || !seat.categoryId || allocation?.type === "TABLE"} className={`map-seat ${selectedSeatIds.includes(seat.id) ? "selected" : ""} ${seat.status.toLowerCase()}`} style={{ "--ticket-color": categories.find((item) => item.id === seat.categoryId)?.colorHex ?? "#CBD5E1" } as React.CSSProperties} onClick={() => chooseSeat(object, seat)}>{seat.position}</button>)}</span>
-            <small className="object-price">{object.priceMode === "WHOLE_TABLE" ? `${money(allocation?.type === "TABLE" && allocation.customPriceMinor ? allocation.customPriceMinor : categories.find((item) => item.id === object.categoryId)?.priceMinor ?? 0)} ${text.whole}` : object.seatItems.some((seat) => seat.categoryId) ? text.perSeat : text.unassigned}</small>
+            <small className="object-price">{object.priceMode === "WHOLE_TABLE" ? `${money(allocation?.type === "TABLE" && allocation.customPriceMinor !== null ? allocation.customPriceMinor : categories.find((item) => item.id === object.categoryId)?.priceMinor ?? 0)} ${text.whole}` : object.seatItems.some((seat) => seat.categoryId) ? text.perSeat : text.unassigned}</small>
             </>}
           </div>;
         })}
