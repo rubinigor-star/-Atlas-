@@ -34,7 +34,7 @@ function decode(value: string): PricingMarketingStrategy | null {
       intensity,
       showCountdown: parsed.showCountdown ?? true,
       showNextPrice: parsed.showNextPrice ?? intensity !== "CALM",
-      showStageRemaining: parsed.showStageRemaining ?? intensity === "ACTIVE" || intensity === "MAXIMUM",
+      showStageRemaining: parsed.showStageRemaining ?? (intensity === "ACTIVE" || intensity === "MAXIMUM"),
       showTotalRemaining: parsed.showTotalRemaining ?? false,
       showSoldCount: parsed.showSoldCount ?? false,
     };
