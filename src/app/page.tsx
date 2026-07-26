@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { eventDate, money } from "@/lib/format";
+import { getServerI18n } from "@/lib/server-locale";
 
 export const revalidate = 60;
 
@@ -9,6 +10,7 @@ type TourRow={id:string;slug:string;title:string;description:string;posterurl:st
 type TourEventRow={tourid:string;eventid:string;position:number};
 
 export default async function Home() {
+  const { locale, messages } = await getServerI18n();
   const events = await db.event.findMany({
     where: { status: "PUBLISHED" },
     select: {
@@ -45,17 +47,17 @@ export default async function Home() {
   const totalCards=tourCards.length+standaloneEvents.length;
 
   return <main>
-    <section className="hero shell"><span className="eyebrow">Live experiences in Israel</span><h1>Билеты, ради которых хочется выйти из дома.</h1><p>Концерты, вечеринки и специальные события. Простой выбор, прозрачная цена и билет сразу после оформления.</p></section>
+    <section className="hero shell"><span className="eyebrow">{messages.home.eyebrow}</span><h1>{messages.home.title}</h1><p>{messages.home.subtitle}</p></section>
     <section className="shell">
-      <div className="row between"><h2 className="section-title">Ближайшие события</h2><span className="muted">{totalCards} событий</span></div>
+      <div className="row between"><h2 className="section-title">{messages.home.upcoming}</h2><span className="muted">{totalCards} {messages.home.eventCount}</span></div>
       <div className="event-grid">
         {tourCards.map(({tour,linked,poster,minimumPrice,cities},index)=><Link className="card" href={`/tours/${tour.slug}`} key={tour.id}>
           <Image src={poster} width={900} height={700} alt={tour.title} className="card-img" priority={index===0} sizes="(max-width: 720px) 100vw, (max-width: 1200px) 50vw, 33vw"/>
-          <div className="card-body"><span className="pill">Тур · {linked.length} даты</span><h3>{tour.title}</h3><div className="muted">{cities.join(" · ")}</div><p>{eventDate(linked[0].startsAt)} — {eventDate(linked[linked.length-1].startsAt)}</p><div className="row between"><strong>{minimumPrice===null?"Продажи скоро":`от ${money(minimumPrice)}`}</strong><span className="btn">Выбрать город</span></div></div>
+          <div className="card-body"><span className="pill">{messages.home.tour} · {linked.length} {messages.home.dates}</span><h3>{tour.title}</h3><div className="muted">{cities.join(" · ")}</div><p>{eventDate(linked[0].startsAt,locale)} — {eventDate(linked[linked.length-1].startsAt,locale)}</p><div className="row between"><strong>{minimumPrice===null?messages.home.salesSoon:`${messages.home.from} ${money(minimumPrice,"ILS",locale)}`}</strong><span className="btn">{messages.home.chooseCity}</span></div></div>
         </Link>)}
         {standaloneEvents.map((event,index)=>{const minimumPrice=event.categories.length?Math.min(...event.categories.map(category=>category.priceMinor)):null;return <Link className="card" href={`/events/${event.slug}`} key={event.id}>
           <Image src={event.posterUrl} width={900} height={700} alt={event.title} className="card-img" priority={tourCards.length===0&&index===0} sizes="(max-width: 720px) 100vw, (max-width: 1200px) 50vw, 33vw"/>
-          <div className="card-body"><span className="pill">{event.venue.city}</span><h3>{event.title}</h3><div className="muted">{eventDate(event.startsAt)}</div><p>{event.venue.name}</p><div className="row between"><strong>{minimumPrice===null?"Продажи скоро":`от ${money(minimumPrice)}`}</strong><span className="btn">Выбрать</span></div></div>
+          <div className="card-body"><span className="pill">{event.venue.city}</span><h3>{event.title}</h3><div className="muted">{eventDate(event.startsAt,locale)}</div><p>{event.venue.name}</p><div className="row between"><strong>{minimumPrice===null?messages.home.salesSoon:`${messages.home.from} ${money(minimumPrice,"ILS",locale)}`}</strong><span className="btn">{messages.home.choose}</span></div></div>
         </Link>})}
       </div>
     </section>
