@@ -6,6 +6,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { LocaleProvider } from "@/components/locale-provider";
 import { AppChrome } from "@/components/app-chrome";
 import { PwaRegister } from "@/components/pwa-register";
+import { getServerI18n } from "@/lib/server-locale";
 
 export const metadata: Metadata = {
   title: "Atlas One",
@@ -27,11 +28,12 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { locale, dir } = await getServerI18n();
   return (
-    <html lang="ru" suppressHydrationWarning>
+    <html lang={locale} dir={dir} suppressHydrationWarning>
       <body>
-        <LocaleProvider>
+        <LocaleProvider initialLocale={locale}>
           <PwaRegister />
           <AppChrome>{children}</AppChrome>
         </LocaleProvider>
