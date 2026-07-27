@@ -1,0 +1,27 @@
+import { createOfficeActionToken } from "@/lib/auth";
+
+function baseUrl() { return (process.env.NEXT_PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, ""); }
+function escapeHtml(value: string) { return value.replace(/[&<>'"]/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char] || char); }
+
+async function send(to: string, subject: string, title: string, text: string, href: string, button: string) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL;
+  if (!apiKey || !from) throw new Error("Resend не настроен в Vercel");
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to: [to], subject, html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111827"><div style="background:#081426;color:white;padding:28px"><div style="font-size:13px;letter-spacing:2px;color:#ff5947">ATLAS ONE OFFICE</div><h1>${escapeHtml(title)}</h1></div><div style="padding:28px;border:1px solid #e5e7eb"><p style="line-height:1.6">${escapeHtml(text)}</p><p style="text-align:center;margin:28px 0"><a href="${href}" style="display:inline-block;background:#081426;color:white;text-decoration:none;padding:14px 22px;border-radius:10px">${escapeHtml(button)}</a></p><p style="font-size:12px;color:#6b7280">Ссылка действует один час. Если вы не запрашивали это действие, проигнорируйте письмо.</p></div></div>` }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof payload?.message === "string" ? payload.message : `Resend: ${response.status}`);
+}
+
+export async function sendOrganizerVerification(userId: string, email: string) {
+  const token = createOfficeActionToken("verify", userId, email);
+  await send(email, "Подтвердите email Atlas One", "Подтвердите рабочий email", "После подтверждения вы сможете войти в кабинет организатора и начать создавать мероприятия.", `${baseUrl()}/api/office/auth/verify?token=${encodeURIComponent(token)}`, "Подтвердить email");
+}
+
+export async function sendOrganizerPasswordReset(userId: string, email: string) {
+  const token = createOfficeActionToken("reset", userId, email);
+  await send(email, "Восстановление доступа Atlas One", "Создайте новый пароль", "Мы получили запрос на восстановление доступа к кабинету организатора.", `${baseUrl()}/office/reset-password?token=${encodeURIComponent(token)}`, "Создать новый пароль");
+}
