@@ -5,6 +5,11 @@ const COOKIE = "atlas_customer_session";
 const TTL_SECONDS = 60 * 60 * 24 * 30;
 const MAGIC_LINK_TTL_SECONDS = 60 * 15;
 
+type CustomerSession = {
+  email: string;
+  expiresAt: number;
+};
+
 function secret() {
   return process.env.CUSTOMER_AUTH_SECRET || process.env.CRON_SECRET || "atlas-local-customer-secret-change-me";
 }
@@ -18,7 +23,7 @@ function encode(email: string, expiresAt: number) {
   return `${payload}.${sign(payload)}`;
 }
 
-function decode(token: string) {
+function decode(token: string): CustomerSession | null {
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
   const expected = sign(payload);
@@ -26,9 +31,10 @@ function decode(token: string) {
   const right = Buffer.from(expected);
   if (left.length !== right.length || !timingSafeEqual(left, right)) return null;
   try {
-    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { email?: string; expiresAt?: number };
-    if (!parsed.email || !parsed.expiresAt || parsed.expiresAt < Math.floor(Date.now() / 1000)) return null;
-    return parsed;
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { email?: unknown; expiresAt?: unknown };
+    if (typeof parsed.email !== "string" || typeof parsed.expiresAt !== "number") return null;
+    if (!parsed.email.trim() || parsed.expiresAt < Math.floor(Date.now() / 1000)) return null;
+    return { email: parsed.email.toLowerCase(), expiresAt: parsed.expiresAt };
   } catch {
     return null;
   }
