@@ -1,10 +1,8 @@
 import { z } from "zod";
 
-// Atlas uses HYP's hosted payment page. Card details are entered only on HYP
-// and must never be requested, received or stored by Atlas.
-const paymentSchema = z.object({
-  method: z.literal("CARD"),
-});
+const paymentSchema = z.object({ method: z.literal("CARD") });
+
+const optionalText = (max: number) => z.string().trim().max(max).optional().default("");
 
 export const checkoutSchema = z.object({
   eventId: z.string().min(1),
@@ -13,14 +11,14 @@ export const checkoutSchema = z.object({
   tableId: z.string().nullable().optional(),
   seatIds: z.array(z.string().min(1)).max(10).optional(),
   customer: z.object({
-    firstName: z.string().trim().min(2).max(80),
-    lastName: z.string().trim().min(2).max(80),
-    email: z.string().trim().email(),
-    phone: z.string().trim().min(7).max(30),
-    birthDate: z.string().date(),
-    city: z.string().trim().min(2).max(120),
-    facebook: z.string().trim().min(2).max(250),
-    instagram: z.string().trim().min(2).max(250),
+    firstName: optionalText(80),
+    lastName: optionalText(80),
+    email: optionalText(160),
+    phone: optionalText(30),
+    birthDate: optionalText(20),
+    city: optionalText(120),
+    facebook: optionalText(250),
+    instagram: optionalText(250),
   }),
   payment: paymentSchema,
   locale: z.enum(["ru", "he", "en"]).default("ru"),
