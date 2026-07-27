@@ -10,18 +10,12 @@ import {
 
 const PLATFORM_OWNER_EMAIL = "rubin.igor@gmail.com";
 const PLATFORM_OWNER_BOOTSTRAP_HASH =
-  "scrypt:f346832ec1d4175a7dac1793807dec75:3083bcaaa84db0a4b7f7d3f37062338e00b1b480095c9df4e1089504c18a379521bc5cdb65397b8d88daeb5b4f774dc24a74cbfda6e19232f9a0e3c820beadf4";
+  "scrypt:fd023b8f75cb82ca56a70d7620d15a10:ccf89e606b7c6ed89027e2424a918891e2794fcd2ca396e67b85fca50698427598098af7f669cda460570acaf3120ed647ccefa147510c86be174819ed61f2b2";
 
 async function bootstrapPlatformOwner(email: string, password: string) {
   if (email !== PLATFORM_OWNER_EMAIL || !verifyOfficePassword(password, PLATFORM_OWNER_BOOTSTRAP_HASH)) return;
 
   await ensureOfficeAuthTable();
-  const existingCredential = await db.$queryRawUnsafe<Array<{ userId: string }>>(
-    `SELECT c."userId" FROM "OfficeCredential" c JOIN "User" u ON u."id" = c."userId" WHERE u."email" = $1 LIMIT 1`,
-    email,
-  );
-  if (existingCredential.length > 0) return;
-
   const organization = await db.organization.findFirst({ orderBy: { createdAt: "asc" } });
   const user = await db.user.upsert({
     where: { email },
@@ -43,6 +37,7 @@ async function bootstrapPlatformOwner(email: string, password: string) {
       organizationId: organization?.id ?? null,
     },
   });
+
   await createOfficeCredential(user.id, password, true);
 }
 
