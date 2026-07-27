@@ -7,13 +7,15 @@ import { eventDate, money } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-const copy = {
+type AccountCopy = { eyebrow:string; title:string; signed:string; logout:string; upcoming:string; history:string; empty:string; emptyHelp:string; order:string; tickets:string; total:string; open:string; pending:string; awaiting:string; paid:string; rejected:string; cancelled:string; eventPassed:string };
+
+const copy: Record<"ru" | "he" | "en", AccountCopy> = {
   ru: { eyebrow:"Личный кабинет", title:"Мои заказы и билеты", signed:"Вы вошли как", logout:"Выйти", upcoming:"Предстоящие", history:"История", empty:"Заказов пока нет", emptyHelp:"Покупки, оформленные на этот email, появятся здесь автоматически.", order:"Заказ", tickets:"Билетов", total:"Сумма", open:"Открыть заказ", pending:"Ожидает решения", awaiting:"Ожидает оплаты", paid:"Оплачен", rejected:"Не подтверждён", cancelled:"Отменён", eventPassed:"Мероприятие завершено" },
   he: { eyebrow:"האזור האישי", title:"ההזמנות והכרטיסים שלי", signed:"מחוברים באמצעות", logout:"יציאה", upcoming:"אירועים קרובים", history:"היסטוריה", empty:"עדיין אין הזמנות", emptyHelp:"רכישות שבוצעו עם כתובת האימייל הזו יופיעו כאן אוטומטית.", order:"הזמנה", tickets:"כרטיסים", total:"סכום", open:"פתיחת ההזמנה", pending:"ממתינה לבדיקה", awaiting:"ממתינה לתשלום", paid:"שולמה", rejected:"לא אושרה", cancelled:"בוטלה", eventPassed:"האירוע הסתיים" },
   en: { eyebrow:"Customer account", title:"My orders and tickets", signed:"Signed in as", logout:"Sign out", upcoming:"Upcoming", history:"History", empty:"No orders yet", emptyHelp:"Purchases made with this email will appear here automatically.", order:"Order", tickets:"Tickets", total:"Total", open:"Open order", pending:"Awaiting review", awaiting:"Awaiting payment", paid:"Paid", rejected:"Not approved", cancelled:"Cancelled", eventPassed:"Event ended" },
-} as const;
+};
 
-function statusLabel(status: string, text: typeof copy.ru) {
+function statusLabel(status: string, text: AccountCopy) {
   if (status === "PENDING" || status === "PENDING_APPROVAL") return text.pending;
   if (status === "AWAITING_PAYMENT") return text.awaiting;
   if (status === "PAID") return text.paid;
