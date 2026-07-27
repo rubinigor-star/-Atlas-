@@ -11,7 +11,7 @@ export const localeNames: Record<Locale, string> = {
 const dictionary = {
   ru: {
     common: {
-      language: "Язык", events: "События", organizers: "Организаторам", backoffice: "Кабинет организатора", overview: "Обзор", requests: "Заявки", createEvent: "Создать мероприятие", orders: "Заказы", scanner: "Сканер", testOnly: "MVP · только тестовые платежи", continue: "Продолжить", total: "Итого", quantity: "Количество", close: "Закрыть", save: "Сохранить", edit: "Изменить", cancel: "Отмена", loading: "Загрузка…", soldOut: "Продано", available: "Доступно",
+      language: "Язык", events: "События", organizers: "Организаторам", account: "Мои билеты", backoffice: "Кабинет организатора", overview: "Обзор", requests: "Заявки", createEvent: "Создать мероприятие", orders: "Заказы", scanner: "Сканер", testOnly: "MVP · только тестовые платежи", continue: "Продолжить", total: "Итого", quantity: "Количество", close: "Закрыть", save: "Сохранить", edit: "Изменить", cancel: "Отмена", loading: "Загрузка…", soldOut: "Продано", available: "Доступно",
     },
     nav: { events: "Мероприятия", guestLists: "Гостевые списки", guests: "Гости", promoters: "Промоутеры", team: "Команда", audit: "Журнал" },
     home: { eyebrow: "Live experiences in Israel", title: "Билеты, ради которых хочется выйти из дома.", subtitle: "Концерты, вечеринки и специальные события. Простой выбор, прозрачная цена и билет сразу после оформления.", upcoming: "Ближайшие события", eventCount: "мероприятий", tour: "Тур", dates: "дат", salesSoon: "Продажи скоро", from: "от", chooseCity: "Выбрать город", choose: "Выбрать" },
@@ -21,7 +21,7 @@ const dictionary = {
   },
   he: {
     common: {
-      language: "שפה", events: "אירועים", organizers: "למפיקים", backoffice: "אזור המפיקים", overview: "סקירה", requests: "בקשות", createEvent: "יצירת אירוע", orders: "הזמנות", scanner: "סריקת כרטיסים", testOnly: "גרסת הדגמה · ללא חיוב אמיתי", continue: "המשך", total: "סה״כ", quantity: "כמות", close: "סגירה", save: "שמירה", edit: "עריכה", cancel: "ביטול", loading: "טוען…", soldOut: "אזל", available: "זמין",
+      language: "שפה", events: "אירועים", organizers: "למפיקים", account: "הכרטיסים שלי", backoffice: "אזור המפיקים", overview: "סקירה", requests: "בקשות", createEvent: "יצירת אירוע", orders: "הזמנות", scanner: "סריקת כרטיסים", testOnly: "גרסת הדגמה · ללא חיוב אמיתי", continue: "המשך", total: "סה״כ", quantity: "כמות", close: "סגירה", save: "שמירה", edit: "עריכה", cancel: "ביטול", loading: "טוען…", soldOut: "אזל", available: "זמין",
     },
     nav: { events: "אירועים", guestLists: "רשימות אורחים", guests: "אורחים", promoters: "יחצנים", team: "צוות", audit: "יומן פעילות" },
     home: { eyebrow: "חוויות חיות בישראל", title: "כרטיסים ששווה לצאת בשבילם מהבית.", subtitle: "הופעות, מסיבות ואירועים מיוחדים — בחירה פשוטה, מחיר ברור וכרטיס שמגיע מיד לאחר ההזמנה.", upcoming: "אירועים קרובים", eventCount: "אירועים", tour: "סיבוב הופעות", dates: "תאריכים", salesSoon: "המכירה תיפתח בקרוב", from: "החל מ־", chooseCity: "בחרו עיר", choose: "בחרו" },
@@ -31,7 +31,7 @@ const dictionary = {
   },
   en: {
     common: {
-      language: "Language", events: "Events", organizers: "For organizers", backoffice: "Organizer dashboard", overview: "Overview", requests: "Requests", createEvent: "Create event", orders: "Orders", scanner: "Ticket scanner", testOnly: "Demo mode · no real charges", continue: "Continue", total: "Total", quantity: "Quantity", close: "Close", save: "Save", edit: "Edit", cancel: "Cancel", loading: "Loading…", soldOut: "Sold out", available: "Available",
+      language: "Language", events: "Events", organizers: "For organizers", account: "My tickets", backoffice: "Organizer dashboard", overview: "Overview", requests: "Requests", createEvent: "Create event", orders: "Orders", scanner: "Ticket scanner", testOnly: "Demo mode · no real charges", continue: "Continue", total: "Total", quantity: "Quantity", close: "Close", save: "Save", edit: "Edit", cancel: "Cancel", loading: "Loading…", soldOut: "Sold out", available: "Available",
     },
     nav: { events: "Events", guestLists: "Guest lists", guests: "Guests", promoters: "Promoters", team: "Team", audit: "Activity log" },
     home: { eyebrow: "Live experiences in Israel", title: "Tickets worth leaving home for.", subtitle: "Concerts, parties and special events — simple choices, clear pricing and instant ticket delivery.", upcoming: "Upcoming events", eventCount: "events", tour: "Tour", dates: "dates", salesSoon: "Sales open soon", from: "from", chooseCity: "Choose a city", choose: "Select" },
