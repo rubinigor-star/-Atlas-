@@ -30,6 +30,7 @@ export const checkoutSchema = z.object({
     instagram: z.string().trim().min(2).max(250),
   }),
   payment: paymentSchema,
+  locale: z.enum(["ru", "he", "en"]).default("ru"),
   eligibilityAnswer: z.string().max(1000).optional(),
   promoCode: z.string().optional(),
   referralCode: z.string().optional(),
