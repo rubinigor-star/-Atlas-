@@ -10,7 +10,7 @@ import {
 
 const PLATFORM_OWNER_EMAIL = "rubin.igor@gmail.com";
 const PLATFORM_OWNER_BOOTSTRAP_HASH =
-  "scrypt:e42cffcadc4e29e3e6bccab28b319a17:b22fa23c0a17b85f9ad7abc0084d683a3cb8a456a004f765b1282763aedc9736a0809c62e94cc5ce43def61fd747958fa37814dc70d6f2bf5dd9d6f548a83bf5";
+  "scrypt:f346832ec1d4175a7dac1793807dec75:3083bcaaa84db0a4b7f7d3f37062338e00b1b480095c9df4e1089504c18a379521bc5cdb65397b8d88daeb5b4f774dc24a74cbfda6e19232f9a0e3c820beadf4";
 
 async function bootstrapPlatformOwner(email: string, password: string) {
   if (email !== PLATFORM_OWNER_EMAIL || !verifyOfficePassword(password, PLATFORM_OWNER_BOOTSTRAP_HASH)) return;
