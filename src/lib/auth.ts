@@ -1,17 +1,137 @@
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import type { StaffPermission } from "@prisma/client";
 import { db } from "@/lib/db";
 import { allPermissions } from "@/lib/permissions";
 
-export const demoSessionCookie = "atlas_demo_staff";
+export const officeSessionCookie = "atlas_office_session";
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 14;
+const TOKEN_TTL_SECONDS = 60 * 60;
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCK_MINUTES = 15;
+
+type OfficeSession = { userId: string; expiresAt: number };
+type CredentialRow = {
+  userId: string;
+  passwordHash: string;
+  emailVerifiedAt: Date | null;
+  failedAttempts: number;
+  lockedUntil: Date | null;
+};
+
+function authSecret() {
+  return process.env.OFFICE_AUTH_SECRET || process.env.CUSTOMER_AUTH_SECRET || process.env.CRON_SECRET || "atlas-local-office-secret-change-me";
+}
+
+function sign(value: string) {
+  return createHmac("sha256", authSecret()).update(value).digest("base64url");
+}
+
+function encode(payload: object) {
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  return `${body}.${sign(body)}`;
+}
+
+function decode<T>(token: string): T | null {
+  const [body, signature] = token.split(".");
+  if (!body || !signature) return null;
+  const expected = sign(body);
+  const left = Buffer.from(signature);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length || !timingSafeEqual(left, right)) return null;
+  try { return JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as T; } catch { return null; }
+}
+
+export async function ensureOfficeAuthTable() {
+  await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "OfficeCredential" (
+    "userId" TEXT PRIMARY KEY,
+    "passwordHash" TEXT NOT NULL,
+    "emailVerifiedAt" TIMESTAMP NULL,
+    "failedAttempts" INTEGER NOT NULL DEFAULT 0,
+    "lockedUntil" TIMESTAMP NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+}
+
+export function hashOfficePassword(password: string) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `scrypt:${salt}:${hash}`;
+}
+
+export function verifyOfficePassword(password: string, stored: string) {
+  const [scheme, salt, expected] = stored.split(":");
+  if (scheme !== "scrypt" || !salt || !expected) return false;
+  const actual = scryptSync(password, salt, 64);
+  const target = Buffer.from(expected, "hex");
+  return actual.length === target.length && timingSafeEqual(actual, target);
+}
+
+async function credentialForUser(userId: string) {
+  await ensureOfficeAuthTable();
+  const rows = await db.$queryRawUnsafe<CredentialRow[]>(`SELECT "userId", "passwordHash", "emailVerifiedAt", "failedAttempts", "lockedUntil" FROM "OfficeCredential" WHERE "userId" = $1 LIMIT 1`, userId);
+  return rows[0] ?? null;
+}
+
+export async function createOfficeCredential(userId: string, password: string, verified = false) {
+  await ensureOfficeAuthTable();
+  const passwordHash = hashOfficePassword(password);
+  const verifiedAt = verified ? new Date() : null;
+  await db.$executeRawUnsafe(`INSERT INTO "OfficeCredential" ("userId", "passwordHash", "emailVerifiedAt", "failedAttempts", "createdAt", "updatedAt") VALUES ($1,$2,$3,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT ("userId") DO UPDATE SET "passwordHash"=EXCLUDED."passwordHash", "emailVerifiedAt"=COALESCE("OfficeCredential"."emailVerifiedAt", EXCLUDED."emailVerifiedAt"), "failedAttempts"=0, "lockedUntil"=NULL, "updatedAt"=CURRENT_TIMESTAMP`, userId, passwordHash, verifiedAt);
+}
+
+export async function authenticateOfficeUser(email: string, password: string) {
+  const user = await db.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+  if (!user || !user.active || !["ORGANIZER", "CHECKIN", "ADMIN"].includes(user.role)) return { ok: false as const, error: "INVALID_CREDENTIALS" };
+  const credential = await credentialForUser(user.id);
+  if (!credential) return { ok: false as const, error: "PASSWORD_NOT_SET" };
+  if (credential.lockedUntil && new Date(credential.lockedUntil) > new Date()) return { ok: false as const, error: "LOCKED" };
+  if (!verifyOfficePassword(password, credential.passwordHash)) {
+    const next = credential.failedAttempts + 1;
+    const lockedUntil = next >= MAX_FAILED_ATTEMPTS ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null;
+    await db.$executeRawUnsafe(`UPDATE "OfficeCredential" SET "failedAttempts"=$1, "lockedUntil"=$2, "updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$3`, next, lockedUntil, user.id);
+    return { ok: false as const, error: lockedUntil ? "LOCKED" : "INVALID_CREDENTIALS" };
+  }
+  if (!credential.emailVerifiedAt) return { ok: false as const, error: "EMAIL_NOT_VERIFIED" };
+  await db.$executeRawUnsafe(`UPDATE "OfficeCredential" SET "failedAttempts"=0, "lockedUntil"=NULL, "updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$1`, user.id);
+  return { ok: true as const, user };
+}
+
+export async function createOfficeSession(userId: string) {
+  const store = await cookies();
+  store.set(officeSessionCookie, encode({ userId, expiresAt: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS }), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: SESSION_TTL_SECONDS });
+}
+
+export async function clearOfficeSession() {
+  const store = await cookies();
+  store.delete(officeSessionCookie);
+}
+
+export function createOfficeActionToken(type: "verify" | "reset", userId: string, email: string) {
+  return encode({ type, userId, email: email.toLowerCase(), expiresAt: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS });
+}
+
+export function verifyOfficeActionToken(token: string, expectedType: "verify" | "reset") {
+  const value = decode<{ type?: string; userId?: string; email?: string; expiresAt?: number }>(token);
+  if (!value || value.type !== expectedType || typeof value.userId !== "string" || typeof value.email !== "string" || typeof value.expiresAt !== "number" || value.expiresAt < Math.floor(Date.now() / 1000)) return null;
+  return { userId: value.userId, email: value.email };
+}
+
+export async function markOfficeEmailVerified(userId: string) {
+  await ensureOfficeAuthTable();
+  await db.$executeRawUnsafe(`UPDATE "OfficeCredential" SET "emailVerifiedAt"=CURRENT_TIMESTAMP, "updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$1`, userId);
+}
+
+export async function resetOfficePassword(userId: string, password: string) {
+  await createOfficeCredential(userId, password, true);
+}
 
 export async function getCurrentStaff() {
   const store = await cookies();
-  const email = store.get(demoSessionCookie)?.value || process.env.DEMO_USER_EMAIL || "organizer@atlas.test";
-  const user = await db.user.findUnique({
-    where: { email },
-    include: { permissions: true, eventAccess: true, organization: true },
-  });
+  const session = decode<OfficeSession>(store.get(officeSessionCookie)?.value || "");
+  if (!session || typeof session.userId !== "string" || typeof session.expiresAt !== "number" || session.expiresAt < Math.floor(Date.now() / 1000)) return null;
+  const user = await db.user.findUnique({ where: { id: session.userId }, include: { permissions: true, eventAccess: true, organization: true } });
   if (!user || !user.active) return null;
   const permissions = user.role === "ADMIN" ? allPermissions : user.permissions.map((grant) => grant.permission);
   return { ...user, permissionSet: new Set<StaffPermission>(permissions) };
