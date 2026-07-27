@@ -6,7 +6,9 @@ import { guestFieldKeys, parseGuestFields } from "@/lib/event-guest-fields";
 import { assertInventoryAvailable, createReservation, type ReservationItemInput } from "@/lib/reservation";
 import { createHypPaymentLink } from "@/lib/hyp-yaadpay";
 
+const CANONICAL_APP_URL=(process.env.NEXT_PUBLIC_APP_URL||"https://www.atlas-one.co").replace(/\/$/,"");
 function normalizePhone(value:string){const digits=value.replace(/\D/g,"");if(!digits)return "";if(digits.startsWith("972"))return `+${digits}`;if(digits.startsWith("0"))return `+972${digits.slice(1)}`;return `+972${digits}`;}
+function launchUrl(paymentUrl:string){return `${CANONICAL_APP_URL}/payments/hyp/launch?target=${encodeURIComponent(paymentUrl)}`;}
 
 export async function POST(req:Request){
   try{
@@ -14,9 +16,8 @@ export async function POST(req:Request){
     const existing=await db.order.findUnique({where:{idempotencyKey:input.idempotencyKey},include:{event:true}});
     if(existing){
       if(existing.status==="PENDING"){
-        const base=(process.env.NEXT_PUBLIC_APP_URL||new URL(req.url).origin).replace(/\/$/,"");
-        const paymentUrl=await createHypPaymentLink({amountIls:existing.totalMinor/100,orderId:existing.publicId,description:existing.event.title,customerName:existing.customerName,customerEmail:existing.customerEmail,customerPhone:existing.customerPhone,returnUrl:`${base}/api/payments/hyp/order`,language:input.locale==="he"?"HEB":"ENG"});
-        return NextResponse.json({orderId:existing.publicId,status:existing.status,paymentUrl});
+        const paymentUrl=await createHypPaymentLink({amountIls:existing.totalMinor/100,orderId:existing.publicId,description:existing.event.title,customerName:existing.customerName,customerEmail:existing.customerEmail,customerPhone:existing.customerPhone,returnUrl:`${CANONICAL_APP_URL}/api/payments/hyp/order`,language:input.locale==="he"?"HEB":"ENG"});
+        return NextResponse.json({orderId:existing.publicId,status:existing.status,paymentUrl:launchUrl(paymentUrl)});
       }
       return NextResponse.json({orderId:existing.publicId,status:existing.status});
     }
@@ -41,9 +42,8 @@ export async function POST(req:Request){
       return {order:created,eventTitle:event.title,salesMode:event.salesMode};
     });
     if(result.salesMode==="INSTANT"){
-      const base=(process.env.NEXT_PUBLIC_APP_URL||new URL(req.url).origin).replace(/\/$/,"");
-      const paymentUrl=await createHypPaymentLink({amountIls:result.order.totalMinor/100,orderId:result.order.publicId,description:result.eventTitle,customerName:result.order.customerName,customerEmail:result.order.customerEmail,customerPhone:result.order.customerPhone,returnUrl:`${base}/api/payments/hyp/order`,language:input.locale==="he"?"HEB":"ENG"});
-      return NextResponse.json({orderId:result.order.publicId,status:result.order.status,paymentUrl},{status:201});
+      const paymentUrl=await createHypPaymentLink({amountIls:result.order.totalMinor/100,orderId:result.order.publicId,description:result.eventTitle,customerName:result.order.customerName,customerEmail:result.order.customerEmail,customerPhone:result.order.customerPhone,returnUrl:`${CANONICAL_APP_URL}/api/payments/hyp/order`,language:input.locale==="he"?"HEB":"ENG"});
+      return NextResponse.json({orderId:result.order.publicId,status:result.order.status,paymentUrl:launchUrl(paymentUrl)},{status:201});
     }
     return NextResponse.json({orderId:result.order.publicId,status:result.order.status},{status:201});
   }catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Некорректный запрос"},{status:400});}
