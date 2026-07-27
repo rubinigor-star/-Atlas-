@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { eventDate, money } from "@/lib/format";
 import { getServerI18n } from "@/lib/server-locale";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 type TourRow={id:string;slug:string;title:string;description:string;posterurl:string|null};
 type TourEventRow={tourid:string;eventid:string;position:number};
