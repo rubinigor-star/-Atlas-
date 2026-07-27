@@ -20,11 +20,36 @@ function xmlValue(xml: string, tag: string) {
   return xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"))?.[1]?.trim() || "";
 }
 
+function parseSigningResponse(body: string) {
+  const trimmed = body.trim();
+  if (!trimmed) throw new Error("HYP вернул пустой ответ при создании платёжной ссылки");
+  if (/^\s*</.test(trimmed)) throw new Error("HYP вернул HTML/XML вместо подписанной платёжной ссылки. Проверьте HYP_MASOF и HYP_API_KEY в Vercel.");
+
+  try {
+    const json = JSON.parse(trimmed) as Record<string, unknown>;
+    const candidate = [json.paymentUrl, json.url, json.link, json.query].find(value => typeof value === "string") as string | undefined;
+    if (candidate) return parseSigningResponse(candidate);
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(json)) if (typeof value === "string" || typeof value === "number") params.set(key, String(value));
+    if ([...params.keys()].length) return params;
+  } catch { /* not JSON */ }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    const parsed = new URL(trimmed);
+    return new URLSearchParams(parsed.searchParams);
+  }
+
+  const query = trimmed.replace(/^\?/, "").replace(/^.*?\?/, "");
+  return new URLSearchParams(query);
+}
+
+function signatureFrom(params: URLSearchParams) {
+  return params.get("signature") || params.get("Signature") || params.get("SIGNATURE") || params.get("sign") || params.get("Sign") || "";
+}
+
 async function signParameters(parameters: URLSearchParams) {
   const request = new URLSearchParams(parameters);
-  request.delete("signature");
-  request.delete("Signature");
-  request.delete("KEY");
+  for (const key of ["signature", "Signature", "SIGNATURE", "sign", "Sign", "KEY"]) request.delete(key);
   request.set("action", "APISign");
   request.set("What", "SIGN");
   request.set("KEY", required("HYP_API_KEY"));
@@ -33,9 +58,9 @@ async function signParameters(parameters: URLSearchParams) {
     method: "GET", cache: "no-store", redirect: "follow", signal: AbortSignal.timeout(15000),
   });
   const body = (await response.text()).trim();
-  if (!response.ok) throw new Error(`Hyp signing service returned HTTP ${response.status}`);
-  if (!body || /error|שגיאה/i.test(body)) throw new Error(`Hyp signing failed: ${body.slice(0, 180) || "empty response"}`);
-  return new URLSearchParams(body.replace(/^\?/, ""));
+  if (!response.ok) throw new Error(`HYP signing service returned HTTP ${response.status}`);
+  if (/error|שגיאה/i.test(body)) throw new Error("HYP отклонил создание платёжной ссылки. Проверьте номер Masof, API key и разрешение APISign в кабинете HYP.");
+  return parseSigningResponse(body);
 }
 
 export type HypPaymentLinkInput = {
@@ -58,17 +83,17 @@ export async function createHypPaymentLink(input: HypPaymentLinkInput) {
     SuccessUrl: input.returnUrl, ErrorUrl: input.returnUrl, ReturnUrl: input.returnUrl,
   });
   const signed = await signParameters(paymentParams);
-  const signature = signed.get("signature") || signed.get("Signature");
-  if (!signature) throw new Error("Hyp signing response did not contain a signature");
+  const signature = signatureFrom(signed);
+  if (!signature) throw new Error("HYP не создал подпись платёжной ссылки. Проверьте в Vercel, что HYP_MASOF и HYP_API_KEY принадлежат одному терминалу и для него включён APISign.");
   signed.delete("KEY"); signed.set("action", "pay");
   return `${HYP_SIGN_URL}?${signed.toString()}`;
 }
 
 export async function verifyHypCallback(url: URL) {
-  const received = url.searchParams.get("signature") || url.searchParams.get("Signature") || "";
+  const received = signatureFrom(url.searchParams);
   if (!received) return false;
   const expectedParams = await signParameters(url.searchParams);
-  const expected = expectedParams.get("signature") || expectedParams.get("Signature") || "";
+  const expected = signatureFrom(expectedParams);
   if (!expected) return false;
   const left = Buffer.from(received); const right = Buffer.from(expected);
   return left.length === right.length && timingSafeEqual(left, right);
