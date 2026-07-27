@@ -1,17 +1,10 @@
 import { z } from "zod";
 
-const paymentSchema = z.discriminatedUnion("method", [
-  z.object({
-    method: z.literal("CARD"),
-    cardNumber: z.string().trim().min(12).max(23),
-    cardholderName: z.string().trim().min(2).max(120),
-    expiry: z.string().regex(/^\d{2}\/\d{2}$/),
-    cvc: z.string().regex(/^\d{3,4}$/),
-  }),
-  z.object({ method: z.literal("APPLE_PAY") }),
-  z.object({ method: z.literal("GOOGLE_PAY") }),
-  z.object({ method: z.literal("PAYPAL") }),
-]);
+// Atlas uses HYP's hosted payment page. Card details are entered only on HYP
+// and must never be requested, received or stored by Atlas.
+const paymentSchema = z.object({
+  method: z.literal("CARD"),
+});
 
 export const checkoutSchema = z.object({
   eventId: z.string().min(1),
