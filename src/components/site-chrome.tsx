@@ -15,6 +15,7 @@ export function SiteHeader() {
         <nav className="navlinks">
           <Link href="/">{messages.common.events}</Link>
           <Link href="/office">{messages.common.organizers}</Link>
+          <Link href="/account">{messages.common.account}</Link>
           <label className="language-switch" style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
             <Languages size={16} aria-hidden="true" />
             <span className="sr-only">{messages.common.language}</span>
