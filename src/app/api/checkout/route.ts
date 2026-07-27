@@ -6,7 +6,7 @@ import { guestFieldKeys, parseGuestFields } from "@/lib/event-guest-fields";
 import { assertInventoryAvailable, createReservation, type ReservationItemInput } from "@/lib/reservation";
 import { createHypPaymentLink } from "@/lib/hyp-yaadpay";
 
-const CANONICAL_APP_URL=(process.env.NEXT_PUBLIC_APP_URL||"https://www.atlas-one.co").replace(/\/$/,"");
+const CANONICAL_APP_URL="https://www.atlas-one.co";
 function normalizePhone(value:string){const digits=value.replace(/\D/g,"");if(!digits)return "";if(digits.startsWith("972"))return `+${digits}`;if(digits.startsWith("0"))return `+972${digits.slice(1)}`;return `+972${digits}`;}
 function launchUrl(paymentUrl:string){return `${CANONICAL_APP_URL}/payments/hyp/launch?target=${encodeURIComponent(paymentUrl)}`;}
 
