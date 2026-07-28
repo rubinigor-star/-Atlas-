@@ -33,7 +33,8 @@
 }
 
 .footer .atlas-logo-image {
-  width: 126px;
+  width: 170px;
+  filter: brightness(0) invert(1);
 }
 
 .atlas-logo-office .atlas-logo-image {
@@ -56,12 +57,253 @@
   width: 122px;
 }
 
+.atlas-footer {
+  margin-top: 0;
+  padding: 0;
+  border-top: 0;
+  background: linear-gradient(110deg, #07000d 0%, #0b0115 56%, #1c0028 100%);
+  color: #fff;
+}
+
+.atlas-footer-shell {
+  display: grid;
+  min-height: 470px;
+  padding-top: 48px;
+  padding-bottom: 0;
+}
+
+.atlas-footer-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(180px, .7fr) minmax(180px, .7fr);
+  gap: 72px;
+  align-items: start;
+  min-height: 360px;
+}
+
+.atlas-footer-brand {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 38px;
+}
+
+.store-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.store-badge {
+  display: inline-grid;
+  grid-template-columns: 30px auto;
+  align-items: center;
+  gap: 8px;
+  width: 160px;
+  min-height: 52px;
+  padding: 7px 12px;
+  border: 1px solid #4a4050;
+  border-radius: 10px;
+  background: #020204;
+  color: #fff;
+  direction: ltr;
+  user-select: none;
+}
+
+.store-badge-icon {
+  display: grid;
+  place-items: center;
+}
+
+.store-badge-icon svg {
+  display: block;
+  width: 27px;
+  height: 29px;
+}
+
+.store-badge-copy {
+  display: grid;
+  justify-items: start;
+  line-height: 1;
+}
+
+.store-badge-copy small {
+  margin: 0 0 3px;
+  color: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.store-badge-copy strong {
+  color: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -.5px;
+  white-space: nowrap;
+}
+
+.atlas-footer-column {
+  display: grid;
+  align-content: start;
+  gap: 15px;
+}
+
+.atlas-footer-column h2 {
+  margin: 0 0 4px;
+  color: #fff;
+  font-family: var(--atlas-body-font);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0 !important;
+  text-transform: none;
+}
+
+.atlas-footer-column a {
+  width: max-content;
+  max-width: 100%;
+  color: #a99fac;
+  font-size: 16px;
+  line-height: 1.35;
+  transition: color 160ms ease;
+}
+
+.atlas-footer-column a:hover,
+.footer-legal a:hover {
+  color: #fff;
+}
+
+.atlas-footer-bottom {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 30px;
+  align-items: center;
+  min-height: 70px;
+  border-top: 1px solid rgba(255,255,255,.18);
+}
+
+.footer-socials {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer-social-link {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: #fff;
+}
+
+.footer-social-link svg {
+  display: block;
+  width: 21px;
+  height: 21px;
+}
+
+.footer-legal {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 24px;
+  color: #b1a8b5;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.footer-legal a {
+  color: #b1a8b5;
+  transition: color 160ms ease;
+}
+
+[dir="rtl"] .atlas-footer-main,
+[dir="rtl"] .atlas-footer-bottom {
+  direction: rtl;
+}
+
+[dir="rtl"] .atlas-footer-brand,
+[dir="rtl"] .store-badges,
+[dir="rtl"] .footer-socials,
+[dir="rtl"] .footer-legal {
+  direction: ltr;
+}
+
+@media (max-width: 900px) {
+  .atlas-footer-shell {
+    min-height: 0;
+    padding-top: 42px;
+  }
+
+  .atlas-footer-main {
+    grid-template-columns: 1fr 1fr;
+    gap: 42px 28px;
+    min-height: 0;
+    padding-bottom: 42px;
+  }
+
+  .atlas-footer-brand {
+    grid-column: 1 / -1;
+    gap: 26px;
+  }
+
+  .atlas-footer-bottom {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 22px 0;
+  }
+
+  .footer-legal {
+    justify-content: flex-start;
+    gap: 12px 20px;
+  }
+}
+
 @media (max-width: 700px) {
   .topbar .atlas-logo-image {
     width: 124px;
   }
 
   .footer .atlas-logo-image {
-    width: 112px;
+    width: 150px;
+  }
+
+  .atlas-footer-main {
+    gap: 34px 20px;
+  }
+
+  .store-badges {
+    gap: 10px;
+  }
+
+  .store-badge {
+    width: min(160px, calc(50vw - 28px));
+    grid-template-columns: 25px auto;
+    min-height: 48px;
+    padding: 6px 9px;
+  }
+
+  .store-badge-icon svg {
+    width: 24px;
+    height: 26px;
+  }
+
+  .store-badge-copy strong {
+    font-size: 16px;
+  }
+
+  .atlas-footer-column h2 {
+    font-size: 17px;
+  }
+
+  .atlas-footer-column a {
+    font-size: 14px;
+  }
+
+  .footer-legal {
+    font-size: 13px;
   }
 }
