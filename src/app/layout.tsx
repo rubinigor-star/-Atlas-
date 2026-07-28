@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./event-experience.css";
 import "./logo.css";
 import "./tour.css";
 import { SpeedInsights } from "@vercel/speed-insights/next";
