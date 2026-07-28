@@ -1,10 +1,12 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import type { CSSProperties } from "react";
 import { CalendarDays, ExternalLink, MapPin, ShieldCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { eventDate } from "@/lib/format";
 import { effectiveTicketPrice, ticketPricePresentation } from "@/lib/ticketing";
 import { EventPurchase } from "@/components/event-purchase";
+import { EventShareActions } from "@/components/event-share-actions";
 import { parseEventMedia, stripEventMedia, videoEmbedUrl } from "@/lib/event-media";
 import { stripEventRejectionMessage } from "@/lib/event-approval-message";
 import { parsePricingMarketingStrategy, stripPricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
@@ -66,16 +68,24 @@ export default async function EventPage({ params, searchParams }: { params: Prom
   const links = media.filter((item) => item.type === "LINK");
   const publicDescription = stripEventRejectionMessage(stripEventMedia(event.description));
   const text = i18n.messages.event;
+  const eventUrl = `https://www.atlas-one.co/events/${event.slug}`;
+  const stageStyle = { "--event-backdrop": `url("${event.posterUrl}")` } as CSSProperties;
 
-  return <main className="shell event-hero">
-    <Image src={event.posterUrl} width={1000} height={1250} alt={event.title} className="poster" priority sizes="(max-width: 900px) 100vw, 45vw" />
-    <section className="event-info"><span className="pill">{event.venue.city}</span><h1>{event.title}</h1>
-      {validPromoterLink && <div className="panel"><strong>{text.personalLink}: {validPromoterLink.label}</strong><p className="muted">{text.personalLinkInfo}</p></div>}
-      <div className="meta"><div className="meta-row"><CalendarDays size={22} /><div><strong>{eventDate(event.startsAt,i18n.locale)}</strong><br /><span className="muted">{text.doors}</span></div></div><div className="meta-row"><MapPin size={22} /><div><strong>{event.venue.name}</strong><br /><span className="muted">{event.venue.address}</span></div></div><div className="meta-row"><ShieldCheck size={22} /><div><strong>{text.safeCheckout}</strong><br /><span className="muted">{text.safeCheckoutInfo}</span></div></div></div>
-      <p className="muted" style={{ lineHeight: 1.65 }}>{publicDescription}</p>
-      {videos.length > 0 && <section style={{ display: "grid", gap: 16, margin: "24px 0" }}><h2 style={{ marginBottom: 0 }}>{text.videos}</h2>{videos.map((item, index) => { const embed = videoEmbedUrl(item.url); return embed ? <div key={`${item.url}-${index}`} style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", overflow: "hidden", borderRadius: 16, background: "#081426" }}><iframe loading="lazy" src={embed} title={item.title || `${text.videos} ${index + 1}`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }} /></div> : <a key={`${item.url}-${index}`} className="btn secondary" href={item.url} target="_blank" rel="noreferrer">{text.openVideo} <ExternalLink size={16} /></a>; })}</section>}
-      {links.length > 0 && <section className="panel" style={{ margin: "20px 0" }}><h2 style={{ marginTop: 0 }}>{text.links}</h2><div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>{links.map((item, index) => <a key={`${item.url}-${index}`} className="btn secondary" href={item.url} target="_blank" rel="noreferrer">{item.title || new URL(item.url).hostname} <ExternalLink size={16} /></a>)}</div></section>}
-      {categories.length ? <EventPurchase eventId={event.id} categories={categories} objects={objects} referralCode={validPromoterLink?.code} allocation={validPromoterLink ? { type: validPromoterLink.allocationType, categoryId: validPromoterLink.categoryId, tableId: validPromoterLink.tableId, customPriceMinor: validPromoterLink.customPriceMinor } : undefined} /> : <div className="panel"><strong>{text.salesClosed}</strong><p className="muted">{text.noTariffs}</p></div>}
-    </section>
+  return <main className="event-stage" style={stageStyle}>
+    <div className="shell event-experience">
+      <aside className="event-media-rail">
+        <Image src={event.posterUrl} width={750} height={750} alt={event.title} className="event-square-poster" priority sizes="(max-width: 800px) 100vw, 390px" />
+        {videos.map((item, index) => { const embed = videoEmbedUrl(item.url); return embed ? <div className="event-media-card" key={`${item.url}-${index}`}><iframe loading="lazy" src={embed} title={item.title || `${text.videos} ${index + 1}`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div> : <a key={`${item.url}-${index}`} className="event-media-card event-media-link" href={item.url} target="_blank" rel="noreferrer"><span>{item.title || text.openVideo}</span><ExternalLink size={17}/></a>; })}
+        {links.map((item, index) => <a key={`${item.url}-${index}`} className="event-media-card event-media-link" href={item.url} target="_blank" rel="noreferrer"><span>{item.title || new URL(item.url).hostname}</span><ExternalLink size={17}/></a>)}
+      </aside>
+
+      <section className="event-content-panel event-info">
+        <div className="event-title-row"><div><span className="pill">{event.venue.city}</span><h1>{event.title}</h1></div><EventShareActions title={event.title} url={eventUrl}/></div>
+        {validPromoterLink && <div className="panel"><strong>{text.personalLink}: {validPromoterLink.label}</strong><p className="muted">{text.personalLinkInfo}</p></div>}
+        <div className="meta"><div className="meta-row"><CalendarDays size={22} /><div><strong>{eventDate(event.startsAt,i18n.locale)}</strong><br /><span className="muted">{text.doors}</span></div></div><div className="meta-row"><MapPin size={22} /><div><strong>{event.venue.name}</strong><br /><span className="muted">{event.venue.address}</span></div></div><div className="meta-row"><ShieldCheck size={22} /><div><strong>{text.safeCheckout}</strong><br /><span className="muted">{text.safeCheckoutInfo}</span></div></div></div>
+        <section><h2>About</h2><p className="muted" style={{ lineHeight: 1.75 }}>{publicDescription}</p></section>
+        {categories.length ? <EventPurchase eventId={event.id} categories={categories} objects={objects} referralCode={validPromoterLink?.code} allocation={validPromoterLink ? { type: validPromoterLink.allocationType, categoryId: validPromoterLink.categoryId, tableId: validPromoterLink.tableId, customPriceMinor: validPromoterLink.customPriceMinor } : undefined} /> : <div className="panel"><strong>{text.salesClosed}</strong><p className="muted">{text.noTariffs}</p></div>}
+      </section>
+    </div>
   </main>;
 }
