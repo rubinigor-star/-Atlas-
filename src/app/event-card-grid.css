@@ -1,0 +1,124 @@
+.event-grid .card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.event-grid .card-body {
+  display: grid;
+  grid-template-rows: 24px 40px 18px 34px 40px;
+  row-gap: 3px;
+  height: 100%;
+  padding-top: 9px;
+  align-content: start;
+}
+
+.event-grid .card-tag {
+  display: inline-flex;
+  align-self: start;
+  justify-self: start;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-grid .card-title {
+  display: -webkit-box;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 17px;
+  line-height: 1.16;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.event-grid .card-cities {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.event-grid .card-date {
+  display: -webkit-box;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 17px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.event-grid .card-actions {
+  align-self: end;
+  min-height: 40px;
+  margin: 0;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.event-grid .card-actions strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-grid .card-actions .btn {
+  min-height: 36px;
+}
+
+@media (max-width: 800px) {
+  .event-grid .card-body {
+    grid-template-rows: 22px 36px 17px 34px 40px;
+    row-gap: 3px;
+    padding-top: 8px;
+  }
+
+  .event-grid .card-title {
+    font-size: 15px;
+    line-height: 1.15;
+  }
+
+  .event-grid .card-cities {
+    font-size: 13px;
+    line-height: 17px;
+  }
+
+  .event-grid .card-date {
+    font-size: 13px;
+    line-height: 16px;
+  }
+}
+
+@media (max-width: 520px) {
+  .event-grid .card-body {
+    grid-template-rows: 22px 36px 17px 34px 58px;
+  }
+
+  .event-grid .card-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 17px 34px;
+    gap: 7px;
+    align-items: stretch;
+    min-height: 58px;
+  }
+
+  .event-grid .card-actions .btn {
+    width: 100%;
+    min-height: 34px;
+    padding: 7px 8px;
+  }
+}
