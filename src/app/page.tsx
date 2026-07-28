@@ -6,6 +6,7 @@ import { getServerI18n } from "@/lib/server-locale";
 
 export const dynamic = "force-dynamic";
 
+// Consolidates the approved homepage card layout in the next production deployment.
 type TourRow={id:string;slug:string;title:string;description:string;posterurl:string|null};
 type TourEventRow={tourid:string;eventid:string;position:number};
 
