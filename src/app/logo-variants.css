@@ -1,0 +1,32 @@
+.atlas-logo-dark .atlas-logo-image {
+  background: transparent;
+  filter: none;
+  object-fit: contain;
+}
+
+.footer .atlas-logo {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.footer .atlas-logo-image {
+  width: 170px;
+  background: transparent;
+  filter: none;
+}
+
+.atlas-logo-office .atlas-logo-image {
+  filter: none;
+}
+
+@media (max-width: 700px) {
+  .footer .atlas-logo {
+    padding: 0;
+  }
+
+  .footer .atlas-logo-image {
+    width: 150px;
+  }
+}
