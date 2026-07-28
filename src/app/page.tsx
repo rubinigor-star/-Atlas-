@@ -60,11 +60,27 @@ export default async function Home() {
       <div className="event-grid">
         {tourCards.map(({tour,linked,poster,minimumPrice,cities},index)=><Link className="card" href={`/tours/${tour.slug}`} key={tour.id}>
           <Image src={poster} width={750} height={750} alt={tour.title} className="card-img" priority={index===0} sizes="(max-width: 520px) 50vw, (max-width: 800px) 50vw, (max-width: 1100px) 33vw, 25vw"/>
-          <div className="card-body"><span className="pill">{messages.home.tour} · {linked.length} {messages.home.dates}</span><h3>{tour.title}</h3><div className="muted">{cities.join(" · ")}</div><p>{eventDate(linked[0].startsAt,locale)} — {eventDate(linked[linked.length-1].startsAt,locale)}</p><div className="row between"><strong>{minimumPrice===null?messages.home.salesSoon:`${messages.home.from} ${money(minimumPrice,"ILS",locale)}`}</strong><span className="btn">{messages.home.chooseCity}</span></div></div>
+          <div className="card-body">
+            <span className="pill card-tag">{messages.home.tour} · {linked.length} {messages.home.dates}</span>
+            <div className="card-copy">
+              <h3 className="card-title">{tour.title}</h3>
+              <div className="muted card-meta">{cities.join(" · ")}</div>
+              <p className="card-meta">{eventDate(linked[0].startsAt,locale)} — {eventDate(linked[linked.length-1].startsAt,locale)}</p>
+            </div>
+            <div className="row between card-actions"><strong>{minimumPrice===null?messages.home.salesSoon:`${messages.home.from} ${money(minimumPrice,"ILS",locale)}`}</strong><span className="btn">{messages.home.chooseCity}</span></div>
+          </div>
         </Link>)}
         {standaloneEvents.map((event,index)=>{const minimumPrice=event.categories.length?Math.min(...event.categories.map(category=>category.priceMinor)):null;return <Link className="card" href={`/events/${event.slug}`} key={event.id}>
           <Image src={event.posterUrl} width={750} height={750} alt={event.title} className="card-img" priority={tourCards.length===0&&index===0} sizes="(max-width: 520px) 50vw, (max-width: 800px) 50vw, (max-width: 1100px) 33vw, 25vw"/>
-          <div className="card-body"><span className="pill">{event.venue.city}</span><h3>{event.title}</h3><div className="muted">{eventDate(event.startsAt,locale)}</div><p>{event.venue.name}</p><div className="row between"><strong>{minimumPrice===null?messages.home.salesSoon:`${messages.home.from} ${money(minimumPrice,"ILS",locale)}`}</strong><span className="btn">{messages.home.choose}</span></div></div>
+          <div className="card-body">
+            <span className="pill card-tag">{event.venue.city}</span>
+            <div className="card-copy">
+              <h3 className="card-title">{event.title}</h3>
+              <div className="muted card-meta">{eventDate(event.startsAt,locale)}</div>
+              <p className="card-meta">{event.venue.name}</p>
+            </div>
+            <div className="row between card-actions"><strong>{minimumPrice===null?messages.home.salesSoon:`${messages.home.from} ${money(minimumPrice,"ILS",locale)}`}</strong><span className="btn">{messages.home.choose}</span></div>
+          </div>
         </Link>})}
       </div>
     </section>
