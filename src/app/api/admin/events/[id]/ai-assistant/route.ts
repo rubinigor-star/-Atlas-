@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEventAccess } from "@/lib/auth";
 
-const inputSchema = z.object({ prompt: z.string().min(5).max(4000) });
+const inputSchema = z.object({ prompt: z.string().min(5).max(4000), locale: z.enum(["ru", "he", "en"]).optional() });
 
 const planSchema = {
   type: "object",
@@ -17,28 +17,48 @@ const planSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["title", "detail", "risk"],
+        required: ["id", "title", "detail", "risk", "kind", "selectable", "statusLabel"],
         properties: {
+          id: { type: "string" },
           title: { type: "string" },
           detail: { type: "string" },
           risk: { type: "string", enum: ["safe", "review"] },
+          kind: { type: "string", enum: ["draft", "system_change", "advice"] },
+          selectable: { type: "boolean" },
+          statusLabel: { type: "string" },
         },
       },
     },
   },
 } as const;
 
+type PlanItem = {
+  id: string;
+  title: string;
+  detail: string;
+  risk: "safe" | "review";
+  kind: "draft" | "system_change" | "advice";
+  selectable: boolean;
+  statusLabel: string;
+};
+
 function demoPlan(prompt: string, event: { title: string; categories: Array<{ name: string; capacity: number; priceMinor: number }> }) {
   const lower = prompt.toLowerCase();
-  const changes: Array<{ title: string; detail: string; risk: "safe" | "review" }> = [];
-  if (lower.includes("категор") || lower.includes("dance") || lower.includes("vip") || lower.includes("билет")) changes.push({ title: "Проверить категории билетов", detail: "Помощник подготовит создание или обновление категорий, цен, вместимости и лимита на заказ.", risk: "review" });
-  if (lower.includes("пол") || lower.includes("имя") || lower.includes("телефон") || lower.includes("email")) changes.push({ title: "Настроить данные покупателя", detail: "Будут подготовлены обязательные и дополнительные поля формы оформления заказа.", risk: "safe" });
-  if (lower.includes("шаблон") || lower.includes("classic") || lower.includes("билет")) changes.push({ title: "Выбрать оформление билета", detail: "Будет предложен подходящий шаблон из существующей коллекции Atlas без изменения уже выданных билетов.", risk: "safe" });
-  if (lower.includes("продаж") || lower.includes("одобр")) changes.push({ title: "Проверить режим продаж", detail: "Помощник сверит мгновенную продажу или продажу по одобрению и покажет последствия изменения.", risk: "review" });
-  if (!changes.length) changes.push({ title: "Проверить текущее мероприятие", detail: `Будут проанализированы настройки «${event.title}», существующие категории и готовность к продаже.`, risk: "safe" });
+  const changes: PlanItem[] = [];
+  const add = (item: Omit<PlanItem, "id">) => changes.push({ id: `action-${changes.length + 1}`, ...item });
+
+  if (lower.includes("продвиж") || lower.includes("marketing") || lower.includes("קידום")) {
+    add({ title: "Подготовить план публикаций", detail: "Atlas подготовит конкретный календарь публикаций на 7 дней без изменения настроек мероприятия.", risk: "safe", kind: "draft", selectable: true, statusLabel: "Можно подготовить" });
+    add({ title: "Подготовить тексты для рассылки", detail: "Будут созданы черновики сообщений. Ничего не будет отправлено автоматически.", risk: "safe", kind: "draft", selectable: true, statusLabel: "Черновик" });
+  } else if (lower.includes("категор") || lower.includes("dance") || lower.includes("vip") || lower.includes("билет")) {
+    add({ title: "Проверить категории билетов", detail: "Atlas подготовит точный список категорий, цен, вместимости и лимитов для подтверждения.", risk: "review", kind: "system_change", selectable: true, statusLabel: "Требует подтверждения" });
+  } else {
+    add({ title: "Проверить текущее мероприятие", detail: `Atlas проверит настройки «${event.title}» и покажет только относящиеся к запросу действия.`, risk: "safe", kind: "advice", selectable: false, statusLabel: "Рекомендация" });
+  }
+
   return {
-    summary: "Интерфейс помощника уже работает в демонстрационном режиме. После подключения API-ключа этот запрос будет обработан моделью с учётом реальных настроек мероприятия.",
-    notes: ["До подтверждения никакие данные мероприятия не изменяются.", `Сейчас найдено категорий: ${event.categories.length}.`],
+    summary: "Atlas отделяет рекомендации, черновики и изменения системы. Несвязанные действия не добавляются в один план.",
+    notes: ["До отдельного подтверждения данные мероприятия не изменяются.", `Сейчас найдено категорий: ${event.categories.length}.`],
     changes,
     mode: "demo" as const,
   };
@@ -55,11 +75,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const { id } = await params;
     await requireEventAccess("EVENT_VIEW", id);
-    const { prompt } = inputSchema.parse(await req.json());
-    const event = await db.event.findUnique({
-      where: { id },
-      include: { venue: true, categories: { include: { priceTiers: true } } },
-    });
+    const { prompt, locale = "ru" } = inputSchema.parse(await req.json());
+    const event = await db.event.findUnique({ where: { id }, include: { venue: true, categories: { include: { priceTiers: true } } } });
     if (!event) return NextResponse.json({ error: "Мероприятие не найдено" }, { status: 404 });
 
     const apiKey = process.env.OPENAI_API_KEY;
@@ -89,24 +106,37 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       })),
     };
 
+    const language = locale === "he" ? "Hebrew" : locale === "en" ? "English" : "Russian";
+    const instructions = `You are Atlas, the working partner of an event organizer inside Atlas Ticketing. Reply in ${language}.
+
+Core behavior:
+- Work like an operator who understands the current event, not like a generic chatbot.
+- Answer only the organizer's actual request. Never mix unrelated marketing, ticketing, venue-map, promo-code, approval-mode, SMS, email, or pricing changes into one plan.
+- If the user asks for promotion, return promotion deliverables only. Do not propose changing sales mode, map settings, prices, dates, capacities, promo codes, or checkout settings unless explicitly requested.
+- If the user asks to change the event, return only the exact requested system changes plus necessary safety checks.
+- Distinguish three kinds: draft (content Atlas can prepare), system_change (would alter data), advice (informational only).
+- selectable=true only for concrete items the organizer can deliberately choose. General advice must be selectable=false.
+- Never claim that anything was applied, sent, published, or changed.
+- Use short, concrete titles and details. Maximum 6 items.
+- Do not invent capabilities or modules that are not present in the supplied event context.
+- Prices, capacities, active sales, published events and sales windows are review risk.
+- Prefer stable fixed-price configurations. Never propose dynamic pricing unless explicitly requested.`;
+
     const openAiResponse = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || "gpt-5-mini",
-        instructions: "You are Atlas AI, an event setup assistant inside a ticketing platform. Reply in Russian. Analyze the current event and prepare a concise, safe plan. Never claim changes were applied. Prefer stable fixed-price configurations. Flag changes to published events, prices, capacities, or active sales as review. Do not propose dynamic pricing unless explicitly requested.",
-        input: `CURRENT EVENT:\n${JSON.stringify(context)}\n\nUSER REQUEST:\n${prompt}`,
+        instructions,
+        input: `CURRENT EVENT:\n${JSON.stringify(context)}\n\nORGANIZER REQUEST:\n${prompt}`,
         text: { format: { type: "json_schema", name: "atlas_event_plan", strict: true, schema: planSchema } },
       }),
     });
     const payload = await openAiResponse.json();
-    if (!openAiResponse.ok) {
-      const message = (payload as { error?: { message?: string } }).error?.message || "OpenAI API не ответил";
-      throw new Error(message);
-    }
+    if (!openAiResponse.ok) throw new Error((payload as { error?: { message?: string } }).error?.message || "OpenAI API не ответил");
     const text = extractOutputText(payload);
     if (!text) throw new Error("OpenAI вернул пустой план");
-    const plan = JSON.parse(text) as { summary: string; notes: string[]; changes: Array<{ title: string; detail: string; risk: "safe" | "review" }> };
+    const plan = JSON.parse(text) as { summary: string; notes: string[]; changes: PlanItem[] };
     return NextResponse.json({ plan: { ...plan, mode: "live" as const } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось обработать запрос" }, { status: 400 });
