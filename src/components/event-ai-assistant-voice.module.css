@@ -1,0 +1,124 @@
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px 48px;
+  gap: 9px;
+  align-items: end;
+}
+
+.micButton,
+.voiceSecondary,
+.stopButton {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.micButton {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cbd8e8;
+  border-radius: 14px;
+  background: #f2f7fc;
+  color: #0b4b82;
+  transition: background .18s ease, transform .18s ease;
+}
+
+.micButton:hover:not(:disabled) {
+  background: #e5f1ff;
+  transform: translateY(-1px);
+}
+
+.micButton:disabled,
+.voiceSecondary:disabled,
+.stopButton:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.recordingBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  margin-bottom: 10px;
+  padding: 9px 10px 9px 13px;
+  border: 1px solid #ffd2d2;
+  border-radius: 15px;
+  background: #fff7f7;
+  color: #7f1d1d;
+}
+
+.recordingDot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+  background: #dc2626;
+  box-shadow: 0 0 0 0 rgba(220,38,38,.4);
+  animation: voicePulse 1.35s infinite;
+}
+
+.recordingTime {
+  margin-inline-start: auto;
+  color: #991b1b;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.voiceSecondary {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: transparent;
+  color: #7f1d1d;
+}
+
+.stopButton {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border-radius: 11px;
+  background: #b91c1c;
+  color: #fff;
+  font-weight: 800;
+}
+
+@keyframes voicePulse {
+  70% { box-shadow: 0 0 0 8px rgba(220,38,38,0); }
+  100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+}
+
+@media (max-width: 520px) {
+  .composer {
+    grid-template-columns: minmax(0, 1fr) 44px 44px;
+    gap: 7px;
+  }
+
+  .micButton {
+    width: 44px;
+    height: 46px;
+  }
+
+  .recordingBar {
+    flex-wrap: wrap;
+  }
+
+  .recordingTime {
+    margin-inline-start: 0;
+  }
+
+  .stopButton {
+    margin-inline-start: auto;
+  }
+
+  .stopButton span {
+    display: none;
+  }
+}
