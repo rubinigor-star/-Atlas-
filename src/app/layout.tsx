@@ -9,6 +9,7 @@ import "@fontsource/noto-sans-hebrew/700.css";
 import "./globals.css";
 import "./event-experience.css";
 import "./logo.css";
+import "./logo-variants.css";
 import "./tour.css";
 import "./typography.css";
 import { SpeedInsights } from "@vercel/speed-insights/next";
