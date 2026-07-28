@@ -1,5 +1,6 @@
 :root {
-  --atlas-font: "Oswald", "Noto Sans Hebrew", Arial, Helvetica, sans-serif;
+  --atlas-heading-font: "Roboto Flex", "Noto Sans Hebrew", Arial, Helvetica, sans-serif;
+  --atlas-body-font: "Inter", "Noto Sans Hebrew", Arial, Helvetica, sans-serif;
 }
 
 html,
@@ -8,8 +9,13 @@ button,
 input,
 textarea,
 select {
-  font-family: var(--atlas-font);
+  font-family: var(--atlas-body-font);
   font-weight: 400;
+  font-optical-sizing: auto;
+}
+
+body {
+  font-feature-settings: "kern" 1, "liga" 1;
 }
 
 h1,
@@ -18,19 +24,31 @@ h3,
 h4,
 h5,
 h6,
-strong,
-b,
-label,
-th,
 .brand,
 .atlas-logo-word,
 .atlas-logo-one,
 .section-title,
-.eyebrow,
-.btn,
-.pill {
-  font-family: var(--atlas-font);
+.event-content-panel h1,
+.event-info h1,
+.result h2,
+.stat strong {
+  font-family: var(--atlas-heading-font);
   font-weight: 700;
+  font-stretch: 82%;
+  font-optical-sizing: auto;
+}
+
+.hero h1,
+.event-content-panel h1 {
+  font-weight: 750;
+  font-stretch: 80%;
+}
+
+.card h3,
+.event-grid .card h3 {
+  font-family: var(--atlas-heading-font);
+  font-weight: 700;
+  font-stretch: 86%;
 }
 
 p,
@@ -41,13 +59,49 @@ td,
 .card-body,
 .event-info p,
 .wizard-heading p,
-.choice-card small {
-  font-family: var(--atlas-font);
+.choice-card small,
+.meta,
+.option,
+.event-media-link {
+  font-family: var(--atlas-body-font);
   font-weight: 400;
+}
+
+strong,
+b,
+label,
+th,
+.btn,
+.pill,
+.eyebrow,
+.navlinks,
+.language-switch,
+.choice-card strong,
+.pricing-switch button {
+  font-family: var(--atlas-body-font);
+  font-weight: 600;
+}
+
+strong,
+b,
+th {
+  font-weight: 700;
 }
 
 input::placeholder,
 textarea::placeholder {
-  font-family: var(--atlas-font);
+  font-family: var(--atlas-body-font);
   font-weight: 400;
+}
+
+[dir="rtl"] h1,
+[dir="rtl"] h2,
+[dir="rtl"] h3,
+[dir="rtl"] h4,
+[dir="rtl"] h5,
+[dir="rtl"] h6,
+[dir="rtl"] .section-title,
+[dir="rtl"] .brand,
+[dir="rtl"] .atlas-logo-word {
+  font-stretch: normal;
 }
