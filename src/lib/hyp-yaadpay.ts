@@ -28,11 +28,6 @@ function encode(value: string) {
     .replace(/\*/g, "%2A");
 }
 
-/**
- * HYP/Yaad payment-page API signs the final action=pay query locally with the
- * API Key as an HMAC-SHA256 secret. Parameters must be sorted by key and the
- * exact encoded query used for signing must also be used in the redirect URL.
- */
 function signedQuery(params: Record<string, string>) {
   const entries = Object.entries(params)
     .filter(([, value]) => value !== "")
@@ -61,10 +56,12 @@ export async function createHypPaymentLink(input: HypPaymentLinkInput) {
   const firstName = nameParts.shift() || "Atlas";
   const lastName = nameParts.join(" ") || "Customer";
   const language = input.language || "HEB";
+  const passP = optional("HYP_PASSP");
 
   const params: Record<string, string> = {
     action: "pay",
     Masof: required("HYP_MASOF"),
+    PassP: passP,
     Amount: input.amountIls.toFixed(2),
     Coin: "1",
     Info: safeText(input.description, 120),
@@ -95,11 +92,10 @@ export async function createHypPaymentLink(input: HypPaymentLinkInput) {
 }
 
 function hypHeaders() {
-  const origin = (process.env.NEXT_PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, "");
+  const origin = "https://www.atlas-one.co";
   return { Referer: `${origin}/`, Origin: origin, "User-Agent": "Atlas-One/1.0" };
 }
 
-/** Verify the redirect with HYP's APISign VERIFY endpoint. */
 export async function verifyHypCallback(url: URL) {
   const params = new URLSearchParams();
   params.set("action", "APISign");
@@ -143,10 +139,6 @@ export function hypResultFromUrl(url: URL) {
   };
 }
 
-/**
- * Same-day cancellation through the HYP/Yaad API. A settled transaction may
- * require the merchant account's refund API permission or manual handling.
- */
 export async function refundHypDeal(input: { transactionId: string; amountMinor?: number }) {
   if (!input.transactionId.trim()) throw new Error("Не найден идентификатор транзакции HYP");
   const passP = optional("HYP_PASSP");
