@@ -41,18 +41,20 @@ export async function GET(request: Request) {
   const visibleEvents = events.map((event) => {
     const sold = event.categories.reduce((sum, category) => sum + category.sold, 0);
     const capacity = event.categories.reduce((sum, category) => sum + category.capacity, 0);
+    const published = event.status === "PUBLISHED";
+
     return {
       id: event.id,
       title: event.title,
       startsAt: event.startsAt.toISOString(),
       venue: { name: event.venue.name, city: event.venue.city },
       posterUrl: event.posterUrl,
-      published: event.published,
+      published,
       salesMode: event.salesMode,
       mapEnabled: event.mapEnabled,
       sold,
       capacity,
-      status: event.startsAt < now ? "PAST" : event.published ? "PUBLISHED" : "DRAFT",
+      status: event.startsAt < now ? "PAST" : published ? "PUBLISHED" : "DRAFT",
     };
   });
 
