@@ -1,0 +1,4 @@
+import type { Metadata } from "next";
+import { ContentPage,Section } from "@/components/content-page";
+export const metadata:Metadata={title:"Контакты Atlas One",description:"Связаться с Atlas One по вопросам билетов, возвратов, мероприятий и подключения организаторов.",alternates:{canonical:"/contact"}};
+export default function ContactPage(){return <ContentPage eyebrow="Связь" title="Контакты" intro="Напишите нам по вопросу заказа, возврата, мероприятия или подключения организатора."><Section title="Покупателям"><p>Укажите email, с которым оформлялся заказ, название мероприятия и номер заказа, если он у вас есть.</p></Section><Section title="Организаторам"><p>Опишите формат мероприятий, предполагаемый объём продаж и функции, которые вам нужны.</p></Section><Section title="Email"><p><a href="mailto:support@atlas-one.co">support@atlas-one.co</a></p></Section></ContentPage>}
