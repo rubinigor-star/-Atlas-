@@ -9,29 +9,29 @@ type EventContext = {
   id: string; title: string; status: string; salesMode: string; startsAt: string; venue: string;
   categories: Array<{ id: string; name: string; priceMinor: number; capacity: number; sold: number; pricingMode: string }>;
 };
-type PlanItem = { title: string; detail: string; risk: "safe" | "review" };
+type PlanItem = { id: string; title: string; detail: string; risk: "safe" | "review"; kind: "draft" | "system_change" | "advice"; selectable: boolean; statusLabel: string };
 type AssistantPlan = { summary: string; notes: string[]; changes: PlanItem[]; mode: "demo" | "live" };
 
 const copy = {
   ru: {
     level: "ваш рабочий партнёр", greeting: "Atlas уже посмотрел мероприятие", description: "Я вижу настройки, билеты и режим продаж. Могу проверить мероприятие, предложить улучшения или подготовить безопасный план изменений.",
-    open: "Поговорить с Atlas", event: "Мероприятие", categories: "Категорий", sale: "Продажа", automatic: "автоматическая", approval: "по одобрению", close: "Закрыть", context: "Контекст мероприятия загружен", noCategories: "Категории пока не созданы", question: "Что сделать для этого мероприятия?", analyzing: "Atlas изучает задачу", analyzingHelp: "Готовлю понятный план без изменения данных.", plan: "Atlas предлагает", demo: "Демо-режим", attention: "Обратите внимание", revise: "Изменить запрос", apply: "Применить после проверки", applyTitle: "Применение будет включено после финальной проверки исполнительного слоя", placeholder: "Напишите Atlas, что нужно сделать…", hint: "Enter — отправить · Shift+Enter — новая строка. Без подтверждения ничего не изменится.", error: "Не удалось подготовить план", places: "мест",
+    open: "Поговорить с Atlas", event: "Мероприятие", categories: "Категорий", sale: "Продажа", automatic: "автоматическая", approval: "по одобрению", close: "Закрыть", context: "Контекст мероприятия загружен", noCategories: "Категории пока не созданы", question: "Что сделать для этого мероприятия?", analyzing: "Atlas изучает задачу", analyzingHelp: "Готовлю только относящиеся к запросу действия.", plan: "Atlas предлагает", demo: "Демо-режим", attention: "Обратите внимание", revise: "Изменить запрос", review: "Проверить выбранное", reviewTitle: "Выберите конкретные действия, которые хотите передать Atlas", placeholder: "Напишите Atlas, что нужно сделать…", hint: "Enter — отправить · Shift+Enter — новая строка. Без подтверждения ничего не изменится.", error: "Не удалось подготовить план", places: "мест",
     mic: "Записать голосом", stop: "Остановить запись", cancel: "Отменить запись", listening: "Atlas слушает", transcribing: "Распознаю речь", transcribeError: "Не удалось распознать голос", micDenied: "Разрешите доступ к микрофону в настройках браузера", micUnavailable: "На этом устройстве запись голоса недоступна", maxRecording: "Максимум 2 минуты", transcriptReady: "Текст распознан. Проверьте его и отправьте.",
-    sold: "Продано", remaining: "Осталось", readiness: "Готовность", ready: "Основные настройки заполнены", needsTickets: "Нужно создать категории билетов", lowStock: "В одной из категорий осталось менее 20% билетов", healthy: "Запас билетов выглядит нормально",
+    sold: "Продано", remaining: "Осталось", readiness: "Готовность", ready: "Основные настройки заполнены", needsTickets: "Нужно создать категории билетов", lowStock: "В одной из категорий осталось менее 20% билетов", healthy: "Запас билетов выглядит нормально", selected: "Выбрано", selectAll: "Выбрать всё", noSelection: "Выберите хотя бы одно действие", advice: "Рекомендация", draft: "Черновик", systemChange: "Изменение системы",
     examples: ["Проверь мероприятие перед публикацией", "Предложи оптимальные категории и цены", "Подготовь план продвижения на ближайшие 7 дней"],
   },
   he: {
     level: "השותף שלכם לעבודה", greeting: "Atlas כבר בדק את האירוע", description: "אני רואה את ההגדרות, הכרטיסים ומצב המכירה. אפשר לבדוק את האירוע, להציע שיפורים או להכין תוכנית שינויים בטוחה.",
-    open: "לדבר עם Atlas", event: "אירוע", categories: "קטגוריות", sale: "מכירה", automatic: "אוטומטית", approval: "באישור", close: "סגירה", context: "הקשר האירוע נטען", noCategories: "טרם נוצרו קטגוריות", question: "מה לעשות עבור האירוע הזה?", analyzing: "Atlas בודק את המשימה", analyzingHelp: "מכין תוכנית ברורה ללא שינוי נתונים.", plan: "ההצעה של Atlas", demo: "מצב הדגמה", attention: "חשוב לשים לב", revise: "שינוי הבקשה", apply: "החלה לאחר בדיקה", applyTitle: "החלת שינויים תופעל לאחר בדיקה סופית", placeholder: "כתבו ל-Atlas מה צריך לעשות…", hint: "Enter לשליחה · Shift+Enter לשורה חדשה. דבר לא ישתנה ללא אישור.", error: "לא ניתן להכין את התוכנית", places: "מקומות",
+    open: "לדבר עם Atlas", event: "אירוע", categories: "קטגוריות", sale: "מכירה", automatic: "אוטומטית", approval: "באישור", close: "סגירה", context: "הקשר האירוע נטען", noCategories: "טרם נוצרו קטגוריות", question: "מה לעשות עבור האירוע הזה?", analyzing: "Atlas בודק את המשימה", analyzingHelp: "מכין רק פעולות הקשורות לבקשה.", plan: "ההצעה של Atlas", demo: "מצב הדגמה", attention: "חשוב לשים לב", revise: "שינוי הבקשה", review: "בדיקת הנבחר", reviewTitle: "בחרו פעולות מסוימות להעברה ל-Atlas", placeholder: "כתבו ל-Atlas מה צריך לעשות…", hint: "Enter לשליחה · Shift+Enter לשורה חדשה. דבר לא ישתנה ללא אישור.", error: "לא ניתן להכין את התוכנית", places: "מקומות",
     mic: "הקלטה קולית", stop: "עצירת ההקלטה", cancel: "ביטול ההקלטה", listening: "Atlas מקשיב", transcribing: "מתמלל", transcribeError: "לא ניתן היה לתמלל", micDenied: "יש לאפשר גישה למיקרופון", micUnavailable: "הקלטה קולית אינה זמינה", maxRecording: "עד 2 דקות", transcriptReady: "הטקסט מוכן. בדקו ושלחו.",
-    sold: "נמכרו", remaining: "נותרו", readiness: "מוכנות", ready: "ההגדרות העיקריות הושלמו", needsTickets: "יש ליצור קטגוריות כרטיסים", lowStock: "באחת הקטגוריות נותרו פחות מ-20%", healthy: "מלאי הכרטיסים נראה תקין",
+    sold: "נמכרו", remaining: "נותרו", readiness: "מוכנות", ready: "ההגדרות העיקריות הושלמו", needsTickets: "יש ליצור קטגוריות כרטיסים", lowStock: "באחת הקטגוריות נותרו פחות מ-20%", healthy: "מלאי הכרטיסים נראה תקין", selected: "נבחרו", selectAll: "בחירת הכל", noSelection: "בחרו לפחות פעולה אחת", advice: "המלצה", draft: "טיוטה", systemChange: "שינוי מערכת",
     examples: ["בדוק את האירוע לפני פרסום", "הצע קטגוריות ומחירים מתאימים", "הכן תוכנית קידום ל-7 הימים הקרובים"],
   },
   en: {
     level: "your working partner", greeting: "Atlas has reviewed this event", description: "I can see the settings, tickets and sales mode. I can review the event, suggest improvements or prepare a safe change plan.",
-    open: "Talk to Atlas", event: "Event", categories: "Categories", sale: "Sales", automatic: "automatic", approval: "approval required", close: "Close", context: "Event context loaded", noCategories: "No categories yet", question: "What should I do for this event?", analyzing: "Atlas is reviewing the task", analyzingHelp: "Preparing a clear plan without changing data.", plan: "Atlas suggests", demo: "Demo mode", attention: "Please note", revise: "Edit request", apply: "Apply after review", applyTitle: "Applying changes will be enabled after final review", placeholder: "Tell Atlas what you need…", hint: "Enter to send · Shift+Enter for a new line. Nothing changes without confirmation.", error: "Could not prepare the plan", places: "seats",
+    open: "Talk to Atlas", event: "Event", categories: "Categories", sale: "Sales", automatic: "automatic", approval: "approval required", close: "Close", context: "Event context loaded", noCategories: "No categories yet", question: "What should I do for this event?", analyzing: "Atlas is reviewing the task", analyzingHelp: "Preparing only actions relevant to the request.", plan: "Atlas suggests", demo: "Demo mode", attention: "Please note", revise: "Edit request", review: "Review selected", reviewTitle: "Choose the exact actions to hand to Atlas", placeholder: "Tell Atlas what you need…", hint: "Enter to send · Shift+Enter for a new line. Nothing changes without confirmation.", error: "Could not prepare the plan", places: "seats",
     mic: "Record voice", stop: "Stop recording", cancel: "Cancel recording", listening: "Atlas is listening", transcribing: "Transcribing", transcribeError: "Could not transcribe", micDenied: "Allow microphone access", micUnavailable: "Voice recording is unavailable", maxRecording: "Up to 2 minutes", transcriptReady: "Transcript ready. Review and send.",
-    sold: "Sold", remaining: "Remaining", readiness: "Readiness", ready: "Core settings are complete", needsTickets: "Ticket categories still need to be created", lowStock: "One category has less than 20% inventory left", healthy: "Ticket inventory looks healthy",
+    sold: "Sold", remaining: "Remaining", readiness: "Readiness", ready: "Core settings are complete", needsTickets: "Ticket categories still need to be created", lowStock: "One category has less than 20% inventory left", healthy: "Ticket inventory looks healthy", selected: "Selected", selectAll: "Select all", noSelection: "Select at least one action", advice: "Advice", draft: "Draft", systemChange: "System change",
     examples: ["Review this event before publishing", "Suggest the best ticket categories and prices", "Prepare a 7-day promotion plan"],
   },
 } as const;
@@ -46,6 +46,7 @@ export function EventAiAssistant({ event }: { event: EventContext }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<AssistantPlan | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [transcribing, setTranscribing] = useState(false);
@@ -59,6 +60,7 @@ export function EventAiAssistant({ event }: { event: EventContext }) {
   const remaining = Math.max(0, totals.capacity - totals.sold);
   const lowStock = event.categories.some((c) => c.capacity > 0 && (c.capacity - c.sold) / c.capacity < .2);
   const categorySummary = useMemo(() => event.categories.map((item) => `${item.name}: ${item.capacity} ${text.places}`).join(" · "), [event.categories, text.places]);
+  const selectableItems = plan?.changes.filter((item) => item.selectable) || [];
 
   useEffect(() => { if (!recording) return; const timer = window.setInterval(() => setRecordingSeconds((value) => { if (value >= 119) { stopRecording(true); return 120; } return value + 1; }), 1000); return () => window.clearInterval(timer); }, [recording]);
   useEffect(() => () => streamRef.current?.getTracks().forEach((track) => track.stop()), []);
@@ -66,11 +68,18 @@ export function EventAiAssistant({ event }: { event: EventContext }) {
   async function ask(promptOverride?: string) {
     const prompt = (promptOverride ?? message).trim(); if (!prompt) return;
     if (promptOverride) setMessage(promptOverride);
-    setBusy(true); setError(""); setPlan(null); setVoiceStatus(""); setOpen(true);
-    try { const response = await fetch(`/api/admin/events/${event.id}/ai-assistant`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, locale }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || text.error); setPlan(data.plan); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : text.error); }
+    setBusy(true); setError(""); setPlan(null); setSelectedIds([]); setVoiceStatus(""); setOpen(true);
+    try {
+      const response = await fetch(`/api/admin/events/${event.id}/ai-assistant`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, locale }) });
+      const data = await response.json(); if (!response.ok) throw new Error(data.error || text.error);
+      setPlan(data.plan);
+      setSelectedIds((data.plan.changes as PlanItem[]).filter((item) => item.selectable).map((item) => item.id));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : text.error); }
     finally { setBusy(false); }
   }
+
+  function toggleItem(id: string) { setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]); }
+  function toggleAll() { setSelectedIds(selectedIds.length === selectableItems.length ? [] : selectableItems.map((item) => item.id)); }
 
   async function transcribeAudio(blob: Blob) {
     setTranscribing(true); setError(""); setVoiceStatus("");
@@ -80,7 +89,7 @@ export function EventAiAssistant({ event }: { event: EventContext }) {
   }
 
   async function startRecording() {
-    setError(""); setVoiceStatus(""); setPlan(null);
+    setError(""); setVoiceStatus(""); setPlan(null); setSelectedIds([]);
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") { setError(text.micUnavailable); return; }
     try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); streamRef.current = stream; const preferred = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) => MediaRecorder.isTypeSupported(type)); const recorder = preferred ? new MediaRecorder(stream, { mimeType: preferred }) : new MediaRecorder(stream); recorderRef.current = recorder; chunksRef.current = []; transcribeAfterStopRef.current = true; recorder.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); }; recorder.onstop = () => { const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" }); stream.getTracks().forEach((track) => track.stop()); streamRef.current = null; recorderRef.current = null; if (transcribeAfterStopRef.current && blob.size) void transcribeAudio(blob); }; recorder.start(250); setRecordingSeconds(0); setRecording(true); }
     catch (cause) { const denied = cause instanceof DOMException && (cause.name === "NotAllowedError" || cause.name === "SecurityError"); setError(denied ? text.micDenied : text.micUnavailable); }
@@ -106,7 +115,16 @@ export function EventAiAssistant({ event }: { event: EventContext }) {
         {!plan && !busy && <div><p className={styles.question}><strong>{text.question}</strong></p><div className={styles.examples}>{text.examples.map((example) => <button key={example} type="button" onClick={() => setMessage(example)}>{example}</button>)}</div></div>}
         {busy && <div className={styles.loading}><Loader2 className="spin" size={20}/><div><strong>{text.analyzing}</strong><span>{text.analyzingHelp}</span></div></div>}
         {error && <div className={styles.error}><AlertTriangle size={18}/>{error}</div>}
-        {plan && <div className={styles.plan}><div className={styles.planIntro}><div><strong>{text.plan}</strong><p>{plan.summary}</p></div><span>{plan.mode === "live" ? "LIVE" : text.demo}</span></div>{plan.changes.map((item, index) => <div className={styles.change} key={`${item.title}-${index}`}><span data-risk={item.risk}><Check size={17}/></span><div><strong>{item.title}</strong><p>{item.detail}</p></div></div>)}{plan.notes.length > 0 && <div className={styles.notes}><strong>{text.attention}</strong>{plan.notes.map((note) => <p key={note}>• {note}</p>)}</div>}<div className={styles.planActions}><button className="btn" type="button" onClick={() => setPlan(null)}>{text.revise}</button><button className="btn dark" type="button" disabled title={text.applyTitle}>{text.apply}</button></div></div>}
+        {plan && <div className={styles.plan}>
+          <div className={styles.planIntro}><div><strong>{text.plan}</strong><p>{plan.summary}</p></div><span>{plan.mode === "live" ? "LIVE" : text.demo}</span></div>
+          {selectableItems.length > 1 && <button type="button" className={styles.selectAll} onClick={toggleAll}><span className={styles.checkbox} data-checked={selectedIds.length === selectableItems.length}>{selectedIds.length === selectableItems.length && <Check size={15}/>}</span>{text.selectAll}</button>}
+          {plan.changes.map((item) => <button type="button" disabled={!item.selectable} onClick={() => item.selectable && toggleItem(item.id)} className={styles.change} data-selectable={item.selectable} data-selected={selectedIds.includes(item.id)} key={item.id}>
+            <span className={styles.checkbox} data-checked={selectedIds.includes(item.id)} data-risk={item.risk}>{selectedIds.includes(item.id) ? <Check size={17}/> : item.selectable ? null : <Sparkles size={16}/>}</span>
+            <div><div className={styles.changeTitle}><strong>{item.title}</strong><small>{item.kind === "draft" ? text.draft : item.kind === "system_change" ? text.systemChange : text.advice} · {item.statusLabel}</small></div><p>{item.detail}</p></div>
+          </button>)}
+          {plan.notes.length > 0 && <div className={styles.notes}><strong>{text.attention}</strong>{plan.notes.map((note) => <p key={note}>• {note}</p>)}</div>}
+          <div className={styles.planActions}><button className="btn" type="button" onClick={() => { setPlan(null); setSelectedIds([]); }}>{text.revise}</button><button className="btn dark" type="button" disabled={!selectedIds.length} title={selectedIds.length ? text.reviewTitle : text.noSelection}>{text.review} · {selectedIds.length}</button></div>
+        </div>}
       </div>
       <footer className={styles.drawerFooter}>{recording && <div className={styles.recordingBar}><span className={styles.recordingDot}/><strong>{text.listening}</strong><span className={styles.recordingTime}>{formatTime(recordingSeconds)} / 2:00</span><button type="button" className={styles.voiceSecondary} onClick={() => stopRecording(false)} title={text.cancel}><Trash2 size={17}/></button><button type="button" className={styles.stopButton} onClick={() => stopRecording(true)} title={text.stop}><Square size={16}/><span>{text.stop}</span></button></div>}<div className={styles.composer}><textarea value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void ask(); } }} rows={3} placeholder={text.placeholder} disabled={recording || transcribing}/><button className={styles.micButton} type="button" onClick={() => void startRecording()} disabled={busy || recording || transcribing} title={`${text.mic} · ${text.maxRecording}`}>{transcribing ? <Loader2 className="spin" size={19}/> : <Mic size={20}/>}</button><button className={styles.sendButton} type="button" onClick={() => void ask()} disabled={busy || recording || transcribing || !message.trim()}>{busy ? <Loader2 className="spin" size={18}/> : <Send size={18}/>}</button></div><small className={styles.hint}>{transcribing ? text.transcribing : voiceStatus || text.hint}</small></footer>
     </aside></div>}
