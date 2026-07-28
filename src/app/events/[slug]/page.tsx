@@ -11,6 +11,7 @@ import { parseEventMedia, stripEventMedia, videoEmbedUrl } from "@/lib/event-med
 import { stripEventRejectionMessage } from "@/lib/event-approval-message";
 import { parsePricingMarketingStrategy, stripPricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 import { getServerI18n } from "@/lib/server-locale";
+import { eventTypeLabels, parseEventType, stripEventType } from "@/lib/event-type";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,8 @@ export default async function EventPage({ params, searchParams }: { params: Prom
   const media = parseEventMedia(event.description);
   const videos = media.filter((item) => item.type === "VIDEO");
   const links = media.filter((item) => item.type === "LINK");
-  const publicDescription = stripEventRejectionMessage(stripEventMedia(event.description));
+  const eventType=parseEventType(event.description);
+  const publicDescription = stripEventType(stripEventRejectionMessage(stripEventMedia(event.description)));
   const text = i18n.messages.event;
   const eventUrl = `https://www.atlas-one.co/events/${event.slug}`;
   const stageStyle = { "--event-backdrop": `url("${event.posterUrl}")` } as CSSProperties;
@@ -80,7 +82,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
       </aside>
 
       <section className="event-content-panel event-info">
-        <div className="event-title-row"><div><span className="pill">{event.venue.city}</span><h1>{event.title}</h1></div><EventShareActions title={event.title} url={eventUrl}/></div>
+        <div className="event-title-row"><div><div className="row" style={{flexWrap:"wrap"}}><span className="pill">{eventTypeLabels[i18n.locale][eventType]}</span><span className="pill">{event.venue.city}</span></div><h1>{event.title}</h1></div><EventShareActions title={event.title} url={eventUrl}/></div>
         {validPromoterLink && <div className="panel"><strong>{text.personalLink}: {validPromoterLink.label}</strong><p className="muted">{text.personalLinkInfo}</p></div>}
         <div className="meta"><div className="meta-row"><CalendarDays size={22} /><div><strong>{eventDate(event.startsAt,i18n.locale)}</strong><br /><span className="muted">{text.doors}</span></div></div><div className="meta-row"><MapPin size={22} /><div><strong>{event.venue.name}</strong><br /><span className="muted">{event.venue.address}</span></div></div><div className="meta-row"><ShieldCheck size={22} /><div><strong>{text.safeCheckout}</strong><br /><span className="muted">{text.safeCheckoutInfo}</span></div></div></div>
         <section><h2>About</h2><p className="muted" style={{ lineHeight: 1.75 }}>{publicDescription}</p></section>
