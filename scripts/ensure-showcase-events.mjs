@@ -20,7 +20,8 @@ try{
    const venue=await db.venue.upsert({where:{id:`showcase-venue-${item.slug}`},update:{name:item.venue,city:item.city,address:item.address},create:{id:`showcase-venue-${item.slug}`,name:item.venue,city:item.city,address:item.address}});
    const startsAt=new Date(item.date);
    const salesEnd=new Date(startsAt.getTime()-60*60*1000);
-   const event=await db.event.upsert({where:{slug:item.slug},update:{title:item.title,description:item.description,posterUrl:`/api/demo-posters/${item.slug}`,startsAt,salesStart,salesEnd,status:"PUBLISHED",salesMode:"INSTANT",organizationId:organization.id,venueId:venue.id},create:{slug:item.slug,title:item.title,description:item.description,posterUrl:`/api/demo-posters/${item.slug}`,startsAt,salesStart,salesEnd,status:"PUBLISHED",salesMode:"INSTANT",organizationId:organization.id,venueId:venue.id}});
+   const posterUrl=`/events/${item.slug}.svg`;
+   const event=await db.event.upsert({where:{slug:item.slug},update:{title:item.title,description:item.description,posterUrl,startsAt,salesStart,salesEnd,status:"PUBLISHED",salesMode:"INSTANT",organizationId:organization.id,venueId:venue.id},create:{slug:item.slug,title:item.title,description:item.description,posterUrl,startsAt,salesStart,salesEnd,status:"PUBLISHED",salesMode:"INSTANT",organizationId:organization.id,venueId:venue.id}});
    const categories=[
     {name:"General Admission",description:"Вход в основную зону",colorHex:"#2563EB"},
     {name:"Golden Ring",description:"Зона ближе к сцене",colorHex:"#F59E0B"},
@@ -28,5 +29,5 @@ try{
    ];
    for(const category of categories)await db.ticketCategory.upsert({where:{eventId_name:{eventId:event.id,name:category.name}},update:{description:category.description,priceMinor:100,currency:"ILS",capacity:500,hidden:false,colorHex:category.colorHex,minPerOrder:1,maxPerOrder:10},create:{eventId:event.id,name:category.name,description:category.description,priceMinor:100,currency:"ILS",capacity:500,hidden:false,colorHex:category.colorHex,minPerOrder:1,maxPerOrder:10}});
  }
- console.log(`Showcase ready: ${events.length} published events with ₪1 tickets.`);
+ console.log(`Showcase ready: ${events.length} published events with ₪1 tickets and static posters.`);
 }finally{await db.$disconnect();}
