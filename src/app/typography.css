@@ -58,15 +58,33 @@ h6,
   font-kerning: normal;
 }
 
+/* Primary page titles match the supplied reference:
+   42px Roboto Flex Bold, natural 100% width, 50px line box. */
+main h1,
 .hero h1,
-.event-content-panel h1 {
+.event-content-panel h1,
+.event-info h1,
+.tour-copy h1 {
+  font-family: var(--atlas-heading-font);
+  font-size: 42px !important;
   font-weight: 700;
+  font-style: normal;
   font-stretch: normal;
-  font-variation-settings: "wdth" 100;
+  font-variation-settings: "wght" 700, "wdth" 100, "opsz" 42;
+  font-optical-sizing: none;
+  font-synthesis: none;
+  font-kerning: normal;
+  letter-spacing: 0 !important;
+  line-height: 50px !important;
+  text-transform: uppercase;
+  margin: 0 0 10px;
 }
 
-.hero h1 {
-  line-height: 1.04;
+.home-hero h1,
+.tour-copy h1,
+.event-content-panel h1,
+.event-info h1 {
+  margin-top: 10px;
 }
 
 .card h3,
@@ -119,6 +137,18 @@ input::placeholder,
 textarea::placeholder {
   font-family: var(--atlas-body-font);
   font-weight: 400;
+}
+
+@media (max-width: 800px) {
+  main h1,
+  .hero h1,
+  .event-content-panel h1,
+  .event-info h1,
+  .tour-copy h1 {
+    font-size: 34px !important;
+    line-height: 40px !important;
+    font-variation-settings: "wght" 700, "wdth" 100, "opsz" 34;
+  }
 }
 
 [dir="rtl"] h1,
