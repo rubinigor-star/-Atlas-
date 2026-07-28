@@ -1,0 +1,53 @@
+:root {
+  --atlas-font: "Oswald", "Noto Sans Hebrew", Arial, Helvetica, sans-serif;
+}
+
+html,
+body,
+button,
+input,
+textarea,
+select {
+  font-family: var(--atlas-font);
+  font-weight: 400;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+strong,
+b,
+label,
+th,
+.brand,
+.atlas-logo-word,
+.atlas-logo-one,
+.section-title,
+.eyebrow,
+.btn,
+.pill {
+  font-family: var(--atlas-font);
+  font-weight: 700;
+}
+
+p,
+small,
+td,
+.muted,
+.hero p,
+.card-body,
+.event-info p,
+.wizard-heading p,
+.choice-card small {
+  font-family: var(--atlas-font);
+  font-weight: 400;
+}
+
+input::placeholder,
+textarea::placeholder {
+  font-family: var(--atlas-font);
+  font-weight: 400;
+}
