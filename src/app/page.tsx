@@ -46,10 +46,17 @@ export default async function Home() {
   const standaloneEvents=events.filter(event=>!linkedEventIds.has(event.id));
   const totalCards=tourCards.length+standaloneEvents.length;
 
-  return <main>
-    <section className="hero shell"><span className="eyebrow">{messages.home.eyebrow}</span><h1>{messages.home.title}</h1><p>{messages.home.subtitle}</p></section>
-    <section className="shell">
-      <div className="row between"><h2 className="section-title">{messages.home.upcoming}</h2><span className="muted">{totalCards} {messages.home.eventCount}</span></div>
+  return <main className="home-page">
+    <section className="home-shell hero home-hero">
+      <span className="eyebrow">{messages.home.eyebrow}</span>
+      <h1>{messages.home.title}</h1>
+      <p>{messages.home.subtitle}</p>
+    </section>
+    <section className="home-shell home-events">
+      <div className="home-events-head">
+        <h2 className="section-title">{messages.home.upcoming}</h2>
+        <span className="muted">{totalCards} {messages.home.eventCount}</span>
+      </div>
       <div className="event-grid">
         {tourCards.map(({tour,linked,poster,minimumPrice,cities},index)=><Link className="card" href={`/tours/${tour.slug}`} key={tour.id}>
           <Image src={poster} width={750} height={750} alt={tour.title} className="card-img" priority={index===0} sizes="(max-width: 520px) 50vw, (max-width: 800px) 50vw, (max-width: 1100px) 33vw, 25vw"/>
