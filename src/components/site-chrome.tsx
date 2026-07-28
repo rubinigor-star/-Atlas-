@@ -97,7 +97,7 @@ export function SiteFooter() {
     <div className="shell atlas-footer-shell">
       <div className="atlas-footer-main">
         <div className="atlas-footer-brand">
-          <AtlasLogo/>
+          <AtlasLogo dark/>
           <div className="store-badges" aria-label="Mobile applications">
             <StoreBadge type="apple"/>
             <StoreBadge type="google"/>
