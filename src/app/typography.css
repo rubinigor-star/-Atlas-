@@ -76,6 +76,7 @@ main h1,
   font-kerning: normal;
   letter-spacing: 0 !important;
   line-height: 50px !important;
+  text-rendering: geometricPrecision;
   text-transform: uppercase;
   margin: 0 0 10px;
 }
