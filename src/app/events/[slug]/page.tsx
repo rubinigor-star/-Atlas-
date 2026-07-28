@@ -67,7 +67,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
   const media = parseEventMedia(event.description);
   const videos = media.filter((item) => item.type === "VIDEO");
   const links = media.filter((item) => item.type === "LINK");
-  const eventType=parseEventType(event.description);
+  const eventType = parseEventType(event.description);
   const publicDescription = stripEventType(stripEventRejectionMessage(stripEventMedia(event.description)));
   const text = i18n.messages.event;
   const eventUrl = `https://www.atlas-one.co/events/${event.slug}`;
