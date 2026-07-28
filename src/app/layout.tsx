@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import "@fontsource/oswald/400.css";
-import "@fontsource/oswald/700.css";
+import "@fontsource-variable/roboto-flex";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/inter/700.css";
 import "@fontsource/noto-sans-hebrew/400.css";
 import "@fontsource/noto-sans-hebrew/700.css";
 import "./globals.css";
