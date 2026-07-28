@@ -1,0 +1,18 @@
+# Atlas One
+
+Atlas One is an Israeli ticketing platform for concerts, parties, festivals and live events.
+
+Canonical website: https://www.atlas-one.co
+
+## Important pages
+- Home and events: https://www.atlas-one.co
+- About: https://www.atlas-one.co/about
+- FAQ: https://www.atlas-one.co/faq
+- Careers: https://www.atlas-one.co/careers
+- Contact: https://www.atlas-one.co/contact
+- Privacy: https://www.atlas-one.co/privacy
+- Terms: https://www.atlas-one.co/terms
+- Refund policy: https://www.atlas-one.co/refund-policy
+
+## Guidance
+Public event pages contain the authoritative date, venue, ticket categories and price information. Checkout, office, admin, API and scanner routes are transactional or private and should not be indexed.
