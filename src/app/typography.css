@@ -51,7 +51,9 @@ h6,
 .event-content-panel h1,
 .event-info h1,
 .result h2,
-.stat strong {
+.event-grid .card h3,
+.card h3 {
+  text-transform: uppercase;
   letter-spacing: normal !important;
   font-kerning: normal;
 }
