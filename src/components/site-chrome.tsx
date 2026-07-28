@@ -14,7 +14,7 @@ const footerCopy = {
     refunds: "Возвраты",
     guarantee: "Гарантия покупателя",
     company: "Atlas One",
-    about: "О нас",
+    about: "Почему Atlas",
     careers: "Вакансии",
     listEvent: "Разместить мероприятие",
     contact: "Контакты",
@@ -29,7 +29,7 @@ const footerCopy = {
     refunds: "החזרים",
     guarantee: "אחריות לקונה",
     company: "Atlas One",
-    about: "אודות",
+    about: "למה Atlas",
     careers: "קריירה",
     listEvent: "פרסום אירוע",
     contact: "יצירת קשר",
@@ -44,7 +44,7 @@ const footerCopy = {
     refunds: "Refunds",
     guarantee: "Buyer Guarantee",
     company: "Atlas One",
-    about: "About us",
+    about: "Why Atlas",
     careers: "Careers",
     listEvent: "List an event",
     contact: "Contact",
@@ -83,8 +83,9 @@ function StoreBadge({ type }: { type: "apple" | "google" }) {
 
 export function SiteHeader() {
   const { messages, locale, setLocale } = useLocale();
+  const whyAtlas = locale === "he" ? "למה Atlas" : locale === "en" ? "Why Atlas" : "Почему Atlas";
   return <header className="topbar"><div className="shell nav"><AtlasLogo/><nav className="navlinks">
-    <Link href="/">{messages.common.events}</Link><Link href="/about">О нас</Link><Link href="/faq">FAQ</Link><Link href="/office">{messages.common.organizers}</Link><Link href="/account">{messages.common.account}</Link>
+    <Link href="/">{messages.common.events}</Link><Link href="/about">{whyAtlas}</Link><Link href="/faq">FAQ</Link><Link href="/office">{messages.common.organizers}</Link><Link href="/account">{messages.common.account}</Link>
     <label className="language-switch" style={{display:"inline-flex",alignItems:"center",gap:7}}><Languages size={16} aria-hidden="true"/><span className="sr-only">{messages.common.language}</span><select aria-label={messages.common.language} value={locale} onChange={e=>setLocale(e.target.value as Locale)} style={{border:0,background:"transparent",color:"inherit",font:"inherit",fontWeight:700,cursor:"pointer",outline:"none"}}><option value="he">{localeNames.he}</option><option value="ru">{localeNames.ru}</option><option value="en">{localeNames.en}</option></select></label>
     <Link href="/office" className="btn secondary">{messages.common.backoffice}</Link>
   </nav></div></header>;
