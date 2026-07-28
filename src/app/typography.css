@@ -65,6 +65,7 @@ main h1,
 .event-content-panel h1,
 .event-info h1,
 .tour-copy h1 {
+  max-width: 100%;
   font-family: var(--atlas-heading-font);
   font-size: 42px !important;
   font-weight: 700;
