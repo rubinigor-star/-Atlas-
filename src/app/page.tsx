@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Mic2, Music2, PartyPopper, Sparkles, Ticket } from "lucide-react";
 import "./event-card-grid.css";
 import { db } from "@/lib/db";
 import { money } from "@/lib/format";
@@ -17,6 +18,12 @@ const rangeWords:Record<Locale,{from:string;to:string}>={
   ru:{from:"с",to:"по"},
   he:{from:"מ־",to:"עד"},
   en:{from:"from",to:"to"},
+};
+
+const categoryLabels:Record<Locale,[string,string,string,string,string]>={
+  ru:["Концерты","Вечеринки","Шоу","Стендап","Все события"],
+  he:["הופעות","מסיבות","מופעים","סטנדאפ","כל האירועים"],
+  en:["Concerts","Parties","Shows","Stand-up","All events"],
 };
 
 function displayCity(value:string,locale:Locale){
@@ -78,14 +85,33 @@ export default async function Home() {
   }).filter(Boolean) as Array<{tour:TourRow;linked:typeof events;poster:string;minimumPrice:number|null;cities:string[]}>;
   const standaloneEvents=events.filter(event=>!linkedEventIds.has(event.id));
   const totalCards=tourCards.length+standaloneEvents.length;
+  const labels=categoryLabels[locale];
+  const categories=[
+    {label:labels[0],Icon:Music2},
+    {label:labels[1],Icon:PartyPopper},
+    {label:labels[2],Icon:Sparkles},
+    {label:labels[3],Icon:Mic2},
+    {label:labels[4],Icon:Ticket},
+  ];
 
   return <main className="home-page">
-    <section className="home-shell hero home-hero">
-      <span className="eyebrow">{messages.home.eyebrow}</span>
-      <h1>{messages.home.title}</h1>
-      <p>{messages.home.subtitle}</p>
+    <section className="home-hero">
+      <div className="home-shell home-hero-inner">
+        <div className="home-hero-copy">
+          <span className="eyebrow">{messages.home.eyebrow}</span>
+          <h1>{messages.home.title}</h1>
+          <p>{messages.home.subtitle}</p>
+        </div>
+        <div className="home-category-grid" aria-label={labels[4]}>
+          {categories.map(({label,Icon})=><div className="home-category" key={label}>
+            <span className="home-category-icon"><Icon aria-hidden="true" size={28} strokeWidth={1.8}/></span>
+            <span>{label}</span>
+          </div>)}
+        </div>
+      </div>
     </section>
-    <section className="home-shell home-events">
+
+    <section className="home-shell home-events" id="events">
       <div className="home-events-head">
         <h2 className="section-title">{messages.home.upcoming}</h2>
         <span className="muted">{totalCards} {messages.home.eventCount}</span>
