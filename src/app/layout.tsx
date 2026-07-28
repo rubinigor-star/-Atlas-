@@ -1,8 +1,13 @@
 import type { Metadata, Viewport } from "next";
+import "@fontsource/oswald/400.css";
+import "@fontsource/oswald/700.css";
+import "@fontsource/noto-sans-hebrew/400.css";
+import "@fontsource/noto-sans-hebrew/700.css";
 import "./globals.css";
 import "./event-experience.css";
 import "./logo.css";
 import "./tour.css";
+import "./typography.css";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { LocaleProvider } from "@/components/locale-provider";
 import { AppChrome } from "@/components/app-chrome";
