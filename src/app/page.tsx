@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { money } from "@/lib/format";
 import type { Locale } from "@/lib/i18n";
 import { getServerI18n } from "@/lib/server-locale";
+import { eventTypeLabels, parseEventType } from "@/lib/event-type";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,6 @@ type TourRow={id:string;slug:string;title:string;description:string;posterurl:st
 type TourEventRow={tourid:string;eventid:string;position:number};
 
 const intlLocale: Record<Locale,string>={ru:"ru-IL",he:"he-IL",en:"en-IL"};
-const soloConcertLabel:Record<Locale,string>={ru:"Сольный концерт",he:"הופעה יחידה",en:"Solo concert"};
 const rangeWords:Record<Locale,{from:string;to:string}>={
   ru:{from:"с",to:"по"},
   he:{from:"מ־",to:"עד"},
@@ -45,6 +45,7 @@ export default async function Home() {
       id: true,
       slug: true,
       title: true,
+      description: true,
       posterUrl: true,
       startsAt: true,
       venue: { select: { city: true, name: true } },
@@ -100,10 +101,10 @@ export default async function Home() {
             <div className="row between card-actions"><strong>{minimumPrice===null?messages.home.salesSoon:`${messages.home.from} ${money(minimumPrice,"ILS",locale)}`}</strong><span className="btn">{messages.home.chooseCity}</span></div>
           </div>
         </Link>})}
-        {standaloneEvents.map((event,index)=>{const minimumPrice=event.categories.length?Math.min(...event.categories.map(category=>category.priceMinor)):null;const city=displayCity(event.venue.city,locale);return <Link className="card" href={`/events/${event.slug}`} key={event.id}>
+        {standaloneEvents.map((event,index)=>{const minimumPrice=event.categories.length?Math.min(...event.categories.map(category=>category.priceMinor)):null;const city=displayCity(event.venue.city,locale);const eventType=parseEventType(event.description);return <Link className="card" href={`/events/${event.slug}`} key={event.id}>
           <Image src={event.posterUrl} width={750} height={750} alt={event.title} className="card-img" priority={tourCards.length===0&&index===0} sizes="(max-width: 520px) 50vw, (max-width: 800px) 50vw, (max-width: 1100px) 33vw, 25vw"/>
           <div className="card-body">
-            <span className="pill card-tag">{soloConcertLabel[locale]}</span>
+            <span className="pill card-tag">{eventTypeLabels[locale][eventType]}</span>
             <h3 className="card-title">{event.title}</h3>
             <div className="muted card-cities" title={city}>{city}</div>
             <p className="card-date">{shortDate(event.startsAt,locale)}</p>
