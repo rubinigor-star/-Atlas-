@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import "./event-card-grid.css";
 import { db } from "@/lib/db";
 import { money } from "@/lib/format";
 import type { Locale } from "@/lib/i18n";
