@@ -22,7 +22,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiBaseUrl": "https://atlas-ticketing.vercel.app"
+      "apiBaseUrl": "https://atlas-atlasteam1.vercel.app"
     }
   }
 }
