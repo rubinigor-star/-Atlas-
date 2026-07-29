@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { EventManager } from "@/components/event-manager";
 import { EventTypeManager } from "@/components/event-type-manager";
-import { EventAiAssistant } from "@/components/event-ai-assistant";
+import { EventAtlasAssistant } from "@/components/event-atlas-assistant";
 import { VenueMapEditor } from "@/components/venue-map-editor";
 import { FullscreenVenueEditor } from "@/components/fullscreen-venue-editor";
 import { GuestLinkManager } from "@/components/guest-link-manager";
@@ -31,7 +31,7 @@ export default async function ManageEvent({params}:{params:Promise<{id:string}>}
  const tables=event.zones.flatMap(zone=>zone.tables.map(item=>({id:item.id,label:`${zone.name} · ${item.label}`,seats:item.seats,categoryId:item.categoryId})));
  const media=parseEventMedia(event.description);const buyerQuestions=parseBuyerQuestions(event.description);const guestFields=parseGuestFields(event.description);const eventType=parseEventType(event.description);const cleanDescription=stripEventType(stripEventMarkers(stripBuyerQuestions(stripEventRejectionMessage(stripEventMedia(event.description)))));const rejectionMessage=parseEventRejectionMessage(event.description);
  return <AdminShell><span className="eyebrow">Event manager</span><h1>{event.title}</h1><div className="stats"><div className="stat"><span className="muted">Статус</span><strong>{event.status}</strong></div><div className="stat"><span className="muted">Продажа</span><strong>{event.salesMode==="INSTANT"?"Автоматически":"По одобрению"}</strong></div><div className="stat"><span className="muted">VIP-столов</span><strong>{event.zones.reduce((sum,zone)=>sum+zone.tables.length,0)}</strong></div></div>
- {(staff.permissionSet.has("EVENT_MANAGE")||staff.permissionSet.has("TICKET_MANAGE"))&&<EventAiAssistant event={{id:event.id,title:event.title,status:event.status,salesMode:event.salesMode,startsAt:event.startsAt.toISOString(),venue:`${event.venue.name}, ${event.venue.city}`,categories:event.categories.map(item=>({id:item.id,name:item.name,priceMinor:item.priceMinor,capacity:item.capacity,sold:item.sold,pricingMode:item.pricingMode}))}}/>}
+ {(staff.permissionSet.has("EVENT_MANAGE")||staff.permissionSet.has("TICKET_MANAGE"))&&<EventAtlasAssistant event={{id:event.id,title:event.title,status:event.status,salesMode:event.salesMode,startsAt:event.startsAt.toISOString(),venue:`${event.venue.name}, ${event.venue.city}`,categories:event.categories.map(item=>({id:item.id,name:item.name,priceMinor:item.priceMinor,capacity:item.capacity,sold:item.sold,pricingMode:item.pricingMode}))}}/>}
  {staff.permissionSet.has("TICKET_MANAGE")?<CategoryManager eventId={event.id} categories={managedCategories}/>:<div className="table-wrap"><table><thead><tr><th>Категория</th><th>Цена сейчас</th><th>Продано</th><th>Остаток</th></tr></thead><tbody>{managedCategories.map(item=><tr key={item.id}><td>{item.name}</td><td>{item.currentPriceMinor!==null?money(item.currentPriceMinor):item.statusLabel}</td><td>{item.sold}</td><td>{item.capacity-item.sold}</td></tr>)}</tbody></table></div>}
  {(staff.permissionSet.has("EVENT_MANAGE")||staff.permissionSet.has("TICKET_MANAGE"))&&<div className="row between"><h2>Настройки</h2>{staff.permissionSet.has("TICKET_MANAGE")&&<Link className="btn dark" href={`/office/events/${event.id}/ticket-design`}>Открыть редактор билета</Link>}</div>}
  {staff.permissionSet.has("EVENT_MANAGE")&&<EventTypeManager eventId={event.id} initialType={eventType}/>} 
