@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "scheme": "atlasoffice",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "il.co.atlas.office"
