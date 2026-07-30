@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { EventManager } from "@/components/event-manager";
+import { EventArchiveControl } from "@/components/event-archive-control";
 import { EventTypeManager } from "@/components/event-type-manager";
 import { EventLanguageManager } from "@/components/event-language-manager";
 import { EventAtlasAssistant } from "@/components/event-atlas-assistant";
@@ -24,13 +25,14 @@ import { guestManagementToken } from "@/lib/guest-links";
 import { parsePricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 import { parseEventType, stripEventType } from "@/lib/event-type";
 import { getEventLanguageSettings } from "@/lib/event-language-server";
+import { isEventArchived } from "@/lib/event-archive";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 export default async function ManageEvent({params}:{params:Promise<{id:string}>}){
  const{id}=await params;const staff=await requireEventAccess("EVENT_VIEW",id);
  const event=await db.event.findUnique({where:{id},include:{organization:true,venue:true,categories:{include:{priceTiers:true}},promoterLinks:{orderBy:{createdAt:"desc"},include:{promoter:true,category:true,table:true}},zones:{include:{tables:{include:{seatItems:true}}}}}});if(!event)notFound();
- const [commercialTerms,languageSettings]=await Promise.all([getEffectiveEventTerms(event.id,event.organizationId),getEventLanguageSettings(event.id)]);
+ const [commercialTerms,languageSettings,archived]=await Promise.all([getEffectiveEventTerms(event.id,event.organizationId),getEventLanguageSettings(event.id),isEventArchived(event.id)]);
  const demoAccount=staff.role==="ADMIN"?await ensureDemoOrganizerAccount(event.organizationId):null;
  const now=new Date();
  const managedCategories=event.categories.map((category)=>{const status=describeCategoryPrice(category,now);return{id:category.id,name:category.name,description:category.description,priceMinor:category.priceMinor,pricingMode:category.pricingMode,capacity:category.capacity,sold:category.sold,hidden:category.hidden,colorHex:category.colorHex,maxPerOrder:category.maxPerOrder,salesStart:category.salesStart?category.salesStart.toISOString():null,salesEnd:category.salesEnd?category.salesEnd.toISOString():null,priceTiers:category.priceTiers.map((tier)=>({id:tier.id,label:tier.label,priceMinor:tier.priceMinor,startsAt:tier.startsAt.toISOString(),endsAt:tier.endsAt.toISOString()})),currentPriceMinor:status.currentPriceMinor,statusLabel:status.statusLabel,nextTierPriceMinor:status.nextTier?.priceMinor,nextTierStartsAt:status.nextTier?.startsAt.toISOString()};});
@@ -39,10 +41,11 @@ export default async function ManageEvent({params}:{params:Promise<{id:string}>}
  return <AdminShell>
   {staff.role==="ADMIN"?<div className="admin-context-banner"><div><span className="eyebrow">Суперадминистратор Atlas</span><strong>Ты просматриваешь мероприятие организатора {event.organization.name}</strong><small>Коммерческие условия компании задаются на уровне организатора. Ниже можно управлять исключениями конкретного мероприятия.</small></div><span className="pill">Полный доступ</span></div>:<div className="organizer-context-banner"><div><span className="eyebrow">Кабинет организатора</span><strong>{event.organization.name}</strong><small>Здесь отображаются только доступные тебе мероприятия и разрешённые настройки.</small></div><span className="pill">Организатор</span></div>}
   {demoAccount&&<div className="demo-account-card"><div><span className="eyebrow">Тестовый аккаунт организатора</span><h3>Доступ для проверки кабинета</h3><p className="muted">Аккаунту назначены два мероприятия: {demoAccount.events.map(item=>item.title).join(", ")||"мероприятия пока отсутствуют"}.</p></div><div className="demo-credentials"><span>Email</span><strong>{demoAccount.email}</strong><span>Временный пароль</span><strong>{demoAccount.temporaryPassword}</strong></div></div>}
-  <span className="eyebrow">Event manager</span><h1>{event.title}</h1><div className="stats"><div className="stat"><span className="muted">Статус</span><strong>{event.status}</strong></div><div className="stat"><span className="muted">Продажа</span><strong>{event.salesMode==="INSTANT"?"Автоматически":"По одобрению"}</strong></div><div className="stat"><span className="muted">VIP-столов</span><strong>{event.zones.reduce((sum,zone)=>sum+zone.tables.length,0)}</strong></div></div>
-  {(staff.permissionSet.has("EVENT_MANAGE")||staff.permissionSet.has("TICKET_MANAGE"))&&<EventAtlasAssistant event={{id:event.id,title:event.title,status:event.status,salesMode:event.salesMode,startsAt:event.startsAt.toISOString(),venue:`${event.venue.name}, ${event.venue.city}`,categories:event.categories.map(item=>({id:item.id,name:item.name,priceMinor:item.priceMinor,capacity:item.capacity,sold:item.sold,pricingMode:item.pricingMode}))}}/>}
+  <span className="eyebrow">Event manager</span><h1>{event.title}</h1><div className="stats"><div className="stat"><span className="muted">Статус</span><strong>{archived?"ARCHIVED":event.status}</strong></div><div className="stat"><span className="muted">Продажа</span><strong>{archived?"Остановлена":event.salesMode==="INSTANT"?"Автоматически":"По одобрению"}</strong></div><div className="stat"><span className="muted">VIP-столов</span><strong>{event.zones.reduce((sum,zone)=>sum+zone.tables.length,0)}</strong></div></div>
+  {(staff.permissionSet.has("EVENT_MANAGE")||staff.permissionSet.has("TICKET_MANAGE"))&&<EventAtlasAssistant event={{id:event.id,title:event.title,status:archived?"ARCHIVED":event.status,salesMode:event.salesMode,startsAt:event.startsAt.toISOString(),venue:`${event.venue.name}, ${event.venue.city}`,categories:event.categories.map(item=>({id:item.id,name:item.name,priceMinor:item.priceMinor,capacity:item.capacity,sold:item.sold,pricingMode:item.pricingMode}))}}/>}
   {staff.permissionSet.has("TICKET_MANAGE")?<CategoryManager eventId={event.id} categories={managedCategories}/>:<div className="table-wrap"><table><thead><tr><th>Категория</th><th>Цена сейчас</th><th>Продано</th><th>Остаток</th></tr></thead><tbody>{managedCategories.map(item=><tr key={item.id}><td>{item.name}</td><td>{item.currentPriceMinor!==null?money(item.currentPriceMinor):item.statusLabel}</td><td>{item.sold}</td><td>{item.capacity-item.sold}</td></tr>)}</tbody></table></div>}
   {(staff.permissionSet.has("EVENT_MANAGE")||staff.permissionSet.has("TICKET_MANAGE"))&&<div className="settings-page-head"><div><span className="eyebrow">Настройки мероприятия</span><h2>Управление событием</h2><p className="muted">Коммерческие условия, язык, аудитория, форма покупателя и билет.</p></div>{staff.permissionSet.has("TICKET_MANAGE")&&<Link className="btn dark" href={`/office/events/${event.id}/ticket-design`}>Открыть редактор билета</Link>}</div>}
+  {staff.permissionSet.has("EVENT_MANAGE")&&<EventArchiveControl eventId={event.id} eventTitle={event.title} archived={archived}/>} 
   {staff.permissionSet.has("EVENT_MANAGE")&&<EventCommercialTermsForm eventId={event.id} organizerName={event.organization.name} isSuperAdmin={staff.role==="ADMIN"} initial={{useOrganizerDefaults:commercialTerms.useOrganizerDefaults,serviceFeePayer:commercialTerms.serviceFeePayer,organizerServiceFeePayer:commercialTerms.organizer.serviceFeePayer}}/>}
   {staff.permissionSet.has("EVENT_MANAGE")&&<EventLanguageManager eventId={event.id} initial={languageSettings}/>} 
   {staff.permissionSet.has("EVENT_MANAGE")&&<EventTypeManager eventId={event.id} initialType={eventType}/>} 
