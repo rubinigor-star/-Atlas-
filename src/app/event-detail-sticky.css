@@ -20,48 +20,47 @@
 @media (min-width: 801px) {
   html:has(.event-stage),
   body:has(.event-stage) {
-    height: 100%;
-    overflow: hidden;
-    overscroll-behavior: none;
+    height: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: auto;
   }
 
   .event-stage {
-    height: calc(100dvh - 76px);
-    min-height: 0;
-    padding: 30px 0;
-    overflow: hidden !important;
+    height: auto;
+    min-height: 100vh;
+    padding: 42px 0 90px;
+    overflow: visible !important;
   }
 
   .event-experience {
-    height: 100%;
+    height: auto;
     min-height: 0;
     align-items: start;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .event-media-rail {
-    position: relative;
-    top: auto;
+    position: sticky;
+    top: 96px;
     align-self: start;
     z-index: 2;
-    max-height: 100%;
+    max-height: none;
   }
 
   .event-content-panel {
-    height: 100%;
+    height: auto;
     min-height: 0;
-    max-height: 100%;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-    -webkit-overflow-scrolling: touch;
+    max-height: none;
+    overflow: visible;
+    overscroll-behavior: auto;
+    scrollbar-gutter: auto;
   }
 }
 
 @media (min-width: 801px) and (max-width: 980px) {
-  .event-stage {
-    height: calc(100dvh - 62px);
-    padding: 24px 0;
+  .event-media-rail {
+    top: 82px;
   }
 }
 
