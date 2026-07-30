@@ -1,0 +1,41 @@
+.event-poster-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #111;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, .4);
+}
+
+.event-poster-frame .event-square-poster {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@media (min-width: 801px) {
+  .event-stage {
+    overflow: clip;
+  }
+
+  .event-experience {
+    align-items: start;
+  }
+
+  .event-media-rail {
+    position: sticky;
+    top: 96px;
+    align-self: start;
+    z-index: 2;
+  }
+}
+
+@media (max-width: 800px) {
+  .event-poster-frame {
+    border-radius: 18px;
+  }
+}
