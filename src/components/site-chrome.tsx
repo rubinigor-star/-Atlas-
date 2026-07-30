@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Languages } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { BriefcaseBusiness, ChevronDown, Search, Sparkles, Ticket, UserRound } from "lucide-react";
 import { useLocale, type Locale } from "@/components/locale-provider";
 import { localeNames } from "@/lib/i18n";
 import { AtlasLogo } from "@/components/atlas-logo";
@@ -54,6 +55,33 @@ const footerCopy = {
   },
 } as const;
 
+const headerCopy = {
+  ru: {
+    whyAtlas: "Почему Atlas",
+    app: "Скачать приложение",
+    search: "Поиск событий",
+    account: "Личный кабинет",
+    buyer: "Войти как покупатель",
+    organizer: "Войти как организатор",
+  },
+  he: {
+    whyAtlas: "למה Atlas",
+    app: "הורדת האפליקציה",
+    search: "חיפוש אירועים",
+    account: "חשבון אישי",
+    buyer: "כניסה כלקוח",
+    organizer: "כניסה כמפיק אירועים",
+  },
+  en: {
+    whyAtlas: "Why Atlas",
+    app: "Get the app",
+    search: "Search events",
+    account: "Account",
+    buyer: "Sign in as a customer",
+    organizer: "Sign in as an organizer",
+  },
+} as const;
+
 function AppleMark() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.47-2.09-.49-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.3c1.29-.02 2.2.71 2.96.71.72 0 2.06-.88 3.47-.75.59.02 2.25.24 3.31 1.8-2.96 1.62-2.5 5.51.51 6.72-.59 1.55-1.36 3.09-2.25 4.5ZM12.03 7.25c-.15-2.3 1.71-4.2 3.85-4.38.3 2.66-2.41 4.65-3.85 4.38Z"/></svg>;
 }
@@ -83,12 +111,119 @@ function StoreBadge({ type }: { type: "apple" | "google" }) {
 
 export function SiteHeader() {
   const { messages, locale, setLocale } = useLocale();
-  const whyAtlas = locale === "he" ? "למה Atlas" : locale === "en" ? "Why Atlas" : "Почему Atlas";
-  return <header className="topbar"><div className="shell nav"><AtlasLogo/><nav className="navlinks">
-    <Link href="/">{messages.common.events}</Link><Link href="/about">{whyAtlas}</Link><Link href="/faq">FAQ</Link><Link href="/office">{messages.common.organizers}</Link><Link href="/account">{messages.common.account}</Link>
-    <label className="language-switch" style={{display:"inline-flex",alignItems:"center",gap:7}}><Languages size={16} aria-hidden="true"/><span className="sr-only">{messages.common.language}</span><select aria-label={messages.common.language} value={locale} onChange={e=>setLocale(e.target.value as Locale)} style={{border:0,background:"transparent",color:"inherit",font:"inherit",fontWeight:700,cursor:"pointer",outline:"none"}}><option value="he">{localeNames.he}</option><option value="ru">{localeNames.ru}</option><option value="en">{localeNames.en}</option></select></label>
-    <Link href="/office" className="btn secondary">{messages.common.backoffice}</Link>
-  </nav></div></header>;
+  const copy = headerCopy[locale];
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [appBusy, setAppBusy] = useState(false);
+  const accountRef = useRef<HTMLDivElement>(null);
+  const appTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!accountOpen) return;
+
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!accountRef.current?.contains(event.target as Node)) setAccountOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAccountOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [accountOpen]);
+
+  useEffect(() => () => {
+    if (appTimerRef.current !== null) window.clearTimeout(appTimerRef.current);
+  }, []);
+
+  const playAppButtonFeedback = () => {
+    if (appTimerRef.current !== null) window.clearTimeout(appTimerRef.current);
+    setAppBusy(false);
+    window.requestAnimationFrame(() => {
+      setAppBusy(true);
+      appTimerRef.current = window.setTimeout(() => setAppBusy(false), 900);
+    });
+  };
+
+  const openEvents = () => {
+    const events = document.getElementById("events");
+    if (events) {
+      events.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    window.location.assign("/#events");
+  };
+
+  return <header className="topbar atlas-site-header">
+    <div className="atlas-header-shell">
+      <div className="atlas-header-brand">
+        <AtlasLogo/>
+        <span className="atlas-header-divider" aria-hidden="true"/>
+        <label className="atlas-header-language">
+          <span className="sr-only">{messages.common.language}</span>
+          <select aria-label={messages.common.language} value={locale} onChange={event=>setLocale(event.target.value as Locale)}>
+            <option value="ru">{localeNames.ru}</option>
+            <option value="he">{localeNames.he}</option>
+            <option value="en">{localeNames.en}</option>
+          </select>
+          <ChevronDown size={15} strokeWidth={1.8} aria-hidden="true"/>
+        </label>
+      </div>
+
+      <nav className="atlas-header-nav" aria-label="Primary navigation">
+        <Link href="/">{messages.common.events}</Link>
+        <Link href="/about">{copy.whyAtlas}</Link>
+        <Link href="/faq">FAQ</Link>
+        <Link href="/office">{messages.common.organizers}</Link>
+        <Link href="/account">{messages.common.account}</Link>
+      </nav>
+
+      <div className="atlas-header-actions">
+        <button
+          type="button"
+          className="atlas-app-cta"
+          data-loading={appBusy ? "true" : "false"}
+          aria-busy={appBusy}
+          onClick={playAppButtonFeedback}
+        >
+          <Sparkles size={17} strokeWidth={1.8} aria-hidden="true"/>
+          <span>{copy.app}</span>
+          <i aria-hidden="true"/>
+        </button>
+
+        <button type="button" className="atlas-header-icon-button" aria-label={copy.search} title={copy.search} onClick={openEvents}>
+          <Search size={23} strokeWidth={1.8} aria-hidden="true"/>
+        </button>
+
+        <div className="atlas-account-wrap" ref={accountRef}>
+          <button
+            type="button"
+            className="atlas-header-icon-button atlas-account-button"
+            aria-label={copy.account}
+            aria-haspopup="menu"
+            aria-expanded={accountOpen}
+            onClick={() => setAccountOpen(open => !open)}
+          >
+            <UserRound size={24} strokeWidth={1.75} aria-hidden="true"/>
+          </button>
+
+          {accountOpen && <div className="atlas-account-menu" role="menu" aria-label={copy.account}>
+            <Link href="/account" className="atlas-account-menu-item atlas-account-menu-buyer" role="menuitem" onClick={() => setAccountOpen(false)}>
+              <span className="atlas-account-menu-icon"><Ticket size={20} strokeWidth={1.8} aria-hidden="true"/></span>
+              <strong>{copy.buyer}</strong>
+            </Link>
+            <Link href="/office" className="atlas-account-menu-item" role="menuitem" onClick={() => setAccountOpen(false)}>
+              <span className="atlas-account-menu-icon"><BriefcaseBusiness size={20} strokeWidth={1.8} aria-hidden="true"/></span>
+              <strong>{copy.organizer}</strong>
+            </Link>
+          </div>}
+        </div>
+      </div>
+    </div>
+  </header>;
 }
 
 export function SiteFooter() {
