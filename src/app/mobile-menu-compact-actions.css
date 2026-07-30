@@ -1,193 +1,270 @@
 @media (max-width: 980px) {
-  .atlas-mobile-drawer-body {
-    display: flex;
-    flex-direction: column;
+  /* Main mobile navigation mirrors the competitor: spacious rows, no dividers. */
+  .atlas-mobile-nav {
+    display: grid !important;
+    gap: 0;
+    padding: 4px 0 0;
   }
 
-  .atlas-mobile-nav,
-  .atlas-mobile-account-actions {
-    display: contents !important;
-  }
-
-  .atlas-mobile-nav > a:nth-child(1) { order: 1; }
-  .atlas-mobile-nav > a:nth-child(2) { order: 2; }
-  .atlas-mobile-nav > a:nth-child(4) { order: 3; }
-  .atlas-mobile-nav > a:nth-child(5) { order: 4; }
-
-  /* The existing FAQ route becomes the dedicated Help & Support row. */
-  .atlas-mobile-nav > a:nth-child(3) {
-    order: 10;
-    width: 100%;
+  .atlas-mobile-nav > a {
     min-height: 49px;
-    margin-top: 22px;
-    padding: 0 4px;
-    border-top: 1px solid #e2e6ec;
-    border-bottom: 1px solid #e2e6ec;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 14px;
-    color: #202846;
-    font-size: 0 !important;
-    font-weight: 700;
-    text-align: start;
-    transition: background 150ms ease, color 150ms ease;
-  }
-
-  .atlas-mobile-nav > a:nth-child(3)::before {
-    content: "?";
-    flex: 0 0 21px;
-    width: 21px;
-    height: 21px;
-    border-radius: 50%;
-    display: inline-grid;
-    place-items: center;
-    background: #303650;
-    color: #fff;
-    font-size: 13px;
-    font-weight: 800;
-    line-height: 1;
-  }
-
-  .atlas-mobile-nav > a:nth-child(3)::after {
-    font-size: 15px;
-    line-height: 1.2;
-  }
-
-  html[lang="ru"] .atlas-mobile-nav > a:nth-child(3)::after {
-    content: "Помощь и поддержка";
-  }
-
-  html[lang="en"] .atlas-mobile-nav > a:nth-child(3)::after {
-    content: "Help & Support";
-  }
-
-  html[lang="he"] .atlas-mobile-nav > a:nth-child(3)::after {
-    content: "עזרה ותמיכה";
-  }
-
-  .atlas-mobile-account-actions a {
-    width: 100%;
-    min-height: 49px;
-    margin: 0 !important;
-    padding: 0 4px !important;
+    padding: 0 6px !important;
     border: 0 !important;
-    border-bottom: 1px solid #e2e6ec !important;
-    border-radius: 0 !important;
-    display: flex !important;
+    display: flex;
+    align-items: center;
+    color: #111827;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.2;
+    background: transparent !important;
+  }
+
+  .atlas-mobile-nav > a:focus-visible {
+    color: var(--brand-orange);
+    outline: 2px solid rgba(255, 132, 0, .28);
+    outline-offset: -2px;
+    border-radius: 8px;
+  }
+
+  /* Utility actions are a separate compact section with only subtle separators. */
+  .atlas-mobile-utility-list {
+    margin-top: 22px;
+    border-top: 1px solid #e2e6ec;
+  }
+
+  .atlas-mobile-utility-row {
+    width: 100%;
+    min-height: 49px;
+    padding: 0 4px;
+    border: 0;
+    border-bottom: 1px solid #e2e6ec;
+    border-radius: 0;
+    display: flex;
     align-items: center;
     justify-content: flex-start;
     gap: 14px;
-    background: transparent !important;
-    color: #202846 !important;
+    background: transparent;
+    color: #202846;
+    font: inherit;
     font-size: 15px;
     font-weight: 700;
+    line-height: 1.2;
     text-align: start;
-    box-shadow: none !important;
-    transition: background 150ms ease, color 150ms ease;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 150ms ease, background 150ms ease;
   }
 
-  .atlas-mobile-account-actions a:first-child { order: 11; }
-  .atlas-mobile-account-actions a:nth-child(2) { order: 12; }
-
-  .atlas-mobile-account-actions a svg {
+  .atlas-mobile-utility-row > svg {
     flex: 0 0 21px;
     width: 21px;
     height: 21px;
     color: #303650;
   }
 
-  .atlas-mobile-account-actions a span {
-    font-size: 0;
+  .atlas-mobile-utility-row:focus-visible {
+    background: #f5f7fa;
+    color: var(--brand-orange);
+    outline: none;
   }
 
-  .atlas-mobile-account-actions a span::after {
-    font-size: 15px;
-    line-height: 1.2;
+  .atlas-mobile-utility-row:active {
+    background: #f0f2f5;
   }
 
-  html[lang="ru"] .atlas-mobile-account-actions a:first-child span::after {
-    content: "Войти как клиент";
+  .atlas-mobile-utility-app {
+    color: #ed6c00;
   }
 
-  html[lang="ru"] .atlas-mobile-account-actions a:nth-child(2) span::after {
-    content: "Войти как организатор";
-  }
-
-  html[lang="en"] .atlas-mobile-account-actions a:first-child span::after {
-    content: "Sign in as a customer";
-  }
-
-  html[lang="en"] .atlas-mobile-account-actions a:nth-child(2) span::after {
-    content: "Sign in as an organizer";
-  }
-
-  html[lang="he"] .atlas-mobile-account-actions a:first-child span::after {
-    content: "כניסה כלקוח";
-  }
-
-  html[lang="he"] .atlas-mobile-account-actions a:nth-child(2) span::after {
-    content: "כניסה כמפיק אירועים";
-  }
-
-  .atlas-mobile-app-cta {
-    order: 13;
-    position: relative;
-    width: 100%;
-    min-height: 49px;
-    margin: 0 !important;
-    padding: 0 4px !important;
-    border: 0 !important;
-    border-bottom: 1px solid #e2e6ec !important;
-    border-radius: 0 !important;
-    display: flex !important;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 14px;
-    overflow: hidden;
-    background: transparent !important;
-    color: #ed6c00 !important;
-    font-size: 15px;
-    font-weight: 750;
-    text-align: start;
-    box-shadow: none !important;
-    filter: none !important;
-    transform: none !important;
-    transition: background 150ms ease, color 150ms ease;
-  }
-
-  .atlas-mobile-app-cta::before {
-    content: "";
+  .atlas-mobile-app-icon {
     flex: 0 0 22px;
     width: 22px;
     height: 22px;
     border-radius: 5px;
+    display: block;
     background: url("/atlas-app-icon.svg") center / contain no-repeat;
   }
 
-  .atlas-mobile-app-cta > svg,
-  .atlas-mobile-app-cta > i {
+  .atlas-mobile-utility-app[data-loading="true"] .atlas-mobile-app-icon {
+    animation: atlas-mobile-app-pulse 700ms ease;
+  }
+
+  /* Language remains next to the Atlas logo while the drawer is open. */
+  .atlas-mobile-drawer-brand {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .atlas-mobile-drawer-brand .atlas-logo {
+    flex: 0 0 auto;
+  }
+
+  .atlas-mobile-drawer-divider {
+    flex: 0 0 1px;
+    width: 1px;
+    height: 23px;
+    background: #d8dde5;
+  }
+
+  .atlas-mobile-drawer-language-wrap {
+    position: relative;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .atlas-mobile-drawer-language-button {
+    min-height: 36px;
+    padding: 0 3px;
+    border: 0;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: transparent;
+    color: #111827;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .atlas-mobile-drawer-language-button[aria-expanded="true"],
+  .atlas-mobile-drawer-language-button:focus-visible {
+    background: #f4f6f8;
+    outline: none;
+  }
+
+  .atlas-mobile-drawer-language-button svg {
+    transition: transform 160ms ease;
+  }
+
+  .atlas-mobile-drawer-language-button[aria-expanded="true"] svg {
+    transform: rotate(180deg);
+  }
+
+  .atlas-mobile-drawer-language-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    inset-inline-start: -8px;
+    z-index: 10;
+    width: 150px;
+    padding: 6px;
+    border: 1px solid rgba(15, 23, 42, .09);
+    border-radius: 13px;
+    display: grid;
+    gap: 2px;
+    background: #fff;
+    box-shadow: 0 16px 42px rgba(15, 23, 42, .18);
+    animation: atlas-language-menu-in 150ms ease-out;
+  }
+
+  .atlas-mobile-drawer-language-menu button {
+    min-height: 40px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: transparent;
+    color: #344054;
+    font: inherit;
+    font-size: 14px;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .atlas-mobile-drawer-language-menu button:focus-visible {
+    background: #f5f7fa;
+    outline: none;
+  }
+
+  .atlas-mobile-drawer-language-menu button svg {
+    opacity: 0;
+    color: var(--brand-orange);
+  }
+
+  .atlas-mobile-drawer-language-menu button[data-selected="true"] {
+    background: rgba(255, 132, 0, .09);
+    color: #d96500;
+    font-weight: 650;
+  }
+
+  .atlas-mobile-drawer-language-menu button[data-selected="true"] svg {
+    opacity: 1;
+  }
+
+  /* Legacy mobile controls are no longer rendered, but keep them neutral if cached markup appears. */
+  .atlas-mobile-account-actions,
+  .atlas-mobile-app-cta,
+  .atlas-mobile-language-section {
     display: none !important;
   }
+}
 
-  .atlas-mobile-nav > a:nth-child(3):hover,
-  .atlas-mobile-nav > a:nth-child(3):focus-visible,
-  .atlas-mobile-account-actions a:hover,
-  .atlas-mobile-account-actions a:focus-visible,
-  .atlas-mobile-app-cta:hover,
-  .atlas-mobile-app-cta:focus-visible {
-    background: #f7f8fa !important;
-    outline: none;
-    transform: none !important;
-    box-shadow: none !important;
+@media (hover: hover) and (pointer: fine) and (max-width: 980px) {
+  .atlas-mobile-nav > a:hover {
+    color: var(--brand-orange);
   }
 
-  .atlas-mobile-nav > a:nth-child(3):active,
-  .atlas-mobile-account-actions a:active,
-  .atlas-mobile-app-cta:active,
-  .atlas-mobile-app-cta[data-loading="true"] {
-    background: #f0f2f5 !important;
-    transform: none !important;
-    box-shadow: none !important;
+  .atlas-mobile-utility-row:hover {
+    background: #f7f8fa;
+    color: var(--brand-orange);
   }
+
+  .atlas-mobile-drawer-language-button:hover,
+  .atlas-mobile-drawer-language-menu button:hover {
+    background: #f5f7fa;
+  }
+}
+
+@media (max-width: 480px) {
+  .atlas-mobile-drawer-brand {
+    gap: 8px;
+  }
+
+  .atlas-mobile-drawer-divider {
+    height: 22px;
+  }
+
+  .atlas-mobile-drawer-language-button {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 360px) {
+  .atlas-mobile-drawer-head {
+    padding-inline: 10px;
+  }
+
+  .atlas-mobile-drawer-head .atlas-logo-image {
+    width: 100px;
+  }
+
+  .atlas-mobile-drawer-brand {
+    gap: 6px;
+  }
+
+  .atlas-mobile-drawer-language-button {
+    font-size: 12.5px;
+  }
+
+  .atlas-mobile-close {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+@keyframes atlas-mobile-app-pulse {
+  0%, 100% { transform: scale(1); }
+  45% { transform: scale(.9) rotate(-4deg); }
+  70% { transform: scale(1.06) rotate(3deg); }
 }
