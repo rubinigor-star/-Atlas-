@@ -14,7 +14,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
     const syncHeaderState = () => {
       body.classList.toggle("atlas-header-home", home);
-      body.classList.toggle("atlas-header-scrolled", home && window.scrollY > 8);
+      body.classList.toggle("atlas-header-scrolled", home && window.scrollY > 2);
     };
 
     syncHeaderState();
@@ -26,5 +26,10 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
     };
   }, [home]);
 
-  return <>{!office && <SiteHeader />}{children}{!office && <SiteFooter />}</>;
+  return <>
+    {!office && <SiteHeader/>}
+    {!office && !home && <div className="atlas-header-spacer" aria-hidden="true"/>}
+    {children}
+    {!office && <SiteFooter/>}
+  </>;
 }

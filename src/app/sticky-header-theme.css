@@ -1,14 +1,28 @@
 .atlas-site-header {
-  position: sticky !important;
+  position: fixed !important;
   top: 0;
-  inset-inline: 0;
+  right: 0;
+  left: 0;
   width: 100%;
+  z-index: 1000;
   transition:
     background-color 220ms ease,
     background 220ms ease,
     border-color 220ms ease,
     box-shadow 220ms ease,
     backdrop-filter 220ms ease;
+}
+
+.atlas-header-spacer {
+  width: 100%;
+  height: 76px;
+  flex: 0 0 76px;
+}
+
+/* Keep the hero background underneath the fixed transparent header. */
+body.atlas-header-home .live-emotions-hero,
+body:has(.home-page) .live-emotions-hero {
+  padding-top: 76px;
 }
 
 .atlas-site-header .atlas-header-nav,
@@ -22,14 +36,14 @@
     opacity 180ms ease;
 }
 
+/* At the top of the homepage the header is genuinely transparent. */
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-site-header,
 body.atlas-header-home:not(.atlas-header-scrolled) .atlas-site-header {
-  border-bottom-color: rgba(255, 255, 255, .055);
-  background:
-    linear-gradient(90deg, rgba(2, 7, 20, .98) 0%, rgba(8, 3, 22, .98) 50%, rgba(22, 8, 25, .98) 100%);
+  border-bottom-color: transparent;
+  background: transparent;
   box-shadow: none;
-  backdrop-filter: blur(18px) saturate(1.04);
-  -webkit-backdrop-filter: blur(18px) saturate(1.04);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-header-nav,
@@ -46,7 +60,7 @@ body.atlas-header-home:not(.atlas-header-scrolled) .atlas-header-nav a:focus-vis
 
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-language-button,
 body.atlas-header-home:not(.atlas-header-scrolled) .atlas-language-button {
-  color: rgba(255, 255, 255, .78);
+  color: rgba(255, 255, 255, .82);
 }
 
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-language-button:hover,
@@ -79,6 +93,8 @@ body.atlas-header-home:not(.atlas-header-scrolled) .atlas-account-button[aria-ex
   color: #ff8a1a;
 }
 
+/* As soon as scrolling begins, restore the regular white header. */
+body:has(.home-page).atlas-header-scrolled .atlas-site-header,
 body.atlas-header-home.atlas-header-scrolled .atlas-site-header {
   border-bottom-color: rgba(15, 23, 42, .08);
   background: rgba(255, 255, 255, .97);
@@ -88,10 +104,26 @@ body.atlas-header-home.atlas-header-scrolled .atlas-site-header {
 }
 
 @media (max-width: 980px) {
-  body:has(.home-page):not(.atlas-header-scrolled) .atlas-site-header,
-  body.atlas-header-home:not(.atlas-header-scrolled) .atlas-site-header {
-    background:
-      linear-gradient(90deg, rgba(2, 7, 20, .99) 0%, rgba(8, 3, 22, .99) 58%, rgba(19, 7, 23, .99) 100%);
+  .atlas-header-spacer {
+    height: 62px;
+    flex-basis: 62px;
+  }
+
+  body.atlas-header-home .live-emotions-hero,
+  body:has(.home-page) .live-emotions-hero {
+    padding-top: 62px;
+  }
+}
+
+@media (max-width: 480px) {
+  .atlas-header-spacer {
+    height: 58px;
+    flex-basis: 58px;
+  }
+
+  body.atlas-header-home .live-emotions-hero,
+  body:has(.home-page) .live-emotions-hero {
+    padding-top: 58px;
   }
 }
 
