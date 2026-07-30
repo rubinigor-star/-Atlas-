@@ -24,6 +24,15 @@
     font-size: inherit !important;
     line-height: inherit;
   }
+
+  .home-page .live-emotions-accent {
+    padding-block: .12em .18em;
+    margin-block: -.12em -.18em;
+    overflow: visible;
+    filter: none;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
 }
 
 .home-page .live-events-marquee {
