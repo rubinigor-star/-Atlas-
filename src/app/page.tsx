@@ -1,13 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { Mic2, Music2, PartyPopper, Sparkles, Ticket } from "lucide-react";
 import "./event-card-grid.css";
+import "./live-emotions-hero.css";
 import { db } from "@/lib/db";
 import { money } from "@/lib/format";
 import type { Locale } from "@/lib/i18n";
 import { getServerI18n } from "@/lib/server-locale";
-import { eventTypeLabels, parseEventType } from "@/lib/event-type";
+import { eventTypeLabels, parseEventType, type EventType } from "@/lib/event-type";
 import { EventLanguagePreferences } from "@/components/event-language-preferences";
 import { EVENT_LANGUAGE_COOKIE, parsePreferredEventLanguages } from "@/lib/event-language";
 import { getHiddenEventIds } from "@/lib/event-language-server";
@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
 
 type TourRow={id:string;slug:string;title:string;description:string;posterurl:string|null};
 type TourEventRow={tourid:string;eventid:string;position:number};
+type CategoryKey="children"|"theatre"|"concerts"|"standup"|"clubs"|"deals";
 
 const intlLocale: Record<Locale,string>={ru:"ru-IL",he:"he-IL",en:"en-IL"};
 const rangeWords:Record<Locale,{from:string;to:string}>={
@@ -24,10 +25,57 @@ const rangeWords:Record<Locale,{from:string;to:string}>={
   en:{from:"from",to:"to"},
 };
 
-const categoryLabels:Record<Locale,[string,string,string,string,string]>={
-  ru:["Концерты","Вечеринки","Шоу","Стендап","Все события"],
-  he:["הופעות","מסיבות","מופעים","סטנדאפ","כל האירועים"],
-  en:["Concerts","Parties","Shows","Stand-up","All events"],
+const categoryKeys:CategoryKey[]=["children","theatre","concerts","standup","clubs","deals"];
+const categoryTypes:Record<CategoryKey,EventType[]|null>={
+  children:["CHILDREN_SHOW"],
+  theatre:["THEATRE"],
+  concerts:["SOLO_CONCERT","LIVE_MUSIC","CLASSICAL_CONCERT"],
+  standup:["COMEDY"],
+  clubs:["FESTIVAL","PARTY","DJ_SET"],
+  deals:null,
+};
+
+const heroCategories:Array<{key:CategoryKey;icon:string}>=[
+  {key:"children",icon:"🧸"},
+  {key:"theatre",icon:"🎭"},
+  {key:"concerts",icon:"🎸"},
+  {key:"standup",icon:"🎙️"},
+  {key:"clubs",icon:"⚡"},
+  {key:"deals",icon:"🏷️"},
+];
+
+const heroCopy:Record<Locale,{
+  before:string;
+  accent:string;
+  after:string;
+  description:[string,string];
+  carousel:string;
+  categories:Record<CategoryKey,string>;
+}>={
+  ru:{
+    before:"ЖИВЫЕ",
+    accent:"ЭМОЦИИ",
+    after:"ЗДЕСЬ.",
+    description:["Концерты, вечеринки и специальные события.","Простой выбор, прозрачная цена и билет сразу после оформления."],
+    carousel:"Актуальные мероприятия Atlas",
+    categories:{children:"Детские",theatre:"Театр",concerts:"Концерты",standup:"Stand-up",clubs:"Клубы и фестивали",deals:"Выгодные предложения"},
+  },
+  he:{
+    before:"",
+    accent:"רגשות",
+    after:"חיים כאן.",
+    description:["הופעות, מסיבות ואירועים מיוחדים.","בחירה פשוטה, מחיר שקוף וכרטיס מיד לאחר ההזמנה."],
+    carousel:"האירועים העדכניים של Atlas",
+    categories:{children:"ילדים",theatre:"תיאטרון",concerts:"הופעות",standup:"סטנדאפ",clubs:"מועדונים ופסטיבלים",deals:"מבצעים"},
+  },
+  en:{
+    before:"LIVE",
+    accent:"EMOTIONS",
+    after:"HERE.",
+    description:["Concerts, parties and special events.","A simple choice, transparent pricing and your ticket immediately after checkout."],
+    carousel:"Current Atlas events",
+    categories:{children:"Kids",theatre:"Theatre",concerts:"Concerts",standup:"Stand-up",clubs:"Clubs & festivals",deals:"Deals"},
+  },
 };
 
 function displayCity(value:string,locale:Locale){
@@ -48,8 +96,10 @@ function shortDateRange(start:Date,end:Date,locale:Locale){
   return `${words.from} ${shortDate(start,locale)} ${words.to} ${shortDate(end,locale)}`;
 }
 
-export default async function Home() {
+export default async function Home({searchParams}:{searchParams:Promise<{category?:string}>}) {
   const { locale, messages } = await getServerI18n();
+  const params=await searchParams;
+  const selectedCategory=categoryKeys.includes(params.category as CategoryKey)?params.category as CategoryKey:null;
   const cookieStore = await cookies();
   const preferredEventLanguages = parsePreferredEventLanguages(cookieStore.get(EVENT_LANGUAGE_COOKIE)?.value, locale);
   const hiddenEventIds = await getHiddenEventIds(preferredEventLanguages);
@@ -80,54 +130,116 @@ export default async function Home() {
     tours=[];tourLinks=[];
   }
 
-  const eventById=new Map(events.map(event=>[event.id,event]));
-  const linkedEventIds=new Set(tourLinks.filter(link=>eventById.has(link.eventid)).map(link=>link.eventid));
-  const tourCards=tours.map(tour=>{
-    const linked=tourLinks
-      .filter(link=>link.tourid===tour.id)
-      .map(link=>eventById.get(link.eventid))
-      .filter(Boolean)
-      .sort((a,b)=>a!.startsAt.getTime()-b!.startsAt.getTime()) as typeof events;
-    if(!linked.length)return null;
-    const prices=linked.flatMap(event=>event.categories.map(category=>category.priceMinor));
-    const cities=[...new Set(linked.map(event=>displayCity(event.venue.city,locale)))];
-    return {tour,linked,poster:tour.posterurl||linked[0].posterUrl,minimumPrice:prices.length?Math.min(...prices):null,cities};
-  }).filter(Boolean) as Array<{tour:TourRow;linked:typeof events;poster:string;minimumPrice:number|null;cities:string[]}>;
-  const standaloneEvents=events.filter(event=>!linkedEventIds.has(event.id));
-  const totalCards=tourCards.length+standaloneEvents.length;
-  const labels=categoryLabels[locale];
-  const categories=[
-    {label:labels[0],Icon:Music2},
-    {label:labels[1],Icon:PartyPopper},
-    {label:labels[2],Icon:Sparkles},
-    {label:labels[3],Icon:Mic2},
-    {label:labels[4],Icon:Ticket},
-  ];
+  type EventRow=(typeof events)[number];
+  type TourCard={tour:TourRow;linked:EventRow[];poster:string;minimumPrice:number|null;cities:string[]};
+
+  const buildCards=(sourceEvents:EventRow[])=>{
+    const eventById=new Map(sourceEvents.map(event=>[event.id,event]));
+    const linkedEventIds=new Set(tourLinks.filter(link=>eventById.has(link.eventid)).map(link=>link.eventid));
+    const tourCards=tours.map(tour=>{
+      const linked=tourLinks
+        .filter(link=>link.tourid===tour.id)
+        .map(link=>eventById.get(link.eventid))
+        .filter(Boolean)
+        .sort((a,b)=>a!.startsAt.getTime()-b!.startsAt.getTime()) as EventRow[];
+      if(!linked.length)return null;
+      const poster=tour.posterurl||linked[0].posterUrl;
+      if(!poster)return null;
+      const prices=linked.flatMap(event=>event.categories.map(category=>category.priceMinor));
+      const cities=[...new Set(linked.map(event=>displayCity(event.venue.city,locale)))];
+      return {tour,linked,poster,minimumPrice:prices.length?Math.min(...prices):null,cities};
+    }).filter(Boolean) as TourCard[];
+    const standaloneEvents=sourceEvents.filter(event=>!linkedEventIds.has(event.id));
+    return {tourCards,standaloneEvents,totalCards:tourCards.length+standaloneEvents.length};
+  };
+
+  const allCards=buildCards(events);
+  const selectedTypes=selectedCategory?categoryTypes[selectedCategory]:null;
+  const filteredEvents=selectedTypes
+    ?events.filter(event=>selectedTypes.includes(parseEventType(event.description)))
+    :events;
+  const visibleCards=buildCards(filteredEvents);
+  const copy=heroCopy[locale];
+
+  const marqueeCards=[
+    ...allCards.tourCards.map(({tour,poster,cities,linked})=>({
+      id:`tour-${tour.id}`,
+      href:`/tours/${tour.slug}`,
+      title:tour.title,
+      poster,
+      meta:`${cities.join(" · ")} · ${shortDateRange(linked[0].startsAt,linked[linked.length-1].startsAt,locale)}`,
+    })),
+    ...allCards.standaloneEvents.map(event=>({
+      id:`event-${event.id}`,
+      href:`/events/${event.slug}`,
+      title:event.title,
+      poster:event.posterUrl,
+      meta:`${displayCity(event.venue.city,locale)} · ${shortDate(event.startsAt,locale)}`,
+    })),
+  ].slice(0,14);
 
   return <main className="home-page">
-    <section className="home-hero">
-      <div className="home-shell home-hero-inner">
-        <div className="home-hero-copy">
-          <span className="eyebrow">{messages.home.eyebrow}</span>
-          <h1>{messages.home.title}</h1>
-          <p>{messages.home.subtitle}</p>
-        </div>
-        <div className="home-category-grid" aria-label={labels[4]}>
-          {categories.map(({label,Icon})=><div className="home-category" key={label}>
-            <span className="home-category-icon"><Icon aria-hidden="true" size={28} strokeWidth={1.8}/></span>
-            <span>{label}</span>
+    <section className="live-emotions-hero" aria-labelledby="live-emotions-title">
+      <div className="live-emotions-shell">
+        <h1 id="live-emotions-title" className="live-emotions-title">
+          {copy.before&&<span>{copy.before}</span>}
+          <span className="live-emotions-accent">{copy.accent}</span>
+          <span>{copy.after}</span>
+        </h1>
+
+        <nav className="live-emotions-categories" aria-label={messages.common.events}>
+          {heroCategories.map(({key,icon})=><Link
+            href={`/?category=${key}#events`}
+            className="live-emotions-category"
+            data-active={selectedCategory===key?"true":"false"}
+            key={key}
+          >
+            <span className="live-emotions-category-icon" aria-hidden="true">{icon}</span>
+            <span>{copy.categories[key]}</span>
+          </Link>)}
+        </nav>
+
+        <p className="live-emotions-description">
+          <span>{copy.description[0]}</span>
+          <span>{copy.description[1]}</span>
+        </p>
+      </div>
+
+      {marqueeCards.length>0&&<div className="live-events-marquee" aria-label={copy.carousel}>
+        <div className="live-events-track" data-direction={locale==="he"?"rtl":"ltr"}>
+          {[false,true].map(duplicate=><div className="live-events-group" aria-hidden={duplicate?"true":undefined} key={duplicate?"duplicate":"primary"}>
+            {marqueeCards.map((card,index)=><Link
+              href={card.href}
+              className="live-event-preview"
+              tabIndex={duplicate?-1:undefined}
+              key={`${duplicate?"duplicate":"primary"}-${card.id}`}
+            >
+              <Image
+                src={card.poster}
+                width={750}
+                height={750}
+                alt={duplicate?"":card.title}
+                className="live-event-preview-image"
+                priority={!duplicate&&index<3}
+                sizes="(max-width: 520px) 44vw, (max-width: 900px) 30vw, 250px"
+              />
+              <span className="live-event-preview-copy">
+                <strong>{card.title}</strong>
+                <small>{card.meta}</small>
+              </span>
+            </Link>)}
           </div>)}
         </div>
-      </div>
+      </div>}
     </section>
 
     <section className="home-shell home-events" id="events">
       <div className="home-events-head">
-        <div><h2 className="section-title">{messages.home.upcoming}</h2><span className="muted">{totalCards} {messages.home.eventCount}</span></div>
+        <div><h2 className="section-title">{messages.home.upcoming}</h2><span className="muted">{visibleCards.totalCards} {messages.home.eventCount}</span></div>
         <EventLanguagePreferences locale={locale} initial={preferredEventLanguages}/>
       </div>
       <div className="event-grid">
-        {tourCards.map(({tour,linked,poster,minimumPrice,cities},index)=>{const cityLine=cities.join(" · ");return <Link className="card" href={`/tours/${tour.slug}`} key={tour.id}>
+        {visibleCards.tourCards.map(({tour,linked,poster,minimumPrice,cities},index)=>{const cityLine=cities.join(" · ");return <Link className="card" href={`/tours/${tour.slug}`} key={tour.id}>
           <Image src={poster} width={750} height={750} alt={tour.title} className="card-img" priority={index===0} sizes="(max-width: 520px) 50vw, (max-width: 800px) 50vw, (max-width: 1100px) 33vw, 25vw"/>
           <div className="card-body">
             <span className="pill card-tag">{messages.home.tour} · {linked.length} {messages.home.dates}</span>
@@ -137,8 +249,8 @@ export default async function Home() {
             <div className="row between card-actions"><strong>{minimumPrice===null?messages.home.salesSoon:`${messages.home.from} ${money(minimumPrice,"ILS",locale)}`}</strong><span className="btn">{messages.home.chooseCity}</span></div>
           </div>
         </Link>})}
-        {standaloneEvents.map((event,index)=>{const minimumPrice=event.categories.length?Math.min(...event.categories.map(category=>category.priceMinor)):null;const city=displayCity(event.venue.city,locale);const eventType=parseEventType(event.description);return <Link className="card" href={`/events/${event.slug}`} key={event.id}>
-          <Image src={event.posterUrl} width={750} height={750} alt={event.title} className="card-img" priority={tourCards.length===0&&index===0} sizes="(max-width: 520px) 50vw, (max-width: 800px) 50vw, (max-width: 1100px) 33vw, 25vw"/>
+        {visibleCards.standaloneEvents.map((event,index)=>{const minimumPrice=event.categories.length?Math.min(...event.categories.map(category=>category.priceMinor)):null;const city=displayCity(event.venue.city,locale);const eventType=parseEventType(event.description);return <Link className="card" href={`/events/${event.slug}`} key={event.id}>
+          <Image src={event.posterUrl} width={750} height={750} alt={event.title} className="card-img" priority={visibleCards.tourCards.length===0&&index===0} sizes="(max-width: 520px) 50vw, (max-width: 800px) 50vw, (max-width: 1100px) 33vw, 25vw"/>
           <div className="card-body">
             <span className="pill card-tag">{eventTypeLabels[locale][eventType]}</span>
             <h3 className="card-title">{event.title}</h3>
