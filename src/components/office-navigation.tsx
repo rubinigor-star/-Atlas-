@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { StaffPermission } from "@prisma/client";
-import { BarChart3, CalendarDays, ClipboardCheck, ContactRound, LayoutDashboard, ListChecks, Megaphone, QrCode, ReceiptText, Share2, Users } from "lucide-react";
+import { BarChart3, Building2, CalendarDays, ClipboardCheck, ContactRound, LayoutDashboard, ListChecks, Megaphone, QrCode, ReceiptText, Share2, Users } from "lucide-react";
 import { useLocale } from "@/components/locale-provider";
 
-const links: Array<{ href: string; key: "overview" | "requests" | "events" | "guestLists" | "guests" | "promoters" | "marketing" | "orders" | "scanner" | "team" | "audit"; permission?: StaffPermission; icon: typeof LayoutDashboard }> = [
+const links: Array<{ href: string; key: "overview" | "requests" | "events" | "guestLists" | "guests" | "promoters" | "marketing" | "orders" | "scanner" | "team" | "audit" | "company"; permission?: StaffPermission; icon: typeof LayoutDashboard }> = [
   { href: "/office", key: "overview", permission: "EVENT_VIEW", icon: LayoutDashboard },
   { href: "/office/requests", key: "requests", permission: "REQUEST_REVIEW", icon: ClipboardCheck },
   { href: "/office/events", key: "events", permission: "EVENT_VIEW", icon: CalendarDays },
@@ -15,6 +15,7 @@ const links: Array<{ href: string; key: "overview" | "requests" | "events" | "gu
   { href: "/office/promoters", key: "promoters", permission: "ANALYTICS_VIEW", icon: Share2 },
   { href: "/office/marketing", key: "marketing", permission: "ANALYTICS_VIEW", icon: Megaphone },
   { href: "/office/orders", key: "orders", permission: "ORDER_VIEW", icon: ReceiptText },
+  { href: "/office/company", key: "company", permission: "FINANCE_VIEW", icon: Building2 },
   { href: "/office/scanner", key: "scanner", permission: "SCAN", icon: QrCode },
   { href: "/office/team", key: "team", permission: "TEAM_MANAGE", icon: Users },
   { href: "/office/audit", key: "audit", permission: "TEAM_MANAGE", icon: BarChart3 },
@@ -35,6 +36,7 @@ export function OfficeNavigation({ permissions, mobile = false }: { permissions:
     promoters: messages.nav.promoters,
     marketing: "Реклама",
     orders: messages.common.orders,
+    company: "Компания и условия",
     scanner: messages.common.scanner,
     team: messages.nav.team,
     audit: messages.nav.audit,
