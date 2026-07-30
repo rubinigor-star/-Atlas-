@@ -16,6 +16,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { LocaleProvider } from "@/components/locale-provider";
 import { AppChrome } from "@/components/app-chrome";
 import { PwaRegister } from "@/components/pwa-register";
+import { MarketingTracker } from "@/components/marketing-tracker";
 import { getServerI18n } from "@/lib/server-locale";
 
 const BASE="https://www.atlas-one.co";
@@ -42,6 +43,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   ]};
   return <html lang={locale} dir={dir} suppressHydrationWarning><body>
     <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(schema).replace(/</g,"\\u003c")}}/>
-    <LocaleProvider initialLocale={locale}><PwaRegister/><AppChrome>{children}</AppChrome></LocaleProvider><SpeedInsights/>
+    <MarketingTracker/><LocaleProvider initialLocale={locale}><PwaRegister/><AppChrome>{children}</AppChrome></LocaleProvider><SpeedInsights/>
   </body></html>;
 }
