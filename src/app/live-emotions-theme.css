@@ -55,5 +55,15 @@
 @media (max-width: 560px) {
   .home-page .live-emotions-title {
     font-size: clamp(40px, 12vw, 58px) !important;
+    overflow: visible;
+  }
+
+  html[lang="ru"] .home-page .live-emotions-accent {
+    padding-block: .14em .22em;
+    margin-block: -.14em -.22em;
+    overflow: visible;
+    filter: none;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
 }
