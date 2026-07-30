@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Channel="EMAIL"|"SMS"|"WHATSAPP";
-type Props={customers:Array<{city:string|null;orders:number;totalMinor:number;email:string;phone:string}>;events:Array<{id:string;title:string}>};
+type Props={customers:Array<{city:string|null;orders:number;totalMinor:number;email:string;phone:string;lastPurchaseAt:string}>;events:Array<{id:string;title:string}>};
 type Template={id:string;label:string;channels:Channel[];subject?:string;message:string};
 
 const rates:Record<Channel,number>={EMAIL:8,SMS:22,WHATSAPP:35};
@@ -31,6 +31,9 @@ export function MarketingCampaignBuilder({customers,events}:Props){
   const [channel,setChannel]=useState<Channel>("EMAIL");
   const [city,setCity]=useState("");
   const [minOrders,setMinOrders]=useState(1);
+  const [minSpendShekels,setMinSpendShekels]=useState(0);
+  const [purchasedAfter,setPurchasedAfter]=useState("");
+  const [purchasedBefore,setPurchasedBefore]=useState("");
   const [eventId,setEventId]=useState("");
   const [name,setName]=useState("");
   const [subject,setSubject]=useState("");
@@ -39,7 +42,12 @@ export function MarketingCampaignBuilder({customers,events}:Props){
   const [busy,setBusy]=useState(false);
   const [notice,setNotice]=useState("");
   const cities=useMemo(()=>[...new Set(customers.map(item=>item.city).filter(Boolean) as string[])].sort(),[customers]);
-  const matching=useMemo(()=>customers.filter(customer=>(!city||customer.city===city)&&customer.orders>=minOrders&&(channel==="EMAIL"?Boolean(customer.email):Boolean(customer.phone))),[customers,city,minOrders,channel]);
+  const matching=useMemo(()=>customers.filter(customer=>{
+    const lastPurchase=new Date(customer.lastPurchaseAt).getTime();
+    const afterOk=!purchasedAfter||lastPurchase>=new Date(`${purchasedAfter}T00:00:00`).getTime();
+    const beforeOk=!purchasedBefore||lastPurchase<=new Date(`${purchasedBefore}T23:59:59`).getTime();
+    return (!city||customer.city===city)&&customer.orders>=minOrders&&customer.totalMinor>=minSpendShekels*100&&afterOk&&beforeOk&&(channel==="EMAIL"?Boolean(customer.email):Boolean(customer.phone));
+  }),[customers,city,minOrders,minSpendShekels,purchasedAfter,purchasedBefore,channel]);
   const estimatedCost=matching.length*rates[channel];
   const selectedEvent=events.find(event=>event.id===eventId);
   const previewSubject=renderPreview(subject).replace("Большой концерт Atlas",selectedEvent?.title||"Большой концерт Atlas");
@@ -55,11 +63,11 @@ export function MarketingCampaignBuilder({customers,events}:Props){
     if(!name)setName(template.label);
   }
 
-  function insertVariable(variable:string){setMessage(current=>`${current}${current&& !current.endsWith(" ")?" ":""}${variable}`);}
+  function insertVariable(variable:string){setMessage(current=>`${current}${current&&!current.endsWith(" ")?" ":""}${variable}`);}
 
   async function save(){
     setBusy(true);setNotice("");
-    const response=await fetch("/api/admin/marketing/campaigns",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name,channel,eventId:eventId||null,subject:channel==="EMAIL"?subject:null,message,templateId:templateId||null,variablesUsed:variables.filter(variable=>message.includes(variable)||subject.includes(variable)),segment:{city:city||null,minOrders},estimatedRecipients:matching.length,estimatedCostMinor:estimatedCost})});
+    const response=await fetch("/api/admin/marketing/campaigns",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name,channel,eventId:eventId||null,subject:channel==="EMAIL"?subject:null,message,templateId:templateId||null,variablesUsed:variables.filter(variable=>message.includes(variable)||subject.includes(variable)),segment:{city:city||null,minOrders,minSpendMinor:minSpendShekels*100,purchasedAfter:purchasedAfter||null,purchasedBefore:purchasedBefore||null},estimatedRecipients:matching.length,estimatedCostMinor:estimatedCost})});
     const data=await response.json();setBusy(false);
     if(!response.ok)return setNotice(data.error||"Не удалось сохранить кампанию");
     setNotice(`Черновик сохранён. Сервер подтвердил ${data.serverEstimate?.recipients??0} получателей и стоимость ₪${((data.serverEstimate?.costMinor??0)/100).toFixed(2)}.`);router.refresh();
@@ -71,9 +79,12 @@ export function MarketingCampaignBuilder({customers,events}:Props){
       <label>Название<input value={name} onChange={e=>setName(e.target.value)} placeholder="Повторная продажа концерта" /></label>
       <label>Канал<select value={channel} onChange={e=>{const next=e.target.value as Channel;setChannel(next);if(next!=="EMAIL")setSubject("");}}><option value="EMAIL">Email</option><option value="SMS">SMS</option><option value="WHATSAPP">WhatsApp</option></select></label>
       <label>Шаблон<select value={templateId} onChange={e=>applyTemplate(e.target.value)}><option value="">Без шаблона</option>{templates.filter(item=>item.channels.includes(channel)).map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
-      <label>Мероприятие<select value={eventId} onChange={e=>setEventId(e.target.value)}><option value="">Все мероприятия</option>{events.map(event=><option key={event.id} value={event.id}>{event.title}</option>)}</select></label>
+      <label>Покупали билеты на<select value={eventId} onChange={e=>setEventId(e.target.value)}><option value="">Любое мероприятие</option>{events.map(event=><option key={event.id} value={event.id}>{event.title}</option>)}</select></label>
       <label>Город<select value={city} onChange={e=>setCity(e.target.value)}><option value="">Все города</option>{cities.map(item=><option key={item}>{item}</option>)}</select></label>
       <label>Минимум заказов<input type="number" min="1" value={minOrders} onChange={e=>setMinOrders(Math.max(1,Number(e.target.value)||1))}/></label>
+      <label>Минимальная сумма покупок, ₪<input type="number" min="0" step="10" value={minSpendShekels} onChange={e=>setMinSpendShekels(Math.max(0,Number(e.target.value)||0))}/></label>
+      <label>Последняя покупка после<input type="date" value={purchasedAfter} onChange={e=>setPurchasedAfter(e.target.value)}/></label>
+      <label>Последняя покупка до<input type="date" value={purchasedBefore} onChange={e=>setPurchasedBefore(e.target.value)}/></label>
       {channel==="EMAIL"&&<label style={{gridColumn:"1/-1"}}>Тема письма<input value={subject} maxLength={200} onChange={e=>setSubject(e.target.value)} placeholder="Тема, которую увидит получатель"/><small>{subject.length}/200</small></label>}
       <label style={{gridColumn:"1/-1"}}>Сообщение<textarea rows={8} value={message} maxLength={5000} onChange={e=>setMessage(e.target.value)} placeholder="Текст рекламного сообщения с обязательной возможностью отписки" /><small>{message.length}/5000{channel==="SMS"?` · примерно ${smsParts} SMS`:""}</small></label>
     </div>
