@@ -16,6 +16,10 @@
   font-size: 70px;
 }
 
+.home-page .live-events-marquee {
+  direction: ltr;
+}
+
 .home-page .live-events-marquee::before {
   background: linear-gradient(90deg, #040713 0%, rgba(4, 7, 19, .97) 18%, rgba(5, 5, 19, .58) 55%, transparent 100%);
 }
