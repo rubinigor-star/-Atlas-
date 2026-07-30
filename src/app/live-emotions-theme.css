@@ -13,7 +13,7 @@
 }
 
 .home-page .live-emotions-title {
-  font-size: clamp(60px, 6.4vw, 106px);
+  font-size: 70px;
 }
 
 .home-page .live-events-marquee::before {
@@ -26,12 +26,12 @@
 
 @media (max-width: 900px) {
   .home-page .live-emotions-title {
-    font-size: clamp(46px, 10.8vw, 74px);
+    font-size: clamp(52px, 9.2vw, 70px);
   }
 }
 
 @media (max-width: 560px) {
   .home-page .live-emotions-title {
-    font-size: clamp(38px, 12vw, 56px);
+    font-size: clamp(40px, 12vw, 58px);
   }
 }
