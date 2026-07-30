@@ -7,6 +7,7 @@ import {
   BriefcaseBusiness,
   Check,
   ChevronDown,
+  CircleHelp,
   Menu,
   Search,
   Sparkles,
@@ -73,7 +74,9 @@ const headerCopy = {
     search: "Поиск событий",
     account: "Личный кабинет",
     buyer: "Войти как покупатель",
+    customer: "Войти как клиент",
     organizer: "Войти как организатор",
+    support: "Помощь и поддержка",
     menu: "Открыть меню",
     closeMenu: "Закрыть меню",
   },
@@ -83,7 +86,9 @@ const headerCopy = {
     search: "חיפוש אירועים",
     account: "חשבון אישי",
     buyer: "כניסה כלקוח",
+    customer: "כניסה כלקוח",
     organizer: "כניסה כמפיק אירועים",
+    support: "עזרה ותמיכה",
     menu: "פתיחת תפריט",
     closeMenu: "סגירת תפריט",
   },
@@ -93,7 +98,9 @@ const headerCopy = {
     search: "Search events",
     account: "Account",
     buyer: "Sign in as a customer",
+    customer: "Sign in as a customer",
     organizer: "Sign in as an organizer",
+    support: "Help & Support",
     menu: "Open menu",
     closeMenu: "Close menu",
   },
@@ -139,15 +146,18 @@ export function SiteHeader() {
   const [portalReady, setPortalReady] = useState(false);
   const languageRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
+  const mobileLanguageRef = useRef<HTMLDivElement>(null);
   const appTimerRef = useRef<number | null>(null);
 
-  const navLinks = [
+  const desktopNavLinks = [
     { href: "/", label: messages.common.events },
     { href: "/about", label: copy.whyAtlas },
     { href: "/faq", label: "FAQ" },
     { href: "/office", label: messages.common.organizers },
     { href: "/account", label: messages.common.account },
   ];
+
+  const mobileNavLinks = desktopNavLinks.filter(link => link.href !== "/faq");
 
   useEffect(() => {
     setPortalReady(true);
@@ -178,6 +188,19 @@ export function SiteHeader() {
   }, [languageOpen, accountOpen]);
 
   useEffect(() => {
+    if (!mobileLanguageOpen) return;
+
+    const closeMobileLanguage = (event: PointerEvent) => {
+      if (!mobileLanguageRef.current?.contains(event.target as Node)) {
+        setMobileLanguageOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMobileLanguage);
+    return () => document.removeEventListener("pointerdown", closeMobileLanguage);
+  }, [mobileLanguageOpen]);
+
+  useEffect(() => {
     if (!mobileOpen) return;
     const previousOverflow = document.body.style.overflow;
     const previousTouchAction = document.body.style.touchAction;
@@ -185,7 +208,10 @@ export function SiteHeader() {
     document.body.style.touchAction = "none";
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileOpen(false);
+      if (event.key === "Escape") {
+        setMobileLanguageOpen(false);
+        setMobileOpen(false);
+      }
     };
     document.addEventListener("keydown", closeOnEscape);
 
@@ -199,7 +225,10 @@ export function SiteHeader() {
   useEffect(() => {
     const media = window.matchMedia("(min-width: 981px)");
     const closeDrawerOnDesktop = (event: MediaQueryListEvent | MediaQueryList) => {
-      if (event.matches) setMobileOpen(false);
+      if (event.matches) {
+        setMobileLanguageOpen(false);
+        setMobileOpen(false);
+      }
     };
     closeDrawerOnDesktop(media);
     media.addEventListener("change", closeDrawerOnDesktop);
@@ -236,13 +265,45 @@ export function SiteHeader() {
   };
 
   const closeMobile = () => {
-    setMobileOpen(false);
     setMobileLanguageOpen(false);
+    setMobileOpen(false);
   };
+
+  const languageOptionsMenu = (className: string) => <div className={className} role="menu" aria-label={messages.common.language}>
+    {languageOptions.map(option => <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={option === locale}
+      data-selected={option === locale ? "true" : "false"}
+      key={option}
+      onClick={() => chooseLanguage(option)}
+    >
+      <span>{localeNames[option]}</span>
+      <Check size={16} strokeWidth={2.1} aria-hidden="true"/>
+    </button>)}
+  </div>;
 
   const mobileDrawer = <div className="atlas-mobile-drawer" role="dialog" aria-modal="true" aria-label={copy.menu}>
     <div className="atlas-mobile-drawer-head">
-      <div onClick={closeMobile}><AtlasLogo/></div>
+      <div className="atlas-mobile-drawer-brand">
+        <div onClick={closeMobile}><AtlasLogo/></div>
+        <span className="atlas-mobile-drawer-divider" aria-hidden="true"/>
+        <div className="atlas-mobile-drawer-language-wrap" ref={mobileLanguageRef}>
+          <button
+            type="button"
+            className="atlas-mobile-drawer-language-button"
+            aria-label={messages.common.language}
+            aria-haspopup="menu"
+            aria-expanded={mobileLanguageOpen}
+            onClick={() => setMobileLanguageOpen(open => !open)}
+          >
+            <span>{localeNames[locale]}</span>
+            <ChevronDown size={14} strokeWidth={1.8} aria-hidden="true"/>
+          </button>
+          {mobileLanguageOpen ? languageOptionsMenu("atlas-mobile-drawer-language-menu") : null}
+        </div>
+      </div>
+
       <button type="button" className="atlas-mobile-close" aria-label={copy.closeMenu} onClick={closeMobile} autoFocus>
         <X size={27} strokeWidth={1.8} aria-hidden="true"/>
       </button>
@@ -250,55 +311,36 @@ export function SiteHeader() {
 
     <div className="atlas-mobile-drawer-body">
       <nav className="atlas-mobile-nav" aria-label="Mobile navigation">
-        {navLinks.map(link => <Link href={link.href} key={link.href} onClick={closeMobile}>{link.label}</Link>)}
-
-        <div className="atlas-mobile-language-section">
-          <button
-            type="button"
-            className="atlas-mobile-language-toggle"
-            aria-expanded={mobileLanguageOpen}
-            onClick={() => setMobileLanguageOpen(open => !open)}
-          >
-            <span>{messages.common.language}</span>
-            <span className="atlas-mobile-language-current">{localeNames[locale]} <ChevronDown size={18} strokeWidth={1.8} aria-hidden="true"/></span>
-          </button>
-
-          {mobileLanguageOpen && <div className="atlas-mobile-language-options">
-            {languageOptions.map(option => <button
-              type="button"
-              key={option}
-              data-selected={option === locale ? "true" : "false"}
-              onClick={() => chooseLanguage(option)}
-            >
-              <span>{localeNames[option]}</span>
-              <Check size={17} strokeWidth={2.1} aria-hidden="true"/>
-            </button>)}
-          </div>}
-        </div>
+        {mobileNavLinks.map(link => <Link href={link.href} key={link.href} onClick={closeMobile}>{link.label}</Link>)}
       </nav>
 
-      <div className="atlas-mobile-account-actions">
-        <Link href="/account" onClick={closeMobile}>
-          <Ticket size={19} strokeWidth={1.8} aria-hidden="true"/>
-          <span>{copy.buyer}</span>
+      <div className="atlas-mobile-utility-list">
+        <Link href="/faq" className="atlas-mobile-utility-row" onClick={closeMobile}>
+          <CircleHelp size={21} strokeWidth={1.9} aria-hidden="true"/>
+          <span>{copy.support}</span>
         </Link>
-        <Link href="/office" onClick={closeMobile}>
-          <BriefcaseBusiness size={19} strokeWidth={1.8} aria-hidden="true"/>
+
+        <Link href="/account" className="atlas-mobile-utility-row" onClick={closeMobile}>
+          <Ticket size={21} strokeWidth={1.8} aria-hidden="true"/>
+          <span>{copy.customer}</span>
+        </Link>
+
+        <Link href="/office" className="atlas-mobile-utility-row" onClick={closeMobile}>
+          <BriefcaseBusiness size={21} strokeWidth={1.8} aria-hidden="true"/>
           <span>{copy.organizer}</span>
         </Link>
-      </div>
 
-      <button
-        type="button"
-        className="atlas-mobile-app-cta"
-        data-loading={appBusy ? "true" : "false"}
-        aria-busy={appBusy}
-        onClick={playAppButtonFeedback}
-      >
-        <Sparkles size={17} strokeWidth={1.8} aria-hidden="true"/>
-        <span>{copy.app}</span>
-        <i aria-hidden="true"/>
-      </button>
+        <button
+          type="button"
+          className="atlas-mobile-utility-row atlas-mobile-utility-app"
+          data-loading={appBusy ? "true" : "false"}
+          aria-busy={appBusy}
+          onClick={playAppButtonFeedback}
+        >
+          <span className="atlas-mobile-app-icon" aria-hidden="true"/>
+          <span>{copy.app}</span>
+        </button>
+      </div>
     </div>
   </div>;
 
@@ -342,7 +384,7 @@ export function SiteHeader() {
         </div>
 
         <nav className="atlas-header-nav" aria-label="Primary navigation">
-          {navLinks.map(link => <Link href={link.href} key={link.href}>{link.label}</Link>)}
+          {desktopNavLinks.map(link => <Link href={link.href} key={link.href}>{link.label}</Link>)}
         </nav>
 
         <div className="atlas-header-actions">
