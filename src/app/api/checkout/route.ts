@@ -5,6 +5,7 @@ import { effectiveTicketPrice, initialOrderStatus, orderNumber } from "@/lib/tic
 import { guestFieldKeys, parseGuestFields } from "@/lib/event-guest-fields";
 import { assertInventoryAvailable, createReservation, type ReservationItemInput } from "@/lib/reservation";
 import { createHypPaymentLink } from "@/lib/hyp-yaadpay";
+import { ensureMarketingRuntime, parseMarketingCookie, saveOrderAttribution } from "@/lib/marketing-runtime";
 
 const CANONICAL_APP_URL="https://www.atlas-one.co";
 function normalizePhone(value:string){const digits=value.replace(/\D/g,"");if(!digits)return "";if(digits.startsWith("972"))return `+${digits}`;if(digits.startsWith("0"))return `+972${digits.slice(1)}`;return `+972${digits}`;}
@@ -12,6 +13,8 @@ function launchUrl(paymentUrl:string){return `${CANONICAL_APP_URL}/payments/hyp/
 
 export async function POST(req:Request){
   try{
+    await ensureMarketingRuntime();
+    const attribution=parseMarketingCookie(req.headers.get("cookie"));
     const input=checkoutSchema.parse(await req.json());
     const existing=await db.order.findUnique({where:{idempotencyKey:input.idempotencyKey},include:{event:true}});
     if(existing){
@@ -38,6 +41,7 @@ export async function POST(req:Request){
       const guest=await tx.guestProfile.upsert({where:{organizationId_phone:{organizationId:event.organizationId,phone}},create:{organizationId:event.organizationId,firstName,lastName,phone,email,birthDate,city:input.customer.city||"",facebook:input.customer.facebook||"",instagram:input.customer.instagram||""},update:{firstName,lastName,email,birthDate,city:input.customer.city||"",facebook:input.customer.facebook||"",instagram:input.customer.instagram||""}});
       const status=event.salesMode==="INSTANT"?"PENDING":initialOrderStatus(event.salesMode);
       const created=await tx.order.create({data:{publicId:orderNumber(),idempotencyKey:input.idempotencyKey,customerName:fullName,customerEmail:email,customerPhone:rawPhone?phone:"",customerFirstName:input.customer.firstName||null,customerLastName:lastName||null,customerBirthDate:input.customer.birthDate?birthDate:null,customerCity:input.customer.city||null,customerFacebook:input.customer.facebook||null,customerInstagram:input.customer.instagram||null,guestId:guest.id,eligibilityAnswer:input.eligibilityAnswer||null,totalMinor:total,status,eventId:input.eventId,referralId:legacyReferral?.id,promoterLinkId:promoterLink?.id,items:{create:seats.length?seats.map(seat=>({quantity:1,unitPriceMinor:promoterLink?.customPriceMinor??effectiveTicketPrice(seat.category!),categoryName:seat.category!.name,tableId:seat.tableId,seatId:seat.id})):[{quantity,unitPriceMinor:promoterLink?.customPriceMinor!==null&&promoterLink?.customPriceMinor!==undefined?(promoterLink.allocationType==="TABLE"?Math.round(promoterLink.customPriceMinor/quantity):promoterLink.customPriceMinor):table?.category?Math.round(effectiveTicketPrice(table.category)/quantity):categoryPrice,categoryName:table?.category?.name??category.name,tableId:table?.id}]}}});
+      await saveOrderAttribution(tx,created.id,attribution);
       await createReservation({orderId:created.id,items:reservationItems,ttlMinutes:event.salesMode==="INSTANT"?15:24*60,executor:tx});
       return {order:created,eventTitle:event.title,salesMode:event.salesMode};
     });
