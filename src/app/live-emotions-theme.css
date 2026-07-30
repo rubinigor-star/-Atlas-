@@ -20,6 +20,11 @@
     overflow: visible;
   }
 
+  html[lang="he"] .home-page .live-emotions-title,
+  html[dir="rtl"] .home-page .live-emotions-title {
+    font-size: 73px !important;
+  }
+
   .home-page .live-emotions-title > span {
     font-size: inherit !important;
     line-height: inherit;
