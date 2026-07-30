@@ -12,12 +12,18 @@
     radial-gradient(circle at 50% 76%, rgba(91, 32, 133, .18), transparent 43%);
 }
 
-.home-page .live-emotions-title {
-  font-size: 70px !important;
-}
+@media (min-width: 561px) {
+  .home-page .live-emotions-title {
+    font-size: 65px !important;
+    line-height: 1.08;
+    padding-block: .06em .12em;
+    overflow: visible;
+  }
 
-.home-page .live-emotions-title > span {
-  font-size: inherit !important;
+  .home-page .live-emotions-title > span {
+    font-size: inherit !important;
+    line-height: inherit;
+  }
 }
 
 .home-page .live-events-marquee {
@@ -30,12 +36,6 @@
 
 .home-page .live-events-marquee::after {
   background: linear-gradient(270deg, #080515 0%, rgba(8, 5, 21, .97) 18%, rgba(8, 4, 20, .58) 55%, transparent 100%);
-}
-
-@media (max-width: 900px) and (min-width: 561px) {
-  .home-page .live-emotions-title {
-    font-size: 70px !important;
-  }
 }
 
 @media (max-width: 560px) {
