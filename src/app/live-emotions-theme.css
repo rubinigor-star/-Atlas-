@@ -12,10 +12,12 @@
     radial-gradient(circle at 50% 76%, rgba(91, 32, 133, .18), transparent 43%);
 }
 
-html[lang="ru"] .home-page .live-emotions-title,
-html[lang="en"] .home-page .live-emotions-title,
-html[lang="he"] .home-page .live-emotions-title {
-  font-size: 70px;
+.home-page .live-emotions-title {
+  font-size: 70px !important;
+}
+
+.home-page .live-emotions-title > span {
+  font-size: inherit !important;
 }
 
 .home-page .live-events-marquee {
@@ -30,18 +32,14 @@ html[lang="he"] .home-page .live-emotions-title {
   background: linear-gradient(270deg, #080515 0%, rgba(8, 5, 21, .97) 18%, rgba(8, 4, 20, .58) 55%, transparent 100%);
 }
 
-@media (max-width: 900px) {
-  html[lang="ru"] .home-page .live-emotions-title,
-  html[lang="en"] .home-page .live-emotions-title,
-  html[lang="he"] .home-page .live-emotions-title {
-    font-size: clamp(52px, 9.2vw, 70px);
+@media (max-width: 900px) and (min-width: 561px) {
+  .home-page .live-emotions-title {
+    font-size: 70px !important;
   }
 }
 
 @media (max-width: 560px) {
-  html[lang="ru"] .home-page .live-emotions-title,
-  html[lang="en"] .home-page .live-emotions-title,
-  html[lang="he"] .home-page .live-emotions-title {
-    font-size: clamp(40px, 12vw, 58px);
+  .home-page .live-emotions-title {
+    font-size: clamp(40px, 12vw, 58px) !important;
   }
 }
