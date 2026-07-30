@@ -68,21 +68,23 @@ export async function ensureCommercialTermsTables() {
   )`);
 }
 
-export async function getOrganizerTerms(organizationId: string) {
+export async function getOrganizerTerms(organizationId: string): Promise<CommercialTerms> {
   await ensureCommercialTermsTables();
   const rows = await db.$queryRawUnsafe<CommercialTerms[]>(`SELECT * FROM "OrganizerCommercialTerms" WHERE "organizationId" = $1 LIMIT 1`, organizationId);
   if (rows[0]) return rows[0];
   await db.$executeRawUnsafe(`INSERT INTO "OrganizerCommercialTerms" ("organizationId") VALUES ($1) ON CONFLICT ("organizationId") DO NOTHING`, organizationId);
   const created = await db.$queryRawUnsafe<CommercialTerms[]>(`SELECT * FROM "OrganizerCommercialTerms" WHERE "organizationId" = $1 LIMIT 1`, organizationId);
+  if (!created[0]) throw new Error("ORGANIZER_COMMERCIAL_TERMS_NOT_CREATED");
   return created[0];
 }
 
-export async function getEventTerms(eventId: string) {
+export async function getEventTerms(eventId: string): Promise<EventCommercialTerms> {
   await ensureCommercialTermsTables();
   const rows = await db.$queryRawUnsafe<EventCommercialTerms[]>(`SELECT * FROM "EventCommercialTerms" WHERE "eventId" = $1 LIMIT 1`, eventId);
   if (rows[0]) return rows[0];
   await db.$executeRawUnsafe(`INSERT INTO "EventCommercialTerms" ("eventId") VALUES ($1) ON CONFLICT ("eventId") DO NOTHING`, eventId);
   const created = await db.$queryRawUnsafe<EventCommercialTerms[]>(`SELECT * FROM "EventCommercialTerms" WHERE "eventId" = $1 LIMIT 1`, eventId);
+  if (!created[0]) throw new Error("EVENT_COMMERCIAL_TERMS_NOT_CREATED");
   return created[0];
 }
 
