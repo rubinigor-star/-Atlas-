@@ -61,9 +61,9 @@ const heroCopy:Record<Locale,{
     categories:{children:"Детские",theatre:"Театр",concerts:"Концерты",standup:"Stand-up",clubs:"Клубы и фестивали",deals:"Выгодные предложения"},
   },
   he:{
-    before:"חוויה שמעוררת",
-    accent:"התרגשות.",
-    after:"",
+    before:"חוויה",
+    accent:"שמעוררת",
+    after:"התרגשות.",
     description:["הופעות, מסיבות ואירועים מיוחדים.","הזמנה פשוטה, מחיר שקוף והכרטיס אצלכם מיד בסיום הרכישה."],
     carousel:"האירועים העדכניים של Atlas",
     categories:{children:"ילדים",theatre:"תיאטרון",concerts:"הופעות",standup:"סטנדאפ",clubs:"מועדונים ופסטיבלים",deals:"מבצעים"},

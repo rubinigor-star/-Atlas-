@@ -12,7 +12,9 @@
     radial-gradient(circle at 50% 76%, rgba(91, 32, 133, .18), transparent 43%);
 }
 
-.home-page .live-emotions-title {
+html[lang="ru"] .home-page .live-emotions-title,
+html[lang="en"] .home-page .live-emotions-title,
+html[lang="he"] .home-page .live-emotions-title {
   font-size: 70px;
 }
 
@@ -29,13 +31,17 @@
 }
 
 @media (max-width: 900px) {
-  .home-page .live-emotions-title {
+  html[lang="ru"] .home-page .live-emotions-title,
+  html[lang="en"] .home-page .live-emotions-title,
+  html[lang="he"] .home-page .live-emotions-title {
     font-size: clamp(52px, 9.2vw, 70px);
   }
 }
 
 @media (max-width: 560px) {
-  .home-page .live-emotions-title {
+  html[lang="ru"] .home-page .live-emotions-title,
+  html[lang="en"] .home-page .live-emotions-title,
+  html[lang="he"] .home-page .live-emotions-title {
     font-size: clamp(40px, 12vw, 58px);
   }
 }
