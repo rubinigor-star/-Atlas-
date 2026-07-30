@@ -3,7 +3,12 @@ import { z } from "zod";
 import { requireEventAccess } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
-import { ensureEventArchiveRuntime, isEventArchived } from "@/lib/event-archive";
+import {
+  archiveDeleteSql,
+  archiveInsertSql,
+  ensureEventArchiveRuntime,
+  isEventArchived,
+} from "@/lib/event-archive";
 
 const bodySchema = z.object({ action: z.enum(["archive", "restore"]) });
 
@@ -21,7 +26,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       await db.$transaction(async (tx) => {
         await tx.event.update({ where: { id }, data: { status: "DRAFT" } });
         await tx.$executeRawUnsafe(
-          `INSERT INTO EventArchiveState (eventId,archivedAt,archivedById,previousStatus) VALUES (?,?,?,?)`,
+          archiveInsertSql(),
           id,
           new Date().toISOString(),
           actor.id,
@@ -38,7 +43,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     if (!(await isEventArchived(id))) throw new Error("Восстановить можно только архивированное мероприятие");
-    await db.$executeRawUnsafe(`DELETE FROM EventArchiveState WHERE eventId=?`, id);
+    await db.$executeRawUnsafe(archiveDeleteSql(), id);
     await writeAudit(actor, {
       action: "EVENT_RESTORE_FROM_ARCHIVE",
       entityType: "Event",
