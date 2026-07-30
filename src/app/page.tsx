@@ -61,18 +61,18 @@ const heroCopy:Record<Locale,{
     categories:{children:"Детские",theatre:"Театр",concerts:"Концерты",standup:"Stand-up",clubs:"Клубы и фестивали",deals:"Выгодные предложения"},
   },
   he:{
-    before:"",
-    accent:"רגשות",
-    after:"חיים כאן.",
-    description:["הופעות, מסיבות ואירועים מיוחדים.","בחירה פשוטה, מחיר שקוף וכרטיס מיד לאחר ההזמנה."],
+    before:"חוויה שמעוררת",
+    accent:"התרגשות.",
+    after:"",
+    description:["הופעות, מסיבות ואירועים מיוחדים.","הזמנה פשוטה, מחיר שקוף והכרטיס אצלכם מיד בסיום הרכישה."],
     carousel:"האירועים העדכניים של Atlas",
     categories:{children:"ילדים",theatre:"תיאטרון",concerts:"הופעות",standup:"סטנדאפ",clubs:"מועדונים ופסטיבלים",deals:"מבצעים"},
   },
   en:{
     before:"LIVE",
     accent:"EMOTIONS",
-    after:"HERE.",
-    description:["Concerts, parties and special events.","A simple choice, transparent pricing and your ticket immediately after checkout."],
+    after:"START HERE.",
+    description:["Concerts, parties and special events.","Easy booking, transparent pricing, and your ticket instantly after checkout."],
     carousel:"Current Atlas events",
     categories:{children:"Kids",theatre:"Theatre",concerts:"Concerts",standup:"Stand-up",clubs:"Clubs & festivals",deals:"Deals"},
   },
@@ -184,7 +184,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
         <h1 id="live-emotions-title" className="live-emotions-title">
           {copy.before&&<span>{copy.before}</span>}
           <span className="live-emotions-accent">{copy.accent}</span>
-          <span>{copy.after}</span>
+          {copy.after&&<span>{copy.after}</span>}
         </h1>
 
         <nav className="live-emotions-categories" aria-label={messages.common.events}>
