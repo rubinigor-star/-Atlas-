@@ -12,6 +12,7 @@ import "./event-experience.css";
 import "./logo.css";
 import "./logo-variants.css";
 import "./site-header.css";
+import "./sticky-header-theme.css";
 import "./mobile-drawer-fix.css";
 import "./mobile-language-header.css";
 import "./mobile-menu-compact-actions.css";
