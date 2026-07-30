@@ -2,7 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { BriefcaseBusiness, Check, ChevronDown, Search, Sparkles, Ticket, UserRound } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  Check,
+  ChevronDown,
+  Menu,
+  Search,
+  Sparkles,
+  Ticket,
+  UserRound,
+  X,
+} from "lucide-react";
 import { useLocale, type Locale } from "@/components/locale-provider";
 import { localeNames } from "@/lib/i18n";
 import { AtlasLogo } from "@/components/atlas-logo";
@@ -63,6 +73,8 @@ const headerCopy = {
     account: "Личный кабинет",
     buyer: "Войти как покупатель",
     organizer: "Войти как организатор",
+    menu: "Открыть меню",
+    closeMenu: "Закрыть меню",
   },
   he: {
     whyAtlas: "למה Atlas",
@@ -71,6 +83,8 @@ const headerCopy = {
     account: "חשבון אישי",
     buyer: "כניסה כלקוח",
     organizer: "כניסה כמפיק אירועים",
+    menu: "פתיחת תפריט",
+    closeMenu: "סגירת תפריט",
   },
   en: {
     whyAtlas: "Why Atlas",
@@ -79,6 +93,8 @@ const headerCopy = {
     account: "Account",
     buyer: "Sign in as a customer",
     organizer: "Sign in as an organizer",
+    menu: "Open menu",
+    closeMenu: "Close menu",
   },
 } as const;
 
@@ -116,10 +132,20 @@ export function SiteHeader() {
   const copy = headerCopy[locale];
   const [languageOpen, setLanguageOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileLanguageOpen, setMobileLanguageOpen] = useState(false);
   const [appBusy, setAppBusy] = useState(false);
   const languageRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
   const appTimerRef = useRef<number | null>(null);
+
+  const navLinks = [
+    { href: "/", label: messages.common.events },
+    { href: "/about", label: copy.whyAtlas },
+    { href: "/faq", label: "FAQ" },
+    { href: "/office", label: messages.common.organizers },
+    { href: "/account", label: messages.common.account },
+  ];
 
   useEffect(() => {
     if (!languageOpen && !accountOpen) return;
@@ -133,6 +159,7 @@ export function SiteHeader() {
       if (event.key === "Escape") {
         setLanguageOpen(false);
         setAccountOpen(false);
+        setMobileOpen(false);
       }
     };
 
@@ -143,6 +170,32 @@ export function SiteHeader() {
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [languageOpen, accountOpen]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 981px)");
+    const closeDrawerOnDesktop = (event: MediaQueryListEvent | MediaQueryList) => {
+      if (event.matches) setMobileOpen(false);
+    };
+    closeDrawerOnDesktop(media);
+    media.addEventListener("change", closeDrawerOnDesktop);
+    return () => media.removeEventListener("change", closeDrawerOnDesktop);
+  }, []);
 
   useEffect(() => () => {
     if (appTimerRef.current !== null) window.clearTimeout(appTimerRef.current);
@@ -158,6 +211,7 @@ export function SiteHeader() {
   };
 
   const openEvents = () => {
+    setMobileOpen(false);
     const events = document.getElementById("events");
     if (events) {
       events.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -169,6 +223,12 @@ export function SiteHeader() {
   const chooseLanguage = (nextLocale: Locale) => {
     setLocale(nextLocale);
     setLanguageOpen(false);
+    setMobileLanguageOpen(false);
+  };
+
+  const closeMobile = () => {
+    setMobileOpen(false);
+    setMobileLanguageOpen(false);
   };
 
   return <header className="topbar atlas-site-header">
@@ -210,11 +270,7 @@ export function SiteHeader() {
       </div>
 
       <nav className="atlas-header-nav" aria-label="Primary navigation">
-        <Link href="/">{messages.common.events}</Link>
-        <Link href="/about">{copy.whyAtlas}</Link>
-        <Link href="/faq">FAQ</Link>
-        <Link href="/office">{messages.common.organizers}</Link>
-        <Link href="/account">{messages.common.account}</Link>
+        {navLinks.map(link => <Link href={link.href} key={link.href}>{link.label}</Link>)}
       </nav>
 
       <div className="atlas-header-actions">
@@ -260,8 +316,85 @@ export function SiteHeader() {
             </Link>
           </div>}
         </div>
+
+        <button
+          type="button"
+          className="atlas-header-icon-button atlas-mobile-menu-button"
+          aria-label={copy.menu}
+          aria-haspopup="dialog"
+          aria-expanded={mobileOpen}
+          onClick={() => {
+            setMobileOpen(true);
+            setLanguageOpen(false);
+            setAccountOpen(false);
+          }}
+        >
+          <Menu size={25} strokeWidth={1.9} aria-hidden="true"/>
+        </button>
       </div>
     </div>
+
+    {mobileOpen && <div className="atlas-mobile-drawer" role="dialog" aria-modal="true" aria-label={copy.menu}>
+      <div className="atlas-mobile-drawer-head">
+        <div onClick={closeMobile}><AtlasLogo/></div>
+        <button type="button" className="atlas-mobile-close" aria-label={copy.closeMenu} onClick={closeMobile} autoFocus>
+          <X size={27} strokeWidth={1.8} aria-hidden="true"/>
+        </button>
+      </div>
+
+      <div className="atlas-mobile-drawer-body">
+        <nav className="atlas-mobile-nav" aria-label="Mobile navigation">
+          {navLinks.map(link => <Link href={link.href} key={link.href} onClick={closeMobile}>{link.label}</Link>)}
+
+          <div className="atlas-mobile-language-section">
+            <button
+              type="button"
+              className="atlas-mobile-language-toggle"
+              aria-expanded={mobileLanguageOpen}
+              onClick={() => setMobileLanguageOpen(open => !open)}
+            >
+              <span>{messages.common.language}</span>
+              <span className="atlas-mobile-language-current">{localeNames[locale]} <ChevronDown size={18} strokeWidth={1.8} aria-hidden="true"/></span>
+            </button>
+
+            {mobileLanguageOpen && <div className="atlas-mobile-language-options">
+              {languageOptions.map(option => <button
+                type="button"
+                key={option}
+                data-selected={option === locale ? "true" : "false"}
+                onClick={() => chooseLanguage(option)}
+              >
+                <span>{localeNames[option]}</span>
+                <Check size={17} strokeWidth={2.1} aria-hidden="true"/>
+              </button>)}
+            </div>}
+          </div>
+        </nav>
+
+        <div className="atlas-mobile-account-actions">
+          <Link href="/account" onClick={closeMobile}>
+            <Ticket size={19} strokeWidth={1.8} aria-hidden="true"/>
+            <span>{copy.buyer}</span>
+          </Link>
+          <Link href="/office" onClick={closeMobile}>
+            <BriefcaseBusiness size={19} strokeWidth={1.8} aria-hidden="true"/>
+            <span>{copy.organizer}</span>
+          </Link>
+        </div>
+
+        <button
+          type="button"
+          className="atlas-mobile-app-cta"
+          data-loading={appBusy ? "true" : "false"}
+          aria-busy={appBusy}
+          onClick={playAppButtonFeedback}
+        >
+          <Sparkles size={17} strokeWidth={1.8} aria-hidden="true"/>
+          <span>{copy.app}</span>
+          <i aria-hidden="true"/>
+        </button>
+      </div>
+    </div>}
   </header>;
 }
 
