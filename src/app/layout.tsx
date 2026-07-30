@@ -16,6 +16,7 @@ import "./sticky-header-theme.css";
 import "./mobile-drawer-fix.css";
 import "./mobile-language-header.css";
 import "./mobile-menu-compact-actions.css";
+import "./search-overlay.css";
 import "./tour.css";
 import "./typography.css";
 import "./live-emotions-theme.css";
@@ -49,7 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     {"@type":"WebSite","@id":`${BASE}/#website`,url:BASE,name:"Atlas One",publisher:{"@id":`${BASE}/#organization`},inLanguage:["ru","he","en"]}
   ]};
   return <html lang={locale} dir={dir} suppressHydrationWarning><body>
-    <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(schema).replace(/</g,"\\u003c")}}/>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(schema).replace(/</g,"\u003c")}}/>
     <MarketingTracker/><LocaleProvider initialLocale={locale}><PwaRegister/><AppChrome>{children}</AppChrome></LocaleProvider><SpeedInsights/>
   </body></html>;
 }

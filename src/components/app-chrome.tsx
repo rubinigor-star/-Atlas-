@@ -3,10 +3,11 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { GlobalSearch } from "@/components/global-search";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const office = pathname.startsWith("/office") || pathname.startsWith("/admin") || pathname.startsWith("/scanner");
+  const office = pathname.startsWith("/office") || pathname.startsWith("/admin") || pathname.startsWith("/platform") || pathname.startsWith("/scanner");
   const home = pathname === "/";
 
   useEffect(() => {
@@ -28,6 +29,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
   return <>
     {!office && <SiteHeader/>}
+    {!office && <GlobalSearch/>}
     {!office && !home && <div className="atlas-header-spacer" aria-hidden="true"/>}
     {children}
     {!office && <SiteFooter/>}
