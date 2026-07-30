@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Channel="EMAIL"|"SMS"|"WHATSAPP";
-type Props={customers:Array<{key:string;city:string|null;orders:number;totalMinor:number;email:string;phone:string}>;events:Array<{id:string;title:string}>};
+type Props={customers:Array<{city:string|null;orders:number;totalMinor:number;email:string;phone:string}>;events:Array<{id:string;title:string}>};
 
 const rates:Record<Channel,number>={EMAIL:8,SMS:22,WHATSAPP:35};
 
