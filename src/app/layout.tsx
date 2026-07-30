@@ -16,6 +16,7 @@ import "./mobile-language-header.css";
 import "./mobile-menu-compact-actions.css";
 import "./tour.css";
 import "./typography.css";
+import "./live-emotions-theme.css";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { LocaleProvider } from "@/components/locale-provider";
 import { AppChrome } from "@/components/app-chrome";
