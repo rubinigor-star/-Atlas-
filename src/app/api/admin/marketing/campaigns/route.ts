@@ -98,6 +98,7 @@ export async function PATCH(req:Request){
       return NextResponse.json({ok:true});
     }
     if(input.action==="rename"){
+      if(["SENDING","COMPLETED"].includes(campaign.status))throw new Error("Нельзя переименовать активную или завершённую отправку");
       await db.$executeRawUnsafe(`UPDATE MarketingCampaign SET name=?,updatedAt=CURRENT_TIMESTAMP WHERE id=? AND organizationId=?`,input.name,campaign.id,actor.organizationId);
       await writeAudit(actor,{action:"MARKETING_CAMPAIGN_RENAME",entityType:"MarketingCampaign",entityId:campaign.id,summary:`Кампания переименована в ${input.name}`});
       return NextResponse.json({ok:true});
