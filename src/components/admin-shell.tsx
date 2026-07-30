@@ -9,6 +9,7 @@ import { AtlasLogo } from "@/components/atlas-logo";
 export async function AdminShell({ children }: { children: React.ReactNode }) {
   const staff = await getCurrentStaff();
   if (!staff) redirect("/office/login");
+  if (staff.role === "ADMIN") redirect("/platform");
   if (!staff.organizationId || !staff.organization) redirect("/office/login?error=NO_ORGANIZATION");
   return <div className="office-shell">
     <aside className="office-sidebar"><AtlasLogo office /><div className="office-org"><i>{staff.organization.name.slice(0,1)}</i><div><strong>{staff.organization.name}</strong><small>{roleLabels[staff.staffRole??"CUSTOM"]}</small></div></div><OfficeLanguageSwitch /><OfficeNavigation permissions={[...staff.permissionSet]}/><OfficeAccountMenu currentEmail={staff.email} currentName={staff.name}/></aside>
