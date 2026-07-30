@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { BriefcaseBusiness, ChevronDown, Search, Sparkles, Ticket, UserRound } from "lucide-react";
+import { BriefcaseBusiness, Check, ChevronDown, Search, Sparkles, Ticket, UserRound } from "lucide-react";
 import { useLocale, type Locale } from "@/components/locale-provider";
 import { localeNames } from "@/lib/i18n";
 import { AtlasLogo } from "@/components/atlas-logo";
@@ -82,6 +82,8 @@ const headerCopy = {
   },
 } as const;
 
+const languageOptions: Locale[] = ["ru", "he", "en"];
+
 function AppleMark() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.47-2.09-.49-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.3c1.29-.02 2.2.71 2.96.71.72 0 2.06-.88 3.47-.75.59.02 2.25.24 3.31 1.8-2.96 1.62-2.5 5.51.51 6.72-.59 1.55-1.36 3.09-2.25 4.5ZM12.03 7.25c-.15-2.3 1.71-4.2 3.85-4.38.3 2.66-2.41 4.65-3.85 4.38Z"/></svg>;
 }
@@ -112,19 +114,26 @@ function StoreBadge({ type }: { type: "apple" | "google" }) {
 export function SiteHeader() {
   const { messages, locale, setLocale } = useLocale();
   const copy = headerCopy[locale];
+  const [languageOpen, setLanguageOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [appBusy, setAppBusy] = useState(false);
+  const languageRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
   const appTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!accountOpen) return;
+    if (!languageOpen && !accountOpen) return;
 
     const closeOnOutsideClick = (event: PointerEvent) => {
-      if (!accountRef.current?.contains(event.target as Node)) setAccountOpen(false);
+      const target = event.target as Node;
+      if (!languageRef.current?.contains(target)) setLanguageOpen(false);
+      if (!accountRef.current?.contains(target)) setAccountOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setAccountOpen(false);
+      if (event.key === "Escape") {
+        setLanguageOpen(false);
+        setAccountOpen(false);
+      }
     };
 
     document.addEventListener("pointerdown", closeOnOutsideClick);
@@ -133,7 +142,7 @@ export function SiteHeader() {
       document.removeEventListener("pointerdown", closeOnOutsideClick);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [accountOpen]);
+  }, [languageOpen, accountOpen]);
 
   useEffect(() => () => {
     if (appTimerRef.current !== null) window.clearTimeout(appTimerRef.current);
@@ -157,20 +166,47 @@ export function SiteHeader() {
     window.location.assign("/#events");
   };
 
+  const chooseLanguage = (nextLocale: Locale) => {
+    setLocale(nextLocale);
+    setLanguageOpen(false);
+  };
+
   return <header className="topbar atlas-site-header">
     <div className="atlas-header-shell">
       <div className="atlas-header-brand">
         <AtlasLogo/>
         <span className="atlas-header-divider" aria-hidden="true"/>
-        <label className="atlas-header-language">
-          <span className="sr-only">{messages.common.language}</span>
-          <select aria-label={messages.common.language} value={locale} onChange={event=>setLocale(event.target.value as Locale)}>
-            <option value="ru">{localeNames.ru}</option>
-            <option value="he">{localeNames.he}</option>
-            <option value="en">{localeNames.en}</option>
-          </select>
-          <ChevronDown size={15} strokeWidth={1.8} aria-hidden="true"/>
-        </label>
+        <div className="atlas-language-wrap" ref={languageRef}>
+          <button
+            type="button"
+            className="atlas-language-button"
+            aria-label={messages.common.language}
+            aria-haspopup="menu"
+            aria-expanded={languageOpen}
+            onClick={() => {
+              setLanguageOpen(open => !open);
+              setAccountOpen(false);
+            }}
+          >
+            <span>{localeNames[locale]}</span>
+            <ChevronDown size={15} strokeWidth={1.8} aria-hidden="true"/>
+          </button>
+
+          {languageOpen && <div className="atlas-language-menu" role="menu" aria-label={messages.common.language}>
+            {languageOptions.map(option => <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={option === locale}
+              className="atlas-language-option"
+              data-selected={option === locale ? "true" : "false"}
+              key={option}
+              onClick={() => chooseLanguage(option)}
+            >
+              <span>{localeNames[option]}</span>
+              <Check size={16} strokeWidth={2.1} aria-hidden="true"/>
+            </button>)}
+          </div>}
+        </div>
       </div>
 
       <nav className="atlas-header-nav" aria-label="Primary navigation">
@@ -205,7 +241,10 @@ export function SiteHeader() {
             aria-label={copy.account}
             aria-haspopup="menu"
             aria-expanded={accountOpen}
-            onClick={() => setAccountOpen(open => !open)}
+            onClick={() => {
+              setAccountOpen(open => !open);
+              setLanguageOpen(false);
+            }}
           >
             <UserRound size={24} strokeWidth={1.75} aria-hidden="true"/>
           </button>
