@@ -1,0 +1,37 @@
+.home-page .live-emotions-hero {
+  background:
+    radial-gradient(ellipse 52% 46% at 50% -8%, rgba(255, 132, 0, .22) 0%, rgba(255, 104, 0, .08) 38%, transparent 72%),
+    radial-gradient(ellipse 44% 58% at 72% 40%, rgba(91, 42, 139, .22) 0%, transparent 74%),
+    linear-gradient(135deg, #020714 0%, #080316 48%, #160819 100%);
+}
+
+.home-page .live-emotions-hero::before {
+  background:
+    linear-gradient(90deg, rgba(1, 5, 14, .67), transparent 17%, transparent 83%, rgba(1, 5, 14, .67)),
+    radial-gradient(ellipse at 50% 36%, rgba(255, 118, 0, .105), transparent 44%),
+    radial-gradient(circle at 50% 76%, rgba(91, 32, 133, .18), transparent 43%);
+}
+
+.home-page .live-emotions-title {
+  font-size: clamp(60px, 6.4vw, 106px);
+}
+
+.home-page .live-events-marquee::before {
+  background: linear-gradient(90deg, #040713 0%, rgba(4, 7, 19, .97) 18%, rgba(5, 5, 19, .58) 55%, transparent 100%);
+}
+
+.home-page .live-events-marquee::after {
+  background: linear-gradient(270deg, #080515 0%, rgba(8, 5, 21, .97) 18%, rgba(8, 4, 20, .58) 55%, transparent 100%);
+}
+
+@media (max-width: 900px) {
+  .home-page .live-emotions-title {
+    font-size: clamp(46px, 10.8vw, 74px);
+  }
+}
+
+@media (max-width: 560px) {
+  .home-page .live-emotions-title {
+    font-size: clamp(38px, 12vw, 56px);
+  }
+}
