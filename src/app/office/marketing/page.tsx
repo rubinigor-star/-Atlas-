@@ -31,15 +31,15 @@ export default async function MarketingPage() {
     db.event.findMany({where:{organizationId},orderBy:{startsAt:"desc"},take:30,include:{categories:true,zones:{include:{tables:true}}}}),
     db.order.aggregate({where:{status:"PAID",event:{organizationId}},_sum:{totalMinor:true},_count:{_all:true}}),
     db.order.findMany({where:{status:"PAID",event:{organizationId}},orderBy:{createdAt:"desc"},take:100,select:{totalMinor:true,createdAt:true}}),
-    db.$queryRawUnsafe<AttributionRow[]>(`SELECT a.source, a.medium, a.campaign, COUNT(o.id) AS orders, COALESCE(SUM(o.totalMinor),0) AS revenue FROM OrderMarketingAttribution a JOIN "Order" o ON o.id=a.orderId JOIN Event e ON e.id=o.eventId WHERE e.organizationId=$1 AND o.status='PAID' GROUP BY a.source,a.medium,a.campaign ORDER BY revenue DESC`,organizationId),
-    db.$queryRawUnsafe<SettingsRow[]>(`SELECT metaPixelId,googleAnalyticsId,googleAdsId,tiktokPixelId FROM OrganizationMarketingSettings WHERE organizationId=$1 LIMIT 1`,organizationId),
+    db.$queryRawUnsafe<AttributionRow[]>(`SELECT a.source, a.medium, a.campaign, COUNT(o.id) AS orders, COALESCE(SUM(o.totalMinor),0) AS revenue FROM OrderMarketingAttribution a JOIN "Order" o ON o.id=a.orderId JOIN Event e ON e.id=o.eventId WHERE e.organizationId=? AND o.status='PAID' GROUP BY a.source,a.medium,a.campaign ORDER BY revenue DESC`,organizationId),
+    db.$queryRawUnsafe<SettingsRow[]>(`SELECT metaPixelId,googleAnalyticsId,googleAdsId,tiktokPixelId FROM OrganizationMarketingSettings WHERE organizationId=? LIMIT 1`,organizationId),
     db.order.findMany({where:{status:"PAID",event:{organizationId}},orderBy:{createdAt:"desc"},select:{customerName:true,customerEmail:true,customerPhone:true,customerCity:true,totalMinor:true,createdAt:true,guestId:true}}),
     db.promoter.findMany({where:{organizationId,NOT:{name:{startsWith:GUEST_LIST_PREFIX}}},orderBy:{name:"asc"}}),
     db.promoterLink.findMany({where:{event:{organizationId},promoter:{NOT:{name:{startsWith:GUEST_LIST_PREFIX}}}},orderBy:{createdAt:"desc"},include:{promoter:true,event:true,visits:{select:{id:true}},orders:{where:{status:{notIn:["CANCELLED","REJECTED"]}},include:{items:true}}}}),
     db.promoCode.findMany({where:{event:{organizationId}},orderBy:{id:"desc"},include:{event:true}}),
-    db.$queryRawUnsafe<ConsentRow[]>(`SELECT guestId,channel,status FROM MarketingConsent WHERE organizationId=$1 AND purpose='MARKETING'`,organizationId),
-    db.$queryRawUnsafe<SuppressionRow[]>(`SELECT guestId,channel FROM MarketingSuppression WHERE organizationId=$1 AND releasedAt IS NULL`,organizationId),
-    db.$queryRawUnsafe<CampaignListRow[]>(`SELECT id,name,channel,status,estimatedRecipients,estimatedCostMinor,createdAt,contentJson FROM MarketingCampaign WHERE organizationId=$1 ORDER BY createdAt DESC LIMIT 100`,organizationId),
+    db.$queryRawUnsafe<ConsentRow[]>(`SELECT guestId,channel,status FROM MarketingConsent WHERE organizationId=? AND purpose='MARKETING'`,organizationId),
+    db.$queryRawUnsafe<SuppressionRow[]>(`SELECT guestId,channel FROM MarketingSuppression WHERE organizationId=? AND releasedAt IS NULL`,organizationId),
+    db.$queryRawUnsafe<CampaignListRow[]>(`SELECT id,name,channel,status,estimatedRecipients,estimatedCostMinor,createdAt,contentJson FROM MarketingCampaign WHERE organizationId=? ORDER BY createdAt DESC LIMIT 100`,organizationId),
   ]);
 
   const audience=new Map<string,AudienceCustomer>();
