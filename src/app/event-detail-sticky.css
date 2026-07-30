@@ -18,19 +18,50 @@
 }
 
 @media (min-width: 801px) {
+  html:has(.event-stage),
+  body:has(.event-stage) {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   .event-stage {
-    overflow: clip;
+    height: calc(100dvh - 76px);
+    min-height: 0;
+    padding: 30px 0;
+    overflow: hidden !important;
   }
 
   .event-experience {
+    height: 100%;
+    min-height: 0;
     align-items: start;
+    overflow: hidden;
   }
 
   .event-media-rail {
-    position: sticky;
-    top: 96px;
+    position: relative;
+    top: auto;
     align-self: start;
     z-index: 2;
+    max-height: 100%;
+  }
+
+  .event-content-panel {
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (min-width: 801px) and (max-width: 980px) {
+  .event-stage {
+    height: calc(100dvh - 62px);
+    padding: 24px 0;
   }
 }
 
