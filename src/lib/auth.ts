@@ -11,6 +11,7 @@ const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
 const BOOTSTRAP_ADMIN_EMAIL = "rubin.igor@gmail.com";
 const BOOTSTRAP_ADMIN_PASSWORD_HASH = "scrypt:21b434e1ae97b23c011ab63710dca161:5ef4bb33cca7a691e7b8d4bd1380a045151e85ac1c27b55e721223c207d90ad83ba59620e315569149c0d288571c9bc198b856b23ead2c0210fe6ed448720c4d";
+const DEMO_ORGANIZER_EMAIL = "demo.organizer@atlas-one.co";
 
 type OfficeSession = { userId: string; expiresAt: number };
 type CredentialRow = {
@@ -184,4 +185,28 @@ export async function requireEventAccess(permission: StaffPermission, eventId: s
   const event = await db.event.findUnique({ where: { id: eventId }, select: { organizationId: true } });
   if (!event || (user.role !== "ADMIN" && event.organizationId !== user.organizationId) || !canAccessEvent(user, eventId)) throw new Error("FORBIDDEN");
   return user;
+}
+
+export async function ensureDemoOrganizerAccount(organizationId: string) {
+  const temporaryPassword = `Atlas-${createHmac("sha256", authSecret()).update(`demo-organizer:${organizationId}`).digest("hex").slice(0, 10)}!`;
+  const events = await db.event.findMany({
+    where: { organizationId },
+    orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
+    take: 2,
+    select: { id: true, title: true },
+  });
+  const user = await db.user.upsert({
+    where: { email: DEMO_ORGANIZER_EMAIL },
+    update: { name: "Demo Organizer", role: "ORGANIZER", staffRole: "EVENT_MANAGER", jobTitle: "Organizer", active: true, organizationId },
+    create: { name: "Demo Organizer", email: DEMO_ORGANIZER_EMAIL, role: "ORGANIZER", staffRole: "EVENT_MANAGER", jobTitle: "Organizer", active: true, organizationId },
+  });
+  const existingCredential = await credentialForUser(user.id);
+  if (!existingCredential || !verifyOfficePassword(temporaryPassword, existingCredential.passwordHash)) await createOfficeCredential(user.id, temporaryPassword, true);
+  const permissions: StaffPermission[] = ["EVENT_VIEW", "EVENT_MANAGE", "TICKET_MANAGE", "ORDER_VIEW", "ORDER_MANAGE", "ANALYTICS_VIEW", "FINANCE_VIEW"];
+  for (const permission of permissions) {
+    await db.permissionGrant.upsert({ where: { userId_permission: { userId: user.id, permission } }, update: {}, create: { userId: user.id, permission } });
+  }
+  await db.eventStaffAccess.deleteMany({ where: { userId: user.id } });
+  if (events.length) await db.eventStaffAccess.createMany({ data: events.map((event) => ({ userId: user.id, eventId: event.id })), skipDuplicates: true });
+  return { email: DEMO_ORGANIZER_EMAIL, temporaryPassword, events };
 }
