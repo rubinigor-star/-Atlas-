@@ -5,14 +5,21 @@ import { db } from "@/lib/db";
 import { ensureMarketingRuntime } from "@/lib/marketing-runtime";
 import { writeAudit } from "@/lib/audit";
 
+const allowedVariables=["{{first_name}}","{{event_name}}","{{event_date}}","{{venue}}","{{order_number}}","{{ticket_link}}","{{unsubscribe_link}}"] as const;
 const createSchema=z.object({
   name:z.string().min(2).max(160),
   channel:z.enum(["EMAIL","SMS","WHATSAPP"]),
   eventId:z.string().nullable().optional(),
+  subject:z.string().max(200).nullable().optional(),
   message:z.string().min(3).max(5000),
+  templateId:z.string().max(80).nullable().optional(),
+  variablesUsed:z.array(z.enum(allowedVariables)).max(allowedVariables.length).optional(),
   segment:z.object({city:z.string().nullable().optional(),minOrders:z.number().int().min(1).max(1000)}),
   estimatedRecipients:z.number().int().min(0).optional(),
   estimatedCostMinor:z.number().int().min(0).optional(),
+}).superRefine((value,ctx)=>{
+  if(value.channel==="EMAIL"&&(!value.subject||value.subject.trim().length<2))ctx.addIssue({code:"custom",path:["subject"],message:"Для Email требуется тема письма"});
+  if(!value.message.includes("{{unsubscribe_link}}"))ctx.addIssue({code:"custom",path:["message"],message:"В рекламном сообщении должна быть ссылка для отписки {{unsubscribe_link}}"});
 });
 
 const actionSchema=z.discriminatedUnion("action",[
@@ -47,7 +54,8 @@ export async function POST(req:Request){
     const unitCostMinor=Number(rateRows[0]?.unitCostMinor??fallbackRates[input.channel]);
     const eligible=segmented.flatMap(customer=>{const consent=consentMap.get(customer.guestId);const contactValue=input.channel==="EMAIL"?customer.email:customer.phone;if(!consent||suppressed.has(customer.guestId)||!contactValue)return [];return [{...customer,contactValue,consent}];});
     const campaignId=crypto.randomUUID();const costMinor=eligible.length*unitCostMinor;
-    await db.$transaction(async tx=>{await tx.$executeRawUnsafe(`INSERT INTO MarketingCampaign (id,organizationId,name,type,status,channel,segmentJson,contentJson,estimatedRecipients,estimatedCostMinor,reservedCostMinor,createdById,createdAt,updatedAt) VALUES (?, ?, ?, 'MARKETING', 'DRAFT', ?, ?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,campaignId,organizationId,input.name,input.channel,JSON.stringify({...input.segment,eventId:input.eventId??null,serverCalculated:true,candidateCount:segmented.length}),JSON.stringify({message:input.message}),eligible.length,costMinor,actor.id);for(const recipient of eligible){await tx.$executeRawUnsafe(`INSERT INTO MarketingCampaignRecipient (id,campaignId,guestId,channel,contactValue,status,exclusionReason,consentSource,consentGrantedAt,unitCostMinor,createdAt) VALUES (?, ?, ?, ?, ?, 'SNAPSHOT', NULL, ?, ?, ?, CURRENT_TIMESTAMP)`,crypto.randomUUID(),campaignId,recipient.guestId,input.channel,recipient.contactValue,recipient.consent.source,recipient.consent.grantedAt,unitCostMinor);}});
+    const contentJson=JSON.stringify({subject:input.channel==="EMAIL"?input.subject:null,message:input.message,templateId:input.templateId??null,variablesUsed:input.variablesUsed??[],contentVersion:1});
+    await db.$transaction(async tx=>{await tx.$executeRawUnsafe(`INSERT INTO MarketingCampaign (id,organizationId,name,type,status,channel,segmentJson,contentJson,estimatedRecipients,estimatedCostMinor,reservedCostMinor,createdById,createdAt,updatedAt) VALUES (?, ?, ?, 'MARKETING', 'DRAFT', ?, ?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,campaignId,organizationId,input.name,input.channel,JSON.stringify({...input.segment,eventId:input.eventId??null,serverCalculated:true,candidateCount:segmented.length}),contentJson,eligible.length,costMinor,actor.id);for(const recipient of eligible){await tx.$executeRawUnsafe(`INSERT INTO MarketingCampaignRecipient (id,campaignId,guestId,channel,contactValue,status,exclusionReason,consentSource,consentGrantedAt,unitCostMinor,createdAt) VALUES (?, ?, ?, ?, ?, 'SNAPSHOT', NULL, ?, ?, ?, CURRENT_TIMESTAMP)`,crypto.randomUUID(),campaignId,recipient.guestId,input.channel,recipient.contactValue,recipient.consent.source,recipient.consent.grantedAt,unitCostMinor);}});
     await writeAudit(actor,{action:"MARKETING_CAMPAIGN_DRAFT_CREATE",entityType:"MarketingCampaign",entityId:campaignId,summary:`Создан черновик ${input.name}: ${eligible.length} проверенных получателей, ${(costMinor/100).toFixed(2)} ILS`});
     return NextResponse.json({ok:true,id:campaignId,serverEstimate:{candidates:segmented.length,recipients:eligible.length,excluded:segmented.length-eligible.length,unitCostMinor,costMinor}},{status:201});
   }catch(error){const message=error instanceof Error?error.message:"Ошибка";return NextResponse.json({error:message==="FORBIDDEN"?"Недостаточно прав":message},{status:message==="FORBIDDEN"?403:400});}
@@ -74,7 +82,7 @@ export async function PATCH(req:Request){
     }
     const newId=crypto.randomUUID();
     await db.$transaction(async tx=>{
-      await tx.$executeRawUnsafe(`INSERT INTO MarketingCampaign (id,organizationId,name,type,status,channel,segmentJson,contentJson,estimatedRecipients,estimatedCostMinor,reservedCostMinor,createdById,createdAt,updatedAt) VALUES (?, ?, ?, 'MARKETING', 'DRAFT', ?, ?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,newId,actor.organizationId,`${campaign.name} — копия`,campaign.channel,campaign.segmentJson,campaign.contentJson,campaign.estimatedRecipients,campaign.estimatedCostMinor,actor.id);
+      await tx.$executeRawUnsafe(`INSERT INTO MarketingCampaign (id,organizationId,name,type,status,channel,segmentJson,contentJson,estimatedRecipients,estimatedCostMinor,reservedCostMinor,createdById,createdAt,updatedAt) VALUES (?, ?, ?, 'MARKETING', 'DRAFT', ?, ?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,newId,actor.organizationId,`${campaign.name} - копия`,campaign.channel,campaign.segmentJson,campaign.contentJson,campaign.estimatedRecipients,campaign.estimatedCostMinor,actor.id);
       await tx.$executeRawUnsafe(`INSERT INTO MarketingCampaignRecipient (id,campaignId,guestId,channel,contactValue,status,exclusionReason,consentSource,consentGrantedAt,unitCostMinor,createdAt) SELECT lower(hex(randomblob(16))), ?, guestId,channel,contactValue,'SNAPSHOT',exclusionReason,consentSource,consentGrantedAt,unitCostMinor,CURRENT_TIMESTAMP FROM MarketingCampaignRecipient WHERE campaignId=?`,newId,campaign.id);
     });
     await writeAudit(actor,{action:"MARKETING_CAMPAIGN_DUPLICATE",entityType:"MarketingCampaign",entityId:newId,summary:`Создана копия кампании ${campaign.name}`});
