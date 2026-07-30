@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Baby, Drama, Guitar, Mic2, Search, Tag, X, Zap } from "lucide-react";
 import { AtlasLogo } from "@/components/atlas-logo";
 import { useLocale, type Locale } from "@/components/locale-provider";
@@ -105,14 +105,14 @@ function EventGrid({ events, onNavigate }: { events: SearchEvent[]; onNavigate: 
         height={500}
         alt={event.title}
         className="atlas-search-event-image"
-        sizes="(max-width: 680px) 29vw, 124px"
+        sizes="(max-width: 680px) 29vw, 104px"
       />
       <strong>{event.title}</strong>
     </Link>)}
   </div>;
 }
 
-function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+function SearchDialog({ present, open, onClose }: { present: boolean; open: boolean; onClose: () => void }) {
   const { locale } = useLocale();
   const text = copy[locale];
   const inputRef = useRef<HTMLInputElement>(null);
@@ -122,7 +122,7 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!present) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     setQuery("");
@@ -138,7 +138,7 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
       })
       .finally(() => setLoading(false));
 
-    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 60);
+    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 110);
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
@@ -150,10 +150,11 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
       document.removeEventListener("keydown", closeOnEscape);
       document.body.style.overflow = previousOverflow;
     };
-  }, [open, onClose]);
+  }, [present, onClose]);
 
   useEffect(() => {
-    if (!open || query.trim().length < 2) {
+    if (!present || !open) return;
+    if (query.trim().length < 2) {
       setResults([]);
       return;
     }
@@ -177,15 +178,23 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [open, query]);
+  }, [present, open, query]);
 
-  if (!open) return null;
+  if (!present) return null;
   const searching = query.trim().length >= 2;
   const visibleEvents = searching ? results : featured;
 
-  return <div className="atlas-search-overlay" role="dialog" aria-modal="true" aria-label={text.placeholder} onMouseDown={event => {
-    if (event.target === event.currentTarget) onClose();
-  }}>
+  return <div
+    className="atlas-search-overlay"
+    data-state={open ? "open" : "closed"}
+    role="dialog"
+    aria-modal="true"
+    aria-hidden={!open}
+    aria-label={text.placeholder}
+    onMouseDown={event => {
+      if (event.target === event.currentTarget) onClose();
+    }}
+  >
     <div className="atlas-search-topbar">
       <AtlasLogo/>
       <label className="atlas-search-field">
@@ -215,7 +224,7 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
         <h2>{text.popular}</h2>
         <div className="atlas-search-category-grid">
           {categories.map(({ key, Icon }) => <Link href={`/?category=${key}#events`} className="atlas-search-category" onClick={onClose} key={key}>
-            <span><Icon size={22} strokeWidth={1.8} aria-hidden="true"/></span>
+            <span><Icon size={20} strokeWidth={1.8} aria-hidden="true"/></span>
             <strong>{text.categories[key]}</strong>
           </Link>)}
         </div>
@@ -226,9 +235,31 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
 
 export function GlobalSearch() {
   const [mounted, setMounted] = useState(false);
+  const [present, setPresent] = useState(false);
   const [open, setOpen] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
 
   useEffect(() => setMounted(true), []);
+
+  const openSearch = useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setPresent(true);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => setOpen(true));
+    });
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setOpen(false);
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = window.setTimeout(() => {
+      setPresent(false);
+      closeTimerRef.current = null;
+    }, 300);
+  }, []);
 
   useEffect(() => {
     const interceptSearchButton = (event: MouseEvent) => {
@@ -237,12 +268,16 @@ export function GlobalSearch() {
       if (!button) return;
       event.preventDefault();
       event.stopPropagation();
-      setOpen(true);
+      openSearch();
     };
 
     document.addEventListener("click", interceptSearchButton, true);
     return () => document.removeEventListener("click", interceptSearchButton, true);
+  }, [openSearch]);
+
+  useEffect(() => () => {
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
   }, []);
 
-  return mounted ? createPortal(<SearchDialog open={open} onClose={() => setOpen(false)}/>, document.body) : null;
+  return mounted ? createPortal(<SearchDialog present={present} open={open} onClose={closeSearch}/>, document.body) : null;
 }
