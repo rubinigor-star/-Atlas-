@@ -22,6 +22,13 @@ export async function POST(req: Request) {
         primaryLanguage: input.primaryLanguage,
         catalogVisibility: input.catalogVisibility,
       }, actor.id));
+      if (actor.eventAccess.length > 0) {
+        await tx.eventStaffAccess.upsert({
+          where: { userId_eventId: { userId: actor.id, eventId: created.id } },
+          update: {},
+          create: { userId: actor.id, eventId: created.id },
+        });
+      }
       return created;
     });
     await writeAudit(actor,{action:"EVENT_CREATED",entityType:"Event",entityId:event.id,summary:`Создано мероприятие ${event.title}`});
