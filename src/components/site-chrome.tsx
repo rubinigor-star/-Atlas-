@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   BriefcaseBusiness,
   Check,
@@ -135,6 +136,7 @@ export function SiteHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileLanguageOpen, setMobileLanguageOpen] = useState(false);
   const [appBusy, setAppBusy] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
   const languageRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
   const appTimerRef = useRef<number | null>(null);
@@ -146,6 +148,10 @@ export function SiteHeader() {
     { href: "/office", label: messages.common.organizers },
     { href: "/account", label: messages.common.account },
   ];
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     if (!languageOpen && !accountOpen) return;
@@ -174,7 +180,9 @@ export function SiteHeader() {
   useEffect(() => {
     if (!mobileOpen) return;
     const previousOverflow = document.body.style.overflow;
+    const previousTouchAction = document.body.style.touchAction;
     document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setMobileOpen(false);
@@ -183,6 +191,7 @@ export function SiteHeader() {
 
     return () => {
       document.body.style.overflow = previousOverflow;
+      document.body.style.touchAction = previousTouchAction;
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [mobileOpen]);
@@ -231,171 +240,175 @@ export function SiteHeader() {
     setMobileLanguageOpen(false);
   };
 
-  return <header className="topbar atlas-site-header">
-    <div className="atlas-header-shell">
-      <div className="atlas-header-brand">
-        <AtlasLogo/>
-        <span className="atlas-header-divider" aria-hidden="true"/>
-        <div className="atlas-language-wrap" ref={languageRef}>
+  const mobileDrawer = <div className="atlas-mobile-drawer" role="dialog" aria-modal="true" aria-label={copy.menu}>
+    <div className="atlas-mobile-drawer-head">
+      <div onClick={closeMobile}><AtlasLogo/></div>
+      <button type="button" className="atlas-mobile-close" aria-label={copy.closeMenu} onClick={closeMobile} autoFocus>
+        <X size={27} strokeWidth={1.8} aria-hidden="true"/>
+      </button>
+    </div>
+
+    <div className="atlas-mobile-drawer-body">
+      <nav className="atlas-mobile-nav" aria-label="Mobile navigation">
+        {navLinks.map(link => <Link href={link.href} key={link.href} onClick={closeMobile}>{link.label}</Link>)}
+
+        <div className="atlas-mobile-language-section">
           <button
             type="button"
-            className="atlas-language-button"
-            aria-label={messages.common.language}
-            aria-haspopup="menu"
-            aria-expanded={languageOpen}
-            onClick={() => {
-              setLanguageOpen(open => !open);
-              setAccountOpen(false);
-            }}
+            className="atlas-mobile-language-toggle"
+            aria-expanded={mobileLanguageOpen}
+            onClick={() => setMobileLanguageOpen(open => !open)}
           >
-            <span>{localeNames[locale]}</span>
-            <ChevronDown size={15} strokeWidth={1.8} aria-hidden="true"/>
+            <span>{messages.common.language}</span>
+            <span className="atlas-mobile-language-current">{localeNames[locale]} <ChevronDown size={18} strokeWidth={1.8} aria-hidden="true"/></span>
           </button>
 
-          {languageOpen && <div className="atlas-language-menu" role="menu" aria-label={messages.common.language}>
+          {mobileLanguageOpen && <div className="atlas-mobile-language-options">
             {languageOptions.map(option => <button
               type="button"
-              role="menuitemradio"
-              aria-checked={option === locale}
-              className="atlas-language-option"
-              data-selected={option === locale ? "true" : "false"}
               key={option}
+              data-selected={option === locale ? "true" : "false"}
               onClick={() => chooseLanguage(option)}
             >
               <span>{localeNames[option]}</span>
-              <Check size={16} strokeWidth={2.1} aria-hidden="true"/>
+              <Check size={17} strokeWidth={2.1} aria-hidden="true"/>
             </button>)}
           </div>}
         </div>
-      </div>
-
-      <nav className="atlas-header-nav" aria-label="Primary navigation">
-        {navLinks.map(link => <Link href={link.href} key={link.href}>{link.label}</Link>)}
       </nav>
 
-      <div className="atlas-header-actions">
-        <button
-          type="button"
-          className="atlas-app-cta"
-          data-loading={appBusy ? "true" : "false"}
-          aria-busy={appBusy}
-          onClick={playAppButtonFeedback}
-        >
-          <Sparkles size={17} strokeWidth={1.8} aria-hidden="true"/>
-          <span>{copy.app}</span>
-          <i aria-hidden="true"/>
-        </button>
-
-        <button type="button" className="atlas-header-icon-button" aria-label={copy.search} title={copy.search} onClick={openEvents}>
-          <Search size={23} strokeWidth={1.8} aria-hidden="true"/>
-        </button>
-
-        <div className="atlas-account-wrap" ref={accountRef}>
-          <button
-            type="button"
-            className="atlas-header-icon-button atlas-account-button"
-            aria-label={copy.account}
-            aria-haspopup="menu"
-            aria-expanded={accountOpen}
-            onClick={() => {
-              setAccountOpen(open => !open);
-              setLanguageOpen(false);
-            }}
-          >
-            <UserRound size={24} strokeWidth={1.75} aria-hidden="true"/>
-          </button>
-
-          {accountOpen && <div className="atlas-account-menu" role="menu" aria-label={copy.account}>
-            <Link href="/account" className="atlas-account-menu-item atlas-account-menu-buyer" role="menuitem" onClick={() => setAccountOpen(false)}>
-              <span className="atlas-account-menu-icon"><Ticket size={20} strokeWidth={1.8} aria-hidden="true"/></span>
-              <strong>{copy.buyer}</strong>
-            </Link>
-            <Link href="/office" className="atlas-account-menu-item" role="menuitem" onClick={() => setAccountOpen(false)}>
-              <span className="atlas-account-menu-icon"><BriefcaseBusiness size={20} strokeWidth={1.8} aria-hidden="true"/></span>
-              <strong>{copy.organizer}</strong>
-            </Link>
-          </div>}
-        </div>
-
-        <button
-          type="button"
-          className="atlas-header-icon-button atlas-mobile-menu-button"
-          aria-label={copy.menu}
-          aria-haspopup="dialog"
-          aria-expanded={mobileOpen}
-          onClick={() => {
-            setMobileOpen(true);
-            setLanguageOpen(false);
-            setAccountOpen(false);
-          }}
-        >
-          <Menu size={25} strokeWidth={1.9} aria-hidden="true"/>
-        </button>
+      <div className="atlas-mobile-account-actions">
+        <Link href="/account" onClick={closeMobile}>
+          <Ticket size={19} strokeWidth={1.8} aria-hidden="true"/>
+          <span>{copy.buyer}</span>
+        </Link>
+        <Link href="/office" onClick={closeMobile}>
+          <BriefcaseBusiness size={19} strokeWidth={1.8} aria-hidden="true"/>
+          <span>{copy.organizer}</span>
+        </Link>
       </div>
+
+      <button
+        type="button"
+        className="atlas-mobile-app-cta"
+        data-loading={appBusy ? "true" : "false"}
+        aria-busy={appBusy}
+        onClick={playAppButtonFeedback}
+      >
+        <Sparkles size={17} strokeWidth={1.8} aria-hidden="true"/>
+        <span>{copy.app}</span>
+        <i aria-hidden="true"/>
+      </button>
     </div>
+  </div>;
 
-    {mobileOpen && <div className="atlas-mobile-drawer" role="dialog" aria-modal="true" aria-label={copy.menu}>
-      <div className="atlas-mobile-drawer-head">
-        <div onClick={closeMobile}><AtlasLogo/></div>
-        <button type="button" className="atlas-mobile-close" aria-label={copy.closeMenu} onClick={closeMobile} autoFocus>
-          <X size={27} strokeWidth={1.8} aria-hidden="true"/>
-        </button>
-      </div>
-
-      <div className="atlas-mobile-drawer-body">
-        <nav className="atlas-mobile-nav" aria-label="Mobile navigation">
-          {navLinks.map(link => <Link href={link.href} key={link.href} onClick={closeMobile}>{link.label}</Link>)}
-
-          <div className="atlas-mobile-language-section">
+  return <>
+    <header className="topbar atlas-site-header">
+      <div className="atlas-header-shell">
+        <div className="atlas-header-brand">
+          <AtlasLogo/>
+          <span className="atlas-header-divider" aria-hidden="true"/>
+          <div className="atlas-language-wrap" ref={languageRef}>
             <button
               type="button"
-              className="atlas-mobile-language-toggle"
-              aria-expanded={mobileLanguageOpen}
-              onClick={() => setMobileLanguageOpen(open => !open)}
+              className="atlas-language-button"
+              aria-label={messages.common.language}
+              aria-haspopup="menu"
+              aria-expanded={languageOpen}
+              onClick={() => {
+                setLanguageOpen(open => !open);
+                setAccountOpen(false);
+              }}
             >
-              <span>{messages.common.language}</span>
-              <span className="atlas-mobile-language-current">{localeNames[locale]} <ChevronDown size={18} strokeWidth={1.8} aria-hidden="true"/></span>
+              <span>{localeNames[locale]}</span>
+              <ChevronDown size={15} strokeWidth={1.8} aria-hidden="true"/>
             </button>
 
-            {mobileLanguageOpen && <div className="atlas-mobile-language-options">
+            {languageOpen && <div className="atlas-language-menu" role="menu" aria-label={messages.common.language}>
               {languageOptions.map(option => <button
                 type="button"
-                key={option}
+                role="menuitemradio"
+                aria-checked={option === locale}
+                className="atlas-language-option"
                 data-selected={option === locale ? "true" : "false"}
+                key={option}
                 onClick={() => chooseLanguage(option)}
               >
                 <span>{localeNames[option]}</span>
-                <Check size={17} strokeWidth={2.1} aria-hidden="true"/>
+                <Check size={16} strokeWidth={2.1} aria-hidden="true"/>
               </button>)}
             </div>}
           </div>
-        </nav>
-
-        <div className="atlas-mobile-account-actions">
-          <Link href="/account" onClick={closeMobile}>
-            <Ticket size={19} strokeWidth={1.8} aria-hidden="true"/>
-            <span>{copy.buyer}</span>
-          </Link>
-          <Link href="/office" onClick={closeMobile}>
-            <BriefcaseBusiness size={19} strokeWidth={1.8} aria-hidden="true"/>
-            <span>{copy.organizer}</span>
-          </Link>
         </div>
 
-        <button
-          type="button"
-          className="atlas-mobile-app-cta"
-          data-loading={appBusy ? "true" : "false"}
-          aria-busy={appBusy}
-          onClick={playAppButtonFeedback}
-        >
-          <Sparkles size={17} strokeWidth={1.8} aria-hidden="true"/>
-          <span>{copy.app}</span>
-          <i aria-hidden="true"/>
-        </button>
+        <nav className="atlas-header-nav" aria-label="Primary navigation">
+          {navLinks.map(link => <Link href={link.href} key={link.href}>{link.label}</Link>)}
+        </nav>
+
+        <div className="atlas-header-actions">
+          <button
+            type="button"
+            className="atlas-app-cta"
+            data-loading={appBusy ? "true" : "false"}
+            aria-busy={appBusy}
+            onClick={playAppButtonFeedback}
+          >
+            <Sparkles size={17} strokeWidth={1.8} aria-hidden="true"/>
+            <span>{copy.app}</span>
+            <i aria-hidden="true"/>
+          </button>
+
+          <button type="button" className="atlas-header-icon-button" aria-label={copy.search} title={copy.search} onClick={openEvents}>
+            <Search size={23} strokeWidth={1.8} aria-hidden="true"/>
+          </button>
+
+          <div className="atlas-account-wrap" ref={accountRef}>
+            <button
+              type="button"
+              className="atlas-header-icon-button atlas-account-button"
+              aria-label={copy.account}
+              aria-haspopup="menu"
+              aria-expanded={accountOpen}
+              onClick={() => {
+                setAccountOpen(open => !open);
+                setLanguageOpen(false);
+              }}
+            >
+              <UserRound size={24} strokeWidth={1.75} aria-hidden="true"/>
+            </button>
+
+            {accountOpen && <div className="atlas-account-menu" role="menu" aria-label={copy.account}>
+              <Link href="/account" className="atlas-account-menu-item atlas-account-menu-buyer" role="menuitem" onClick={() => setAccountOpen(false)}>
+                <span className="atlas-account-menu-icon"><Ticket size={20} strokeWidth={1.8} aria-hidden="true"/></span>
+                <strong>{copy.buyer}</strong>
+              </Link>
+              <Link href="/office" className="atlas-account-menu-item" role="menuitem" onClick={() => setAccountOpen(false)}>
+                <span className="atlas-account-menu-icon"><BriefcaseBusiness size={20} strokeWidth={1.8} aria-hidden="true"/></span>
+                <strong>{copy.organizer}</strong>
+              </Link>
+            </div>}
+          </div>
+
+          <button
+            type="button"
+            className="atlas-header-icon-button atlas-mobile-menu-button"
+            aria-label={copy.menu}
+            aria-haspopup="dialog"
+            aria-expanded={mobileOpen}
+            onClick={() => {
+              setMobileOpen(true);
+              setLanguageOpen(false);
+              setAccountOpen(false);
+            }}
+          >
+            <Menu size={25} strokeWidth={1.9} aria-hidden="true"/>
+          </button>
+        </div>
       </div>
-    </div>}
-  </header>;
+    </header>
+
+    {portalReady && mobileOpen ? createPortal(mobileDrawer, document.body) : null}
+  </>;
 }
 
 export function SiteFooter() {
