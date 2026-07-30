@@ -39,9 +39,13 @@ export async function POST(request: Request) {
     });
 
     await createOfficeCredential(created.id, input.password, false);
-    try { await sendOrganizerVerification(created.id, created.email); }
-    catch (error) { console.error("[office-register] verification email failed", error); }
-    return NextResponse.redirect(new URL("/office/login?registered=1", request.url), 303);
+    try {
+      await sendOrganizerVerification(created.id, created.email);
+      return NextResponse.redirect(new URL("/office/login?registered=1&verification=sent", request.url), 303);
+    } catch (error) {
+      console.error("[office-register] verification email failed", error);
+      return NextResponse.redirect(new URL("/office/login?registered=1&verification=failed", request.url), 303);
+    }
   } catch (error) {
     console.error("[office-register]", error);
     return NextResponse.redirect(new URL("/office/register?error=INVALID", request.url), 303);
