@@ -12,6 +12,7 @@ import "./logo.css";
 import "./logo-variants.css";
 import "./site-header.css";
 import "./mobile-drawer-fix.css";
+import "./mobile-language-header.css";
 import "./tour.css";
 import "./typography.css";
 import { SpeedInsights } from "@vercel/speed-insights/next";

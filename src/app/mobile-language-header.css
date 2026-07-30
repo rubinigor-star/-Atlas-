@@ -1,0 +1,97 @@
+@media (max-width: 980px) {
+  .atlas-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: visible;
+    white-space: nowrap;
+  }
+
+  .atlas-header-divider {
+    display: block !important;
+    flex: 0 0 1px;
+    width: 1px;
+    height: 24px;
+    background: #d8dde5;
+  }
+
+  .atlas-language-wrap {
+    position: relative;
+    display: inline-flex !important;
+    align-items: center;
+    overflow: visible;
+  }
+
+  .atlas-language-button {
+    min-height: 38px;
+    padding: 0 3px;
+    border-radius: 8px;
+    gap: 5px;
+    color: #111827;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .atlas-language-button:hover,
+  .atlas-language-button:focus-visible,
+  .atlas-language-button[aria-expanded="true"] {
+    background: #f4f6f8;
+  }
+
+  .atlas-language-menu {
+    top: calc(100% + 9px);
+    inset-inline-start: -8px;
+    width: 150px;
+    padding: 6px;
+    border-radius: 13px;
+    box-shadow: 0 16px 42px rgba(15, 23, 42, .18);
+  }
+
+  .atlas-mobile-language-section {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .atlas-header-brand {
+    gap: 8px;
+  }
+
+  .atlas-header-divider {
+    height: 22px;
+  }
+
+  .atlas-language-button {
+    min-height: 36px;
+    padding-inline: 2px;
+    font-size: 13px;
+  }
+
+  .atlas-language-button svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+@media (max-width: 360px) {
+  .atlas-site-header .atlas-logo-image {
+    width: 100px;
+  }
+
+  .atlas-header-shell {
+    padding-inline: 10px;
+  }
+
+  .atlas-header-brand {
+    gap: 6px;
+  }
+
+  .atlas-language-button {
+    font-size: 12.5px;
+  }
+
+  .atlas-header-icon-button {
+    width: 37px;
+    height: 37px;
+  }
+}
