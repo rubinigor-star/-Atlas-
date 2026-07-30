@@ -76,11 +76,11 @@ export function canAccessEvent(user:Awaited<ReturnType<typeof getCurrentStaff>>,
 export async function requireEventAccess(permission:StaffPermission,eventId:string){const user=await requirePermission(permission);const event=await db.event.findUnique({where:{id:eventId},select:{organizationId:true}});if(!event||(user.role!=="ADMIN"&&event.organizationId!==user.organizationId)||!canAccessEvent(user,eventId))throw new Error("FORBIDDEN");return user;}
 
 export async function ensureDemoOrganizerPlatform(){
-  let demoUser=await db.user.findUnique({where:{email:DEMO_ORGANIZER_EMAIL},include:{organization:true}});
-  let organization=demoUser?.organization??await db.organization.findFirst({where:{name:DEMO_ORGANIZATION_NAME}});
+  const existingDemoUser=await db.user.findUnique({where:{email:DEMO_ORGANIZER_EMAIL},include:{organization:true}});
+  let organization=existingDemoUser?.organization??await db.organization.findFirst({where:{name:DEMO_ORGANIZATION_NAME}});
   if(!organization)organization=await db.organization.create({data:{name:DEMO_ORGANIZATION_NAME}});
   const temporaryPassword=`Atlas-${createHmac("sha256",authSecret()).update(`demo-organizer:${organization.id}`).digest("hex").slice(0,10)}!`;
-  demoUser=await db.user.upsert({where:{email:DEMO_ORGANIZER_EMAIL},update:{name:"Demo Organizer",role:"ORGANIZER",staffRole:"OWNER",jobTitle:"Organization Owner",active:true,organizationId:organization.id},create:{name:"Demo Organizer",email:DEMO_ORGANIZER_EMAIL,role:"ORGANIZER",staffRole:"OWNER",jobTitle:"Organization Owner",active:true,organizationId:organization.id}});
+  const demoUser=await db.user.upsert({where:{email:DEMO_ORGANIZER_EMAIL},update:{name:"Demo Organizer",role:"ORGANIZER",staffRole:"OWNER",jobTitle:"Organization Owner",active:true,organizationId:organization.id},create:{name:"Demo Organizer",email:DEMO_ORGANIZER_EMAIL,role:"ORGANIZER",staffRole:"OWNER",jobTitle:"Organization Owner",active:true,organizationId:organization.id},include:{organization:true}});
   const credential=await credentialForUser(demoUser.id);if(!credential||!verifyOfficePassword(temporaryPassword,credential.passwordHash))await createOfficeCredential(demoUser.id,temporaryPassword,true);
   for(const permission of rolePermissions.OWNER){await db.permissionGrant.upsert({where:{userId_permission:{userId:demoUser.id,permission}},update:{},create:{userId:demoUser.id,permission}});}
   await db.event.updateMany({data:{organizationId:organization.id}});
