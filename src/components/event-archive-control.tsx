@@ -6,14 +6,13 @@ import { useRouter } from "next/navigation";
 type Props = {
   eventId: string;
   eventTitle: string;
-  status: string;
+  archived: boolean;
 };
 
-export function EventArchiveControl({ eventId, eventTitle, status }: Props) {
+export function EventArchiveControl({ eventId, eventTitle, archived }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const archived = status === "ARCHIVED";
 
   async function changeStatus() {
     const confirmation = archived
