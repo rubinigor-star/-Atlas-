@@ -1,0 +1,5 @@
+@media (max-width: 720px) {
+  .atlas-search-event-grid > .atlas-search-event-card:nth-child(n + 7) {
+    display: none;
+  }
+}
