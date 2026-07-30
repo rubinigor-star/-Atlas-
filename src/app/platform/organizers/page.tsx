@@ -1,19 +1,15 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { AdminShell } from "@/components/admin-shell";
-import { getCurrentStaff } from "@/lib/auth";
+import { PlatformShell } from "@/components/platform-shell";
+import { ensureDemoOrganizerPlatform } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export const dynamic = "force-dynamic";
+export const dynamic="force-dynamic";
 
-export default async function PlatformOrganizersPage() {
-  const actor = await getCurrentStaff();
-  if (!actor) redirect("/office/login");
-  if (actor.role !== "ADMIN") redirect("/office");
-  const organizations = await db.organization.findMany({ include: { _count: { select: { users: true, events: true } } }, orderBy: { createdAt: "desc" } });
-  return <AdminShell>
-    <span className="eyebrow">Superuser</span><h1>Организаторы</h1>
-    <p className="muted">Управление базовыми коммерческими условиями каждого организатора.</p>
-    <div className="table-wrap"><table><thead><tr><th>Организатор</th><th>Пользователей</th><th>Мероприятий</th><th></th></tr></thead><tbody>{organizations.map((organization) => <tr key={organization.id}><td><strong>{organization.name}</strong><br/><small>{organization.id}</small></td><td>{organization._count.users}</td><td>{organization._count.events}</td><td><Link className="btn secondary" href={`/platform/organizers/${organization.id}`}>Открыть карточку</Link></td></tr>)}</tbody></table></div>
-  </AdminShell>;
+export default async function PlatformOrganizersPage(){
+  await ensureDemoOrganizerPlatform();
+  const organizations=await db.organization.findMany({include:{users:true,events:true},orderBy:{createdAt:"asc"}});
+  return <PlatformShell>
+    <div className="platform-heading"><div><span className="eyebrow">Atlas Platform Admin</span><h1>Организаторы</h1><p>Управление компаниями, владельцами кабинетов, мероприятиями и базовыми коммерческими условиями.</p></div></div>
+    <div className="table-wrap"><table><thead><tr><th>Организация</th><th>Владелец кабинета</th><th>Мероприятия</th><th>Пользователи</th><th></th></tr></thead><tbody>{organizations.map(org=>{const owner=org.users.find(user=>user.staffRole==="OWNER")??org.users[0];return <tr key={org.id}><td><strong>{org.name}</strong><br/><small>{org.id}</small></td><td>{owner?.name??"Не назначен"}<br/><small>{owner?.email??""}</small></td><td>{org.events.length}</td><td>{org.users.length}</td><td><Link className="btn" href={`/platform/organizers/${org.id}`}>Открыть карточку</Link></td></tr>})}</tbody></table></div>
+  </PlatformShell>;
 }
