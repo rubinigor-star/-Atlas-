@@ -4,6 +4,7 @@ import {
   authenticateOfficeUser,
   createOfficeCredential,
   createOfficeSession,
+  ensureDemoOrganizerPlatform,
   ensureOfficeAuthTable,
   verifyOfficePassword,
 } from "@/lib/auth";
@@ -14,30 +15,12 @@ const PLATFORM_OWNER_BOOTSTRAP_HASH =
 
 async function bootstrapPlatformOwner(email: string, password: string) {
   if (email !== PLATFORM_OWNER_EMAIL || !verifyOfficePassword(password, PLATFORM_OWNER_BOOTSTRAP_HASH)) return;
-
   await ensureOfficeAuthTable();
-  const organization = await db.organization.findFirst({ orderBy: { createdAt: "asc" } });
   const user = await db.user.upsert({
     where: { email },
-    update: {
-      name: "Igor Rubin",
-      role: "ADMIN",
-      staffRole: "ADMIN",
-      jobTitle: "Platform Superuser",
-      active: true,
-      organizationId: organization?.id ?? null,
-    },
-    create: {
-      name: "Igor Rubin",
-      email,
-      role: "ADMIN",
-      staffRole: "ADMIN",
-      jobTitle: "Platform Superuser",
-      active: true,
-      organizationId: organization?.id ?? null,
-    },
+    update: { name: "Igor Rubin", role: "ADMIN", staffRole: "ADMIN", jobTitle: "Platform Super Administrator", active: true, organizationId: null },
+    create: { name: "Igor Rubin", email, role: "ADMIN", staffRole: "ADMIN", jobTitle: "Platform Super Administrator", active: true, organizationId: null },
   });
-
   await createOfficeCredential(user.id, password, true);
 }
 
@@ -53,6 +36,7 @@ export async function POST(request: Request) {
   }
 
   if (!result.ok) return NextResponse.redirect(new URL(`/office/login?error=${result.error}`, request.url), 303);
+  if (result.user.role === "ADMIN") await ensureDemoOrganizerPlatform();
   await createOfficeSession(result.user.id);
-  return NextResponse.redirect(new URL("/office", request.url), 303);
+  return NextResponse.redirect(new URL(result.user.role === "ADMIN" ? "/platform" : "/office", request.url), 303);
 }
