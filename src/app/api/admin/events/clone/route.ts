@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
+import { eventLanguageUpsertQuery, getEventLanguageSettings } from "@/lib/event-language-server";
 
 const schema = z
   .object({
@@ -77,6 +78,7 @@ export async function POST(req: Request) {
       },
     });
     if (!source) throw new Error("Исходное мероприятие не найдено");
+    const sourceLanguageSettings = await getEventLanguageSettings(source.id);
 
     const newEventStart = new Date(input.startsAt);
     const newSalesStart = new Date(input.salesStart);
@@ -102,6 +104,7 @@ export async function POST(req: Request) {
           venue: { create: { name: input.venueName, city: input.city, address: input.address } },
         },
       });
+      await tx.$executeRaw(eventLanguageUpsertQuery(event.id, sourceLanguageSettings, actor.id));
 
       const categoryMap = new Map<string, string>();
       for (const category of source.categories) {
