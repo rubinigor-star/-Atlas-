@@ -14,7 +14,9 @@ const errors: Record<string,string> = {
 };
 
 export default async function OfficeLoginPage({ searchParams }: { searchParams: Promise<Record<string,string|string[]|undefined>> }) {
-  if (await getCurrentStaff()) redirect("/office");
+  const currentStaff = await getCurrentStaff();
+  if (currentStaff) redirect(currentStaff.role === "ADMIN" ? "/platform" : "/office");
+
   const params = await searchParams;
   const error = typeof params.error === "string" ? errors[params.error] : "";
   const verification = typeof params.verification === "string" ? params.verification : "";
