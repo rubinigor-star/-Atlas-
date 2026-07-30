@@ -17,6 +17,7 @@ import "./mobile-drawer-fix.css";
 import "./mobile-language-header.css";
 import "./mobile-menu-compact-actions.css";
 import "./search-overlay.css";
+import "./search-mobile-limit.css";
 import "./tour.css";
 import "./typography.css";
 import "./live-emotions-theme.css";
