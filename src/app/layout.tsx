@@ -7,6 +7,7 @@ import "@fontsource/inter/700.css";
 import "@fontsource/noto-sans-hebrew/400.css";
 import "@fontsource/noto-sans-hebrew/700.css";
 import "./globals.css";
+import "./platform.css";
 import "./event-experience.css";
 import "./logo.css";
 import "./logo-variants.css";
