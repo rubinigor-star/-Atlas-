@@ -83,8 +83,6 @@ export async function ensureDemoOrganizerPlatform(){
   const demoUser=await db.user.upsert({where:{email:DEMO_ORGANIZER_EMAIL},update:{name:"Demo Organizer",role:"ORGANIZER",staffRole:"OWNER",jobTitle:"Organization Owner",active:true,organizationId:organization.id},create:{name:"Demo Organizer",email:DEMO_ORGANIZER_EMAIL,role:"ORGANIZER",staffRole:"OWNER",jobTitle:"Organization Owner",active:true,organizationId:organization.id},include:{organization:true}});
   const credential=await credentialForUser(demoUser.id);if(!credential||!verifyOfficePassword(temporaryPassword,credential.passwordHash))await createOfficeCredential(demoUser.id,temporaryPassword,true);
   for(const permission of rolePermissions.OWNER){await db.permissionGrant.upsert({where:{userId_permission:{userId:demoUser.id,permission}},update:{},create:{userId:demoUser.id,permission}});}
-  await db.event.updateMany({data:{organizationId:organization.id}});
-  await db.eventStaffAccess.deleteMany({where:{userId:demoUser.id}});
   return{organization,user:demoUser,email:DEMO_ORGANIZER_EMAIL,temporaryPassword,eventCount:await db.event.count({where:{organizationId:organization.id}})};
 }
 
