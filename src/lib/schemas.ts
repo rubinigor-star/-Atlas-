@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { catalogVisibilityValues, eventLanguageValues } from "@/lib/event-language";
 
 const paymentSchema = z.object({ method: z.literal("CARD") });
 
@@ -36,6 +37,8 @@ export const createEventSchema = z.object({
   title: z.string().min(3),
   slug: z.string().regex(/^[a-z0-9-]+$/),
   description: z.string().min(20),
+  primaryLanguage: z.enum(eventLanguageValues),
+  catalogVisibility: z.enum(catalogVisibilityValues).default("TARGETED"),
   startsAt: z.string().datetime(),
   doorsOpenAt: z.string().datetime(),
   venueName: z.string().min(2),

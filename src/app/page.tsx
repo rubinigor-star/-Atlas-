@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { Mic2, Music2, PartyPopper, Sparkles, Ticket } from "lucide-react";
 import "./event-card-grid.css";
 import { db } from "@/lib/db";
@@ -7,6 +8,9 @@ import { money } from "@/lib/format";
 import type { Locale } from "@/lib/i18n";
 import { getServerI18n } from "@/lib/server-locale";
 import { eventTypeLabels, parseEventType } from "@/lib/event-type";
+import { EventLanguagePreferences } from "@/components/event-language-preferences";
+import { EVENT_LANGUAGE_COOKIE, parsePreferredEventLanguages } from "@/lib/event-language";
+import { getHiddenEventIds } from "@/lib/event-language-server";
 
 export const dynamic = "force-dynamic";
 
@@ -46,8 +50,14 @@ function shortDateRange(start:Date,end:Date,locale:Locale){
 
 export default async function Home() {
   const { locale, messages } = await getServerI18n();
+  const cookieStore = await cookies();
+  const preferredEventLanguages = parsePreferredEventLanguages(cookieStore.get(EVENT_LANGUAGE_COOKIE)?.value, locale);
+  const hiddenEventIds = await getHiddenEventIds(preferredEventLanguages);
   const events = await db.event.findMany({
-    where: { status: "PUBLISHED" },
+    where: {
+      status: "PUBLISHED",
+      ...(hiddenEventIds.length ? { id: { notIn: hiddenEventIds } } : {}),
+    },
     select: {
       id: true,
       slug: true,
@@ -71,7 +81,7 @@ export default async function Home() {
   }
 
   const eventById=new Map(events.map(event=>[event.id,event]));
-  const linkedEventIds=new Set(tourLinks.map(link=>link.eventid));
+  const linkedEventIds=new Set(tourLinks.filter(link=>eventById.has(link.eventid)).map(link=>link.eventid));
   const tourCards=tours.map(tour=>{
     const linked=tourLinks
       .filter(link=>link.tourid===tour.id)
@@ -113,8 +123,8 @@ export default async function Home() {
 
     <section className="home-shell home-events" id="events">
       <div className="home-events-head">
-        <h2 className="section-title">{messages.home.upcoming}</h2>
-        <span className="muted">{totalCards} {messages.home.eventCount}</span>
+        <div><h2 className="section-title">{messages.home.upcoming}</h2><span className="muted">{totalCards} {messages.home.eventCount}</span></div>
+        <EventLanguagePreferences locale={locale} initial={preferredEventLanguages}/>
       </div>
       <div className="event-grid">
         {tourCards.map(({tour,linked,poster,minimumPrice,cities},index)=>{const cityLine=cities.join(" · ");return <Link className="card" href={`/tours/${tour.slug}`} key={tour.id}>

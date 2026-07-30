@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { EventManager } from "@/components/event-manager";
 import { EventTypeManager } from "@/components/event-type-manager";
+import { EventLanguageManager } from "@/components/event-language-manager";
 import { EventAtlasAssistant } from "@/components/event-atlas-assistant";
 import { VenueMapEditor } from "@/components/venue-map-editor";
 import { FullscreenVenueEditor } from "@/components/fullscreen-venue-editor";
@@ -22,13 +23,14 @@ import { parseGuestFields, stripEventMarkers } from "@/lib/event-guest-fields";
 import { guestManagementToken } from "@/lib/guest-links";
 import { parsePricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 import { parseEventType, stripEventType } from "@/lib/event-type";
+import { getEventLanguageSettings } from "@/lib/event-language-server";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 export default async function ManageEvent({params}:{params:Promise<{id:string}>}){
  const{id}=await params;const staff=await requireEventAccess("EVENT_VIEW",id);
  const event=await db.event.findUnique({where:{id},include:{venue:true,categories:{include:{priceTiers:true}},promoterLinks:{orderBy:{createdAt:"desc"},include:{promoter:true,category:true,table:true}},zones:{include:{tables:{include:{seatItems:true}}}}}});if(!event)notFound();
- const commercialTerms=await getEffectiveEventTerms(event.id,event.organizationId);
+ const [commercialTerms,languageSettings]=await Promise.all([getEffectiveEventTerms(event.id,event.organizationId),getEventLanguageSettings(event.id)]);
  const now=new Date();
  const managedCategories=event.categories.map((category)=>{const status=describeCategoryPrice(category,now);return{id:category.id,name:category.name,description:category.description,priceMinor:category.priceMinor,pricingMode:category.pricingMode,capacity:category.capacity,sold:category.sold,hidden:category.hidden,colorHex:category.colorHex,maxPerOrder:category.maxPerOrder,salesStart:category.salesStart?category.salesStart.toISOString():null,salesEnd:category.salesEnd?category.salesEnd.toISOString():null,priceTiers:category.priceTiers.map((tier)=>({id:tier.id,label:tier.label,priceMinor:tier.priceMinor,startsAt:tier.startsAt.toISOString(),endsAt:tier.endsAt.toISOString()})),currentPriceMinor:status.currentPriceMinor,statusLabel:status.statusLabel,nextTierPriceMinor:status.nextTier?.priceMinor,nextTierStartsAt:status.nextTier?.startsAt.toISOString()};});
  const tables=event.zones.flatMap(zone=>zone.tables.map(item=>({id:item.id,label:`${zone.name} · ${item.label}`,seats:item.seats,categoryId:item.categoryId})));
@@ -38,6 +40,7 @@ export default async function ManageEvent({params}:{params:Promise<{id:string}>}
  {staff.permissionSet.has("TICKET_MANAGE")?<CategoryManager eventId={event.id} categories={managedCategories}/>:<div className="table-wrap"><table><thead><tr><th>Категория</th><th>Цена сейчас</th><th>Продано</th><th>Остаток</th></tr></thead><tbody>{managedCategories.map(item=><tr key={item.id}><td>{item.name}</td><td>{item.currentPriceMinor!==null?money(item.currentPriceMinor):item.statusLabel}</td><td>{item.sold}</td><td>{item.capacity-item.sold}</td></tr>)}</tbody></table></div>}
  {(staff.permissionSet.has("EVENT_MANAGE")||staff.permissionSet.has("TICKET_MANAGE"))&&<div className="row between"><h2>Настройки</h2>{staff.permissionSet.has("TICKET_MANAGE")&&<Link className="btn dark" href={`/office/events/${event.id}/ticket-design`}>Открыть редактор билета</Link>}</div>}
  {staff.permissionSet.has("EVENT_MANAGE")&&<EventCommercialTermsForm eventId={event.id} initial={{useOrganizerDefaults:commercialTerms.useOrganizerDefaults,serviceFeePayer:commercialTerms.serviceFeePayer,organizerServiceFeePayer:commercialTerms.organizer.serviceFeePayer}}/>}
+ {staff.permissionSet.has("EVENT_MANAGE")&&<EventLanguageManager eventId={event.id} initial={languageSettings}/>} 
  {staff.permissionSet.has("EVENT_MANAGE")&&<EventTypeManager eventId={event.id} initialType={eventType}/>} 
  {staff.permissionSet.has("EVENT_MANAGE")&&<CheckoutFormManager eventId={event.id} initialGuestFields={guestFields} initialQuestions={buyerQuestions}/>} 
  {staff.permissionSet.has("EVENT_MANAGE")&&<EventManager event={{id:event.id,title:event.title,description:cleanDescription,posterUrl:event.posterUrl,media,rejectionMessage,status:event.status,startsAt:event.startsAt.toISOString(),salesMode:event.salesMode,approvalInstructions:event.approvalInstructions,mapEnabled:event.mapEnabled,venueName:event.venue.name,city:event.venue.city,address:event.venue.address}}/>}

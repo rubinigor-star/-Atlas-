@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
-import { CalendarDays, ExternalLink, MapPin, ShieldCheck } from "lucide-react";
+import { CalendarDays, ExternalLink, Languages, MapPin, ShieldCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { eventDate } from "@/lib/format";
 import { effectiveTicketPrice, ticketPricePresentation } from "@/lib/ticketing";
@@ -12,8 +12,12 @@ import { stripEventRejectionMessage } from "@/lib/event-approval-message";
 import { parsePricingMarketingStrategy, stripPricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 import { getServerI18n } from "@/lib/server-locale";
 import { eventTypeLabels, parseEventType, stripEventType } from "@/lib/event-type";
+import { eventLanguageLabels } from "@/lib/event-language";
+import { getEventLanguageSettings } from "@/lib/event-language-server";
 
 export const dynamic = "force-dynamic";
+
+const languageHeading = { ru: "Язык мероприятия", he: "שפת האירוע", en: "Event language" } as const;
 
 export default async function EventPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const [{ slug }, query, i18n] = await Promise.all([params, searchParams, getServerI18n()]);
@@ -27,7 +31,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
   if (!event || event.status !== "PUBLISHED") notFound();
 
   const channelCode = query.ref || query.channel;
-  const [promoterLink, zones] = await Promise.all([
+  const [promoterLink, zones, languageSettings] = await Promise.all([
     channelCode ? db.promoterLink.findUnique({ where: { code: channelCode.toUpperCase() } }) : Promise.resolve(null),
     event.mapEnabled
       ? db.zone.findMany({
@@ -43,6 +47,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
           },
         })
       : Promise.resolve([]),
+    getEventLanguageSettings(event.id),
   ]);
 
   const now = new Date();
@@ -68,6 +73,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
   const videos = media.filter((item) => item.type === "VIDEO");
   const links = media.filter((item) => item.type === "LINK");
   const eventType = parseEventType(event.description);
+  const languageLabel = eventLanguageLabels[i18n.locale][languageSettings.primaryLanguage];
   const publicDescription = stripEventType(stripEventRejectionMessage(stripEventMedia(event.description)));
   const text = i18n.messages.event;
   const eventUrl = `https://www.atlas-one.co/events/${event.slug}`;
@@ -82,9 +88,9 @@ export default async function EventPage({ params, searchParams }: { params: Prom
       </aside>
 
       <section className="event-content-panel event-info">
-        <div className="event-title-row"><div><div className="row" style={{flexWrap:"wrap"}}><span className="pill">{eventTypeLabels[i18n.locale][eventType]}</span><span className="pill">{event.venue.city}</span></div><h1>{event.title}</h1></div><EventShareActions title={event.title} url={eventUrl}/></div>
+        <div className="event-title-row"><div><div className="row" style={{flexWrap:"wrap"}}><span className="pill">{eventTypeLabels[i18n.locale][eventType]}</span><span className="pill">{languageLabel}</span><span className="pill">{event.venue.city}</span></div><h1>{event.title}</h1></div><EventShareActions title={event.title} url={eventUrl}/></div>
         {validPromoterLink && <div className="panel"><strong>{text.personalLink}: {validPromoterLink.label}</strong><p className="muted">{text.personalLinkInfo}</p></div>}
-        <div className="meta"><div className="meta-row"><CalendarDays size={22} /><div><strong>{eventDate(event.startsAt,i18n.locale)}</strong><br /><span className="muted">{text.doors}</span></div></div><div className="meta-row"><MapPin size={22} /><div><strong>{event.venue.name}</strong><br /><span className="muted">{event.venue.address}</span></div></div><div className="meta-row"><ShieldCheck size={22} /><div><strong>{text.safeCheckout}</strong><br /><span className="muted">{text.safeCheckoutInfo}</span></div></div></div>
+        <div className="meta"><div className="meta-row"><CalendarDays size={22} /><div><strong>{eventDate(event.startsAt,i18n.locale)}</strong><br /><span className="muted">{text.doors}</span></div></div><div className="meta-row"><MapPin size={22} /><div><strong>{event.venue.name}</strong><br /><span className="muted">{event.venue.address}</span></div></div><div className="meta-row"><Languages size={22} /><div><strong>{languageLabel}</strong><br /><span className="muted">{languageHeading[i18n.locale]}</span></div></div><div className="meta-row"><ShieldCheck size={22} /><div><strong>{text.safeCheckout}</strong><br /><span className="muted">{text.safeCheckoutInfo}</span></div></div></div>
         <section><h2>About</h2><p className="muted" style={{ lineHeight: 1.75 }}>{publicDescription}</p></section>
         {categories.length ? <EventPurchase eventId={event.id} categories={categories} objects={objects} referralCode={validPromoterLink?.code} allocation={validPromoterLink ? { type: validPromoterLink.allocationType, categoryId: validPromoterLink.categoryId, tableId: validPromoterLink.tableId, customPriceMinor: validPromoterLink.customPriceMinor } : undefined} /> : <div className="panel"><strong>{text.salesClosed}</strong><p className="muted">{text.noTariffs}</p></div>}
       </section>
