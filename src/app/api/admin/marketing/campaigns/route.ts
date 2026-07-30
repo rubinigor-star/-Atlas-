@@ -14,12 +14,20 @@ const createSchema=z.object({
   message:z.string().min(3).max(5000),
   templateId:z.string().max(80).nullable().optional(),
   variablesUsed:z.array(z.enum(allowedVariables)).max(allowedVariables.length).optional(),
-  segment:z.object({city:z.string().nullable().optional(),minOrders:z.number().int().min(1).max(1000)}),
+  segment:z.object({
+    city:z.string().nullable().optional(),
+    minOrders:z.number().int().min(1).max(1000),
+    minSpendMinor:z.number().int().min(0).max(1000000000).optional(),
+    purchasedAfter:z.string().nullable().optional(),
+    purchasedBefore:z.string().nullable().optional(),
+  }),
   estimatedRecipients:z.number().int().min(0).optional(),
   estimatedCostMinor:z.number().int().min(0).optional(),
 }).superRefine((value,ctx)=>{
   if(value.channel==="EMAIL"&&(!value.subject||value.subject.trim().length<2))ctx.addIssue({code:"custom",path:["subject"],message:"Для Email требуется тема письма"});
   if(!value.message.includes("{{unsubscribe_link}}"))ctx.addIssue({code:"custom",path:["message"],message:"В рекламном сообщении должна быть ссылка для отписки {{unsubscribe_link}}"});
+  if(value.segment.purchasedAfter&&Number.isNaN(Date.parse(value.segment.purchasedAfter)))ctx.addIssue({code:"custom",path:["segment","purchasedAfter"],message:"Некорректная дата начала периода"});
+  if(value.segment.purchasedBefore&&Number.isNaN(Date.parse(value.segment.purchasedBefore)))ctx.addIssue({code:"custom",path:["segment","purchasedBefore"],message:"Некорректная дата конца периода"});
 });
 
 const actionSchema=z.discriminatedUnion("action",[
@@ -42,10 +50,16 @@ export async function POST(req:Request){
     const input=createSchema.parse(await req.json());
     const organizationId=actor.organizationId;
     if(input.eventId){const event=await db.event.findFirst({where:{id:input.eventId,organizationId},select:{id:true}});if(!event)throw new Error("Мероприятие не найдено");}
-    const orders=await db.order.findMany({where:{status:"PAID",guestId:{not:null},event:{organizationId,...(input.eventId?{id:input.eventId}:{})}},select:{guestId:true,customerEmail:true,customerPhone:true,customerCity:true}});
-    const audience=new Map<string,{guestId:string;email:string;phone:string;city:string|null;orders:number}>();
-    for(const order of orders){if(!order.guestId)continue;const previous=audience.get(order.guestId);audience.set(order.guestId,{guestId:order.guestId,email:previous?.email||order.customerEmail,phone:previous?.phone||order.customerPhone,city:previous?.city??order.customerCity,orders:(previous?.orders??0)+1});}
-    const segmented=[...audience.values()].filter(customer=>(!input.segment.city||customer.city===input.segment.city)&&customer.orders>=input.segment.minOrders);
+    const orders=await db.order.findMany({where:{status:"PAID",guestId:{not:null},event:{organizationId,...(input.eventId?{id:input.eventId}:{})}},select:{guestId:true,customerEmail:true,customerPhone:true,customerCity:true,totalMinor:true,createdAt:true}});
+    const audience=new Map<string,{guestId:string;email:string;phone:string;city:string|null;orders:number;totalMinor:number;lastPurchaseAt:Date}>();
+    for(const order of orders){
+      if(!order.guestId)continue;
+      const previous=audience.get(order.guestId);
+      audience.set(order.guestId,{guestId:order.guestId,email:previous?.email||order.customerEmail,phone:previous?.phone||order.customerPhone,city:previous?.city??order.customerCity,orders:(previous?.orders??0)+1,totalMinor:(previous?.totalMinor??0)+order.totalMinor,lastPurchaseAt:previous&&previous.lastPurchaseAt>order.createdAt?previous.lastPurchaseAt:order.createdAt});
+    }
+    const after=input.segment.purchasedAfter?new Date(`${input.segment.purchasedAfter}T00:00:00`):null;
+    const before=input.segment.purchasedBefore?new Date(`${input.segment.purchasedBefore}T23:59:59`):null;
+    const segmented=[...audience.values()].filter(customer=>(!input.segment.city||customer.city===input.segment.city)&&customer.orders>=input.segment.minOrders&&customer.totalMinor>=(input.segment.minSpendMinor??0)&&(!after||customer.lastPurchaseAt>=after)&&(!before||customer.lastPurchaseAt<=before));
     const candidateIds=segmented.map(customer=>customer.guestId);const placeholders=candidateIds.map(()=>"?").join(",");
     const consents=candidateIds.length?await db.$queryRawUnsafe<ConsentRow[]>(`SELECT guestId,source,grantedAt FROM MarketingConsent WHERE organizationId=? AND channel=? AND purpose='MARKETING' AND status='GRANTED' AND guestId IN (${placeholders})`,organizationId,input.channel,...candidateIds):[];
     const suppressions=candidateIds.length?await db.$queryRawUnsafe<SuppressionRow[]>(`SELECT DISTINCT guestId FROM MarketingSuppression WHERE organizationId=? AND releasedAt IS NULL AND (channel IS NULL OR channel=?) AND guestId IN (${placeholders})`,organizationId,input.channel,...candidateIds):[];
@@ -55,7 +69,8 @@ export async function POST(req:Request){
     const eligible=segmented.flatMap(customer=>{const consent=consentMap.get(customer.guestId);const contactValue=input.channel==="EMAIL"?customer.email:customer.phone;if(!consent||suppressed.has(customer.guestId)||!contactValue)return [];return [{...customer,contactValue,consent}];});
     const campaignId=crypto.randomUUID();const costMinor=eligible.length*unitCostMinor;
     const contentJson=JSON.stringify({subject:input.channel==="EMAIL"?input.subject:null,message:input.message,templateId:input.templateId??null,variablesUsed:input.variablesUsed??[],contentVersion:1});
-    await db.$transaction(async tx=>{await tx.$executeRawUnsafe(`INSERT INTO MarketingCampaign (id,organizationId,name,type,status,channel,segmentJson,contentJson,estimatedRecipients,estimatedCostMinor,reservedCostMinor,createdById,createdAt,updatedAt) VALUES (?, ?, ?, 'MARKETING', 'DRAFT', ?, ?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,campaignId,organizationId,input.name,input.channel,JSON.stringify({...input.segment,eventId:input.eventId??null,serverCalculated:true,candidateCount:segmented.length}),contentJson,eligible.length,costMinor,actor.id);for(const recipient of eligible){await tx.$executeRawUnsafe(`INSERT INTO MarketingCampaignRecipient (id,campaignId,guestId,channel,contactValue,status,exclusionReason,consentSource,consentGrantedAt,unitCostMinor,createdAt) VALUES (?, ?, ?, ?, ?, 'SNAPSHOT', NULL, ?, ?, ?, CURRENT_TIMESTAMP)`,crypto.randomUUID(),campaignId,recipient.guestId,input.channel,recipient.contactValue,recipient.consent.source,recipient.consent.grantedAt,unitCostMinor);}});
+    const segmentJson=JSON.stringify({...input.segment,eventId:input.eventId??null,serverCalculated:true,candidateCount:segmented.length});
+    await db.$transaction(async tx=>{await tx.$executeRawUnsafe(`INSERT INTO MarketingCampaign (id,organizationId,name,type,status,channel,segmentJson,contentJson,estimatedRecipients,estimatedCostMinor,reservedCostMinor,createdById,createdAt,updatedAt) VALUES (?, ?, ?, 'MARKETING', 'DRAFT', ?, ?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,campaignId,organizationId,input.name,input.channel,segmentJson,contentJson,eligible.length,costMinor,actor.id);for(const recipient of eligible){await tx.$executeRawUnsafe(`INSERT INTO MarketingCampaignRecipient (id,campaignId,guestId,channel,contactValue,status,exclusionReason,consentSource,consentGrantedAt,unitCostMinor,createdAt) VALUES (?, ?, ?, ?, ?, 'SNAPSHOT', NULL, ?, ?, ?, CURRENT_TIMESTAMP)`,crypto.randomUUID(),campaignId,recipient.guestId,input.channel,recipient.contactValue,recipient.consent.source,recipient.consent.grantedAt,unitCostMinor);}});
     await writeAudit(actor,{action:"MARKETING_CAMPAIGN_DRAFT_CREATE",entityType:"MarketingCampaign",entityId:campaignId,summary:`Создан черновик ${input.name}: ${eligible.length} проверенных получателей, ${(costMinor/100).toFixed(2)} ILS`});
     return NextResponse.json({ok:true,id:campaignId,serverEstimate:{candidates:segmented.length,recipients:eligible.length,excluded:segmented.length-eligible.length,unitCostMinor,costMinor}},{status:201});
   }catch(error){const message=error instanceof Error?error.message:"Ошибка";return NextResponse.json({error:message==="FORBIDDEN"?"Недостаточно прав":message},{status:message==="FORBIDDEN"?403:400});}
