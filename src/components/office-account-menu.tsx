@@ -42,14 +42,11 @@ export function OfficeAccountMenu({
   const staffTitle = currentRole ?? "Сотрудник";
 
   return <div className={`office-account ${compact ? "compact" : ""}`}>
+    {!compact && <small style={{display:"block",margin:"0 0 7px 3px",color:"#7f90a8",fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:1}}>Текущий сотрудник</small>}
     <button type="button" onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label="Открыть меню сотрудника">
       <span>{initials}</span>
       {!compact && <div><strong>{currentName}</strong><small>{staffTitle}</small></div>}
     </button>
-
-    {!compact && <form className="office-logout-direct" method="post" action="/api/office/auth/logout">
-      <button type="submit"><LogOut size={16}/><span>Выйти из кабинета</span></button>
-    </form>}
 
     {open && <div className="office-account-popover">
       <strong>Текущий сотрудник</strong>
