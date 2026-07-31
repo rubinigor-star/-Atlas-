@@ -12,7 +12,7 @@ import {
   type EventDemandStatus,
   type EventInsightCategory,
   type EventInsightSettings,
-} from "@/lib/event-insights";
+} from "@/lib/event-insight-options";
 
 const headings = {
   ru: {
