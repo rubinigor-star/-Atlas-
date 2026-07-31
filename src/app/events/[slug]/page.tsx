@@ -19,11 +19,6 @@ import { getEffectiveEventTerms } from "@/lib/commercial-terms";
 export const dynamic = "force-dynamic";
 
 const languageHeading = { ru: "Язык мероприятия", he: "שפת האירוע", en: "Event language" } as const;
-const feeCopy = {
-  ru: { buyerTitle:"К стоимости заказа добавляется сервисный сбор", organizerTitle:"Сервисный сбор оплачивает организатор", buyerHelp:"Итоговая сумма с комиссией будет показана до перехода к оплате.", organizerHelp:"Для покупателя цена билета не увеличивается." },
-  he: { buyerTitle:"דמי שירות יתווספו למחיר ההזמנה", organizerTitle:"המפיק משלם את דמי השירות", buyerHelp:"הסכום המלא יוצג לפני המעבר לתשלום.", organizerHelp:"מחיר הכרטיס לרוכש אינו משתנה." },
-  en: { buyerTitle:"A service fee is added to the order", organizerTitle:"The organizer pays the service fee", buyerHelp:"The full amount including fees is shown before payment.", organizerHelp:"The buyer-facing ticket price does not increase." },
-} as const;
 
 export default async function EventPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const [{ slug }, query, i18n] = await Promise.all([params, searchParams, getServerI18n()]);
@@ -85,10 +80,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
   const text = i18n.messages.event;
   const eventUrl = `https://www.atlas-one.co/events/${event.slug}`;
   const stageStyle = { "--event-backdrop": `url("${event.posterUrl}")` } as CSSProperties;
-  const feeText=feeCopy[i18n.locale];
-  const feePercent=commercialTerms.organizer.salesFeePercentBps/100;
-  const feeFixed=commercialTerms.organizer.salesFeeFixedMinor/100;
-  const feeFormula=[feePercent?`${feePercent}%`:"",feeFixed?`${feeFixed} ₪`:""].filter(Boolean).join(" + ");
+  const feeTerms={salesFeePercentBps:commercialTerms.organizer.salesFeePercentBps,salesFeeFixedMinor:commercialTerms.organizer.salesFeeFixedMinor,serviceFeePayer:commercialTerms.serviceFeePayer};
 
   return <main className="event-stage" style={stageStyle}>
     <div className="shell event-experience">
@@ -107,8 +99,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
         {validPromoterLink && <div className="panel"><strong>{text.personalLink}: {validPromoterLink.label}</strong><p className="muted">{text.personalLinkInfo}</p></div>}
         <div className="meta"><div className="meta-row"><CalendarDays size={22} /><div><strong>{eventDate(event.startsAt,i18n.locale)}</strong><br /><span className="muted">{text.doors}</span></div></div><div className="meta-row"><MapPin size={22} /><div><strong>{event.venue.name}</strong><br /><span className="muted">{event.venue.address}</span></div></div><div className="meta-row"><Languages size={22} /><div><strong>{languageLabel}</strong><br /><span className="muted">{languageHeading[i18n.locale]}</span></div></div><div className="meta-row"><ShieldCheck size={22} /><div><strong>{text.safeCheckout}</strong><br /><span className="muted">{text.safeCheckoutInfo}</span></div></div></div>
         <section><h2>About</h2><p className="muted" style={{ lineHeight: 1.75 }}>{publicDescription}</p></section>
-        <div className="panel" style={{background:"#f8fafc"}}><strong>{commercialTerms.serviceFeePayer==="BUYER"?feeText.buyerTitle:feeText.organizerTitle}</strong>{feeFormula&&<p style={{margin:"8px 0 0"}}>{feeFormula}</p>}<p className="muted" style={{marginBottom:0}}>{commercialTerms.serviceFeePayer==="BUYER"?feeText.buyerHelp:feeText.organizerHelp}</p></div>
-        {categories.length ? <EventPurchase eventId={event.id} categories={categories} objects={objects} referralCode={validPromoterLink?.code} allocation={validPromoterLink ? { type: validPromoterLink.allocationType, categoryId: validPromoterLink.categoryId, tableId: validPromoterLink.tableId, customPriceMinor: validPromoterLink.customPriceMinor } : undefined} /> : <div className="panel"><strong>{text.salesClosed}</strong><p className="muted">{text.noTariffs}</p></div>}
+        {categories.length ? <EventPurchase eventId={event.id} categories={categories} objects={objects} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocation={validPromoterLink ? { type: validPromoterLink.allocationType, categoryId: validPromoterLink.categoryId, tableId: validPromoterLink.tableId, customPriceMinor: validPromoterLink.customPriceMinor } : undefined} /> : <div className="panel"><strong>{text.salesClosed}</strong><p className="muted">{text.noTariffs}</p></div>}
       </section>
     </div>
   </main>;
