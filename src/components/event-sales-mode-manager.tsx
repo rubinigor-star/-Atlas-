@@ -1,0 +1,11 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+type Props={eventId:string;initialMode:"INSTANT"|"APPROVAL_REQUIRED";initialInstructions:string|null;initialRejectionMessage:string};
+export function EventSalesModeManager({eventId,initialMode,initialInstructions,initialRejectionMessage}:Props){
+ const router=useRouter();const[mode,setMode]=useState(initialMode);const[instructions,setInstructions]=useState(initialInstructions??"");const[rejectionMessage,setRejectionMessage]=useState(initialRejectionMessage);const[message,setMessage]=useState("");
+ async function save(){setMessage("");const response=await fetch(`/api/admin/events/${eventId}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({action:"sales",salesMode:mode,askApprovalQuestion:mode==="APPROVAL_REQUIRED"&&Boolean(instructions.trim()),approvalInstructions:mode==="APPROVAL_REQUIRED"?instructions:undefined,rejectionMessage})});setMessage(response.ok?"Изменения сохранены":"Не удалось сохранить изменения");if(response.ok)router.refresh()}
+ return <section className="panel form"><span className="eyebrow">Покупатель и оформление</span><h2>Способ продажи</h2><div className="choice-grid compact"><button type="button" className={`choice-card ${mode==="INSTANT"?"selected":""}`} onClick={()=>setMode("INSTANT")}><i>⚡</i><strong>Автоматическая покупка</strong><small>После оплаты клиент сразу получает билет и QR-код.</small></button><button type="button" className={`choice-card ${mode==="APPROVAL_REQUIRED"?"selected":""}`} onClick={()=>setMode("APPROVAL_REQUIRED")}><i>✓</i><strong>Только после одобрения</strong><small>Сначала заявка, затем разрешение на оплату и получение билета.</small></button></div>{mode==="APPROVAL_REQUIRED"&&<><div className="field"><label>Что клиент должен указать в заявке</label><textarea rows={3} value={instructions} onChange={event=>setInstructions(event.target.value)}/></div><div className="field"><label>Сообщение клиенту при отказе</label><textarea rows={4} value={rejectionMessage} onChange={event=>setRejectionMessage(event.target.value)}/></div></>}<button type="button" className="btn" onClick={()=>void save()}>Сохранить способ продажи</button>{message&&<div className="toast" role="status">{message}</div>}</section>;
+}
