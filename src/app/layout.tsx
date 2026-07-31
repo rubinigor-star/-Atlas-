@@ -10,6 +10,7 @@ import "./globals.css";
 import "./platform.css";
 import "./event-experience.css";
 import "./event-detail-sticky.css";
+import "./event-insights.css";
 import "./logo.css";
 import "./logo-variants.css";
 import "./site-header.css";

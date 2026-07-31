@@ -1,0 +1,296 @@
+.event-insight-bar {
+  position: relative;
+  z-index: 8;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 22px 0 26px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, .055);
+  overflow: visible;
+}
+
+.event-insight-cell {
+  position: relative;
+  min-height: 54px;
+  padding: 13px 16px;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #f8fafc;
+  text-align: center;
+  cursor: default;
+  outline: none;
+  transition: background 170ms ease, color 170ms ease;
+}
+
+.event-insight-cell + .event-insight-cell {
+  border-inline-start: 1px solid rgba(255, 255, 255, .1);
+}
+
+.event-insight-cell:hover,
+.event-insight-cell:focus-visible {
+  background: rgba(255, 255, 255, .075);
+}
+
+.event-insight-cell svg {
+  flex: 0 0 auto;
+  color: #ff9d62;
+}
+
+.event-insight-cell:first-child svg {
+  color: #29d391;
+}
+
+.event-insight-value {
+  font-weight: 780;
+  line-height: 1.15;
+}
+
+.event-insight-label {
+  color: rgba(255, 255, 255, .64);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.event-insight-count {
+  min-width: 23px;
+  height: 23px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(255, 255, 255, .1);
+  color: rgba(255, 255, 255, .76);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.event-insight-tooltip {
+  position: absolute;
+  inset-inline-start: 50%;
+  bottom: calc(100% + 14px);
+  width: min(290px, calc(100vw - 36px));
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 16px;
+  background:
+    linear-gradient(140deg, rgba(51, 31, 35, .86), rgba(10, 14, 24, .88)),
+    rgba(10, 14, 24, .82);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, .38);
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  color: #fff;
+  text-align: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, 9px) scale(.975);
+  transform-origin: bottom center;
+  transition: opacity 170ms ease, visibility 170ms ease, transform 190ms cubic-bezier(.2,.75,.2,1);
+}
+
+[dir="rtl"] .event-insight-tooltip {
+  transform: translate(50%, 9px) scale(.975);
+}
+
+.event-insight-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  inset-inline-start: 50%;
+  width: 12px;
+  height: 12px;
+  border-inline-end: 1px solid rgba(255, 255, 255, .12);
+  border-bottom: 1px solid rgba(255, 255, 255, .12);
+  background: rgba(17, 18, 27, .9);
+  transform: translate(-50%, -6px) rotate(45deg);
+}
+
+.event-insight-cell:hover .event-insight-tooltip,
+.event-insight-cell:focus-visible .event-insight-tooltip,
+.event-insight-cell:focus-within .event-insight-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0) scale(1);
+}
+
+[dir="rtl"] .event-insight-cell:hover .event-insight-tooltip,
+[dir="rtl"] .event-insight-cell:focus-visible .event-insight-tooltip,
+[dir="rtl"] .event-insight-cell:focus-within .event-insight-tooltip {
+  transform: translate(50%, 0) scale(1);
+}
+
+.event-insight-tooltip strong {
+  display: block;
+  margin: 5px 0 8px;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.event-insight-tooltip p {
+  margin: 0;
+  color: rgba(255, 255, 255, .78);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.event-insight-tooltip-icon {
+  display: block;
+  margin: 0 auto 4px;
+  color: #ff9d62 !important;
+}
+
+.event-insight-category-list {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+}
+
+.event-insight-category-list span {
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .075);
+  color: rgba(255, 255, 255, .9);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.event-insight-manager-fields {
+  margin-top: 8px;
+}
+
+.event-insight-manager .field > span {
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.event-insight-category-manager {
+  padding-top: 6px;
+}
+
+.event-insight-category-manager > strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.event-insight-category-manager > p {
+  margin: 0 0 13px;
+  font-size: 13px;
+}
+
+.event-insight-category-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.event-insight-category-option {
+  position: relative;
+  min-height: 40px;
+  padding: 0 13px;
+  border: 1px solid #dce2ea;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease, transform 120ms ease;
+}
+
+.event-insight-category-option:hover {
+  border-color: rgba(255, 132, 0, .42);
+  transform: translateY(-1px);
+}
+
+.event-insight-category-option[data-selected="true"] {
+  border-color: rgba(255, 132, 0, .42);
+  background: rgba(255, 132, 0, .09);
+  color: #d96500;
+}
+
+.event-insight-category-option input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #ff8400;
+}
+
+@media (max-width: 800px) {
+  .event-insight-bar {
+    margin: 18px 0 22px;
+  }
+
+  .event-insight-cell {
+    min-height: 50px;
+    padding: 10px 7px;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+
+  .event-insight-cell svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .event-insight-value {
+    max-width: 100%;
+    font-size: 12px;
+  }
+
+  .event-insight-label {
+    display: none;
+  }
+
+  .event-insight-count {
+    min-width: 19px;
+    height: 19px;
+    font-size: 10px;
+  }
+
+  .event-insight-tooltip {
+    position: fixed;
+    inset-inline: 18px;
+    bottom: 22px;
+    width: auto;
+    transform: translateY(10px) scale(.98);
+  }
+
+  [dir="rtl"] .event-insight-tooltip {
+    transform: translateY(10px) scale(.98);
+  }
+
+  .event-insight-tooltip::after {
+    display: none;
+  }
+
+  .event-insight-cell:hover .event-insight-tooltip,
+  .event-insight-cell:focus-visible .event-insight-tooltip,
+  .event-insight-cell:focus-within .event-insight-tooltip,
+  [dir="rtl"] .event-insight-cell:hover .event-insight-tooltip,
+  [dir="rtl"] .event-insight-cell:focus-visible .event-insight-tooltip,
+  [dir="rtl"] .event-insight-cell:focus-within .event-insight-tooltip {
+    transform: translateY(0) scale(1);
+  }
+
+  .event-insight-manager-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-insight-cell,
+  .event-insight-tooltip,
+  .event-insight-category-option {
+    transition: none;
+  }
+}

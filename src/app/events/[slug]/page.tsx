@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
-import { CalendarDays, ExternalLink, Languages, MapPin, ShieldCheck } from "lucide-react";
+import { CalendarDays, ExternalLink, Flame, Languages, MapPin, Music2, ShieldCheck, TicketCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { eventDate } from "@/lib/format";
 import { effectiveTicketPrice, ticketPricePresentation } from "@/lib/ticketing";
@@ -9,15 +9,45 @@ import { EventPurchase } from "@/components/event-purchase";
 import { EventShareActions } from "@/components/event-share-actions";
 import { parseEventMedia, stripEventMedia, videoEmbedUrl } from "@/lib/event-media";
 import { stripEventRejectionMessage } from "@/lib/event-approval-message";
+import { stripEventMarkers } from "@/lib/event-guest-fields";
 import { parsePricingMarketingStrategy, stripPricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 import { getServerI18n } from "@/lib/server-locale";
 import { eventTypeLabels, parseEventType, stripEventType } from "@/lib/event-type";
+import {
+  eventDemandDescriptions,
+  eventDemandLabels,
+  eventInsightCategoryLabels,
+} from "@/lib/event-insight-options";
+import { getEventInsights } from "@/lib/event-insights";
 import { eventLanguageLabels } from "@/lib/event-language";
 import { getEventLanguageSettings } from "@/lib/event-language-server";
 
 export const dynamic = "force-dynamic";
 
 const languageHeading = { ru: "Язык мероприятия", he: "שפת האירוע", en: "Event language" } as const;
+const insightCopy = {
+  ru: {
+    interest: "Интерес",
+    interestTitle: "Интерес аудитории",
+    interestDescription: "Показатель интереса посетителей к этому мероприятию.",
+    categories: "Категории",
+    categoriesTitle: "Подходит для категорий",
+  },
+  he: {
+    interest: "עניין",
+    interestTitle: "עניין הקהל",
+    interestDescription: "מדד העניין של המבקרים באירוע הזה.",
+    categories: "קטגוריות",
+    categoriesTitle: "האירוע מתאים לקטגוריות",
+  },
+  en: {
+    interest: "Interest",
+    interestTitle: "Audience interest",
+    interestDescription: "An indicator of visitor interest in this event.",
+    categories: "Categories",
+    categoriesTitle: "This event matches",
+  },
+} as const;
 
 export default async function EventPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const [{ slug }, query, i18n] = await Promise.all([params, searchParams, getServerI18n()]);
@@ -73,11 +103,14 @@ export default async function EventPage({ params, searchParams }: { params: Prom
   const videos = media.filter((item) => item.type === "VIDEO");
   const links = media.filter((item) => item.type === "LINK");
   const eventType = parseEventType(event.description);
+  const eventInsights = await getEventInsights(event.id, eventType);
   const languageLabel = eventLanguageLabels[i18n.locale][languageSettings.primaryLanguage];
-  const publicDescription = stripEventType(stripEventRejectionMessage(stripEventMedia(event.description)));
+  const publicDescription = stripEventType(stripEventMarkers(stripEventRejectionMessage(stripEventMedia(event.description))));
   const text = i18n.messages.event;
+  const insightsText = insightCopy[i18n.locale];
   const eventUrl = `https://www.atlas-one.co/events/${event.slug}`;
   const stageStyle = { "--event-backdrop": `url("${event.posterUrl}")` } as CSSProperties;
+  const mainInsightCategory = eventInsights.categories[0] ?? "OTHER";
 
   return <main className="event-stage" style={stageStyle}>
     <div className="shell event-experience">
@@ -93,6 +126,41 @@ export default async function EventPage({ params, searchParams }: { params: Prom
 
       <section className="event-content-panel event-info">
         <div className="event-title-row"><div><div className="row" style={{flexWrap:"wrap"}}><span className="pill">{eventTypeLabels[i18n.locale][eventType]}</span><span className="pill">{languageLabel}</span><span className="pill">{event.venue.city}</span></div><h1>{event.title}</h1></div><EventShareActions title={event.title} url={eventUrl}/></div>
+
+        <div className="event-insight-bar" aria-label={insightsText.categories}>
+          <div className="event-insight-cell" tabIndex={0} aria-describedby={`event-interest-${event.id}`}>
+            <TicketCheck size={19} aria-hidden="true" />
+            <span className="event-insight-value">{eventInsights.interestScore}%</span>
+            <span className="event-insight-label">{insightsText.interest}</span>
+            <div className="event-insight-tooltip" id={`event-interest-${event.id}`} role="tooltip">
+              <strong>{insightsText.interestTitle}</strong>
+              <p>{insightsText.interestDescription}</p>
+            </div>
+          </div>
+
+          <div className="event-insight-cell event-insight-demand" tabIndex={0} aria-describedby={`event-demand-${event.id}`}>
+            <Flame size={19} aria-hidden="true" />
+            <span className="event-insight-value">{eventDemandLabels[i18n.locale][eventInsights.demandStatus]}</span>
+            <div className="event-insight-tooltip" id={`event-demand-${event.id}`} role="tooltip">
+              <Flame className="event-insight-tooltip-icon" size={28} aria-hidden="true" />
+              <strong>{eventDemandLabels[i18n.locale][eventInsights.demandStatus]}</strong>
+              <p>{eventDemandDescriptions[i18n.locale][eventInsights.demandStatus]}</p>
+            </div>
+          </div>
+
+          <div className="event-insight-cell" tabIndex={0} aria-describedby={`event-categories-${event.id}`}>
+            <Music2 size={19} aria-hidden="true" />
+            <span className="event-insight-value">{eventInsightCategoryLabels[i18n.locale][mainInsightCategory]}</span>
+            {eventInsights.categories.length > 1 && <span className="event-insight-count">+{eventInsights.categories.length - 1}</span>}
+            <div className="event-insight-tooltip event-insight-categories-tooltip" id={`event-categories-${event.id}`} role="tooltip">
+              <strong>{insightsText.categoriesTitle}</strong>
+              <div className="event-insight-category-list">
+                {eventInsights.categories.map(category => <span key={category}>{eventInsightCategoryLabels[i18n.locale][category]}</span>)}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {validPromoterLink && <div className="panel"><strong>{text.personalLink}: {validPromoterLink.label}</strong><p className="muted">{text.personalLinkInfo}</p></div>}
         <div className="meta"><div className="meta-row"><CalendarDays size={22} /><div><strong>{eventDate(event.startsAt,i18n.locale)}</strong><br /><span className="muted">{text.doors}</span></div></div><div className="meta-row"><MapPin size={22} /><div><strong>{event.venue.name}</strong><br /><span className="muted">{event.venue.address}</span></div></div><div className="meta-row"><Languages size={22} /><div><strong>{languageLabel}</strong><br /><span className="muted">{languageHeading[i18n.locale]}</span></div></div><div className="meta-row"><ShieldCheck size={22} /><div><strong>{text.safeCheckout}</strong><br /><span className="muted">{text.safeCheckoutInfo}</span></div></div></div>
         <section><h2>About</h2><p className="muted" style={{ lineHeight: 1.75 }}>{publicDescription}</p></section>
