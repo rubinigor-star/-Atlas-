@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { isGuestListPromoter, verifyGuestManagementToken } from "@/lib/guest-links";
@@ -31,9 +31,16 @@ export async function POST(req:Request,{params}:{params:Promise<{code:string}>})
       const order=await db.$transaction(async tx=>{
         const guest=await tx.guestProfile.upsert({where:{organizationId_phone:{organizationId:link.event.organizationId,phone}},create:{organizationId:link.event.organizationId,firstName,lastName,phone,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""},update:{firstName,lastName,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""}});
         const created=await tx.order.create({data:{publicId:orderNumber(),idempotencyKey:randomUUID(),customerName:fullName,customerFirstName:firstName,customerLastName:lastName,customerPhone:phone,customerEmail:email,customerBirthDate:customer.birthDate?birthDate:null,customerCity:customer.city||null,customerFacebook:customer.facebook||null,customerInstagram:customer.instagram||null,guestId:guest.id,totalMinor:0,currency:category.currency,status:"PAID",eventId:link.eventId,promoterLinkId:link.id,items:{create:[{quantity:1,unitPriceMinor:0,categoryName:category.name,tableId:link.tableId}]},tickets:{create:[{publicCode:ticketCode(),holderName:fullName,categoryId:category.id}]}},include:{tickets:true}});await tx.ticketCategory.update({where:{id:category.id},data:{sold:{increment:1}}});return created;});
-      let emailSent=false;let emailError:string|undefined;
-      try{await sendOrderTicketEmail(order.publicId);emailSent=true;}catch(error){emailError=error instanceof Error?error.message:"Ошибка отправки билета";console.error("[guest-ticket-email]",{orderId:order.publicId,recipient:email,message:emailError});}
-      return NextResponse.json({ok:true,orderId:order.id,publicId:order.publicId,emailSent,emailError},{status:201});
+      after(async()=>{
+        try{
+          const delivery=await sendOrderTicketEmail(order.publicId);
+          console.info("[guest-ticket-email] sent",{orderId:order.publicId,recipient:email,resendId:delivery.id});
+        }catch(error){
+          const message=error instanceof Error?error.message:"Ошибка отправки билета";
+          console.error("[guest-ticket-email] failed",{orderId:order.publicId,recipient:email,message});
+        }
+      });
+      return NextResponse.json({ok:true,orderId:order.id,publicId:order.publicId,emailQueued:true},{status:201});
     }
     if(body.action==="remove"){const input=removeSchema.parse(body);const order=link.orders.find(item=>item.id===input.orderId);if(!order)throw new Error("Гость не найден");if(order.tickets.some(ticket=>ticket.status==="USED"))throw new Error("Нельзя удалить гостя после прохода");const quantity=order.items.reduce((sum,item)=>sum+item.quantity,0);const categoryId=order.tickets[0]?.categoryId;await db.$transaction(async tx=>{await tx.ticket.updateMany({where:{orderId:order.id},data:{status:"CANCELLED"}});await tx.order.update({where:{id:order.id},data:{status:"CANCELLED"}});if(categoryId)await tx.ticketCategory.update({where:{id:categoryId},data:{sold:{decrement:quantity}}});});return NextResponse.json({ok:true});}
     throw new Error("Неизвестное действие");
