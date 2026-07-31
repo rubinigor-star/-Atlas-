@@ -36,16 +36,25 @@
   .event-experience {
     height: auto;
     min-height: 0;
-    align-items: start;
+    align-items: stretch;
     overflow: visible;
   }
 
   .event-media-rail {
-    position: sticky;
-    top: 96px;
-    align-self: start;
+    position: relative;
+    top: auto;
+    align-self: stretch;
+    align-content: start;
     z-index: 2;
     max-height: none;
+    overflow: visible;
+  }
+
+  .event-media-rail > .event-poster-frame {
+    position: sticky;
+    top: 96px;
+    z-index: 3;
+    align-self: start;
   }
 
   .event-content-panel {
@@ -59,7 +68,7 @@
 }
 
 @media (min-width: 801px) and (max-width: 980px) {
-  .event-media-rail {
+  .event-media-rail > .event-poster-frame {
     top: 82px;
   }
 }
