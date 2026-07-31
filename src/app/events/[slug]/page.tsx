@@ -17,8 +17,8 @@ import {
   eventDemandDescriptions,
   eventDemandLabels,
   eventInsightCategoryLabels,
-  getEventInsights,
-} from "@/lib/event-insights";
+} from "@/lib/event-insight-options";
+import { getEventInsights } from "@/lib/event-insights";
 import { eventLanguageLabels } from "@/lib/event-language";
 import { getEventLanguageSettings } from "@/lib/event-language-server";
 
@@ -110,7 +110,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
   const insightsText = insightCopy[i18n.locale];
   const eventUrl = `https://www.atlas-one.co/events/${event.slug}`;
   const stageStyle = { "--event-backdrop": `url("${event.posterUrl}")` } as CSSProperties;
-  const mainInsightCategory = eventInsights.categories[0];
+  const mainInsightCategory = eventInsights.categories[0] ?? "OTHER";
 
   return <main className="event-stage" style={stageStyle}>
     <div className="shell event-experience">
