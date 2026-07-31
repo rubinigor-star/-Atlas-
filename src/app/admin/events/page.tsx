@@ -6,8 +6,10 @@ import { eventDate, money } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
+const PAGE_SIZE = 25;
+
 type EventsPageProps = {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; page?: string }>;
 };
 
 const statusLabels: Record<string, string> = {
@@ -40,23 +42,59 @@ function matchesFilter(event: { status: string; startsAt: Date }, filter: string
   return event.status === filter;
 }
 
+function pageHref(status: string, page: number) {
+  const params = new URLSearchParams();
+  if (status !== "all") params.set("status", status);
+  if (page > 1) params.set("page", String(page));
+  const query = params.toString();
+  return query ? `/office/events?${query}` : "/office/events";
+}
+
 export default async function EventsPage({ searchParams }: EventsPageProps) {
   const staff = await requirePermission("EVENT_VIEW");
-  const { status = "all" } = await searchParams;
+  const query = await searchParams;
+  const status = query.status || "all";
+  const requestedPage = Math.max(1, Number.parseInt(query.page || "1", 10) || 1);
   const now = new Date();
 
-  const events = await db.event.findMany({
+  const eventIndex = await db.event.findMany({
     where: { organizationId: staff.organizationId! },
-    include: {
-      venue: true,
-      categories: { select: { capacity: true, sold: true, priceMinor: true } },
-      orders: { where: { status: "PAID" }, select: { totalMinor: true } },
-    },
+    select: { id: true, status: true, startsAt: true },
     orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
   });
 
-  const visibleEvents = events.filter((event) => canAccessEvent(staff, event.id));
-  const filteredEvents = visibleEvents.filter((event) => matchesFilter(event, status, now));
+  const visibleEvents = eventIndex.filter((event) => canAccessEvent(staff, event.id));
+  const filteredIndex = visibleEvents.filter((event) => matchesFilter(event, status, now));
+  const totalPages = Math.max(1, Math.ceil(filteredIndex.length / PAGE_SIZE));
+  const page = Math.min(requestedPage, totalPages);
+  const pageIds = filteredIndex.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((event) => event.id);
+
+  const events = pageIds.length
+    ? await db.event.findMany({
+        where: { id: { in: pageIds } },
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          status: true,
+          startsAt: true,
+          venue: { select: { name: true, city: true } },
+          categories: { select: { capacity: true, sold: true } },
+        },
+      })
+    : [];
+
+  const revenueRows = pageIds.length
+    ? await db.order.groupBy({
+        by: ["eventId"],
+        where: { eventId: { in: pageIds }, status: "PAID" },
+        _sum: { totalMinor: true },
+      })
+    : [];
+
+  const eventById = new Map(events.map((event) => [event.id, event]));
+  const revenueByEvent = new Map(revenueRows.map((row) => [row.eventId, row._sum.totalMinor || 0]));
+  const orderedEvents = pageIds.map((id) => eventById.get(id)).filter((event): event is NonNullable<typeof event> => Boolean(event));
 
   return (
     <AdminShell>
@@ -64,14 +102,14 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         <div>
           <span className="eyebrow">Organizer back-office</span>
           <h1>Мероприятия</h1>
-          <p className="muted">Все мероприятия организации — опубликованные, черновики и завершённые. Нажмите «Управлять», чтобы изменить настройки.</p>
+          <p className="muted">Все мероприятия организации. На странице загружается не более {PAGE_SIZE} мероприятий.</p>
         </div>
-        {staff.permissionSet.has("EVENT_MANAGE") && <Link href="/office/events/new" className="btn">+ Создать мероприятие</Link>}
+        {staff.permissionSet.has("EVENT_MANAGE") && <Link prefetch={false} href="/office/events/new" className="btn">+ Создать мероприятие</Link>}
       </div>
 
       <div className="row" style={{ flexWrap: "wrap", gap: 8, margin: "22px 0" }}>
         {filters.map((filter) => (
-          <Link key={filter.value} href={filter.value === "all" ? "/office/events" : `/office/events?status=${encodeURIComponent(filter.value)}`} className={status === filter.value ? "btn dark" : "btn secondary"}>
+          <Link prefetch={false} key={filter.value} href={pageHref(filter.value, 1)} className={status === filter.value ? "btn dark" : "btn secondary"}>
             {filter.label}
           </Link>
         ))}
@@ -83,39 +121,47 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         <div className="stat"><span className="muted">Предстоящие</span><strong>{visibleEvents.filter((event) => event.startsAt >= now && !isInactiveStatus(String(event.status))).length}</strong></div>
       </div>
 
-      {filteredEvents.length === 0 ? (
+      {orderedEvents.length === 0 ? (
         <div className="panel" style={{ marginTop: 24 }}>
           <h2>Мероприятий в этом разделе нет</h2>
           <p className="muted">Выберите другой фильтр или создайте новое мероприятие.</p>
         </div>
       ) : (
-        <div className="table-wrap" style={{ marginTop: 24 }}>
-          <table>
-            <thead><tr><th>Мероприятие</th><th>Дата и площадка</th><th>Статус</th><th>Продажи</th><th>Выручка</th><th></th></tr></thead>
-            <tbody>
-              {filteredEvents.map((event) => {
-                const sold = event.categories.reduce((sum, category) => sum + category.sold, 0);
-                const capacity = event.categories.reduce((sum, category) => sum + category.capacity, 0);
-                const revenue = event.orders.reduce((sum, order) => sum + order.totalMinor, 0);
-                return (
-                  <tr key={event.id}>
-                    <td><strong>{event.title}</strong><br /><small>/{event.slug}</small></td>
-                    <td>{eventDate(event.startsAt)}<br /><small>{event.venue.name}, {event.venue.city}</small></td>
-                    <td><span className="pill">{statusLabels[event.status] ?? event.status}</span></td>
-                    <td>{sold} / {capacity}</td>
-                    <td>{money(revenue)}</td>
-                    <td>
-                      <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-                        {event.status === "PUBLISHED" && <Link className="btn secondary" href={`/events/${event.slug}`} target="_blank">Открыть сайт</Link>}
-                        <Link className="btn" href={`/office/events/${event.id}`}>{staff.permissionSet.has("EVENT_MANAGE") ? "Управлять" : "Открыть"}</Link>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="table-wrap" style={{ marginTop: 24 }}>
+            <table>
+              <thead><tr><th>Мероприятие</th><th>Дата и площадка</th><th>Статус</th><th>Продажи</th><th>Выручка</th><th></th></tr></thead>
+              <tbody>
+                {orderedEvents.map((event) => {
+                  const sold = event.categories.reduce((sum, category) => sum + category.sold, 0);
+                  const capacity = event.categories.reduce((sum, category) => sum + category.capacity, 0);
+                  return (
+                    <tr key={event.id}>
+                      <td><strong>{event.title}</strong><br /><small>/{event.slug}</small></td>
+                      <td>{eventDate(event.startsAt)}<br /><small>{event.venue.name}, {event.venue.city}</small></td>
+                      <td><span className="pill">{statusLabels[event.status] ?? event.status}</span></td>
+                      <td>{sold} / {capacity}</td>
+                      <td>{money(revenueByEvent.get(event.id) || 0)}</td>
+                      <td>
+                        <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+                          {event.status === "PUBLISHED" && <Link prefetch={false} className="btn secondary" href={`/events/${event.slug}`} target="_blank">Открыть сайт</Link>}
+                          <Link prefetch={false} className="btn" href={`/office/events/${event.id}`}>{staff.permissionSet.has("EVENT_MANAGE") ? "Управлять" : "Открыть"}</Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="row between" style={{ marginTop: 18 }}>
+            <span className="muted">Страница {page} из {totalPages} · найдено {filteredIndex.length}</span>
+            <div className="row" style={{ gap: 8 }}>
+              {page > 1 && <Link prefetch={false} className="btn secondary" href={pageHref(status, page - 1)}>Назад</Link>}
+              {page < totalPages && <Link prefetch={false} className="btn secondary" href={pageHref(status, page + 1)}>Дальше</Link>}
+            </div>
+          </div>
+        </>
       )}
     </AdminShell>
   );
