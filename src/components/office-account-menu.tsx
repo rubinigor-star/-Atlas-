@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Download, ExternalLink, LogOut } from "lucide-react";
 
-export function OfficeAccountMenu({ currentEmail, currentName, compact = false }: { currentEmail: string; currentName: string; compact?: boolean }) {
+export function OfficeAccountMenu({ currentName, currentRole, compact = false }: { currentName: string; currentRole: string; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [installEvent, setInstallEvent] = useState<Event | null>(null);
 
@@ -23,10 +23,17 @@ export function OfficeAccountMenu({ currentEmail, currentName, compact = false }
     setInstallEvent(null);
   }
 
+  const initials = currentName
+    .split(" ")
+    .filter(Boolean)
+    .map(part => part[0])
+    .slice(0, 2)
+    .join("");
+
   return <div className={`office-account ${compact ? "compact" : ""}`}>
-    <button type="button" onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label="Открыть меню аккаунта">
-      <span>{currentName.split(" ").map(part => part[0]).slice(0, 2).join("")}</span>
-      {!compact && <div><strong>{currentName}</strong><small>{currentEmail}</small></div>}
+    <button type="button" onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label="Открыть меню сотрудника">
+      <span>{initials}</span>
+      {!compact && <div><strong>{currentName}</strong><small>{currentRole}</small></div>}
     </button>
 
     {!compact && <form className="office-logout-direct" method="post" action="/api/office/auth/logout">
@@ -34,8 +41,11 @@ export function OfficeAccountMenu({ currentEmail, currentName, compact = false }
     </form>}
 
     {open && <div className="office-account-popover">
-      <strong>Рабочий аккаунт</strong>
-      <div style={{padding:"8px 10px"}}><strong>{currentName}</strong><small style={{display:"block"}}>{currentEmail}</small></div>
+      <strong>Текущий сотрудник</strong>
+      <div style={{ padding: "8px 10px" }}>
+        <strong>{currentName}</strong>
+        <small style={{ display: "block" }}>{currentRole}</small>
+      </div>
       {installEvent && <button type="button" onClick={() => void install()}><Download size={16}/><span>Установить Atlas Office<small>Добавить приложение на устройство</small></span></button>}
       <Link href="/"><ExternalLink size={16}/><span>Открыть сайт покупателей</span></Link>
       <form method="post" action="/api/office/auth/logout"><button type="submit"><LogOut size={16}/><span>Выйти из кабинета</span></button></form>
