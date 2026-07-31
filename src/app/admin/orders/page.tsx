@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { money, eventDate } from "@/lib/format";
+import { money, eventDate, israelDateTime } from "@/lib/format";
 import { requirePermission } from "@/lib/auth";
 import { AdminShell } from "@/components/admin-shell";
 import { ExcelExportButton } from "@/components/excel-export-button";
@@ -27,7 +27,7 @@ export default async function Orders({searchParams}:{searchParams?:Promise<{page
   ]);
   const totalPages=Math.max(1,Math.ceil(total/PAGE_SIZE));
   const currentPage=Math.min(page,totalPages);
-  const rows=orders.map(order=>({"Номер заказа":order.publicId,"Мероприятие":order.event.title,"Дата мероприятия":eventDate(order.event.startsAt),"Клиент":order.customerName,"Email":order.customerEmail,"Телефон":order.customerPhone,"Билетов":order._count.tickets,"Сумма":money(order.totalMinor),"Статус":order.status,"Дата заказа":new Date(order.createdAt).toLocaleString("ru-IL")}));
+  const rows=orders.map(order=>({"Номер заказа":order.publicId,"Мероприятие":order.event.title,"Дата мероприятия":eventDate(order.event.startsAt),"Клиент":order.customerName,"Email":order.customerEmail,"Телефон":order.customerPhone,"Билетов":order._count.tickets,"Сумма":money(order.totalMinor),"Статус":order.status,"Дата заказа":israelDateTime(order.createdAt)}));
   return <AdminShell>
     <div className="office-page-heading"><div><span className="eyebrow">Orders</span><h1>Заказы</h1><p>Оплаченные заказы, заявки и выпущенные билеты. Показано {orders.length} из {total}.</p></div><ExcelExportButton rows={rows} filename={`atlas-orders-page-${currentPage}`}/></div>
     <div className="table-wrap"><table><thead><tr><th>Номер</th><th>Событие</th><th>Клиент</th><th>Билетов</th><th>Сумма</th><th>Статус</th></tr></thead><tbody>{orders.map(order=><tr key={order.id}><td><Link prefetch={false} href={`/office/orders/${order.publicId}`}><strong>{order.publicId}</strong></Link></td><td><strong>{order.event.title}</strong><br/><small>{eventDate(order.event.startsAt)}</small></td><td>{order.customerName}<br/><small>{order.customerEmail}</small></td><td>{order._count.tickets}</td><td>{money(order.totalMinor)}</td><td><span className="pill">{order.status}</span></td></tr>)}{!orders.length&&<tr><td colSpan={6}>Заказов пока нет.</td></tr>}</tbody></table></div>
