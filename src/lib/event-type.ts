@@ -1,19 +1,25 @@
 export const eventTypeValues=["SOLO_CONCERT","LIVE_MUSIC","CLASSICAL_CONCERT","FESTIVAL","PARTY","DJ_SET","THEATRE","COMEDY","CHILDREN_SHOW","SPORT","LECTURE","CONFERENCE","EXHIBITION","WORKSHOP","OTHER"] as const;
 export type EventType=typeof eventTypeValues[number];
 
-const marker=/<!--ATLAS_EVENT_TYPE:([A-Z_]+)-->/;
+const marker=/<!--ATLAS_EVENT_TYPES?:([A-Z_,]+)-->/;
 
-export function parseEventType(description:string):EventType{
- const value=description.match(marker)?.[1];
- return eventTypeValues.includes(value as EventType)?value as EventType:"OTHER";
+export function parseEventTypes(description:string):EventType[]{
+ const raw=description.match(marker)?.[1]?.split(",")??[];
+ const values=raw.filter(value=>eventTypeValues.includes(value as EventType)) as EventType[];
+ return values.length?Array.from(new Set(values)):["OTHER"];
 }
 
-export function stripEventType(description:string){return description.replace(/\n?<!--ATLAS_EVENT_TYPE:[A-Z_]+-->/g,"").trim();}
+export function parseEventType(description:string):EventType{return parseEventTypes(description)[0]??"OTHER";}
 
-export function withEventType(description:string,type:EventType){
+export function stripEventType(description:string){return description.replace(/\n?<!--ATLAS_EVENT_TYPES?:[A-Z_,]+-->/g,"").trim();}
+
+export function withEventTypes(description:string,types:EventType[]){
  const clean=stripEventType(description);
- return `${clean}\n<!--ATLAS_EVENT_TYPE:${type}-->`;
+ const valid=Array.from(new Set(types.filter(type=>eventTypeValues.includes(type))));
+ return `${clean}\n<!--ATLAS_EVENT_TYPES:${(valid.length?valid:["OTHER"]).join(",")}-->`;
 }
+
+export function withEventType(description:string,type:EventType){return withEventTypes(description,[type]);}
 
 export const eventTypeLabels:Record<"ru"|"he"|"en",Record<EventType,string>>={
  ru:{SOLO_CONCERT:"Сольный концерт",LIVE_MUSIC:"Живая музыка",CLASSICAL_CONCERT:"Классический концерт",FESTIVAL:"Фестиваль",PARTY:"Вечеринка",DJ_SET:"DJ-сет",THEATRE:"Спектакль",COMEDY:"Стендап и комедия",CHILDREN_SHOW:"Детское представление",SPORT:"Спортивное мероприятие",LECTURE:"Лекция",CONFERENCE:"Конференция",EXHIBITION:"Выставка",WORKSHOP:"Мастер-класс",OTHER:"Другое событие"},
