@@ -9,6 +9,8 @@ import { EventPurchase } from "@/components/event-purchase";
 import { EventShareActions } from "@/components/event-share-actions";
 import { parseEventMedia, stripEventMedia, videoEmbedUrl } from "@/lib/event-media";
 import { stripEventRejectionMessage } from "@/lib/event-approval-message";
+import { stripBuyerQuestions } from "@/lib/buyer-questions";
+import { stripEventMarkers } from "@/lib/event-guest-fields";
 import { parsePricingMarketingStrategy, stripPricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 import { getServerI18n } from "@/lib/server-locale";
 import { eventTypeLabels, parseEventType, stripEventType } from "@/lib/event-type";
@@ -76,7 +78,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
   const links = media.filter((item) => item.type === "LINK");
   const eventType = parseEventType(event.description);
   const languageLabel = eventLanguageLabels[i18n.locale][languageSettings.primaryLanguage];
-  const publicDescription = stripEventType(stripEventRejectionMessage(stripEventMedia(event.description)));
+  const publicDescription = stripEventType(stripEventMarkers(stripBuyerQuestions(stripEventRejectionMessage(stripEventMedia(event.description))))).trim();
   const text = i18n.messages.event;
   const eventUrl = `https://www.atlas-one.co/events/${event.slug}`;
   const stageStyle = { "--event-backdrop": `url("${event.posterUrl}")` } as CSSProperties;
@@ -98,7 +100,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
         <div className="event-title-row"><div><div className="row" style={{flexWrap:"wrap"}}><span className="pill">{eventTypeLabels[i18n.locale][eventType]}</span><span className="pill">{languageLabel}</span><span className="pill">{event.venue.city}</span></div><h1>{event.title}</h1></div><EventShareActions title={event.title} url={eventUrl}/></div>
         {validPromoterLink && <div className="panel"><strong>{text.personalLink}: {validPromoterLink.label}</strong><p className="muted">{text.personalLinkInfo}</p></div>}
         <div className="meta"><div className="meta-row"><CalendarDays size={22} /><div><strong>{eventDate(event.startsAt,i18n.locale)}</strong><br /><span className="muted">{text.doors}</span></div></div><div className="meta-row"><MapPin size={22} /><div><strong>{event.venue.name}</strong><br /><span className="muted">{event.venue.address}</span></div></div><div className="meta-row"><Languages size={22} /><div><strong>{languageLabel}</strong><br /><span className="muted">{languageHeading[i18n.locale]}</span></div></div><div className="meta-row"><ShieldCheck size={22} /><div><strong>{text.safeCheckout}</strong><br /><span className="muted">{text.safeCheckoutInfo}</span></div></div></div>
-        <section><h2>About</h2><p className="muted" style={{ lineHeight: 1.75 }}>{publicDescription}</p></section>
+        {publicDescription&&<section><h2>About</h2><p className="muted" style={{ lineHeight: 1.75 }}>{publicDescription}</p></section>}
         {categories.length ? <EventPurchase eventId={event.id} categories={categories} objects={objects} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocation={validPromoterLink ? { type: validPromoterLink.allocationType, categoryId: validPromoterLink.categoryId, tableId: validPromoterLink.tableId, customPriceMinor: validPromoterLink.customPriceMinor } : undefined} /> : <div className="panel"><strong>{text.salesClosed}</strong><p className="muted">{text.noTariffs}</p></div>}
       </section>
     </div>
