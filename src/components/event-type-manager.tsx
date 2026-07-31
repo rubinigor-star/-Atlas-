@@ -7,16 +7,21 @@ import { eventTypeLabels,eventTypeValues,type EventType } from "@/lib/event-type
 import styles from "./event-type-manager.module.css";
 
 const icons:Record<EventType,string>={
- LIVE_CONCERT:"🎤",
+ SOLO_CONCERT:"🎤",
  LIVE_MUSIC:"🎸",
  CLASSICAL_CONCERT:"🎻",
  FESTIVAL:"🎪",
  PARTY:"✨",
  DJ_SET:"🎧",
- THEATER:"🎭",
- STANDUP:"🎙️",
- KIDS:"🧸",
- SPORTS:"🏆",
+ THEATRE:"🎭",
+ COMEDY:"🎙️",
+ CHILDREN_SHOW:"🧸",
+ SPORT:"🏆",
+ LECTURE:"💡",
+ CONFERENCE:"👥",
+ EXHIBITION:"🖼️",
+ WORKSHOP:"🛠️",
+ OTHER:"✦",
 };
 
 export function EventTypeManager({eventId,initialTypes}:{eventId:string;initialTypes:EventType[]}){
