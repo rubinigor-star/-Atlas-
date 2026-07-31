@@ -12,7 +12,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
   if (staff.role === "ADMIN") redirect("/platform");
   if (!staff.organizationId || !staff.organization) redirect("/office/login?error=NO_ORGANIZATION");
 
-  const staffTitle = roleLabels[staff.staffRole ?? "CUSTOM"];
+  const staffTitle = staff.staffRole ? roleLabels[staff.staffRole] : roleLabels.CUSTOM;
 
   return <div className="office-shell">
     <aside className="office-sidebar">
