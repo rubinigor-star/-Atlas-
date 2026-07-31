@@ -36,27 +36,26 @@
   .event-experience {
     height: auto;
     min-height: 0;
-    align-items: stretch !important;
+    align-items: start !important;
     overflow: visible;
   }
 
   .event-media-rail {
     position: relative;
-    top: auto;
     align-self: stretch !important;
     align-content: start;
-    height: 100%;
-    min-height: 100%;
+    min-height: 390px;
+    padding-block-start: 406px;
     z-index: 2;
-    max-height: none;
     overflow: visible;
   }
 
   .event-media-sticky {
-    position: sticky;
+    position: fixed;
     top: 96px;
-    z-index: 3;
-    align-self: start;
+    width: 390px;
+    max-width: calc(100vw - 44px);
+    z-index: 40;
   }
 
   .event-content-panel {
@@ -69,6 +68,17 @@
   }
 }
 
+@media (min-width: 801px) and (max-width: 1100px) {
+  .event-media-rail {
+    min-height: 340px;
+    padding-block-start: 356px;
+  }
+
+  .event-media-sticky {
+    width: 340px;
+  }
+}
+
 @media (min-width: 801px) and (max-width: 980px) {
   .event-media-sticky {
     top: 82px;
@@ -78,6 +88,12 @@
 @media (max-width: 800px) {
   .event-media-sticky {
     position: static;
+    width: auto;
+    max-width: none;
+  }
+
+  .event-media-rail {
+    padding-block-start: 0;
   }
 
   .event-poster-frame {
