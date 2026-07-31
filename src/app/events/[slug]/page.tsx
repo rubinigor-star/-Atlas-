@@ -82,8 +82,10 @@ export default async function EventPage({ params, searchParams }: { params: Prom
   return <main className="event-stage" style={stageStyle}>
     <div className="shell event-experience">
       <aside className="event-media-rail">
-        <div className="event-poster-frame">
-          <Image src={event.posterUrl} fill alt={event.title} className="event-square-poster" priority sizes="(max-width: 800px) calc(100vw - 32px), 390px" />
+        <div className="event-media-sticky">
+          <div className="event-poster-frame">
+            <Image src={event.posterUrl} fill alt={event.title} className="event-square-poster" priority sizes="(max-width: 800px) calc(100vw - 32px), 390px" />
+          </div>
         </div>
         {videos.map((item, index) => { const embed = videoEmbedUrl(item.url); return embed ? <div className="event-media-card" key={`${item.url}-${index}`}><iframe loading="lazy" src={embed} title={item.title || `${text.videos} ${index + 1}`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div> : <a key={`${item.url}-${index}`} className="event-media-card event-media-link" href={item.url} target="_blank" rel="noreferrer"><span>{item.title || text.openVideo}</span><ExternalLink size={17}/></a>; })}
         {links.map((item, index) => <a key={`${item.url}-${index}`} className="event-media-card event-media-link" href={item.url} target="_blank" rel="noreferrer"><span>{item.title || new URL(item.url).hostname}</span><ExternalLink size={17}/></a>)}
