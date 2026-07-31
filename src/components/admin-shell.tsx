@@ -12,7 +12,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
   if (staff.role === "ADMIN") redirect("/platform");
   if (!staff.organizationId || !staff.organization) redirect("/office/login?error=NO_ORGANIZATION");
 
-  const staffTitle = staff.staffRole ? roleLabels[staff.staffRole] : roleLabels.CUSTOM;
+  const staffTitle = staff.staffRole ? roleLabels[staff.staffRole] : "Сотрудник";
 
   return <div className="office-shell">
     <aside className="office-sidebar">
@@ -21,7 +21,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
         <i>{staff.organization.name.slice(0, 1)}</i>
         <div>
           <strong>{staff.organization.name}</strong>
-          <small>Кабинет организатора</small>
+          <small>Организатор</small>
         </div>
       </div>
       <OfficeLanguageSwitch />
