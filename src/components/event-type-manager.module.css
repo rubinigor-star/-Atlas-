@@ -1,4 +1,5 @@
 .panel {
+  order: 2;
   display: grid;
   gap: 18px;
 }
