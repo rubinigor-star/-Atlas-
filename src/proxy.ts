@@ -7,9 +7,12 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const host = request.headers.get("host")?.split(":")[0]?.toLowerCase() || "";
   const isVercelHost = host.endsWith(".vercel.app");
+  const isProductionDeployment = process.env.VERCEL_ENV === "production";
   const isPublicGet = request.method === "GET" && !pathname.startsWith("/api/") && !pathname.startsWith("/_next/");
 
-  if (isVercelHost && isPublicGet) {
+  // Keep Preview deployments on their branch domains. Only the production
+  // Vercel alias redirects public traffic to the canonical Atlas domain.
+  if (isProductionDeployment && isVercelHost && isPublicGet) {
     const url = request.nextUrl.clone();
     url.protocol = "https:";
     url.hostname = CANONICAL_HOST;
