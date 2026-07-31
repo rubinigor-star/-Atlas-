@@ -3,11 +3,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEventAccess } from "@/lib/auth";
 import { eventTypeValues, withEventType } from "@/lib/event-type";
-import {
-  eventDemandValues,
-  eventInsightCategoryValues,
-  setEventInsights,
-} from "@/lib/event-insights";
+import { eventDemandValues, eventInsightCategoryValues } from "@/lib/event-insight-options";
+import { setEventInsights } from "@/lib/event-insights";
 
 const schema = z.object({
   eventType: z.enum(eventTypeValues),
