@@ -21,7 +21,7 @@ export function EventDetailsManager({event}:{event:EventDetails}){
   setMessage("");
   try{const response=await fetch(`/api/admin/events/${event.id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({action:"update",title:f.get("title"),description:f.get("description"),posterUrl:f.get("posterUrl"),startsAt:new Date(String(f.get("startsAt"))).toISOString(),venueName:f.get("venueName"),city:f.get("city"),address:f.get("address"),media:[...lines("videoUrls","VIDEO"),...lines("linkUrls","LINK")]})});if(!response.ok)throw new Error();setMessage(text.saved);router.refresh();}catch{setMessage(text.error)}
  }
- return <form className="panel form" onSubmit={eventSubmit=>{eventSubmit.preventDefault();void submit(eventSubmit.currentTarget)}}>
+ return <form className="panel form" style={{order:-1}} onSubmit={eventSubmit=>{eventSubmit.preventDefault();void submit(eventSubmit.currentTarget)}}>
   <span className="eyebrow">О мероприятии</span><h2>Основная информация</h2>
   <div className="field"><label>{text.title}</label><input className="input" name="title" defaultValue={event.title} required/></div>
   <PosterUploader initialUrl={event.posterUrl}/>
