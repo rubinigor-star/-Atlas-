@@ -5,7 +5,7 @@ import { CalendarDays, ExternalLink, Languages, MapPin, ShieldCheck } from "luci
 import { db } from "@/lib/db";
 import { eventDate } from "@/lib/format";
 import { effectiveTicketPrice, ticketPricePresentation } from "@/lib/ticketing";
-import { EventPurchase } from "@/components/event-purchase";
+import { EventPurchaseFinal } from "@/components/event-purchase-final";
 import { EventShareActions } from "@/components/event-share-actions";
 import { parseEventMedia, stripEventMedia, videoEmbedUrl } from "@/lib/event-media";
 import { stripEventRejectionMessage } from "@/lib/event-approval-message";
@@ -14,6 +14,8 @@ import { getServerI18n } from "@/lib/server-locale";
 import { eventTypeLabels, parseEventType, stripEventType } from "@/lib/event-type";
 import { eventLanguageLabels } from "@/lib/event-language";
 import { getEventLanguageSettings } from "@/lib/event-language-server";
+import { getEffectiveEventTerms } from "@/lib/commercial-terms";
+import { calculateServiceFee } from "@/lib/service-fee";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +33,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
   if (!event || event.status !== "PUBLISHED") notFound();
 
   const channelCode = query.ref || query.channel;
-  const [promoterLink, zones, languageSettings] = await Promise.all([
+  const [promoterLink, zones, languageSettings, terms] = await Promise.all([
     channelCode ? db.promoterLink.findUnique({ where: { code: channelCode.toUpperCase() } }) : Promise.resolve(null),
     event.mapEnabled
       ? db.zone.findMany({
@@ -48,8 +50,14 @@ export default async function EventPage({ params, searchParams }: { params: Prom
         })
       : Promise.resolve([]),
     getEventLanguageSettings(event.id),
+    getEffectiveEventTerms(event.id, event.organizationId),
   ]);
 
+  const serviceFeeTerms = {
+    salesFeePercentBps: terms.organizer.salesFeePercentBps,
+    salesFeeFixedMinor: terms.organizer.salesFeeFixedMinor,
+    serviceFeePayer: terms.serviceFeePayer,
+  };
   const now = new Date();
   const validPromoterLink = promoterLink && promoterLink.eventId === event.id && promoterLink.active && (!promoterLink.startsAt || promoterLink.startsAt <= now) && (!promoterLink.endsAt || promoterLink.endsAt >= now) ? promoterLink : null;
   const categories = event.categories.flatMap((category) => {
@@ -61,6 +69,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
         ...category,
         description: stripPricingMarketingStrategy(category.description),
         priceMinor: channelPrice,
+        buyerPriceMinor: calculateServiceFee(channelPrice, serviceFeeTerms).buyerTotalMinor,
         pricingPresentation: ticketPricePresentation(category, now),
         marketingStrategy: parsePricingMarketingStrategy(category.description),
       }];
@@ -96,7 +105,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
         {validPromoterLink && <div className="panel"><strong>{text.personalLink}: {validPromoterLink.label}</strong><p className="muted">{text.personalLinkInfo}</p></div>}
         <div className="meta"><div className="meta-row"><CalendarDays size={22} /><div><strong>{eventDate(event.startsAt,i18n.locale)}</strong><br /><span className="muted">{text.doors}</span></div></div><div className="meta-row"><MapPin size={22} /><div><strong>{event.venue.name}</strong><br /><span className="muted">{event.venue.address}</span></div></div><div className="meta-row"><Languages size={22} /><div><strong>{languageLabel}</strong><br /><span className="muted">{languageHeading[i18n.locale]}</span></div></div><div className="meta-row"><ShieldCheck size={22} /><div><strong>{text.safeCheckout}</strong><br /><span className="muted">{text.safeCheckoutInfo}</span></div></div></div>
         <section><h2>About</h2><p className="muted" style={{ lineHeight: 1.75 }}>{publicDescription}</p></section>
-        {categories.length ? <EventPurchase eventId={event.id} categories={categories} objects={objects} referralCode={validPromoterLink?.code} allocation={validPromoterLink ? { type: validPromoterLink.allocationType, categoryId: validPromoterLink.categoryId, tableId: validPromoterLink.tableId, customPriceMinor: validPromoterLink.customPriceMinor } : undefined} /> : <div className="panel"><strong>{text.salesClosed}</strong><p className="muted">{text.noTariffs}</p></div>}
+        {categories.length ? <EventPurchaseFinal eventId={event.id} categories={categories} objects={objects} referralCode={validPromoterLink?.code} allocation={validPromoterLink ? { type: validPromoterLink.allocationType, categoryId: validPromoterLink.categoryId, tableId: validPromoterLink.tableId, customPriceMinor: validPromoterLink.customPriceMinor } : undefined} serviceFeeTerms={serviceFeeTerms} /> : <div className="panel"><strong>{text.salesClosed}</strong><p className="muted">{text.noTariffs}</p></div>}
       </section>
     </div>
   </main>;
