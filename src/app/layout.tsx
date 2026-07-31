@@ -22,6 +22,7 @@ import "./search-mobile-limit.css";
 import "./tour.css";
 import "./typography.css";
 import "./live-emotions-theme.css";
+import "@/components/pricing-experiment.css";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { LocaleProvider } from "@/components/locale-provider";
 import { AppChrome } from "@/components/app-chrome";

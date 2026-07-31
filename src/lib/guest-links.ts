@@ -15,5 +15,5 @@ export function verifyGuestManagementToken(linkId: string, token: string) {
 }
 
 export function isGuestListPromoter(name: string) {
-  return name.startsWith("__GUEST_LIST__:");
+  return name.startsWith("__GUEST_LIST__:") || name.startsWith("__CHANNEL__:GUEST:");
 }

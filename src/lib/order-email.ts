@@ -5,9 +5,14 @@ import { parseTicketDesign } from "@/lib/ticket-template";
 function baseUrl() { return (process.env.NEXT_PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, ""); }
 function formatDate(value: Date) { return new Intl.DateTimeFormat("ru-IL", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Jerusalem" }).format(value); }
 function escapeHtml(value: string) { return value.replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char] || char); }
+function resendFromAddress() {
+  const configured = process.env.RESEND_FROM_EMAIL?.trim();
+  const valid = configured && !configured.startsWith("re_") && configured.includes("@");
+  return valid ? configured : "Atlas One <tickets@mail.atlas-one.co>";
+}
 async function sendResendEmail(input: { publicId: string; recipient: string; subject: string; html: string; attachments?: Array<{ filename: string; content: string }>; logType: "ticket-email" | "rejection-email" }) {
-  const apiKey = process.env.RESEND_API_KEY; const from = process.env.RESEND_FROM_EMAIL;
-  if (!apiKey || !from) throw new Error("Resend не настроен в Vercel");
+  const apiKey = process.env.RESEND_API_KEY; const from = resendFromAddress();
+  if (!apiKey) throw new Error("Resend API key не настроен в Vercel");
   const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: [input.recipient], subject: input.subject, html: input.html, attachments: input.attachments }) });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) { const message = typeof payload?.message === "string" ? payload.message : `Resend: ${response.status}`; console.error(`[${input.logType}]`, { publicId: input.publicId, recipient: input.recipient, status: response.status, message }); throw new Error(message); }
