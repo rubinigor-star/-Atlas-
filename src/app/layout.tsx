@@ -9,6 +9,7 @@ import "@fontsource/noto-sans-hebrew/700.css";
 import "./globals.css";
 import "./platform.css";
 import "./event-experience.css";
+import "./event-insights.css";
 import "./event-detail-sticky.css";
 import "./logo.css";
 import "./logo-variants.css";
