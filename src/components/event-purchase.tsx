@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { money } from "@/lib/format";
 import { useLocale } from "@/components/locale-provider";
+import { calculateServiceFee, type ServiceFeeTerms } from "@/lib/service-fee";
 import type { PricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 
 type PricingPresentation = { stageLabel: string; nextPriceMinor: number | null; nextAt: string | null };
@@ -42,7 +43,7 @@ function countdown(nextAt: string | null, now: number, units: { days: string; ho
   return `${minutes} ${units.minutes}`;
 }
 
-export function EventPurchase({ eventId, categories, objects, referralCode, allocation }: { eventId: string; categories: Category[]; objects: MapObject[]; referralCode?: string; allocation?: Allocation }) {
+export function EventPurchase({ eventId, categories, objects, referralCode, allocation, feeTerms }: { eventId: string; categories: Category[]; objects: MapObject[]; referralCode?: string; allocation?: Allocation; feeTerms: ServiceFeeTerms }) {
   const router = useRouter();
   const { locale, messages } = useLocale();
   const text = messages.purchase;
@@ -60,12 +61,14 @@ export function EventPurchase({ eventId, categories, objects, referralCode, allo
   const selectedSeats = objects.flatMap((item) => item.seatItems).filter((seat) => selectedSeatIds.includes(seat.id));
   const seatObject = objects.find((item) => item.seatItems.some((seat) => selectedSeatIds.includes(seat.id)));
   const selectionObject = wholeObject ?? seatObject;
-  const total = useMemo(() => {
+  const buyerPrice = (subtotalMinor: number) => calculateServiceFee(subtotalMinor, feeTerms).buyerTotalMinor;
+  const subtotal = useMemo(() => {
     if (allocation?.customPriceMinor !== null && allocation?.customPriceMinor !== undefined && allocation.type === "TABLE" && wholeObject) return allocation.customPriceMinor;
     if (wholeObject) return categories.find((item) => item.id === wholeObject.categoryId)?.priceMinor ?? wholeObject.priceMinor;
     if (selectedSeats.length) return selectedSeats.reduce((sum, seat) => sum + (categories.find((item) => item.id === seat.categoryId)?.priceMinor ?? 0), 0);
     return (category?.priceMinor ?? 0) * qty;
   }, [wholeObject, selectedSeats, categories, category, qty, allocation]);
+  const total = buyerPrice(subtotal);
 
   function clearMapSelection() {
     if (allocation?.type === "TABLE") return;
@@ -96,34 +99,37 @@ export function EventPurchase({ eventId, categories, objects, referralCode, allo
     <div className="options">{availableCategories.map((item) => {
       const strategy = item.marketingStrategy;
       const timeLeft = strategy.showCountdown ? countdown(item.pricingPresentation.nextAt, now, text) : "";
+      const finalUnitPrice = buyerPrice(item.priceMinor);
+      const nextFinalPrice = item.pricingPresentation.nextPriceMinor === null ? null : buyerPrice(item.pricingPresentation.nextPriceMinor);
       return <button type="button" key={item.id} className={`option ${categoryId === item.id && !selectionObject ? "selected" : ""}`} onClick={() => { setCategoryId(item.id); clearMapSelection(); }}>
         <span><strong>{item.name}</strong><br /><small className="muted">{item.description}</small>
           <span className="pricing-pressure">
             <b>{item.pricingPresentation.stageLabel}</b>
             {timeLeft && <small>⏰ {text.priceRisesIn} {timeLeft}</small>}
-            {strategy.showNextPrice && item.pricingPresentation.nextPriceMinor !== null && <small>{text.next}: {money(item.pricingPresentation.nextPriceMinor,"ILS",locale)}</small>}
+            {strategy.showNextPrice && nextFinalPrice !== null && <small>{text.next}: {money(nextFinalPrice,"ILS",locale)}</small>}
             {strategy.showStageRemaining && <small>🔥 {text.endsSoon}</small>}
             {strategy.showTotalRemaining && <small>🎟 {text.remaining} {item.capacity - item.sold}</small>}
             {strategy.showSoldCount && <small>✓ {text.sold} {item.sold} {text.tickets}</small>}
           </span>
-        </span><strong>{money(item.priceMinor,"ILS",locale)}</strong>
+        </span><strong>{money(finalUnitPrice,"ILS",locale)}</strong>
       </button>;
     })}</div>
 
     {availableObjects.length > 0 && <>
       <h3 className="map-purchase-title">{text.map}</h3>
-      <div className="buyer-ticket-legend"><strong>{text.legend}</strong>{availableCategories.map((item) => <span key={item.id}><i style={{ background: item.colorHex }} />{item.name} · {money(item.priceMinor,"ILS",locale)}</span>)}</div>
+      <div className="buyer-ticket-legend"><strong>{text.legend}</strong>{availableCategories.map((item) => <span key={item.id}><i style={{ background: item.colorHex }} />{item.name} · {money(buyerPrice(item.priceMinor),"ILS",locale)}</span>)}</div>
       <div className="venue-canvas buyer-map">
         <div className="map-stage">{text.stage}</div>
         {availableObjects.map((object) => {
           const isSellable = ["TABLE", "ROUND_TABLE", "SOFA", "ROW"].includes(object.objectType);
           const soldWhole = object.reserved;
           const selectedWhole = wholeObjectId === object.id;
+          const objectSubtotal = allocation?.type === "TABLE" && allocation.customPriceMinor !== null ? allocation.customPriceMinor : categories.find((item) => item.id === object.categoryId)?.priceMinor ?? 0;
           return <div key={object.id} className={`map-object buyer-object object-${object.objectType.toLowerCase().replace("_", "-")} ${object.objectType.toLowerCase().replace("_", "-")} ${selectedWhole ? "selected" : ""} ${soldWhole ? "unavailable" : ""}`} style={{ left: `${object.x}%`, top: `${object.y}%`, width: object.width, height: object.height, transform: `translate(-50%, -50%) rotate(${object.rotation}deg)`, zIndex: object.objectType === "ZONE" ? 1 : 2 }}>
             {!isSellable ? <div className={`buyer-decoration decoration-${object.objectType.toLowerCase()}`}><strong>{object.label}</strong></div> : <>
             <button type="button" className="object-core" disabled={soldWhole || object.priceMode === "PER_SEAT" || allocation?.type === "TABLE"} onClick={() => { setSelectedSeatIds([]); setWholeObjectId(selectedWhole ? null : object.id); setCategoryId(object.categoryId ?? categoryId); }}><strong>{object.label}</strong><small>{object.objectType === "SOFA" ? text.sofa : object.objectType === "ROW" ? text.row : text.table}</small></button>
             <span className="buyer-seat-ring">{object.seatItems.map((seat) => <button type="button" key={seat.id} title={seat.status === "AVAILABLE" ? seat.label : text.unavailable} disabled={object.priceMode === "WHOLE_TABLE" || seat.status !== "AVAILABLE" || !seat.categoryId || allocation?.type === "TABLE"} className={`map-seat ${selectedSeatIds.includes(seat.id) ? "selected" : ""} ${seat.status.toLowerCase()}`} style={{ "--ticket-color": categories.find((item) => item.id === seat.categoryId)?.colorHex ?? "#CBD5E1" } as React.CSSProperties} onClick={() => chooseSeat(object, seat)}>{seat.position}</button>)}</span>
-            <small className="object-price">{object.priceMode === "WHOLE_TABLE" ? `${money(allocation?.type === "TABLE" && allocation.customPriceMinor !== null ? allocation.customPriceMinor : categories.find((item) => item.id === object.categoryId)?.priceMinor ?? 0,"ILS",locale)} ${text.whole}` : object.seatItems.some((seat) => seat.categoryId) ? text.perSeat : text.unassigned}</small>
+            <small className="object-price">{object.priceMode === "WHOLE_TABLE" ? `${money(buyerPrice(objectSubtotal),"ILS",locale)} ${text.whole}` : object.seatItems.some((seat) => seat.categoryId) ? text.perSeat : text.unassigned}</small>
             </>}
           </div>;
         })}
