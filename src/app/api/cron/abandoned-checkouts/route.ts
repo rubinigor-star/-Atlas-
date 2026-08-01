@@ -8,6 +8,10 @@ function authorized(request: Request) {
   return request.headers.get("authorization") === `Bearer ${secret}`;
 }
 
+function baseUrl(request: Request) {
+  return (process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin).replace(/\/$/, "");
+}
+
 async function run(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
   await prepareRecoveryActions();
@@ -28,7 +32,7 @@ async function run(request: Request) {
       continue;
     }
     try {
-      const result = await adapter.send({ recipient: action.customerEmail, firstName: action.customerFirstName, eventTitle: action.eventTitle, checkoutUrl: action.checkoutUrl, amountMinor: action.amountMinor, templateKey: action.templateKey });
+      const result = await adapter.send({ recipient: action.customerEmail, firstName: action.customerFirstName, eventTitle: action.eventTitle, checkoutUrl: action.checkoutUrl, optOutUrl: `${baseUrl(request)}/api/checkout/abandon/opt-out?token=${encodeURIComponent(action.token)}`, amountMinor: action.amountMinor, templateKey: action.templateKey });
       await completeRecoveryAction(action.id, { status: "SENT", providerId: result.id });
       sent++;
     } catch (error) {
