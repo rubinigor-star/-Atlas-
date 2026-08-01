@@ -1,3 +1,4 @@
+import "./events-list.css";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { canAccessEvent, requirePermission } from "@/lib/auth";
@@ -50,6 +51,10 @@ function pageHref(status: string, page: number) {
   return query ? `/office/events?${query}` : "/office/events";
 }
 
+function statusClass(status: string) {
+  return `events-status ${status.toLowerCase()}`;
+}
+
 export default async function EventsPage({ searchParams }: EventsPageProps) {
   const staff = await requirePermission("EVENT_VIEW");
   const query = await searchParams;
@@ -76,6 +81,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
           id: true,
           title: true,
           slug: true,
+          posterUrl: true,
           status: true,
           startsAt: true,
           venue: { select: { name: true, city: true } },
@@ -102,7 +108,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         <div>
           <span className="eyebrow">Organizer back-office</span>
           <h1>Мероприятия</h1>
-          <p className="muted">Все мероприятия организации. На странице загружается не более {PAGE_SIZE} мероприятий.</p>
+          <p className="muted">Все мероприятия организации в одном визуальном рабочем списке.</p>
         </div>
         {staff.permissionSet.has("EVENT_MANAGE") && <Link prefetch={false} href="/office/events/new" className="btn">+ Создать мероприятие</Link>}
       </div>
@@ -128,32 +134,46 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         </div>
       ) : (
         <>
-          <div className="table-wrap" style={{ marginTop: 24 }}>
-            <table>
-              <thead><tr><th>Мероприятие</th><th>Дата и площадка</th><th>Статус</th><th>Продажи</th><th>Выручка</th><th></th></tr></thead>
-              <tbody>
-                {orderedEvents.map((event) => {
-                  const sold = event.categories.reduce((sum, category) => sum + category.sold, 0);
-                  const capacity = event.categories.reduce((sum, category) => sum + category.capacity, 0);
-                  return (
-                    <tr key={event.id}>
-                      <td><strong>{event.title}</strong><br /><small>/{event.slug}</small></td>
-                      <td>{eventDate(event.startsAt)}<br /><small>{event.venue.name}, {event.venue.city}</small></td>
-                      <td><span className="pill">{statusLabels[event.status] ?? event.status}</span></td>
-                      <td>{sold} / {capacity}</td>
-                      <td>{money(revenueByEvent.get(event.id) || 0)}</td>
-                      <td>
-                        <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-                          {event.status === "PUBLISHED" && <Link prefetch={false} className="btn secondary" href={`/events/${event.slug}`} target="_blank">Открыть сайт</Link>}
-                          <Link prefetch={false} className="btn" href={`/office/events/${event.id}`}>{staff.permissionSet.has("EVENT_MANAGE") ? "Управлять" : "Открыть"}</Link>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="events-visual-list">
+            {orderedEvents.map((event) => {
+              const sold = event.categories.reduce((sum, category) => sum + category.sold, 0);
+              const capacity = event.categories.reduce((sum, category) => sum + category.capacity, 0);
+              const fill = capacity ? Math.min(100, Math.round((sold / capacity) * 100)) : 0;
+              const remaining = Math.max(0, capacity - sold);
+              const eventRevenue = revenueByEvent.get(event.id) || 0;
+
+              return (
+                <article className="events-visual-card" key={event.id}>
+                  <Link prefetch={false} href={`/office/events/${event.id}`} className="events-visual-poster" aria-label={`Открыть ${event.title}`}>
+                    <img src={event.posterUrl || "/images/event-placeholder.jpg"} alt={`Афиша мероприятия ${event.title}`} />
+                    <span>{fill}% заполнено</span>
+                  </Link>
+
+                  <div className="events-visual-main">
+                    <div className="events-visual-topline">
+                      <span>{eventDate(event.startsAt)}</span>
+                      <span className={statusClass(event.status)}>{statusLabels[event.status] ?? event.status}</span>
+                    </div>
+                    <h2>{event.title}</h2>
+                    <p className="events-visual-venue">{event.venue.name}, {event.venue.city}</p>
+                    <div className="events-visual-progress" aria-label={`Заполнено ${fill}%`}><i style={{ width: `${fill}%` }} /></div>
+                    <div className="events-visual-metrics">
+                      <div><small>Продано</small><strong>{sold} / {capacity}</strong></div>
+                      <div><small>Осталось</small><strong>{remaining}</strong></div>
+                      <div><small>Выручка</small><strong>{money(eventRevenue)}</strong></div>
+                    </div>
+                  </div>
+
+                  <div className="events-visual-actions">
+                    <Link prefetch={false} className="btn" href={`/office/events/${event.id}`}>{staff.permissionSet.has("EVENT_MANAGE") ? "Управлять" : "Открыть"}</Link>
+                    {event.status === "PUBLISHED" && <Link prefetch={false} className="btn secondary" href={`/events/${event.slug}`} target="_blank">Страница события</Link>}
+                    <span className="events-visual-slug">/{event.slug}</span>
+                  </div>
+                </article>
+              );
+            })}
           </div>
+
           <div className="row between" style={{ marginTop: 18 }}>
             <span className="muted">Страница {page} из {totalPages} · найдено {filteredIndex.length}</span>
             <div className="row" style={{ gap: 8 }}>
