@@ -11,6 +11,18 @@ export const dynamic = "force-dynamic";
 const startOfDay = (date = new Date()) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 const startOfMonth = (date = new Date()) => new Date(date.getFullYear(), date.getMonth(), 1);
 
+function greetingForIsrael() {
+  const hour = Number(new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Jerusalem",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date()));
+
+  if (hour >= 5 && hour < 12) return "Доброе утро";
+  if (hour >= 12 && hour < 18) return "Добрый день";
+  return "Добрый вечер";
+}
+
 function relativeTime(date: Date) {
   const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
   if (minutes < 1) return "только что";
@@ -76,6 +88,7 @@ export default async function Admin() {
   const potentialMinor = Number(recovery.totals.potentialMinor || 0);
   const attentionCount = approvalCount + abandonedCount;
   const firstName = staff.name?.split(" ")[0] || "организатор";
+  const greeting = greetingForIsrael();
 
   const dailySales = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(sevenDaysAgo);
@@ -99,7 +112,7 @@ export default async function Admin() {
   return <AdminShell>
     <section className="workspace-hero">
       <div>
-        <h1>Доброе утро, {firstName}! <span aria-hidden="true">👋</span></h1>
+        <h1>{greeting}, {firstName}! <span aria-hidden="true">👋</span></h1>
         <p>Вот что происходит с вашими событиями сегодня.</p>
       </div>
       {staff.permissionSet.has("EVENT_MANAGE") && <Link href="/office/events/new" className="btn">+ Новое мероприятие</Link>}
