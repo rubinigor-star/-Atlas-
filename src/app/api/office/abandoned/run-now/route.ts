@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   await requirePermission("ANALYTICS_VIEW");
   await prepareRecoveryActions();
   const actions = await getDueRecoveryActions(50);
-  const origin = (process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin).replace(/\/$/, "");
+  const origin = new URL(request.url).origin.replace(/\/$/, "");
   let sent=0,failed=0,skipped=0;
   for (const action of actions) {
     const adapter = recoveryChannel(action.channel);
