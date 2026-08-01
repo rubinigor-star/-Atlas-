@@ -10,7 +10,9 @@ export async function POST(request: Request) {
     const input = schema.parse(await request.json());
     await ensureAbandonedCheckoutRuntime();
     await db.$executeRawUnsafe(
-      `UPDATE "AbandonedCheckout" SET "abandonedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "token"=$1 AND "status"='ACTIVE' AND ("customerEmail" IS NOT NULL OR "customerPhone" IS NOT NULL)`,
+      `UPDATE "AbandonedCheckout"
+       SET "lastActivityAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
+       WHERE "token"=$1 AND "status"='ACTIVE' AND "abandonedAt" IS NULL`,
       input.token,
     );
     return NextResponse.json({ ok: true });
