@@ -9,7 +9,7 @@ function authorized(request: Request) {
 }
 
 function baseUrl(request: Request) {
-  return (process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin).replace(/\/$/, "");
+  return new URL(request.url).origin.replace(/\/$/, "");
 }
 
 async function run(request: Request) {
