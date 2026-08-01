@@ -5,7 +5,6 @@ import { OfficeNavigation } from "@/components/office-navigation";
 import { OfficeAccountMenu } from "@/components/office-account-menu";
 import { OfficeLanguageSwitch } from "@/components/office-language-switch";
 import { AtlasLogo } from "@/components/atlas-logo";
-import { ConceptSwitcher } from "@/components/concept-switcher";
 
 export async function AdminShell({ children }: { children: React.ReactNode }) {
   const staff = await getCurrentStaff();
@@ -38,7 +37,6 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
           <OfficeAccountMenu compact currentName={staff.name} currentRole={staffTitle} />
         </div>
       </header>
-      <ConceptSwitcher />
       {children}
     </main>
 
