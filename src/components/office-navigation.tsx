@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { StaffPermission } from "@prisma/client";
-import { BarChart3, Building2, CalendarDays, ClipboardCheck, ContactRound, LayoutDashboard, ListChecks, Megaphone, QrCode, ReceiptText, Share2, Users } from "lucide-react";
+import { BarChart3, Building2, CalendarDays, ClipboardCheck, ContactRound, LayoutDashboard, ListChecks, Megaphone, QrCode, ReceiptText, Share2, ShoppingCart, Users } from "lucide-react";
 import { useLocale } from "@/components/locale-provider";
 
-const links: Array<{ href: string; key: "overview" | "requests" | "events" | "guestLists" | "guests" | "promoters" | "marketing" | "orders" | "scanner" | "team" | "audit" | "company"; permission?: StaffPermission; icon: typeof LayoutDashboard }> = [
+const links: Array<{ href: string; key: "overview" | "requests" | "events" | "guestLists" | "guests" | "promoters" | "marketing" | "abandoned" | "orders" | "scanner" | "team" | "audit" | "company"; permission?: StaffPermission; icon: typeof LayoutDashboard }> = [
   { href: "/office", key: "overview", permission: "EVENT_VIEW", icon: LayoutDashboard },
   { href: "/office/requests", key: "requests", permission: "REQUEST_REVIEW", icon: ClipboardCheck },
   { href: "/office/events", key: "events", permission: "EVENT_VIEW", icon: CalendarDays },
@@ -14,6 +14,7 @@ const links: Array<{ href: string; key: "overview" | "requests" | "events" | "gu
   { href: "/office/guests", key: "guests", permission: "ORDER_VIEW", icon: ContactRound },
   { href: "/office/promoters", key: "promoters", permission: "ANALYTICS_VIEW", icon: Share2 },
   { href: "/office/marketing", key: "marketing", permission: "ANALYTICS_VIEW", icon: Megaphone },
+  { href: "/office/abandoned", key: "abandoned", permission: "ANALYTICS_VIEW", icon: ShoppingCart },
   { href: "/office/orders", key: "orders", permission: "ORDER_VIEW", icon: ReceiptText },
   { href: "/office/company", key: "company", permission: "FINANCE_VIEW", icon: Building2 },
   { href: "/office/scanner", key: "scanner", permission: "SCAN", icon: QrCode },
@@ -35,6 +36,7 @@ export function OfficeNavigation({ permissions, mobile = false }: { permissions:
     guests: messages.nav.guests,
     promoters: messages.nav.promoters,
     marketing: "Реклама",
+    abandoned: "Потерянные продажи",
     orders: messages.common.orders,
     company: "Компания и условия",
     scanner: messages.common.scanner,
