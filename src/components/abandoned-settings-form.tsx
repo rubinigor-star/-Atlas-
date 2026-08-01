@@ -27,14 +27,15 @@ export function AbandonedSettingsForm() {
   const dirty = JSON.stringify(settings) !== JSON.stringify(savedSettings);
 
   async function persistSettings(showSuccess = true) {
+    const currentSettings: Settings = settings;
     const response=await fetch("/api/office/abandoned/settings",{
       method:"PUT",
       headers:{"content-type":"application/json"},
-      body:JSON.stringify(settings),
+      body:JSON.stringify(currentSettings),
     });
     const body=await response.json().catch(()=>({}));
     if(!response.ok) throw new Error(body.error||"Не удалось сохранить настройки");
-    setSavedSettings({...settings});
+    setSavedSettings({...currentSettings});
     if(showSuccess)setMessage("Настройки сохранены на сервере");
   }
 
