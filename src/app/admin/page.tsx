@@ -95,6 +95,13 @@ export default async function Admin() {
   const maxDailyRevenue = Math.max(1, ...dailySales.map(day => day.revenue));
   const sevenDayRevenue = dailySales.reduce((sum, day) => sum + day.revenue, 0);
   const sevenDayTickets = dailySales.reduce((sum, day) => sum + day.count, 0);
+  const chartPoints = dailySales.map((day, index) => {
+    const x = 36 + index * 104;
+    const y = 168 - Math.round((day.revenue / maxDailyRevenue) * 126);
+    return { ...day, x, y };
+  });
+  const linePoints = chartPoints.map(point => `${point.x},${point.y}`).join(" ");
+  const areaPoints = `36,168 ${linePoints} 660,168`;
 
   return <AdminShell>
     <section className="workspace-hero">
@@ -107,39 +114,24 @@ export default async function Admin() {
 
     <section className="workspace-kpis" aria-label="Ключевые показатели">
       <Link href="/office/orders" className="workspace-kpi workspace-kpi-sales">
-        <span className="workspace-kpi-icon">↗</span>
-        <small>Продажи сегодня</small>
-        <strong>{todayOrders.length} <em>бил.</em></strong>
-        <p>{money(todayRevenue)}</p>
-        <span className="workspace-kpi-link">Открыть заказы →</span>
+        <span className="workspace-kpi-icon">↗</span><small>Продажи сегодня</small>
+        <strong>{todayOrders.length} <em>бил.</em></strong><p>{money(todayRevenue)}</p><span className="workspace-kpi-arrow">→</span>
       </Link>
       <Link href="/office/abandoned" className="workspace-kpi workspace-kpi-lost">
-        <span className="workspace-kpi-icon">◫</span>
-        <small>Потенциальная выручка</small>
-        <strong>{money(potentialMinor)}</strong>
-        <p>{abandonedCount} потерянных оформлений</p>
-        <span className="workspace-kpi-link">Перейти в модуль →</span>
+        <span className="workspace-kpi-icon">◫</span><small>Потенциальная выручка</small>
+        <strong>{money(potentialMinor)}</strong><p>{abandonedCount} потерянных оформлений</p><span className="workspace-kpi-arrow">→</span>
       </Link>
       <Link href="/office/orders" className="workspace-kpi workspace-kpi-revenue">
-        <span className="workspace-kpi-icon">◎</span>
-        <small>Выручка за месяц</small>
-        <strong>{money(monthRevenue)}</strong>
-        <p>{monthOrders.length} оплаченных заказов</p>
-        <span className="workspace-kpi-link">Посмотреть продажи →</span>
+        <span className="workspace-kpi-icon">◎</span><small>Выручка за месяц</small>
+        <strong>{money(monthRevenue)}</strong><p>{monthOrders.length} оплаченных заказов</p><span className="workspace-kpi-arrow">→</span>
       </Link>
       <Link href="/office/events" className="workspace-kpi workspace-kpi-fill">
-        <span className="workspace-kpi-icon">◉</span>
-        <small>Средняя заполняемость</small>
-        <strong>{averageFill}%</strong>
-        <p>{totals.sold} из {totals.capacity} мест</p>
-        <span className="workspace-kpi-link">Открыть мероприятия →</span>
+        <span className="workspace-kpi-icon">◉</span><small>Средняя заполняемость</small>
+        <strong>{averageFill}%</strong><p>{totals.sold} из {totals.capacity} мест</p><span className="workspace-kpi-ring" style={{ "--fill": `${averageFill * 3.6}deg` } as React.CSSProperties} />
       </Link>
       <Link href="/office/orders" className="workspace-kpi workspace-kpi-check">
-        <span className="workspace-kpi-icon">₪</span>
-        <small>Средний чек</small>
-        <strong>{money(averageCheck)}</strong>
-        <p>За текущий месяц</p>
-        <span className="workspace-kpi-link">Открыть заказы →</span>
+        <span className="workspace-kpi-icon">₪</span><small>Средний чек</small>
+        <strong>{money(averageCheck)}</strong><p>За текущий месяц</p><span className="workspace-kpi-arrow">→</span>
       </Link>
     </section>
 
@@ -161,11 +153,9 @@ export default async function Admin() {
               <span>{days <= 0 ? "Сегодня" : `Через ${days} дн.`}</span>
             </div>
             <div className="workspace-event-body">
-              <small>{eventDate(event.startsAt)} · {event.venue.name}</small>
-              <h3>{event.title}</h3>
-              <div className="workspace-event-numbers"><strong>{sold} / {capacity}</strong><span>{fill}%</span></div>
+              <small>{eventDate(event.startsAt)} · {event.venue.name}</small><h3>{event.title}</h3>
+              <div className="workspace-event-metrics"><span><b>{sold} / {capacity}</b><small>продано</small></span><span><b>{money(eventRevenue)}</b><small>выручка</small></span><span><b>{Math.max(0, capacity - sold)}</b><small>осталось</small></span></div>
               <div className="workspace-progress"><i style={{ width: `${fill}%` }} /></div>
-              <footer><span><b>{money(eventRevenue)}</b> выручка</span><span>{Math.max(0, capacity - sold)} мест</span></footer>
             </div>
           </Link>;
         })}
@@ -185,8 +175,14 @@ export default async function Admin() {
     <section className="workspace-bottom-grid">
       <article className="workspace-chart-panel">
         <div className="workspace-panel-head"><div><h2>Динамика продаж</h2><p>Последние 7 дней</p></div><span>{money(sevenDayRevenue)}</span></div>
-        <div className="workspace-bars" aria-label="Продажи за семь дней">
-          {dailySales.map(day => <div className="workspace-bar-day" key={day.date.toISOString()}><div className="workspace-bar-track"><i style={{ height: `${Math.max(5, Math.round(day.revenue / maxDailyRevenue * 100))}%` }} /></div><strong>{day.count}</strong><small>{shortDay(day.date)}</small></div>)}
+        <div className="workspace-line-chart">
+          <svg viewBox="0 0 700 205" role="img" aria-label="Линейный график выручки за семь дней">
+            <defs><linearGradient id="salesArea" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#2463eb" stopOpacity=".22"/><stop offset="100%" stopColor="#2463eb" stopOpacity="0"/></linearGradient></defs>
+            {[42,84,126,168].map(y => <line key={y} x1="36" y1={y} x2="660" y2={y} className="chart-grid-line" />)}
+            <polygon points={areaPoints} fill="url(#salesArea)" />
+            <polyline points={linePoints} className="chart-sales-line" />
+            {chartPoints.map(point => <g key={point.date.toISOString()}><circle cx={point.x} cy={point.y} r="5" className="chart-sales-point"/><text x={point.x} y="194" textAnchor="middle" className="chart-label">{shortDay(point.date)}</text></g>)}
+          </svg>
         </div>
         <footer><span><b>{money(sevenDayRevenue)}</b><small>Выручка за 7 дней</small></span><span><b>{sevenDayTickets}</b><small>Всего заказов</small></span></footer>
       </article>
