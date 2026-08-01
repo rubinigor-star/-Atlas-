@@ -77,13 +77,6 @@ export default async function Admin() {
   const attentionCount = approvalCount + abandonedCount;
   const firstName = staff.name?.split(" ")[0] || "организатор";
 
-  const totals = upcomingEvents.reduce((acc, event) => {
-    acc.sold += event.categories.reduce((sum, category) => sum + category.sold, 0);
-    acc.capacity += event.categories.reduce((sum, category) => sum + category.capacity, 0);
-    return acc;
-  }, { sold: 0, capacity: 0 });
-  const averageFill = totals.capacity ? Math.round((totals.sold / totals.capacity) * 100) : 0;
-
   const dailySales = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(sevenDaysAgo);
     date.setDate(date.getDate() + index);
@@ -115,23 +108,19 @@ export default async function Admin() {
     <section className="workspace-kpis" aria-label="Ключевые показатели">
       <Link href="/office/orders" className="workspace-kpi workspace-kpi-sales">
         <span className="workspace-kpi-icon">↗</span><small>Продажи сегодня</small>
-        <strong>{todayOrders.length} <em>бил.</em></strong><p>{money(todayRevenue)}</p><span className="workspace-kpi-arrow">→</span>
+        <strong>{todayOrders.length} <em>бил.</em></strong><p>{money(todayRevenue)}</p>
       </Link>
       <Link href="/office/abandoned" className="workspace-kpi workspace-kpi-lost">
         <span className="workspace-kpi-icon">◫</span><small>Потенциальная выручка</small>
-        <strong>{money(potentialMinor)}</strong><p>{abandonedCount} потерянных оформлений</p><span className="workspace-kpi-arrow">→</span>
+        <strong>{money(potentialMinor)}</strong><p>{abandonedCount} потерянных оформлений</p>
       </Link>
       <Link href="/office/orders" className="workspace-kpi workspace-kpi-revenue">
         <span className="workspace-kpi-icon">◎</span><small>Выручка за месяц</small>
-        <strong>{money(monthRevenue)}</strong><p>{monthOrders.length} оплаченных заказов</p><span className="workspace-kpi-arrow">→</span>
-      </Link>
-      <Link href="/office/events" className="workspace-kpi workspace-kpi-fill">
-        <span className="workspace-kpi-icon">◉</span><small>Средняя заполняемость</small>
-        <strong>{averageFill}%</strong><p>{totals.sold} из {totals.capacity} мест</p><span className="workspace-kpi-ring" style={{ "--fill": `${averageFill * 3.6}deg` } as React.CSSProperties} />
+        <strong>{money(monthRevenue)}</strong><p>{monthOrders.length} оплаченных заказов</p>
       </Link>
       <Link href="/office/orders" className="workspace-kpi workspace-kpi-check">
         <span className="workspace-kpi-icon">₪</span><small>Средний чек</small>
-        <strong>{money(averageCheck)}</strong><p>За текущий месяц</p><span className="workspace-kpi-arrow">→</span>
+        <strong>{money(averageCheck)}</strong><p>За текущий месяц</p>
       </Link>
     </section>
 
@@ -188,11 +177,10 @@ export default async function Admin() {
       </article>
 
       <article className="workspace-attention-panel">
-        <div className="workspace-panel-head"><div><h2>Требует внимания</h2><p>Только задачи, где нужно действие</p></div>{attentionCount > 0 && <span className="workspace-count">{attentionCount}</span>}</div>
+        <div className="workspace-panel-head"><div><h2>Важное сейчас</h2><p>Разделы, где требуется действие</p></div>{attentionCount > 0 && <span className="workspace-count">{attentionCount}</span>}</div>
         <Link href="/office/abandoned" className="workspace-action"><i>🛒</i><div><strong>{abandonedCount} потерянных оформлений</strong><small>Потенциально {money(potentialMinor)}</small></div><b>›</b></Link>
         <Link href="/office/requests" className="workspace-action"><i>✓</i><div><strong>{approvalCount} заявок на рассмотрении</strong><small>Ожидают решения организатора</small></div><b>›</b></Link>
         {upcomingEvents[0] && <Link href={`/office/events/${upcomingEvents[0].id}`} className="workspace-action"><i>◷</i><div><strong>{upcomingEvents[0].title}</strong><small>Ближайшее событие · {eventDate(upcomingEvents[0].startsAt)}</small></div><b>›</b></Link>}
-        <Link href="/office/events" className="workspace-attention-more">Перейти ко всем задачам</Link>
       </article>
     </section>
   </AdminShell>;
