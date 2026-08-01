@@ -13,14 +13,15 @@ export async function POST(request: Request) {
   let sent = 0;
   let failed = 0;
   let skipped = 0;
+  const skipReasons: Record<string, number> = {};
+  const failureReasons: Record<string, number> = {};
 
   for (const action of actions) {
     const adapter = recoveryChannel(action.channel);
     if (!adapter.configured() || !action.customerEmail) {
-      await completeRecoveryAction(action.id, {
-        status: "SKIPPED",
-        error: !action.customerEmail ? "RECIPIENT_MISSING" : "CHANNEL_NOT_CONFIGURED",
-      });
+      const reason = !action.customerEmail ? "RECIPIENT_MISSING" : "CHANNEL_NOT_CONFIGURED";
+      await completeRecoveryAction(action.id, { status: "SKIPPED", error: reason });
+      skipReasons[reason] = (skipReasons[reason] || 0) + 1;
       skipped++;
       continue;
     }
@@ -38,13 +39,21 @@ export async function POST(request: Request) {
       await completeRecoveryAction(action.id, { status: "SENT", providerId: result.id });
       sent++;
     } catch (error) {
-      await completeRecoveryAction(action.id, {
-        status: "FAILED",
-        error: error instanceof Error ? error.message : "DELIVERY_FAILED",
-      });
+      const reason = error instanceof Error ? error.message : "DELIVERY_FAILED";
+      await completeRecoveryAction(action.id, { status: "FAILED", error: reason });
+      failureReasons[reason] = (failureReasons[reason] || 0) + 1;
       failed++;
     }
   }
 
-  return NextResponse.json({ ok: true, newlyAbandoned, processed: actions.length, sent, failed, skipped });
+  return NextResponse.json({
+    ok: true,
+    newlyAbandoned,
+    processed: actions.length,
+    sent,
+    failed,
+    skipped,
+    skipReasons: Object.keys(skipReasons).length ? skipReasons : undefined,
+    failureReasons: Object.keys(failureReasons).length ? failureReasons : undefined,
+  });
 }
