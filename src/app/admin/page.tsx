@@ -2,38 +2,134 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { money, eventDate } from "@/lib/format";
 import { AdminShell } from "@/components/admin-shell";
-import { RequestInbox } from "@/components/request-inbox";
-import { OrderStatusControl } from "@/components/order-status-control";
-import { ExcelExportButton } from "@/components/excel-export-button";
 import { requirePermission, canAccessEvent } from "@/lib/auth";
+import { recoveryDashboard } from "@/lib/abandoned-checkout";
 
 export const dynamic = "force-dynamic";
 
-const DISMISSED_EXPIRED_NOTE = "__DISMISSED_EXPIRED__";
+const startOfToday = () => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+};
+
+function relativeTime(date: Date) {
+  const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
+  if (minutes < 1) return "только что";
+  if (minutes < 60) return `${minutes} мин назад`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ч назад`;
+  return `${Math.floor(hours / 24)} дн назад`;
+}
+
+function daysUntil(date: Date) {
+  return Math.ceil((date.getTime() - Date.now()) / 86400000);
+}
 
 export default async function Admin() {
-  const staff=await requirePermission("EVENT_VIEW");
-  const [events, orders, revenue, approvalQueue] = await Promise.all([
-    db.event.findMany({ where:{organizationId:staff.organizationId!},include: { venue: true, categories: true }, orderBy: { startsAt: "asc" } }),
-    db.order.findMany({ where:{event:{organizationId:staff.organizationId!}},take: 6, orderBy: { createdAt: "desc" }, include: { event: true, tickets: true } }),
-    db.order.aggregate({ _sum: { totalMinor: true }, where: { status: "PAID",event:{organizationId:staff.organizationId!} } }),
-    db.order.findMany({where:{status:{in:["PENDING_APPROVAL","AWAITING_PAYMENT","PAID","REJECTED","CANCELLED"]},event:{organizationId:staff.organizationId!},OR:[{reviewNote:null},{reviewNote:{not:DISMISSED_EXPIRED_NOTE}}]},take:30,orderBy:{createdAt:"desc"},include:{event:true,items:true,guest:{include:{orders:{include:{tickets:{include:{scans:true}}}}}}}}),
+  const staff = await requirePermission("EVENT_VIEW");
+  const today = startOfToday();
+
+  const [events, todayOrders, recentOrders, approvalCount, auditLogs, recovery] = await Promise.all([
+    db.event.findMany({
+      where: { organizationId: staff.organizationId! },
+      include: { venue: true, categories: true, orders: { where: { status: "PAID" }, select: { totalMinor: true, createdAt: true } } },
+      orderBy: { startsAt: "asc" },
+    }),
+    db.order.findMany({
+      where: { status: "PAID", createdAt: { gte: today }, event: { organizationId: staff.organizationId! } },
+      select: { totalMinor: true },
+    }),
+    db.order.findMany({
+      where: { event: { organizationId: staff.organizationId! } },
+      take: 6,
+      orderBy: { createdAt: "desc" },
+      include: { event: true, tickets: true },
+    }),
+    db.order.count({
+      where: { status: "PENDING_APPROVAL", event: { organizationId: staff.organizationId! } },
+    }),
+    db.auditLog.findMany({
+      where: { organizationId: staff.organizationId! },
+      take: 6,
+      orderBy: { createdAt: "desc" },
+    }),
+    recoveryDashboard(staff.organizationId!),
   ]);
-  const visibleEvents=events.filter((event)=>canAccessEvent(staff,event.id));
-  const queue=approvalQueue.map((request)=>{
-    const previous=request.guest?.orders.filter(order=>order.id!==request.id)??[];
-    const visits=previous.flatMap(order=>order.tickets).filter(ticket=>ticket.scans.length>0).length;
-    return {id:request.id,publicId:request.publicId,customerName:request.customerName,customerEmail:request.customerEmail,customerPhone:request.customerPhone,birthDate:request.customerBirthDate?.toISOString()??request.guest?.birthDate.toISOString()??null,city:request.customerCity??request.guest?.city??null,facebook:request.customerFacebook??request.guest?.facebook??null,instagram:request.customerInstagram??request.guest?.instagram??null,guestStatus:request.guest?.status??null,previousOrders:previous.length,previousVisits:visits,answer:request.eligibilityAnswer,status:request.status,eventTitle:request.event.title,eventDate:request.event.startsAt.toISOString(),createdAt:request.createdAt.toISOString(),expiresAt:request.event.startsAt.toISOString(),inactive:false,totalMinor:request.totalMinor,items:request.items.map(item=>({name:item.categoryName,quantity:item.quantity}))};
-  });
-  const eventRows=visibleEvents.map(event=>({"Мероприятие":event.title,"Площадка":event.venue.name,"Дата":eventDate(event.startsAt),"Режим продажи":event.salesMode==="INSTANT"?"Автоматически":"По одобрению","Продано":event.categories.reduce((sum,category)=>sum+category.sold,0),"Вместимость":event.categories.reduce((sum,category)=>sum+category.capacity,0)}));
-  const orderRows=orders.map(order=>({"Номер заказа":order.publicId,"Мероприятие":order.event.title,"Покупатель":order.customerName,"Email":order.customerEmail,"Билетов":order.tickets.length,"Сумма":money(order.totalMinor),"Статус":order.status}));
+
+  const visibleEvents = events.filter(event => canAccessEvent(staff, event.id));
+  const upcomingEvents = visibleEvents.filter(event => event.startsAt >= today).slice(0, 4);
+  const todayRevenue = todayOrders.reduce((sum, order) => sum + order.totalMinor, 0);
+  const abandonedCount = Number(recovery.totals.activeCount || 0);
+  const attentionCount = approvalCount + abandonedCount;
+  const firstName = staff.name?.split(" ")[0] || "организатор";
 
   return <AdminShell>
-    <div className="row between"><div><span className="eyebrow">Organizer back-office</span><h1>Панель управления</h1></div>{staff.permissionSet.has("EVENT_MANAGE")&&<Link href="/office/events/new" className="btn">+ Новое событие</Link>}</div>
-    <div className="stats"><div className="stat"><span className="muted">Продажи</span><strong>{money(revenue._sum.totalMinor ?? 0)}</strong></div><div className="stat"><span className="muted">Последние заказы</span><strong>{orders.length}</strong></div><div className="stat"><span className="muted">Новые заявки</span><strong>{queue.filter(item=>item.status==="PENDING_APPROVAL").length}</strong></div></div>
-    {staff.permissionSet.has("REQUEST_REVIEW")&&<><div className="row between"><h2 className="section-title">Очередь заявок</h2><Link href="/office/requests">Полный список →</Link></div><RequestInbox initialRequests={queue} compact/></>}
-    <div className="row between"><h2 className="section-title">Мероприятия</h2><div className="row"><ExcelExportButton rows={eventRows} filename="atlas-events"/><Link href="/office/events">Все мероприятия →</Link></div></div>
-    <div className="table-wrap"><table><thead><tr><th>Событие</th><th>Дата</th><th>Режим продажи</th><th>Продано</th><th></th></tr></thead><tbody>{visibleEvents.map(event=><tr key={event.id}><td><Link href={`/office/events/${event.id}`}><strong>{event.title}</strong></Link><br/><small>{event.venue.name}</small></td><td>{eventDate(event.startsAt)}</td><td><span className="pill">{event.salesMode==="INSTANT"?"Автоматически":"По одобрению"}</span></td><td>{event.categories.reduce((sum,category)=>sum+category.sold,0)} / {event.categories.reduce((sum,category)=>sum+category.capacity,0)}</td><td><Link className="btn secondary" href={`/office/events/${event.id}`}>{staff.permissionSet.has("EVENT_MANAGE")?"Управлять":"Открыть"}</Link></td></tr>)}</tbody></table></div>
-    {staff.permissionSet.has("ORDER_VIEW")&&<><div className="row between"><h2 className="section-title">Последние заказы</h2><div className="row"><ExcelExportButton rows={orderRows} filename="atlas-latest-orders"/><Link href="/office/orders">Все →</Link></div></div><div className="table-wrap"><table><thead><tr><th>Номер</th><th>Мероприятие</th><th>Покупатель</th><th>Сумма</th><th>Статус</th></tr></thead><tbody>{orders.map(order=><tr key={order.id}><td><Link href={`/office/orders/${order.publicId}`}><strong>{order.publicId}</strong></Link></td><td><strong>{order.event.title}</strong><br/><small>{eventDate(order.event.startsAt)}</small></td><td>{order.customerName}<br/><small>{order.customerEmail}</small></td><td>{money(order.totalMinor)}</td><td><OrderStatusControl publicId={order.publicId} initialStatus={order.status} canReview={staff.permissionSet.has("REQUEST_REVIEW")} /></td></tr>)}</tbody></table></div></>}
+    <section className="workspace-hero">
+      <div>
+        <span className="eyebrow">Главная</span>
+        <h1>Добро пожаловать, {firstName}</h1>
+        <p>Самое важное по вашим мероприятиям на сегодня.</p>
+      </div>
+      {staff.permissionSet.has("EVENT_MANAGE") && <Link href="/office/events/new" className="btn">+ Новое мероприятие</Link>}
+    </section>
+
+    <section className="workspace-kpis">
+      <article><span className="workspace-kpi-icon">↗</span><div><small>Продажи сегодня</small><strong>{todayOrders.length}</strong><p>{money(todayRevenue)}</p></div></article>
+      <article><span className="workspace-kpi-icon">◫</span><div><small>Ближайшие мероприятия</small><strong>{upcomingEvents.length}</strong><p>{upcomingEvents[0] ? `Следующее: ${eventDate(upcomingEvents[0].startsAt)}` : "Нет запланированных"}</p></div></article>
+      <article><span className="workspace-kpi-icon">!</span><div><small>Требует внимания</small><strong>{attentionCount}</strong><p>{abandonedCount} потерянных, {approvalCount} заявок</p></div></article>
+      <article><span className="workspace-kpi-icon">◎</span><div><small>Потенциальная выручка</small><strong>{money(Number(recovery.totals.potentialMinor || 0))}</strong><p>Из потерянных оформлений</p></div></article>
+    </section>
+
+    <div className="workspace-layout">
+      <main>
+        <div className="workspace-section-head">
+          <div><span className="eyebrow">Ваши мероприятия</span><h2>В центре внимания</h2></div>
+          <Link href="/office/events">Все мероприятия →</Link>
+        </div>
+
+        <div className="workspace-event-grid">
+          {upcomingEvents.map(event => {
+            const sold = event.categories.reduce((sum, category) => sum + category.sold, 0);
+            const capacity = event.categories.reduce((sum, category) => sum + category.capacity, 0);
+            const fill = capacity ? Math.min(100, Math.round(sold / capacity * 100)) : 0;
+            const eventRevenue = event.orders.reduce((sum, order) => sum + order.totalMinor, 0);
+            const todaySold = event.orders.filter(order => order.createdAt >= today).length;
+            const days = daysUntil(event.startsAt);
+            return <Link href={`/office/events/${event.id}`} className="workspace-event-card" key={event.id}>
+              <div className="workspace-event-image">
+                <img src={event.posterUrl} alt="" />
+                <span>{days <= 0 ? "Сегодня" : `Через ${days} дн.`}</span>
+              </div>
+              <div className="workspace-event-body">
+                <small>{eventDate(event.startsAt)} · {event.venue.name}</small>
+                <h3>{event.title}</h3>
+                <div className="workspace-progress"><i style={{width:`${fill}%`}} /></div>
+                <div className="workspace-event-numbers"><strong>{sold} / {capacity}</strong><span>{capacity - sold} осталось</span></div>
+                <footer><span>Выручка: <b>{money(eventRevenue)}</b></span><span>Сегодня: <b>+{todaySold}</b></span></footer>
+              </div>
+            </Link>;
+          })}
+          {!upcomingEvents.length && <div className="office-empty"><h3>Нет ближайших мероприятий</h3><p>Создайте мероприятие, и оно появится здесь.</p></div>}
+        </div>
+      </main>
+
+      <aside className="workspace-side">
+        <section className="workspace-panel">
+          <div className="workspace-panel-head"><h2>Требует внимания</h2>{attentionCount > 0 && <span>{attentionCount}</span>}</div>
+          <Link href="/office/abandoned" className="workspace-action"><i>🛒</i><div><strong>{abandonedCount} потерянных оформлений</strong><small>Проверить и запустить сценарий</small></div><b>›</b></Link>
+          <Link href="/office/requests" className="workspace-action"><i>✓</i><div><strong>{approvalCount} заявок на рассмотрении</strong><small>Принять решение по гостям</small></div><b>›</b></Link>
+          {upcomingEvents[0] && <Link href={`/office/events/${upcomingEvents[0].id}`} className="workspace-action"><i>◷</i><div><strong>{upcomingEvents[0].title}</strong><small>Ближайшее мероприятие · {eventDate(upcomingEvents[0].startsAt)}</small></div><b>›</b></Link>}
+        </section>
+
+        <section className="workspace-panel">
+          <div className="workspace-panel-head"><h2>Последняя активность</h2></div>
+          <div className="workspace-activity">
+            {recentOrders.slice(0,4).map(order => <Link href={`/office/orders/${order.publicId}`} key={order.id}><i>{order.status === "PAID" ? "₪" : "•"}</i><div><strong>{order.status === "PAID" ? "Новая продажа" : "Обновление заказа"}</strong><small>{order.event.title} · {order.tickets.length} бил.</small></div><time>{relativeTime(order.createdAt)}</time></Link>)}
+            {auditLogs.slice(0,2).map(log => <div key={log.id}><i>↻</i><div><strong>{log.summary}</strong><small>{log.entityType}</small></div><time>{relativeTime(log.createdAt)}</time></div>)}
+            {!recentOrders.length && !auditLogs.length && <p className="muted">Активность появится после первых действий.</p>}
+          </div>
+        </section>
+      </aside>
+    </div>
   </AdminShell>;
 }
