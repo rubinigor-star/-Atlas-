@@ -43,5 +43,5 @@ export function OfficeNavigation({ permissions, mobile = false }: { permissions:
     team: messages.nav.team,
     audit: messages.nav.audit,
   };
-  return <nav className={mobile ? "office-bottom-nav" : "office-nav"}>{shown.map((link) => { const Icon=link.icon; const active=link.href==="/office"?pathname===link.href:pathname.startsWith(link.href); return <Link key={link.href} href={link.href} className={active?"active":""}><Icon size={19}/><span>{labels[link.key]}</span></Link>; })}</nav>;
+  return <nav className={mobile ? "office-bottom-nav" : "office-nav"}>{shown.map((link) => { const Icon=link.icon; const active=link.href==="/office"?pathname===link.href:pathname.startsWith(link.href); return <Link prefetch={false} key={link.href} href={link.href} className={active?"active":""}><Icon size={19}/><span>{labels[link.key]}</span></Link>; })}</nav>;
 }
