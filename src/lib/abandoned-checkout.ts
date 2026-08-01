@@ -63,6 +63,7 @@ export function ensureAbandonedCheckoutRuntime() {
       `CREATE INDEX IF NOT EXISTS "RecoveryAction_due_idx" ON "RecoveryAction"("status","scheduledAt")`,
       `CREATE TABLE IF NOT EXISTS "RecoveryChannel" ("code" TEXT PRIMARY KEY,"provider" TEXT,"enabled" BOOLEAN NOT NULL DEFAULT FALSE,"configured" BOOLEAN NOT NULL DEFAULT FALSE,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
       `INSERT INTO "RecoveryChannel" ("code","provider","enabled","configured") VALUES ('EMAIL','RESEND',TRUE,FALSE),('SMS',NULL,FALSE,FALSE),('WHATSAPP',NULL,FALSE,FALSE) ON CONFLICT ("code") DO NOTHING`,
+      `UPDATE "RecoveryScenarioStep" SET "delayMinutes"=0 WHERE "position"=1 AND "templateKey"='FIRST_REMINDER' AND "delayMinutes"<>0`,
     ];
     for (const statement of statements) await db.$executeRawUnsafe(statement);
   })().catch(error => { initialized = undefined; throw error; });
@@ -76,7 +77,7 @@ async function ensureDefaultScenario(organizationId: string) {
   const scenarioId = randomUUID();
   await db.$transaction(async tx => {
     await tx.$executeRawUnsafe(`INSERT INTO "RecoveryScenario" ("id","organizationId","name") VALUES ($1,$2,$3)`, scenarioId, organizationId, "Стандартное восстановление покупки");
-    await tx.$executeRawUnsafe(`INSERT INTO "RecoveryScenarioStep" ("id","scenarioId","position","delayMinutes","channel","templateKey") VALUES ($1,$2,1,30,'EMAIL','FIRST_REMINDER'),($3,$2,2,1440,'EMAIL','FINAL_REMINDER')`, randomUUID(), scenarioId, randomUUID());
+    await tx.$executeRawUnsafe(`INSERT INTO "RecoveryScenarioStep" ("id","scenarioId","position","delayMinutes","channel","templateKey") VALUES ($1,$2,1,0,'EMAIL','FIRST_REMINDER'),($3,$2,2,1440,'EMAIL','FINAL_REMINDER')`, randomUUID(), scenarioId, randomUUID());
   });
   return scenarioId;
 }
@@ -126,8 +127,8 @@ export async function recoveryDashboard(organizationId: string, allowedEventIds?
   await ensureAbandonedCheckoutRuntime();
   const scope = allowedEventIds?.length ? ` AND c."eventId" = ANY($2::text[])` : "";
   const params: unknown[] = [organizationId]; if (allowedEventIds?.length) params.push(allowedEventIds);
-  const totals = await db.$queryRawUnsafe<Array<{ activeCount: bigint; potentialMinor: bigint; recoveredCount: bigint; recoveredMinor: bigint }>>(`SELECT COUNT(*) FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NOT NULL) AS "activeCount",COALESCE(SUM(c."amountMinor") FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NOT NULL),0) AS "potentialMinor",COUNT(*) FILTER (WHERE c."status"='RECOVERED') AS "recoveredCount",COALESCE(SUM(c."amountMinor") FILTER (WHERE c."status"='RECOVERED'),0) AS "recoveredMinor" FROM "AbandonedCheckout" c WHERE c."organizationId"=$1${scope}`, ...params);
+  const totals = await db.$queryRawUnsafe<Array<{ inProgressCount: bigint; activeCount: bigint; potentialMinor: bigint; recoveredCount: bigint; recoveredMinor: bigint }>>(`SELECT COUNT(*) FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NULL AND (c."customerEmail" IS NOT NULL OR c."customerPhone" IS NOT NULL)) AS "inProgressCount",COUNT(*) FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NOT NULL) AS "activeCount",COALESCE(SUM(c."amountMinor") FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NOT NULL),0) AS "potentialMinor",COUNT(*) FILTER (WHERE c."status"='RECOVERED') AS "recoveredCount",COALESCE(SUM(c."amountMinor") FILTER (WHERE c."status"='RECOVERED'),0) AS "recoveredMinor" FROM "AbandonedCheckout" c WHERE c."organizationId"=$1${scope}`, ...params);
   const events = await db.$queryRawUnsafe<Array<{ eventId: string; title: string; activeCount: bigint; potentialMinor: bigint; recoveredCount: bigint; recoveredMinor: bigint }>>(`SELECT c."eventId",e."title",COUNT(*) FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NOT NULL) AS "activeCount",COALESCE(SUM(c."amountMinor") FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NOT NULL),0) AS "potentialMinor",COUNT(*) FILTER (WHERE c."status"='RECOVERED') AS "recoveredCount",COALESCE(SUM(c."amountMinor") FILTER (WHERE c."status"='RECOVERED'),0) AS "recoveredMinor" FROM "AbandonedCheckout" c JOIN "Event" e ON e."id"=c."eventId" WHERE c."organizationId"=$1${scope} GROUP BY c."eventId",e."title" ORDER BY "potentialMinor" DESC`, ...params);
-  const recent = await db.$queryRawUnsafe<Array<CheckoutRow & { actionStatus: string | null }>>(`SELECT c.*,e."title" AS "eventTitle",(SELECT a."status" FROM "RecoveryAction" a WHERE a."checkoutId"=c."id" ORDER BY a."createdAt" DESC LIMIT 1) AS "actionStatus" FROM "AbandonedCheckout" c JOIN "Event" e ON e."id"=c."eventId" WHERE c."organizationId"=$1${scope} AND (c."abandonedAt" IS NOT NULL OR c."status"='RECOVERED') ORDER BY COALESCE(c."recoveredAt",c."lastActivityAt") DESC LIMIT 100`, ...params);
-  return { totals: totals[0] || { activeCount: BigInt(0), potentialMinor: BigInt(0), recoveredCount: BigInt(0), recoveredMinor: BigInt(0) }, events, recent };
+  const recent = await db.$queryRawUnsafe<Array<CheckoutRow & { actionStatus: string | null }>>(`SELECT c.*,e."title" AS "eventTitle",(SELECT a."status" FROM "RecoveryAction" a WHERE a."checkoutId"=c."id" ORDER BY a."createdAt" DESC LIMIT 1) AS "actionStatus" FROM "AbandonedCheckout" c JOIN "Event" e ON e."id"=c."eventId" WHERE c."organizationId"=$1${scope} AND ((c."customerEmail" IS NOT NULL OR c."customerPhone" IS NOT NULL) OR c."status"='RECOVERED') ORDER BY COALESCE(c."recoveredAt",c."lastActivityAt") DESC LIMIT 100`, ...params);
+  return { totals: totals[0] || { inProgressCount: BigInt(0), activeCount: BigInt(0), potentialMinor: BigInt(0), recoveredCount: BigInt(0), recoveredMinor: BigInt(0) }, events, recent };
 }
