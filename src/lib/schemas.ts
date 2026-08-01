@@ -2,7 +2,6 @@ import { z } from "zod";
 import { catalogVisibilityValues, eventLanguageValues } from "@/lib/event-language";
 
 const paymentSchema = z.object({ method: z.literal("CARD") });
-
 const optionalText = (max: number) => z.string().trim().max(max).optional().default("");
 
 export const checkoutSchema = z.object({
@@ -11,6 +10,7 @@ export const checkoutSchema = z.object({
   quantity: z.number().int().min(1).max(10),
   tableId: z.string().nullable().optional(),
   seatIds: z.array(z.string().min(1)).max(10).optional(),
+  abandonToken: z.string().uuid().optional(),
   customer: z.object({
     firstName: optionalText(80),
     lastName: optionalText(80),
