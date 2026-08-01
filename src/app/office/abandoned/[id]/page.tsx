@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
+import { StopAbandonedRemindersButton } from "@/components/stop-abandoned-reminders-button";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { money } from "@/lib/format";
@@ -36,12 +37,13 @@ export default async function AbandonedDetail({ params }: { params: Promise<{ id
   const actions = await db.$queryRawUnsafe<Action[]>(`SELECT a."id",s."position",s."templateKey",a."channel",a."status",a."scheduledAt",a."sentAt",a."providerId",a."error",a."createdAt" FROM "RecoveryAction" a JOIN "RecoveryScenarioStep" s ON s."id"=a."scenarioStepId" WHERE a."checkoutId"=$1 ORDER BY a."createdAt" ASC`, id);
   const name = [item.customerFirstName, item.customerLastName].filter(Boolean).join(" ") || "Не представился";
   const format = (value: Date | null) => value ? new Intl.DateTimeFormat("ru-IL", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jerusalem" }).format(new Date(value)) : "-";
-  const statusLabel = item.status === "RECOVERED" ? "Восстановлено" : item.status === "OPTED_OUT" ? "Клиент отказался" : item.abandonedAt ? "Потерянная продажа" : "Сейчас оформляет";
+  const statusLabel = item.status === "RECOVERED" ? "Восстановлено" : item.status === "OPTED_OUT" ? "Клиент отказался" : item.status === "STOPPED" ? "Напоминания остановлены" : item.abandonedAt ? "Потерянная продажа" : "Сейчас оформляет";
   const timeline = [
     { at:item.createdAt, title:"Оформление начато", detail:"Клиент открыл checkout" },
     item.customerEmail || item.customerPhone ? { at:item.lastActivityAt, title:"Контакты сохранены", detail:item.customerEmail || item.customerPhone || "" } : null,
     item.abandonedAt ? { at:item.abandonedAt, title:"Покупка признана потерянной", detail:"Запущен сценарий восстановления" } : null,
     ...actions.map(action => ({ at:action.sentAt || action.scheduledAt || action.createdAt, title:actionLabel(action), detail:[action.channel,action.error,action.providerId].filter(Boolean).join(" · ") })),
+    item.status === "STOPPED" ? { at:item.lastActivityAt, title:"Напоминания остановлены вручную", detail:"Будущие действия отменены, история сохранена" } : null,
     item.optOutAt ? { at:item.optOutAt, title:"Клиент отказался от напоминаний", detail:"Все будущие действия отменены" } : null,
     item.recoveredAt ? { at:item.recoveredAt, title:"Покупка восстановлена", detail:"Сценарий остановлен после оплаты" } : null,
   ].filter(Boolean) as Array<{at:Date;title:string;detail:string}>;
@@ -63,10 +65,11 @@ export default async function AbandonedDetail({ params }: { params: Promise<{ id
       <div className="row between"><span>Покинул оформление</span><strong>{format(item.abandonedAt)}</strong></div>
       <div className="row between"><span>Восстановлен</span><strong>{format(item.recoveredAt)}</strong></div>
       <div className="row between"><span>Причина остановки</span><strong>{item.stopReason || "-"}</strong></div>
-      <div style={{marginTop:20,display:"flex",gap:10,flexWrap:"wrap"}}>
+      <div style={{marginTop:20,display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-start"}}>
         <a className="btn dark" href={item.checkoutUrl} target="_blank" rel="noreferrer">Открыть корзину клиента</a>
         {item.customerEmail && <a className="btn" href={`mailto:${item.customerEmail}`}>Написать Email</a>}
         {item.customerPhone && <a className="btn" href={`tel:${item.customerPhone}`}>Позвонить</a>}
+        {item.status === "ACTIVE" && item.abandonedAt && <StopAbandonedRemindersButton checkoutId={item.id}/>} 
       </div>
     </div>
     <div className="panel" style={{marginTop:24}}>
