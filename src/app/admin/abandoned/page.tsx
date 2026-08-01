@@ -4,6 +4,7 @@ import { AbandonedTable } from "@/components/abandoned-table";
 import { requirePermission } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { recoveryDashboard } from "@/lib/abandoned-checkout";
+import { refreshAbandonedCheckoutStatuses } from "@/lib/abandoned-maintenance";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,8 @@ function stageLabel(stage: string) {
 }
 function statusInfo(status: string, abandonedAt: Date | null, action: string | null, stage: string) {
   if (status === "RECOVERED") return { label: "Восстановлено", tone: "recovered" as const };
+  if (status === "OPTED_OUT") return { label: "Клиент отказался", tone: "neutral" as const };
+  if (status === "STOPPED") return { label: "Напоминания остановлены", tone: "neutral" as const };
   if (action === "SENT") return { label: "Email отправлен", tone: "sent" as const };
   if (action === "FAILED") return { label: "Ошибка отправки", tone: "failed" as const };
   if (action === "SKIPPED") return { label: "Канал недоступен", tone: "neutral" as const };
@@ -25,6 +28,7 @@ function statusInfo(status: string, abandonedAt: Date | null, action: string | n
 
 export default async function AbandonedSalesPage() {
   const staff = await requirePermission("ANALYTICS_VIEW");
+  await refreshAbandonedCheckoutStatuses();
   const allowedEventIds = staff.eventAccess.map(item => item.eventId);
   const data = await recoveryDashboard(staff.organizationId!, allowedEventIds.length ? allowedEventIds : undefined);
   const active = number(data.totals.activeCount);
@@ -65,11 +69,11 @@ export default async function AbandonedSalesPage() {
     <div className="panel" style={{marginTop:24}}>
       <div className="row between"><div><span className="eyebrow">Автоматизация</span><h2 style={{marginBottom:4}}>Текущий сценарий</h2></div><span className="pill" style={{background:"#dcfae6",color:"#067647"}}>Активен</span></div>
       <div className="row" style={{flexWrap:"wrap",gap:10,marginTop:16}}>
-        <div className="stat"><span className="muted">30 минут без активности</span><strong style={{fontSize:18}}>Первый Email сразу</strong></div>
+        <div className="stat"><span className="muted">По настроенному таймеру без активности</span><strong style={{fontSize:18}}>Первый Email</strong></div>
         <span style={{fontSize:24}}>→</span>
-        <div className="stat"><span className="muted">Через 24 часа</span><strong style={{fontSize:18}}>Финальный Email</strong></div>
+        <div className="stat"><span className="muted">По второй задержке</span><strong style={{fontSize:18}}>Финальный Email</strong></div>
         <span style={{fontSize:24}}>→</span>
-        <div className="stat"><span className="muted">После оплаты</span><strong style={{fontSize:18}}>Сценарий закрывается</strong></div>
+        <div className="stat"><span className="muted">После оплаты или ручной остановки</span><strong style={{fontSize:18}}>Сценарий закрывается</strong></div>
       </div>
       <p className="muted" style={{marginBottom:0}}>Нажмите «Настроить сценарий», чтобы изменить задержки или временно отключить автоматические письма.</p>
     </div>
