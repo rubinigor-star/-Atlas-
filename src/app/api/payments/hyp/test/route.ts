@@ -1,83 +1,103 @@
 import { NextResponse } from "next/server";
-import { createHypPaymentLink } from "@/lib/hyp-yaadpay";
 
 export const dynamic = "force-dynamic";
 
-const CANONICAL_APP_URL = "https://www.atlas-one.co";
+const HYP_ENDPOINT = "https://pay.hyp.co.il/p/";
+const REQUEST_TIMEOUT_MS = 15_000;
 
-function envPresent(name: string) {
-  return Boolean(process.env[name]?.trim());
+type HypEnvName = "HYP_MASOF" | "HYP_API_KEY" | "HYP_PASSP";
+
+function required(name: HypEnvName) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is not configured`);
+  return value;
 }
 
-function redactPaymentUrl(rawUrl: string) {
-  const url = new URL(rawUrl);
-  for (const key of ["PassP", "signature", "KEY", "password", "APIKey", "apiKey"]) {
-    if (url.searchParams.has(key)) url.searchParams.set(key, "[REDACTED]");
-  }
-  return {
-    endpoint: `${url.origin}${url.pathname}`,
-    action: url.searchParams.get("action") || "",
-    masof: url.searchParams.get("Masof") || "",
-    amount: url.searchParams.get("Amount") || "",
-    currency: url.searchParams.get("Coin") || "",
-    order: url.searchParams.get("Order") || "",
-    successUrl: url.searchParams.get("SuccessUrl") || "",
-    errorUrl: url.searchParams.get("ErrorUrl") || "",
-    cancelUrl: url.searchParams.get("CancelUrl") || "",
-    pageLang: url.searchParams.get("PageLang") || "",
-    hasPassP: Boolean(url.searchParams.get("PassP")),
-    hasSignature: Boolean(url.searchParams.get("signature")),
-    safeUrl: url.toString(),
-  };
+function sanitizeBody(body: string) {
+  const secrets = [process.env.HYP_API_KEY, process.env.HYP_PASSP, process.env.HYP_MASOF]
+    .filter((value): value is string => Boolean(value));
+
+  return secrets.reduce((safe, secret) => safe.split(secret).join("[REDACTED]"), body).slice(0, 4_000);
 }
 
-export async function GET(request: Request) {
-  const requestUrl = new URL(request.url);
-  const orderId = `ATLAS-TEST-${Date.now()}`;
-
-  console.info("hyp_test_started", {
-    orderId,
-    requestHost: requestUrl.host,
-    integrationMode: process.env.HYP_INTEGRATION_MODE?.trim() || "legacy-default",
-    env: {
-      HYP_MASOF: envPresent("HYP_MASOF"),
-      HYP_API_KEY: envPresent("HYP_API_KEY"),
-      HYP_PASSP: envPresent("HYP_PASSP"),
-      NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL?.trim() || null,
-    },
-  });
+export async function GET() {
+  const startedAt = Date.now();
 
   try {
-    const returnUrl = `${CANONICAL_APP_URL}/payments/hyp/result?atlasOrder=${encodeURIComponent(orderId)}`;
-    const paymentUrl = await createHypPaymentLink({
-      amountIls: 1,
-      orderId,
-      description: "Atlas One payment integration test",
-      customerName: "Atlas Test Customer",
-      returnUrl,
-      language: "HEB",
+    const params = new URLSearchParams({
+      action: "APISign",
+      What: "SIGN",
+      KEY: required("HYP_API_KEY"),
+      PassP: required("HYP_PASSP"),
+      Masof: required("HYP_MASOF"),
     });
 
-    console.info("hyp_test_payment_url_created", redactPaymentUrl(paymentUrl));
-
-    const launchUrl = `${CANONICAL_APP_URL}/payments/hyp/launch?target=${encodeURIComponent(paymentUrl)}`;
-    console.info("hyp_test_redirecting", {
-      orderId,
-      launchOrigin: CANONICAL_APP_URL,
-      returnUrl,
+    console.info("hyp_apisign_probe_started", {
+      endpoint: HYP_ENDPOINT,
+      action: "APISign",
+      what: "SIGN",
+      hasApiKey: true,
+      hasPassP: true,
+      hasMasof: true,
     });
 
-    return NextResponse.redirect(launchUrl, 303);
+    const response = await fetch(`${HYP_ENDPOINT}?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        Accept: "text/plain,text/html,application/x-www-form-urlencoded,*/*",
+        "User-Agent": "Atlas-One-HYP-Probe/1.0",
+      },
+      redirect: "manual",
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+
+    const rawBody = await response.text();
+    const safeBody = sanitizeBody(rawBody);
+    const location = response.headers.get("location");
+
+    console.info("hyp_apisign_probe_completed", {
+      status: response.status,
+      contentType: response.headers.get("content-type"),
+      hasLocation: Boolean(location),
+      durationMs: Date.now() - startedAt,
+      bodyPreview: safeBody.slice(0, 500),
+    });
+
+    return NextResponse.json({
+      ok: response.ok || (response.status >= 300 && response.status < 400),
+      request: {
+        endpoint: HYP_ENDPOINT,
+        action: "APISign",
+        what: "SIGN",
+        credentialsPresent: {
+          apiKey: true,
+          passP: true,
+          masof: true,
+        },
+      },
+      response: {
+        status: response.status,
+        contentType: response.headers.get("content-type"),
+        location: location ? "[PRESENT]" : null,
+        body: safeBody,
+      },
+      durationMs: Date.now() - startedAt,
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to create Hyp payment page";
-    console.error("hyp_test_failed", {
-      orderId,
+    const message = error instanceof Error ? error.message : "Unknown HYP APISign error";
+    console.error("hyp_apisign_probe_failed", {
       message,
-      errorName: error instanceof Error ? error.name : "UnknownError",
+      durationMs: Date.now() - startedAt,
     });
 
-    const target = new URL("/payments/hyp/test", CANONICAL_APP_URL);
-    target.searchParams.set("error", message.slice(0, 500));
-    return NextResponse.redirect(target, 303);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: message,
+        durationMs: Date.now() - startedAt,
+      },
+      { status: 500 },
+    );
   }
 }
