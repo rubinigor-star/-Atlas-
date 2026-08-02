@@ -1,5 +1,5 @@
 import chromium from "@sparticuz/chromium";
-import puppeteer from "puppeteer-core";
+import puppeteer, { type Browser } from "puppeteer-core";
 import type { TicketDesign } from "@/lib/ticket-template";
 import { generateTicketHtml } from "@/lib/ticket-html";
 
@@ -18,17 +18,38 @@ export type TicketPdfInput = {
   design?: TicketDesign;
 };
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function launchBrowser(): Promise<Browser> {
+  const executablePath = await chromium.executablePath();
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await puppeteer.launch({
+        args: chromium.args,
+        defaultViewport: { width: 420, height: 680, deviceScaleFactor: 2 },
+        executablePath,
+        headless: true,
+      });
+    } catch (error) {
+      lastError = error;
+      const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+      if (code !== "ETXTBSY" || attempt === 3) throw error;
+      console.warn("[ticket-pdf] Chromium executable busy, retrying", { attempt });
+      await sleep(attempt * 250);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Не удалось запустить Chromium");
+}
+
 export async function generateTicketPdf(tickets: TicketPdfInput[]) {
   if (!tickets.length) throw new Error("Для генерации PDF не переданы билеты");
 
   const html = await generateTicketHtml(tickets);
   chromium.setGraphicsMode = false;
-  const browser = await puppeteer.launch({
-    args: chromium.args,
-    defaultViewport: { width: 420, height: 680, deviceScaleFactor: 2 },
-    executablePath: await chromium.executablePath(),
-    headless: true,
-  });
+  const browser = await launchBrowser();
 
   try {
     const page = await browser.newPage();
