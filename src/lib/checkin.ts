@@ -1,8 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { canAccessEvent, getCurrentStaff } from "@/lib/auth";
+import { canAccessEvent, type CurrentStaff } from "@/lib/auth";
 
-type Staff = NonNullable<Awaited<ReturnType<typeof getCurrentStaff>>>;
 type Executor = Prisma.TransactionClient;
 
 export type CheckinStatus = "VALID" | "USED" | "CANCELLED" | "NOT_FOUND" | "WRONG_EVENT" | "TOO_EARLY";
@@ -39,13 +38,13 @@ export async function checkInTicket({
   selectedEventId,
 }: {
   code: string;
-  staff: Staff;
+  staff: CurrentStaff;
   selectedEventId?: string | null;
 }): Promise<CheckinResult> {
   const publicCode = normalizeTicketCode(code);
   if (!publicCode) return { status: "NOT_FOUND", message: "Код билета пуст" };
 
-  return db.$transaction(async (tx: Executor) => {
+  return db.$transaction<CheckinResult>(async (tx: Executor) => {
     const ticket = await tx.ticket.findUnique({
       where: { publicCode },
       include: {
