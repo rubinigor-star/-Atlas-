@@ -11,11 +11,30 @@ export const dynamic = "force-dynamic";
 export default async function TicketDesignPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   await requireEventAccess("TICKET_MANAGE", id);
-  const event = await db.event.findUnique({ where: { id }, include: { venue: true, ticketTemplate: true, categories: { select: { name: true } } } });
+  const event = await db.event.findUnique({
+    where: { id },
+    include: {
+      venue: true,
+      ticketTemplate: true,
+      categories: { select: { name: true } },
+    },
+  });
   if (!event) notFound();
+
   const design = parseTicketDesign(event.ticketTemplate);
-  return <AdminShell>
-    <TicketPresetPicker eventId={event.id} selectedName={design.name} />
-    <TicketDesigner event={{ id: event.id, title: event.title, startsAt: event.startsAt.toISOString(), venue: event.venue.name, address: event.venue.address, ticketType: event.categories[0]?.name ?? "General Admission" }} initialDesign={design} />
-  </AdminShell>;
+  const eventData = {
+    id: event.id,
+    title: event.title,
+    startsAt: event.startsAt.toISOString(),
+    venue: event.venue.name,
+    address: event.venue.address,
+    ticketType: event.categories[0]?.name ?? "General Admission",
+  };
+
+  return (
+    <AdminShell>
+      <TicketPresetPicker event={eventData} initialDesign={design} />
+      <TicketDesigner event={eventData} initialDesign={design} />
+    </AdminShell>
+  );
 }
