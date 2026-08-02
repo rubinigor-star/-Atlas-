@@ -2,7 +2,8 @@ import QRCode from "qrcode";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { TicketDesign, TicketElement } from "@/lib/ticket-template";
-import { defaultTicketDesign, resolveTicketText } from "@/lib/ticket-template";
+import { defaultTicketDesign } from "@/lib/ticket-template";
+import { getTicketLocale, localizedStatus, resolveLocalizedTicketText } from "@/lib/ticket-language";
 
 export type HtmlTicketInput = {
   eventTitle: string;
@@ -21,7 +22,7 @@ export type HtmlTicketInput = {
 
 const WIDTH = 420;
 const HEIGHT = 680;
-let assetsPromise: Promise<{ latin: string; hebrew: string; logo: string }> | null = null;
+let assetsPromise: Promise<{ latin: string; hebrew: string }> | null = null;
 
 function esc(value: unknown) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] || char);
@@ -39,14 +40,13 @@ async function loadAssets() {
     assetsPromise = Promise.all([
       readFile(path.join(process.cwd(), "node_modules", "@fontsource", "noto-sans", "files", "noto-sans-cyrillic-400-normal.woff")),
       readFile(path.join(process.cwd(), "node_modules", "@fontsource", "noto-sans-hebrew", "files", "noto-sans-hebrew-hebrew-400-normal.woff")),
-      readFile(path.join(process.cwd(), "public", "branding", "atlas-one-logo.jpg")),
-    ]).then(([latin, hebrew, logo]) => ({
-      latin: latin.toString("base64"),
-      hebrew: hebrew.toString("base64"),
-      logo: logo.toString("base64"),
-    }));
+    ]).then(([latin, hebrew]) => ({ latin: latin.toString("base64"), hebrew: hebrew.toString("base64") }));
   }
   return assetsPromise;
+}
+
+function atlasWordmark(accentColor: string) {
+  return `<div class="atlas-brand" aria-label="Atlas One"><span class="atlas-mark"><span class="atlas-a">A</span><span class="atlas-dot" style="background:${esc(accentColor)}"></span></span><span class="atlas-word">ATLAS <b style="color:${esc(accentColor)}">ONE</b></span></div>`;
 }
 
 function elementStyle(element: TicketElement) {
@@ -59,7 +59,7 @@ function elementStyle(element: TicketElement) {
 
 function isHebrew(value: string) { return /[\u0590-\u05FF]/.test(value); }
 
-async function renderElement(element: TicketElement, ticket: HtmlTicketInput, qrDataUrl: string) {
+async function renderElement(element: TicketElement, ticket: HtmlTicketInput, qrDataUrl: string, locale: ReturnType<typeof getTicketLocale>) {
   if (element.hidden) return "";
   const data = {
     eventTitle: ticket.eventTitle,
@@ -74,25 +74,27 @@ async function renderElement(element: TicketElement, ticket: HtmlTicketInput, qr
   const style = elementStyle(element);
   if (element.binding === "QR") return `<div class="ticket-element qr" style="${style}"><img src="${qrDataUrl}" alt="QR"></div>`;
   if (element.binding === "IMAGE") return `<div class="ticket-element image" style="${style}"><img src="${esc(safeUrl(element.content))}" alt=""></div>`;
-  const value = resolveTicketText(element, data);
+  const value = resolveLocalizedTicketText(element, data, locale);
   const direction = isHebrew(value) ? "rtl" : "ltr";
-  return `<div class="ticket-element text" dir="${direction}" style="${style}"><span>${esc(value)}</span></div>`;
+  const fitClass = element.binding === "EVENT_TITLE" ? " event-title" : "";
+  return `<div class="ticket-element text${fitClass}" dir="${direction}" style="${style}"><span>${esc(value)}</span></div>`;
 }
 
 async function renderTicket(ticket: HtmlTicketInput, index: number) {
   const design = ticket.design || defaultTicketDesign();
+  const locale = getTicketLocale(design);
   const qrDataUrl = await QRCode.toDataURL(ticket.ticketCode, { width: 900, margin: 2, errorCorrectionLevel: "Q" });
-  const elements = await Promise.all(design.elements.map((element) => renderElement(element, ticket, qrDataUrl)));
+  const elements = await Promise.all(design.elements.map((element) => renderElement(element, ticket, qrDataUrl, locale)));
   const background = safeUrl(design.backgroundUrl || undefined);
   const customLogo = safeUrl(design.logoUrl || undefined);
   const status = ticket.ticketStatus || "VALID";
-  return `<section class="ticket-page${index ? " page-break" : ""}" style="--ticket-bg:${design.backgroundColor};--ticket-accent:${design.accentColor};${background ? `--ticket-image:url('${esc(background)}')` : ""}">
+  return `<section class="ticket-page${index ? " page-break" : ""}" dir="${locale === "he" ? "rtl" : "ltr"}" lang="${locale}" style="--ticket-bg:${design.backgroundColor};--ticket-accent:${design.accentColor};${background ? `--ticket-image:url('${esc(background)}')` : ""}">
     <div class="ticket-card">
       <div class="accent"></div>
       ${background ? `<div class="background"></div>` : ""}
-      <img class="atlas-logo" src="${customLogo ? esc(customLogo) : "data:image/jpeg;base64,__ATLAS_LOGO__"}" alt="Atlas One">
+      ${customLogo ? `<img class="custom-logo" src="${esc(customLogo)}" alt="Atlas One">` : atlasWordmark(design.accentColor)}
       ${elements.join("")}
-      <div class="ticket-status status-${status.toLowerCase()}">${esc(status)}</div>
+      <div class="ticket-status status-${status.toLowerCase()}">${esc(localizedStatus(status, locale))}</div>
       <div class="ticket-footer">Powered by Atlas One · atlas-one.co</div>
     </div>
   </section>`;
@@ -112,7 +114,12 @@ export async function generateTicketHtml(tickets: HtmlTicketInput[]) {
     .ticket-card{position:relative;width:${WIDTH}px;height:${HEIGHT}px;overflow:hidden;background:var(--ticket-bg);isolation:isolate}
     .accent{position:absolute;z-index:8;left:0;right:0;top:0;height:6px;background:var(--ticket-accent)}
     .background{position:absolute;z-index:0;inset:0;background-image:linear-gradient(rgba(8,20,38,.30),rgba(8,20,38,.42)),var(--ticket-image);background-size:cover;background-position:center;opacity:.38}
-    .atlas-logo{position:absolute;z-index:6;left:28px;top:25px;width:145px;height:54px;object-fit:contain;object-position:left top}
+    .atlas-brand{position:absolute;z-index:7;left:27px;top:22px;display:flex;align-items:center;gap:9px;height:43px;color:inherit;direction:ltr}
+    .atlas-mark{position:relative;width:40px;height:40px;border-radius:12px;background:#081426;display:grid;place-items:center;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
+    .atlas-a{font-size:24px;line-height:1;font-weight:900;color:#fff;letter-spacing:-.08em;transform:translateX(-1px)}
+    .atlas-dot{position:absolute;right:4px;top:4px;width:8px;height:8px;border-radius:50%}
+    .atlas-word{font-size:17px;font-weight:900;letter-spacing:-.04em;white-space:nowrap;color:inherit}
+    .custom-logo{position:absolute;z-index:7;left:27px;top:22px;width:150px;height:44px;object-fit:contain;object-position:left center}
     .ticket-element{position:absolute;z-index:5;overflow:hidden;line-height:1.15;display:flex;align-items:center;padding:1px 2px}
     .ticket-element.text span{display:block;width:100%;overflow-wrap:anywhere;white-space:normal}
     .ticket-element[dir=rtl]{font-family:AtlasHebrew,AtlasSans,Arial,sans-serif}
@@ -120,8 +127,11 @@ export async function generateTicketHtml(tickets: HtmlTicketInput[]) {
     .ticket-element.qr img{width:100%;height:100%;object-fit:contain;image-rendering:auto}
     .ticket-element.image img{width:100%;height:100%;object-fit:cover}
     .ticket-status{position:absolute;z-index:7;right:24px;top:24px;font-size:9px;font-weight:800;letter-spacing:.8px;padding:5px 9px;border-radius:999px;background:#e8f7ef;color:#167647;border:1px solid #9bd8b5}
+    .ticket-page[dir=rtl] .ticket-status{right:auto;left:24px}.ticket-page[dir=rtl] .atlas-brand,.ticket-page[dir=rtl] .custom-logo{left:auto;right:27px}
     .status-used{background:#fff6e6;color:#a35c00;border-color:#f1c982}.status-cancelled,.status-refunded{background:#fff0f0;color:#b42318;border-color:#f3b1ac}
-    .ticket-footer{position:absolute;z-index:7;left:0;right:0;bottom:9px;text-align:center;font-size:8px;color:#667085;letter-spacing:.1px}
+    .ticket-footer{position:absolute;z-index:7;left:0;right:0;bottom:9px;text-align:center;font-size:8px;color:#667085;letter-spacing:.1px;direction:ltr}
     @page{size:${WIDTH}px ${HEIGHT}px;margin:0}
-  </style></head><body>${pages.join("")}</body></html>`.replaceAll("__ATLAS_LOGO__", assets.logo);
+  </style></head><body>${pages.join("")}<script>
+    (()=>{for(const box of document.querySelectorAll('.event-title')){const span=box.querySelector('span');if(!span)continue;let size=parseFloat(getComputedStyle(box).fontSize)||28;const min=12;while(size>min&&(span.scrollHeight>box.clientHeight||span.scrollWidth>box.clientWidth)){size-=1;box.style.fontSize=size+'px';}}})();
+  </script></body></html>`;
 }
