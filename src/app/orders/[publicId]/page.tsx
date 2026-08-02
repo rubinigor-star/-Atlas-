@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, Clock3, WalletCards, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
-import { money, eventDate } from "@/lib/format";
 import { TicketCard } from "@/components/ticket-card";
 import { DemoPaymentButton } from "@/components/demo-payment-button";
 import { ResendTicketButton } from "@/components/resend-ticket-button";
@@ -34,6 +33,7 @@ export default async function OrderPage({
   const pending = order.status === "PENDING_APPROVAL";
   const rejected = order.status === "REJECTED";
   const awaitingPayment = order.status === "AWAITING_PAYMENT";
+  const paid = order.status === "PAID";
   const design = parseTicketDesign(order.event.ticketTemplate);
   const walletReady = Boolean(
     process.env.APPLE_WALLET_PASS_TYPE_ID &&
@@ -57,23 +57,22 @@ export default async function OrderPage({
               ? "Заявка отклонена"
               : awaitingPayment
                 ? "Заявка одобрена"
-                : "Заказ оформлен"}
+                : "Спасибо! Заказ оформлен"}
         </h1>
         <p className="muted">
           {pending && "Организатор проверит данные. До одобрения оплата и выпуск билета недоступны."}
           {rejected && (order.reviewNote || "Организатор не подтвердил участие в мероприятии.")}
-          {awaitingPayment && "Организатор подтвердил участие. Теперь можно завершить тестовую оплату и получить билет."}
-          {order.status === "PAID" && "Оплата подтверждена. Билеты доступны ниже и отправлены на email."}
+          {awaitingPayment && "Организатор подтвердил участие. Теперь можно завершить оплату и получить билет."}
+          {paid && "Оплата подтверждена. Билеты отправлены на email и доступны ниже."}
         </p>
 
-        <div className="panel">
-          <div className="row between"><span>Номер</span><strong>{order.publicId}</strong></div>
-          <div className="row between"><span>Событие</span><strong>{order.event.title}</strong></div>
-          <div className="row between"><span>Дата</span><strong>{eventDate(order.event.startsAt)}</strong></div>
-          <div className="row between"><span>Статус</span><strong>{order.status}</strong></div>
-          <div className="row between"><span>Сумма</span><strong>{money(order.totalMinor)}</strong></div>
-          <div className="row between"><span>Email</span><strong>{order.customerEmail}</strong></div>
-        </div>
+        {!paid && (
+          <div className="panel">
+            <div className="row between"><span>Номер заказа</span><strong>{order.publicId}</strong></div>
+            <div className="row between"><span>Событие</span><strong>{order.event.title}</strong></div>
+            <div className="row between"><span>Статус</span><strong>{order.status}</strong></div>
+          </div>
+        )}
 
         {awaitingPayment && (
           <div style={{ marginTop: 20 }}>
@@ -82,7 +81,7 @@ export default async function OrderPage({
           </div>
         )}
 
-        {order.status === "PAID" && walletReady && (
+        {paid && walletReady && (
           <section
             aria-label="Apple Wallet"
             style={{
@@ -103,14 +102,14 @@ export default async function OrderPage({
                 <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".12em", color: "#d1d5db", textTransform: "uppercase" }}>Быстрый вход</div>
                 <h2 style={{ margin: "5px 0 7px", color: "white", fontSize: 22 }}>Добавьте билеты в Apple Wallet</h2>
                 <p style={{ margin: 0, color: "#d1d5db", lineHeight: 1.55, fontSize: 14 }}>
-                  У каждого билета ниже есть отдельная кнопка. Сохраните каждый билет на нужный iPhone, чтобы QR-код был доступен без поиска письма или PDF.
+                  Сохраните билет на iPhone, чтобы QR-код всегда был под рукой.
                 </p>
               </div>
             </div>
           </section>
         )}
 
-        {order.status === "PAID" && <ResendTicketButton publicId={order.publicId} />}
+        {paid && <ResendTicketButton publicId={order.publicId} />}
 
         {order.tickets.map((ticket, index) => (
           <TicketCard key={ticket.id} ticket={ticket} qr={qrs[index]} design={design} event={order.event} orderNumber={order.publicId} walletReady={walletReady} />
