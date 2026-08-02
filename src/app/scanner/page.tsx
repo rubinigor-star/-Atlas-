@@ -13,14 +13,16 @@ export default async function Scanner() {
     ...(allowedEvents.length ? { id: { in: allowedEvents } } : {}),
   };
 
-  const [events, entered, scans] = await Promise.all([
+  const [events, scans] = await Promise.all([
     db.event.findMany({
       where: eventFilter,
       orderBy: { startsAt: "asc" },
-      select: { id: true, title: true, startsAt: true },
-    }),
-    db.ticket.count({
-      where: { status: "USED", order: { status: "PAID", event: eventFilter } },
+      select: {
+        id: true,
+        title: true,
+        startsAt: true,
+        categories: { select: { capacity: true } },
+      },
     }),
     db.scan.findMany({
       where: { ticket: { order: { event: eventFilter } } },
@@ -30,21 +32,35 @@ export default async function Scanner() {
     }),
   ]);
 
+  const eventOptions = await Promise.all(events.map(async (event) => {
+    const [sold, entered] = await Promise.all([
+      db.ticket.count({ where: { order: { eventId: event.id, status: "PAID" } } }),
+      db.ticket.count({ where: { status: "USED", order: { eventId: event.id, status: "PAID" } } }),
+    ]);
+    return {
+      id: event.id,
+      title: event.title,
+      startsAt: event.startsAt.toISOString(),
+      capacity: event.categories.reduce((sum, category) => sum + category.capacity, 0),
+      sold,
+      entered,
+    };
+  }));
+
+  const totalEntered = eventOptions.reduce((sum, event) => sum + event.entered, 0);
+
   return <AdminShell>
     <div className="office-page-heading">
       <div>
         <span className="eyebrow">Door control</span>
         <h1>Сканер билетов</h1>
-        <p>Непрерывная камера, ручной ввод, звуковая индикация и журнал входов.</p>
+        <p>Мобильный контроль входа, статистика мероприятия и быстрый поиск гостя.</p>
       </div>
-      <span className="office-live"><i/>Вошли: {entered}</span>
+      <span className="office-live"><i/>Вошли: {totalEntered}</span>
     </div>
 
     <div className="office-scanner">
-      <ScannerClient
-        initialEntered={entered}
-        events={events.map((event) => ({ id: event.id, title: event.title, startsAt: event.startsAt.toISOString() }))}
-      />
+      <ScannerClient initialEntered={totalEntered} events={eventOptions}/>
 
       <div className="table-wrap">
         <table>
