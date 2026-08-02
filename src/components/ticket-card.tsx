@@ -39,7 +39,7 @@ function elementClass(item: TicketElement) {
 }
 
 function responsiveFontSize(item: TicketElement) {
-  const minimum = item.binding === "EVENT_TITLE" ? Math.min(20, item.fontSize) : Math.min(10, item.fontSize);
+  const minimum = Math.min(item.binding === "EVENT_TITLE" ? 18 : 10, item.fontSize);
   return `clamp(${minimum}px, ${(item.fontSize / 360) * 100}vw, ${item.fontSize}px)`;
 }
 
@@ -101,19 +101,33 @@ export function TicketCard({
           .filter((item) => !item.hidden)
           .map((item) => {
             const isEventTitle = item.binding === "EVENT_TITLE";
+            const titleStyle = isEventTitle
+              ? {
+                  left: "8%",
+                  top: "27%",
+                  width: "84%",
+                  height: "16%",
+                  fontSize: "clamp(20px, 6.3vw, 30px)",
+                  textAlign: locale === "he" ? ("right" as const) : ("left" as const),
+                  fontWeight: 800,
+                }
+              : {
+                  left: `${item.x}%`,
+                  top: `${item.y}%`,
+                  width: `${item.width}%`,
+                  height: `${item.height}%`,
+                  fontSize: responsiveFontSize(item),
+                  textAlign: item.align,
+                  fontWeight: item.bold ? 800 : 400,
+                };
+
             return (
               <div
                 key={item.id}
                 className={elementClass(item)}
                 style={{
-                  left: `${item.x}%`,
-                  top: `${item.y}%`,
-                  width: `${item.width}%`,
-                  height: isEventTitle ? `max(${item.height}%, 18%)` : `${item.height}%`,
-                  fontSize: responsiveFontSize(item),
+                  ...titleStyle,
                   color: item.color,
-                  textAlign: item.align,
-                  fontWeight: item.bold ? 800 : 400,
                 }}
               >
                 {item.binding === "QR" ? (
