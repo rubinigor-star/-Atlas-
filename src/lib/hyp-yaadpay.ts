@@ -21,6 +21,20 @@ function assertHttps(value: string, label: string) {
   if (!/^https:\/\//i.test(value)) throw new Error(`${label} must use HTTPS`);
 }
 
+function deploymentOrigin() {
+  if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return (process.env.NEXT_PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, "");
+}
+
+function normalizeCallbackUrl(value: string) {
+  assertHttps(value, "HYP return URL");
+  const url = new URL(value);
+  const origin = deploymentOrigin();
+  return `${origin}${url.pathname}${url.search}`;
+}
+
 function parseHypBody(body: string) {
   return new URLSearchParams(body.trim().replace(/^\?/, ""));
 }
@@ -97,8 +111,8 @@ export type HypPaymentLinkInput = {
 
 export async function createHypPaymentLink(input: HypPaymentLinkInput) {
   if (!Number.isFinite(input.amountIls) || input.amountIls <= 0) throw new Error("Некорректная сумма оплаты");
-  assertHttps(input.returnUrl, "HYP return URL");
 
+  const callbackUrl = normalizeCallbackUrl(input.returnUrl);
   const orderId = safeText(input.orderId, 64);
   if (!orderId) throw new Error("HYP order ID is required");
 
@@ -130,9 +144,10 @@ export async function createHypPaymentLink(input: HypPaymentLinkInput) {
     Postpone: "False",
     J5: "False",
     tmp: optional("HYP_TEMPLATE") || "1",
-    SuccessUrl: input.returnUrl,
-    ErrorUrl: input.returnUrl,
-    CancelUrl: input.returnUrl,
+    ReturnUrl: callbackUrl,
+    SuccessUrl: callbackUrl,
+    ErrorUrl: callbackUrl,
+    CancelUrl: callbackUrl,
   });
 
   const signed = await callApiSign("SIGN", paymentParams);
@@ -146,6 +161,7 @@ export async function createHypPaymentLink(input: HypPaymentLinkInput) {
     orderId,
     amount: input.amountIls.toFixed(2),
     masof: signed.get("Masof") || required("HYP_MASOF"),
+    callbackUrl,
   });
 
   return paymentUrl;
