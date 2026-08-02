@@ -10,15 +10,22 @@ export function walletConfigured(){return Boolean(process.env.APPLE_WALLET_PASS_
 function hexRgb(hex:string){const clean=hex.replace("#","");return [0,2,4].map(index=>Number.parseInt(clean.slice(index,index+2),16)) as [number,number,number]}
 function rgbColor(hex:string){const [r,g,b]=hexRgb(hex);return `rgb(${r}, ${g}, ${b})`}
 
-async function officialWalletAssets(backgroundColor:string){
+async function officialWalletAssets(backgroundColor:string,accentColor:string){
   const dark=backgroundColor.toUpperCase()==="#081426";
   const svg=Buffer.from(atlasLogoSvg({dark,width:904,height:257}));
-  const logo=await sharp(svg).resize({width:320,height:90,fit:"contain"}).png().toBuffer();
+  const logo=await sharp(svg).resize({width:300,height:84,fit:"contain"}).png().toBuffer();
   const icon=await sharp({create:{width:174,height:174,channels:4,background:{r:0,g:0,b:0,alpha:0}}})
     .composite([{input:await sharp(svg).resize({width:154,height:44,fit:"contain"}).png().toBuffer(),gravity:"center"}])
     .png().toBuffer();
-  const strip=await sharp({create:{width:750,height:246,channels:4,background:backgroundColor}})
-    .composite([{input:await sharp(svg).resize({width:540,height:154,fit:"contain"}).png().toBuffer(),gravity:"center"}])
+  const [br,bg,bb]=hexRgb(backgroundColor);
+  const [ar,ag,ab]=hexRgb(accentColor);
+  const strip=await sharp({
+    create:{width:750,height:246,channels:4,background:{r:br,g:bg,b:bb,alpha:1}},
+  })
+    .composite([{
+      input:Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="750" height="246"><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="rgb(${br},${bg},${bb})"/><stop offset="1" stop-color="rgb(${ar},${ag},${ab})" stop-opacity=".55"/></linearGradient></defs><rect width="750" height="246" fill="url(#g)"/><circle cx="650" cy="40" r="170" fill="rgb(${ar},${ag},${ab})" fill-opacity=".16"/></svg>`),
+      gravity:"center",
+    }])
     .png().toBuffer();
   return {icon,logo,strip};
 }
@@ -34,8 +41,8 @@ export async function buildWalletPass(ticketId:string){
   const locale=getTicketLocale(design);
   const copy=ticketCopy[locale];
   const webServiceURL=process.env.APPLE_WALLET_WEB_SERVICE_URL||`${process.env.NEXT_PUBLIC_APP_URL}/api/wallet`;
-  const assets=await officialWalletAssets(design.backgroundColor);
-  const pass=new PKPass({"icon.png":assets.icon,"icon@2x.png":assets.icon,"logo.png":assets.logo,"logo@2x.png":assets.logo,"strip.png":assets.strip,"strip@2x.png":assets.strip},{wwdr:Buffer.from(process.env.APPLE_WALLET_WWDR_CERT_BASE64!,"base64"),signerCert:Buffer.from(process.env.APPLE_WALLET_SIGNER_CERT_BASE64!,"base64"),signerKey:Buffer.from(process.env.APPLE_WALLET_SIGNER_KEY_BASE64!,"base64"),signerKeyPassphrase:process.env.APPLE_WALLET_SIGNER_KEY_PASSPHRASE},{formatVersion:1,serialNumber:identity.walletSerial!,description:`${copy.ticket}: ${event.title}`,organizationName:"Atlas One",passTypeIdentifier:process.env.APPLE_WALLET_PASS_TYPE_ID!,teamIdentifier:process.env.APPLE_WALLET_TEAM_ID!,logoText:"ATLAS ONE",backgroundColor:rgbColor(design.backgroundColor),foregroundColor:rgbColor(design.textColor),labelColor:rgbColor(design.accentColor),webServiceURL,authenticationToken:identity.walletAuthToken!,voided:ticket.status==="CANCELLED",groupingIdentifier:ticket.order.publicId});
+  const assets=await officialWalletAssets(design.backgroundColor,design.accentColor);
+  const pass=new PKPass({"icon.png":assets.icon,"icon@2x.png":assets.icon,"logo.png":assets.logo,"logo@2x.png":assets.logo,"strip.png":assets.strip,"strip@2x.png":assets.strip},{wwdr:Buffer.from(process.env.APPLE_WALLET_WWDR_CERT_BASE64!,"base64"),signerCert:Buffer.from(process.env.APPLE_WALLET_SIGNER_CERT_BASE64!,"base64"),signerKey:Buffer.from(process.env.APPLE_WALLET_SIGNER_KEY_BASE64!,"base64"),signerKeyPassphrase:process.env.APPLE_WALLET_SIGNER_KEY_PASSPHRASE},{formatVersion:1,serialNumber:identity.walletSerial!,description:`${copy.ticket}: ${event.title}`,organizationName:"Atlas One",passTypeIdentifier:process.env.APPLE_WALLET_PASS_TYPE_ID!,teamIdentifier:process.env.APPLE_WALLET_TEAM_ID!,logoText:"Tickets",backgroundColor:rgbColor(design.backgroundColor),foregroundColor:rgbColor(design.textColor),labelColor:rgbColor(design.accentColor),webServiceURL,authenticationToken:identity.walletAuthToken!,voided:ticket.status==="CANCELLED",groupingIdentifier:ticket.order.publicId});
   pass.type="eventTicket";
   pass.primaryFields.push({key:"event",label:copy.event,value:event.title});
   pass.secondaryFields.push({key:"date",label:copy.date,value:event.startsAt.toISOString(),dateStyle:"PKDateStyleMedium",timeStyle:"PKDateStyleShort",changeMessage:locale==="he"?"תאריך האירוע השתנה: %@":locale==="en"?"Event date changed: %@":"Дата мероприятия изменена: %@"});
