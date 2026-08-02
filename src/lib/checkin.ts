@@ -1,8 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { canAccessEvent } from "@/lib/auth";
+import { canAccessEvent, getCurrentStaff } from "@/lib/auth";
 
-type Staff = NonNullable<Awaited<ReturnType<typeof import("@/lib/auth").getCurrentStaff>>>;
+type Staff = NonNullable<Awaited<ReturnType<typeof getCurrentStaff>>>;
 type Executor = Prisma.TransactionClient;
 
 export type CheckinStatus = "VALID" | "USED" | "CANCELLED" | "NOT_FOUND" | "WRONG_EVENT" | "TOO_EARLY";
