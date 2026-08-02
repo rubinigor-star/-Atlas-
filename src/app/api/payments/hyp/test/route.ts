@@ -3,13 +3,13 @@ import { createHypPaymentLink } from "@/lib/hyp-yaadpay";
 
 export const dynamic = "force-dynamic";
 
-const CANONICAL_APP_URL = "https://www.atlas-one.co";
-
-export async function GET() {
+export async function GET(request: Request) {
   const orderId = `ATLAS-TEST-${Date.now()}`;
 
   try {
-    const returnUrl = `${CANONICAL_APP_URL}/payments/hyp/result?atlasOrder=${encodeURIComponent(orderId)}`;
+    const requestUrl = new URL(request.url);
+    const previewOrigin = requestUrl.origin;
+    const returnUrl = `${previewOrigin}/payments/hyp/result?atlasOrder=${encodeURIComponent(orderId)}`;
     const paymentUrl = await createHypPaymentLink({
       amountIls: 1,
       orderId,
@@ -26,6 +26,7 @@ export async function GET() {
       amountIls: 1,
       paymentHost: new URL(paymentUrl).host,
       returnUrl,
+      previewOrigin,
     });
 
     return NextResponse.redirect(paymentUrl, 303);
