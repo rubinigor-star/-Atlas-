@@ -4,8 +4,8 @@ import { parseTicketDesign } from "@/lib/ticket-template";
 import { formatTicketDate,formatTicketTime,getTicketLocale,ticketCopy } from "@/lib/ticket-language";
 
 function baseUrl() {
-  if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_BRANCH_URL) return `https://${process.env.VERCEL_BRANCH_URL}`.replace(/\/$/, "");
-  return (process.env.NEXT_PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, "");
+  // Customer-facing emails must never point to a protected Vercel deployment URL.
+  return (process.env.PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, "");
 }
 function escapeHtml(value: string) { return value.replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char] || char); }
 function resendFromAddress() { const configured=process.env.RESEND_FROM_EMAIL?.trim(); return configured&&!configured.startsWith("re_")&&configured.includes("@")?configured:"Atlas One <tickets@mail.atlas-one.co>"; }
