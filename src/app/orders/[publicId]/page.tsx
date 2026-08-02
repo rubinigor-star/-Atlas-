@@ -1,7 +1,7 @@
 import QRCode from "qrcode";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, Clock3, XCircle } from "lucide-react";
+import { CheckCircle2, Clock3, WalletCards, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
 import { money, eventDate } from "@/lib/format";
 import { TicketCard } from "@/components/ticket-card";
@@ -34,8 +34,14 @@ export default async function OrderPage({
   const pending = order.status === "PENDING_APPROVAL";
   const rejected = order.status === "REJECTED";
   const awaitingPayment = order.status === "AWAITING_PAYMENT";
-  const design=parseTicketDesign(order.event.ticketTemplate);
-  const walletReady=Boolean(process.env.APPLE_WALLET_PASS_TYPE_ID&&process.env.APPLE_WALLET_TEAM_ID&&process.env.APPLE_WALLET_SIGNER_CERT_BASE64&&process.env.APPLE_WALLET_SIGNER_KEY_BASE64&&process.env.APPLE_WALLET_WWDR_CERT_BASE64);
+  const design = parseTicketDesign(order.event.ticketTemplate);
+  const walletReady = Boolean(
+    process.env.APPLE_WALLET_PASS_TYPE_ID &&
+    process.env.APPLE_WALLET_TEAM_ID &&
+    process.env.APPLE_WALLET_SIGNER_CERT_BASE64 &&
+    process.env.APPLE_WALLET_SIGNER_KEY_BASE64 &&
+    process.env.APPLE_WALLET_WWDR_CERT_BASE64,
+  );
 
   return (
     <main className="shell">
@@ -57,7 +63,7 @@ export default async function OrderPage({
           {pending && "Организатор проверит данные. До одобрения оплата и выпуск билета недоступны."}
           {rejected && (order.reviewNote || "Организатор не подтвердил участие в мероприятии.")}
           {awaitingPayment && "Организатор подтвердил участие. Теперь можно завершить тестовую оплату и получить билет."}
-          {order.status === "PAID" && "Тестовая оплата подтверждена. Деньги не списывались. Билеты доступны ниже и отправляются на email."}
+          {order.status === "PAID" && "Оплата подтверждена. Билеты доступны ниже и отправлены на email."}
         </p>
 
         <div className="panel">
@@ -74,6 +80,34 @@ export default async function OrderPage({
             <DemoPaymentButton publicId={order.publicId} />
             {order.paymentDueAt && <p className="muted">Оплатить нужно до {order.paymentDueAt.toLocaleString("ru-RU")}</p>}
           </div>
+        )}
+
+        {order.status === "PAID" && walletReady && (
+          <section
+            aria-label="Apple Wallet"
+            style={{
+              marginTop: 22,
+              padding: "20px 22px",
+              borderRadius: 18,
+              background: "linear-gradient(135deg,#060606 0%,#1f2937 100%)",
+              color: "white",
+              textAlign: "left",
+              boxShadow: "0 14px 35px rgba(17,24,39,.18)",
+            }}
+          >
+            <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+              <span style={{ width: 44, height: 44, borderRadius: 13, background: "rgba(255,255,255,.12)", display: "grid", placeItems: "center", flex: "0 0 auto" }}>
+                <WalletCards size={24} />
+              </span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".12em", color: "#d1d5db", textTransform: "uppercase" }}>Быстрый вход</div>
+                <h2 style={{ margin: "5px 0 7px", color: "white", fontSize: 22 }}>Добавьте билеты в Apple Wallet</h2>
+                <p style={{ margin: 0, color: "#d1d5db", lineHeight: 1.55, fontSize: 14 }}>
+                  У каждого билета ниже есть отдельная кнопка. Сохраните каждый билет на нужный iPhone, чтобы QR-код был доступен без поиска письма или PDF.
+                </p>
+              </div>
+            </div>
+          </section>
         )}
 
         {order.status === "PAID" && <ResendTicketButton publicId={order.publicId} />}
