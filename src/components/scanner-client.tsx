@@ -1,9 +1,9 @@
 "use client";
 
 import { BrowserQRCodeReader } from "@zxing/browser";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-type EventOption = { id: string; title: string; startsAt: string };
+type EventOption = { id: string; title: string; startsAt: string; capacity: number; sold: number; entered: number };
 type Status = "VALID" | "USED" | "CANCELLED" | "NOT_FOUND" | "WRONG_EVENT" | "TOO_EARLY";
 type Result = {
   status: Status;
@@ -18,19 +18,30 @@ type Result = {
   warning?: string;
 };
 type RecentScan = Result & { code: string };
-
 type CameraDevice = { deviceId: string; label: string };
+type SearchResult = {
+  ticketId: string;
+  publicCode: string;
+  ticketStatus: string;
+  holderName: string;
+  categoryName: string;
+  orderPublicId: string;
+  phone: string;
+  email: string;
+  eventId: string;
+  eventTitle: string;
+};
 
 const REPEAT_BLOCK_MS = 2200;
 
 function resultLabel(status?: Status) {
-  if (status === "VALID") return "Действителен";
+  if (status === "VALID") return "Вход разрешён";
   if (status === "USED") return "Уже использован";
-  if (status === "CANCELLED") return "Отменён";
+  if (status === "CANCELLED") return "Билет отменён";
   if (status === "WRONG_EVENT") return "Другое мероприятие";
   if (status === "TOO_EARLY") return "Вход ещё закрыт";
-  if (status === "NOT_FOUND") return "Не найден";
-  return "Ожидание";
+  if (status === "NOT_FOUND") return "Билет не найден";
+  return "Готов к сканированию";
 }
 
 function tone(status: Status, soundEnabled: boolean) {
@@ -50,13 +61,7 @@ function tone(status: Status, soundEnabled: boolean) {
   oscillator.addEventListener("ended", () => void context.close());
 }
 
-export function ScannerClient({
-  initialEntered,
-  events,
-}: {
-  initialEntered: number;
-  events: EventOption[];
-}) {
+export function ScannerClient({ initialEntered, events }: { initialEntered: number; events: EventOption[] }) {
   const video = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
   const processingRef = useRef(false);
@@ -72,15 +77,25 @@ export function ScannerClient({
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [cameraDevices, setCameraDevices] = useState<CameraDevice[]>([]);
   const [cameraId, setCameraId] = useState("");
-  const [selectedEventId, setSelectedEventId] = useState(events.length === 1 ? events[0].id : "");
+  const [selectedEventId, setSelectedEventId] = useState(events[0]?.id || "");
   const [recent, setRecent] = useState<RecentScan[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchError, setSearchError] = useState("");
+
+  const selectedEvent = useMemo(() => events.find((event) => event.id === selectedEventId) || events[0], [events, selectedEventId]);
+  const eventEntered = selectedEvent ? (selectedEvent.id === result?.eventId ? entered : selectedEvent.entered) : entered;
+  const remaining = selectedEvent ? Math.max(0, selectedEvent.sold - eventEntered) : 0;
+  const fillPercent = selectedEvent?.sold ? Math.min(100, Math.round((eventEntered / selectedEvent.sold) * 100)) : 0;
 
   const refreshCameras = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const cameras = devices
-      .filter((device) => device.kind === "videoinput")
-      .map((device, index) => ({ deviceId: device.deviceId, label: device.label || `Камера ${index + 1}` }));
+    const cameras = devices.filter((device) => device.kind === "videoinput").map((device, index) => ({
+      deviceId: device.deviceId,
+      label: device.label || `Камера ${index + 1}`,
+    }));
     setCameraDevices(cameras);
     if (!cameraId && cameras.length) {
       const rear = cameras.find((item) => /back|rear|environment|зад/i.test(item.label));
@@ -119,13 +134,35 @@ export function ScannerClient({
       tone(data.status, soundEnabled);
       if (navigator.vibrate) navigator.vibrate(data.status === "VALID" ? 80 : [120, 60, 120]);
     } catch (error) {
-      if (!mountedRef.current) return;
-      setCameraError(error instanceof Error ? error.message : "Ошибка сети. Повторите проверку.");
+      if (mountedRef.current) setCameraError(error instanceof Error ? error.message : "Ошибка сети. Повторите проверку.");
     } finally {
       processingRef.current = false;
       if (mountedRef.current) setProcessing(false);
     }
   }, [selectedEventId, soundEnabled]);
+
+  const searchGuests = useCallback(async () => {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearchError("Введите минимум 2 символа");
+      return;
+    }
+    setSearching(true);
+    setSearchError("");
+    try {
+      const params = new URLSearchParams({ q: query });
+      if (selectedEventId) params.set("eventId", selectedEventId);
+      const response = await fetch(`/api/checkin/search?${params.toString()}`);
+      const data = await response.json() as { results?: SearchResult[]; message?: string };
+      if (!response.ok) throw new Error(data.message || "Ошибка поиска");
+      setSearchResults(data.results || []);
+    } catch (error) {
+      setSearchError(error instanceof Error ? error.message : "Ошибка поиска");
+    } finally {
+      setSearching(false);
+    }
+  }, [searchQuery, selectedEventId]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -146,7 +183,7 @@ export function ScannerClient({
     controlsRef.current?.stop();
     controlsRef.current = null;
 
-    (async () => {
+    void (async () => {
       try {
         if (!video.current) return;
         setCameraError("");
@@ -159,7 +196,7 @@ export function ScannerClient({
       } catch (error) {
         const name = error instanceof DOMException ? error.name : "";
         setCameraError(name === "NotAllowedError"
-          ? "Доступ к камере запрещён. Разрешите камеру в настройках браузера и нажмите «Повторить»."
+          ? "Доступ к камере запрещён. Разрешите камеру в настройках браузера и повторите."
           : "Камера недоступна. Проверьте разрешение или используйте ручной ввод.");
       }
     })();
@@ -171,86 +208,69 @@ export function ScannerClient({
     };
   }, [cameraId, refreshCameras, submitCode]);
 
-  const restartCamera = () => {
-    controlsRef.current?.stop();
-    setCameraId((value) => `${value}`);
-    void refreshCameras();
-    window.location.reload();
-  };
+  const dashboardCard = (label: string, value: number | string, hint?: string) => <div className="stat" style={{ color: "#0b1220", minWidth: 0 }}>
+    <span className="muted">{label}</span><strong>{value}</strong>{hint && <small className="muted">{hint}</small>}
+  </div>;
 
-  return <div className="scanner-grid">
-    <section>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-        <span className={`pill ${online ? "" : "danger"}`}>{online ? "Онлайн" : "Нет сети"}</span>
-        <button className="btn secondary" type="button" onClick={() => setSoundEnabled((value) => !value)}>
-          {soundEnabled ? "Звук включён" : "Звук выключен"}
-        </button>
-      </div>
-
-      {events.length > 1 && <label className="form" style={{ display: "block", marginBottom: 12 }}>
-        <strong>Мероприятие</strong>
-        <select className="input" value={selectedEventId} onChange={(event) => setSelectedEventId(event.target.value)}>
-          <option value="">Все доступные мероприятия</option>
-          {events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}
-        </select>
-      </label>}
-
-      {cameraDevices.length > 1 && <label className="form" style={{ display: "block", marginBottom: 12 }}>
-        <strong>Камера</strong>
-        <select className="input" value={cameraId} onChange={(event) => setCameraId(event.target.value)}>
-          {cameraDevices.map((camera) => <option key={camera.deviceId} value={camera.deviceId}>{camera.label}</option>)}
-        </select>
-      </label>}
-
-      <div style={{ position: "relative", borderRadius: 18, overflow: "hidden", background: "#020617", minHeight: 280 }}>
-        <video ref={video} muted playsInline style={{ width: "100%", minHeight: 280, objectFit: "cover", display: "block" }}/>
-        <div aria-hidden="true" style={{ position: "absolute", inset: "18% 12%", border: "3px solid rgba(255,255,255,.9)", borderRadius: 18, boxShadow: "0 0 0 999px rgba(2,6,23,.3)" }}/>
-        {processing && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "rgba(2,6,23,.45)", color: "white", fontWeight: 700 }}>Проверяем билет...</div>}
-      </div>
-
-      {cameraError && <div className="toast" style={{ marginTop: 10 }}>
-        <p>{cameraError}</p>
-        <button className="btn secondary" type="button" onClick={restartCamera}>Повторить</button>
-      </div>}
-
-      <div className="panel form" style={{ marginTop: 14, color: "#0b1220" }}>
-        <label><strong>Ручной ввод кода</strong></label>
-        <div className="row">
-          <input className="input" value={code} onChange={(event) => setCode(event.target.value)} onKeyDown={(event) => {
-            if (event.key === "Enter") void submitCode(code, "MANUAL");
-          }} placeholder="ATLAS_... или ссылка на билет" disabled={processing}/>
-          <button className="btn" disabled={processing || !code.trim()} onClick={() => void submitCode(code, "MANUAL")}>
-            {processing ? "Проверяем" : "Проверить"}
-          </button>
+  return <div style={{ display: "grid", gap: 18 }}>
+    <section className="panel" style={{ color: "#0b1220" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <div><small className="muted">Текущее мероприятие</small><h2 style={{ margin: "4px 0" }}>{selectedEvent?.title || "Нет доступных мероприятий"}</h2></div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <span className={`pill ${online ? "" : "danger"}`}>{online ? "Онлайн" : "Нет сети"}</span>
+          <button className="btn secondary" type="button" onClick={() => setSoundEnabled((value) => !value)}>{soundEnabled ? "Звук включён" : "Звук выключен"}</button>
         </div>
+      </div>
+      {events.length > 1 && <select className="input" style={{ marginTop: 12 }} value={selectedEventId} onChange={(event) => {
+        setSelectedEventId(event.target.value);
+        const next = events.find((item) => item.id === event.target.value);
+        setEntered(next?.entered || 0);
+        setResult(null);
+        setRecent([]);
+        setSearchResults([]);
+      }}>{events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}</select>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, marginTop: 14 }}>
+        {dashboardCard("Продано", selectedEvent?.sold || 0, selectedEvent?.capacity ? `Вместимость ${selectedEvent.capacity}` : undefined)}
+        {dashboardCard("Вошли", eventEntered)}
+        {dashboardCard("Осталось", remaining)}
+        {dashboardCard("Прошли вход", `${fillPercent}%`)}
       </div>
     </section>
 
-    <aside>
-      <div className="stat" style={{ color: "#0b1220", marginBottom: 16 }}>
-        <span className="muted">Гостей вошло</span><strong>{entered}</strong>
-      </div>
-      <div className={`result ${result?.status.toLowerCase() ?? ""}`}>
-        <small>Последняя проверка</small>
-        <h2>{resultLabel(result?.status)}</h2>
-        <p>{result?.message ?? "Наведите камеру на QR-код билета"}</p>
-        {result?.holderName && <p><strong>{result.holderName}</strong></p>}
-        {result?.categoryName && <p>Категория: {result.categoryName}</p>}
-        {result?.eventTitle && <p>Мероприятие: {result.eventTitle}</p>}
-        {result?.orderPublicId && <p>Заказ: {result.orderPublicId}</p>}
-        {result?.warning && <p className="toast">{result.warning}</p>}
-        {result && <small>{new Date(result.scannedAt).toLocaleString("ru-RU", { timeZone: "Asia/Jerusalem" })}</small>}
-      </div>
-
-      {recent.length > 0 && <div className="panel" style={{ marginTop: 16, color: "#0b1220" }}>
-        <strong>Текущая сессия</strong>
-        <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
-          {recent.map((item, index) => <div key={`${item.scannedAt}-${index}`} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-            <span>{item.holderName || item.code.slice(0, 12)}</span>
-            <span className="pill">{resultLabel(item.status)}</span>
-          </div>)}
+    <div className="scanner-grid">
+      <section>
+        {cameraDevices.length > 1 && <select className="input" style={{ marginBottom: 10 }} value={cameraId} onChange={(event) => setCameraId(event.target.value)}>{cameraDevices.map((camera) => <option key={camera.deviceId} value={camera.deviceId}>{camera.label}</option>)}</select>}
+        <div style={{ position: "relative", borderRadius: 18, overflow: "hidden", background: "#020617", minHeight: 300 }}>
+          <video ref={video} muted playsInline style={{ width: "100%", minHeight: 300, objectFit: "cover", display: "block" }}/>
+          <div aria-hidden="true" style={{ position: "absolute", inset: "18% 12%", border: "3px solid rgba(255,255,255,.9)", borderRadius: 18, boxShadow: "0 0 0 999px rgba(2,6,23,.3)" }}/>
+          {processing && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "rgba(2,6,23,.55)", color: "white", fontWeight: 800, fontSize: 20 }}>Проверяем билет...</div>}
         </div>
-      </div>}
-    </aside>
+        {cameraError && <div className="toast" style={{ marginTop: 10 }}><p>{cameraError}</p><button className="btn secondary" type="button" onClick={() => window.location.reload()}>Повторить</button></div>}
+        <div className="panel form" style={{ marginTop: 14, color: "#0b1220" }}>
+          <label><strong>Ручной ввод кода</strong></label>
+          <div className="row"><input className="input" value={code} onChange={(event) => setCode(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void submitCode(code, "MANUAL"); }} placeholder="ATLAS_... или ссылка" disabled={processing}/><button className="btn" disabled={processing || !code.trim()} onClick={() => void submitCode(code, "MANUAL")}>{processing ? "Проверяем" : "Проверить"}</button></div>
+        </div>
+      </section>
+
+      <aside>
+        <div className={`result ${result?.status.toLowerCase() ?? ""}`} style={{ minHeight: 260, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <small>Последняя проверка</small><h2 style={{ fontSize: "clamp(28px,6vw,48px)" }}>{resultLabel(result?.status)}</h2>
+          <p>{result?.message ?? "Наведите камеру на QR-код билета"}</p>
+          {result?.holderName && <p><strong style={{ fontSize: 22 }}>{result.holderName}</strong></p>}
+          {result?.categoryName && <p>Категория: {result.categoryName}</p>}
+          {result?.orderPublicId && <p>Заказ: {result.orderPublicId}</p>}
+          {result?.warning && <p className="toast">{result.warning}</p>}
+        </div>
+        {recent.length > 0 && <div className="panel" style={{ marginTop: 16, color: "#0b1220" }}><strong>Последние проверки</strong><div style={{ display: "grid", gap: 8, marginTop: 10 }}>{recent.map((item, index) => <div key={`${item.scannedAt}-${index}`} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span>{item.holderName || item.code.slice(0, 12)}</span><span className="pill">{resultLabel(item.status)}</span></div>)}</div></div>}
+      </aside>
+    </div>
+
+    <section className="panel" style={{ color: "#0b1220" }}>
+      <h2 style={{ marginTop: 0 }}>Поиск гостя</h2><p className="muted">Имя, телефон, email или номер заказа</p>
+      <div className="row"><input className="input" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void searchGuests(); }} placeholder="Начните вводить данные гостя"/><button className="btn" onClick={() => void searchGuests()} disabled={searching}>{searching ? "Ищем" : "Найти"}</button></div>
+      {searchError && <p className="toast">{searchError}</p>}
+      {searchResults.length > 0 && <div style={{ display: "grid", gap: 10, marginTop: 14 }}>{searchResults.map((item) => <div key={item.ticketId} style={{ border: "1px solid #dbe3ee", borderRadius: 14, padding: 14, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><div><strong>{item.holderName}</strong><div className="muted">{item.phone} · {item.categoryName}</div><small>{item.orderPublicId} · {item.ticketStatus}</small></div><button className="btn secondary" type="button" disabled={processing || item.ticketStatus !== "VALID"} onClick={() => void submitCode(item.publicCode, "MANUAL")}>{item.ticketStatus === "VALID" ? "Отметить вход" : "Недоступен"}</button></div>)}</div>}
+      {!searching && searchQuery.trim().length >= 2 && !searchError && searchResults.length === 0 && <p className="muted" style={{ marginTop: 12 }}>Совпадений не найдено</p>}
+    </section>
   </div>;
 }
