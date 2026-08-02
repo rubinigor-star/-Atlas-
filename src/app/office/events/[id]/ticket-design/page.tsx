@@ -36,17 +36,9 @@ export default async function TicketDesignPage({ params }: { params: Promise<{ i
     <AdminShell>
       <TicketPresetPicker event={eventData} initialDesign={design} />
       <div className="panel" style={{ marginBottom: 22, padding: "14px 18px", borderLeft: `4px solid ${design.accentColor}` }}>
-        <strong>Важно:</strong> блок выше является предпросмотром форматов. Реальные PDF и Apple Wallet открываются только из оплаченного заказа. После сохранения проверьте конкретный заказ ниже в разделе «Заказы».
+        <strong>Важно:</strong> блок выше является живым предпросмотром. Реальные PDF и Apple Wallet открываются из оплаченного заказа после сохранения выбранного языка и шаблона.
       </div>
       <TicketDesigner key={designVersion} event={eventData} initialDesign={design} />
-      <style>{`
-        .ticket-design-system-grid .btn {
-          pointer-events: none !important;
-          cursor: default !important;
-          opacity: .72;
-          box-shadow: none !important;
-        }
-      `}</style>
     </AdminShell>
   );
 }
