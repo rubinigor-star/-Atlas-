@@ -10,7 +10,9 @@ import { ensureAbandonedCheckoutRuntime } from "@/lib/abandoned-checkout";
 export const dynamic = "force-dynamic";
 
 function orderRedirect(requestUrl: URL, publicId: string, state: string) {
-  const base = (process.env.NEXT_PUBLIC_APP_URL || requestUrl.origin).replace(/\/$/, "");
+  const base = process.env.VERCEL_ENV === "production"
+    ? "https://www.atlas-one.co"
+    : requestUrl.origin;
   return NextResponse.redirect(`${base}/orders/${encodeURIComponent(publicId)}?payment=${encodeURIComponent(state)}`);
 }
 
@@ -37,14 +39,29 @@ export async function GET(request: Request) {
 
   const signatureValid = await verifyHypCallback(url).catch(() => false);
   const returnedMinor = Math.round(Number(result.amount || "0") * 100);
-  if (!signatureValid || !result.success || returnedMinor !== order.totalMinor) {
+  const providerReference = result.transactionId.trim();
+  if (!signatureValid || !result.success || returnedMinor !== order.totalMinor || !providerReference) {
+    console.error("hyp.order.rejected", {
+      publicId,
+      signatureValid,
+      success: result.success,
+      returnedMinor,
+      expectedMinor: order.totalMinor,
+      hasProviderReference: Boolean(providerReference),
+      code: result.code,
+    });
     if (!result.success) {
       await db.$transaction(async (tx) => {
         await releaseReservation(order.id, tx);
         await tx.order.updateMany({ where: { id: order.id, status: "PENDING" }, data: { status: "CANCELLED" } });
       });
     }
-    return orderRedirect(url, publicId, signatureValid ? "failed" : "invalid-signature");
+    const state = !signatureValid
+      ? "invalid-signature"
+      : !providerReference
+        ? "missing-transaction"
+        : "failed";
+    return orderRedirect(url, publicId, state);
   }
 
   await db.$transaction(async (tx) => {
@@ -65,7 +82,6 @@ export async function GET(request: Request) {
     await commitReservation(current.id, tx);
 
     const authorizationId = `auth_${randomUUID().replace(/-/g, "")}`;
-    const providerReference = result.transactionId || `hyp_${randomUUID().replace(/-/g, "")}`;
     const last4 = result.cardMask.replace(/\D/g, "").slice(-4) || null;
     await tx.$executeRaw`
       INSERT INTO PaymentAuthorization (
@@ -80,6 +96,11 @@ export async function GET(request: Request) {
     await issueTicketsForOrder(current.id, tx);
   });
 
+  console.info("hyp.order.finalized", {
+    publicId,
+    providerReference,
+    amountMinor: order.totalMinor,
+  });
   try { await attributeRecoveredCheckout(order); } catch (error) { console.error("[abandon-recovery-attribution]", publicId, error); }
   try { await sendOrderTicketEmail(publicId); } catch (error) { console.error("[hyp-ticket-email]", publicId, error); }
   return orderRedirect(url, publicId, "success");
