@@ -30,6 +30,7 @@ export default async function TicketDesignPage({ params }: { params: Promise<{ i
     address: event.venue.address,
     ticketType: event.categories[0]?.name ?? "General Admission",
   };
+  const designVersion = event.ticketTemplate?.updatedAt.toISOString() ?? "default-ticket-design";
 
   return (
     <AdminShell>
@@ -37,7 +38,7 @@ export default async function TicketDesignPage({ params }: { params: Promise<{ i
       <div className="panel" style={{ marginBottom: 22, padding: "14px 18px", borderLeft: `4px solid ${design.accentColor}` }}>
         <strong>Важно:</strong> блок выше является предпросмотром форматов. Реальные PDF и Apple Wallet открываются только из оплаченного заказа. После сохранения проверьте конкретный заказ ниже в разделе «Заказы».
       </div>
-      <TicketDesigner event={eventData} initialDesign={design} />
+      <TicketDesigner key={designVersion} event={eventData} initialDesign={design} />
       <style>{`
         .ticket-design-system-grid .btn {
           pointer-events: none !important;
