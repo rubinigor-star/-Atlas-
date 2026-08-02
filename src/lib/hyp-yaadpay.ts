@@ -198,13 +198,11 @@ export async function verifyHypCallback(url: URL) {
   try {
     const verified = await callApiSign("VERIFY", new URLSearchParams(url.searchParams));
     const verifiedCode = verified.get("CCode") || verified.get("code") || "";
-    const verifiedOrder = verified.get("Order") || verified.get("order") || "";
-    const ok = (verifiedCode === "0" || verifiedCode === "000") && verifiedOrder === result.orderId;
+    const ok = verifiedCode === "0" || verifiedCode === "000";
 
     console.info("hyp.callback.verified", {
       orderId: result.orderId,
       verifiedCode,
-      orderMatches: verifiedOrder === result.orderId,
       verified: ok,
     });
 
