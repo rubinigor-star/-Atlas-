@@ -17,6 +17,10 @@ function safeTransactionId(value: string) {
   return result;
 }
 
+function sanitizeResponseBody(body: string) {
+  return body.replace(/[\r\n\t]+/g, " ").trim().slice(0, 700);
+}
+
 export async function refundHypTransaction(input: {
   transactionId: string;
   amountMinor: number;
@@ -27,12 +31,13 @@ export async function refundHypTransaction(input: {
   }
 
   const amountIls = input.amountMinor / 100;
+  const amount = Number.isInteger(amountIls) ? String(amountIls) : amountIls.toFixed(2);
   const params = new URLSearchParams({
     action: "zikoyAPI",
     Masof: required("HYP_MASOF"),
     PassP: required("HYP_PASSP"),
     TransId: transactionId,
-    Amount: Number.isInteger(amountIls) ? String(amountIls) : amountIls.toFixed(2),
+    Amount: amount,
   });
 
   const safeLogParams = new URLSearchParams(params);
@@ -40,6 +45,9 @@ export async function refundHypTransaction(input: {
   console.info("hyp.refund.request", {
     endpoint: HYP_ENDPOINT,
     params: safeLogParams.toString(),
+    transactionId,
+    amount,
+    amountMinor: input.amountMinor,
   });
 
   const response = await fetch(`${HYP_ENDPOINT}?${params.toString()}`, {
@@ -53,25 +61,39 @@ export async function refundHypTransaction(input: {
   });
 
   const body = (await response.text()).trim();
+  const parsed = parseHypResponse(body);
+  const responseFields = Object.fromEntries(parsed.entries());
+
   console.info("hyp.refund.response", {
     httpStatus: response.status,
     contentType: response.headers.get("content-type") || "",
-    bodyPrefix: body.slice(0, 240),
+    body: sanitizeResponseBody(body),
+    fields: responseFields,
   });
 
-  if (!response.ok) throw new Error(`HYP zikoyAPI HTTP ${response.status}`);
+  if (!response.ok) {
+    throw new Error(`HYP zikoyAPI HTTP ${response.status}: ${sanitizeResponseBody(body) || "empty response"}`);
+  }
   if (!body) throw new Error("HYP zikoyAPI returned an empty response");
 
-  const result = parseHypResponse(body);
-  const code = result.get("CCode") || result.get("code") || "";
-  const message = result.get("errMsg") || result.get("ErrMsg") || result.get("Message") || "";
-  const refundTransactionId = result.get("Id") || result.get("TransId") || "";
+  const code = parsed.get("CCode") || parsed.get("code") || parsed.get("Error") || "";
+  const message =
+    parsed.get("errMsg") ||
+    parsed.get("ErrMsg") ||
+    parsed.get("ErrorText") ||
+    parsed.get("Message") ||
+    parsed.get("message") ||
+    "";
+  const refundTransactionId = parsed.get("Id") || parsed.get("TransId") || "";
 
   if (code !== "0" && code !== "000") {
-    throw new Error(`HYP refund ${code || "UNKNOWN"}: ${message || "request rejected"}`);
+    const diagnostics = sanitizeResponseBody(body);
+    throw new Error(
+      `HYP refund ${code || "UNKNOWN"}: ${message || diagnostics || "request rejected"}`,
+    );
   }
   if (!refundTransactionId) {
-    throw new Error("HYP подтвердил возврат без нового Id операции");
+    throw new Error(`HYP подтвердил возврат без нового Id операции: ${sanitizeResponseBody(body)}`);
   }
 
   console.info("hyp.refund.succeeded", {
