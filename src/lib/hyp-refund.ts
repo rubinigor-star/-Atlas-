@@ -1,4 +1,5 @@
 const REQUEST_TIMEOUT_MS = 20_000;
+const DEFAULT_HYP_API_ENDPOINT = "https://pay.hyp.co.il/xpo/Relay";
 
 function required(name: string) {
   const value = process.env[name]?.trim();
@@ -20,14 +21,14 @@ function xmlValue(xml: string, tag: string) {
   return match?.[1]?.trim() || "";
 }
 
-function relayCredentials() {
-  const endpoint = required("HYP_RELAY_URL");
-  if (!/^https:\/\//i.test(endpoint)) throw new Error("HYP_RELAY_URL must use HTTPS");
+function apiCredentials() {
+  const endpoint = process.env.HYP_RELAY_URL?.trim() || DEFAULT_HYP_API_ENDPOINT;
+  if (!/^https:\/\//i.test(endpoint)) throw new Error("HYP API URL must use HTTPS");
 
   return {
     endpoint,
-    user: process.env.HYP_RELAY_USER?.trim() || required("HYP_API_KEY"),
-    password: process.env.HYP_RELAY_PASSWORD?.trim() || required("HYP_PASSP"),
+    user: required("HYP_API_KEY"),
+    password: required("HYP_PASSP"),
   };
 }
 
@@ -35,7 +36,7 @@ export async function refundHypByCgUid(cgUidInput: string) {
   const cgUid = cgUidInput.replace(/\D/g, "").slice(0, 32);
   if (!cgUid) throw new Error("Не найден cgUid исходной транзакции HYP");
 
-  const { endpoint, user, password } = relayCredentials();
+  const { endpoint, user, password } = apiCredentials();
   const xml = `<ashrait><request><version>2000</version><language>Eng</language><command>refundDeal</command><refundDeal><terminalNumber>${xmlEscape(required("HYP_MASOF"))}</terminalNumber><cgUid>${xmlEscape(cgUid)}</cgUid></refundDeal></request></ashrait>`;
   const form = new URLSearchParams({ user, password, int_in: xml });
 
@@ -44,6 +45,7 @@ export async function refundHypByCgUid(cgUidInput: string) {
     cgUid,
     command: "refundDeal",
     fullRefund: true,
+    credentialsSource: "HYP_API_KEY/HYP_PASSP",
   });
 
   const response = await fetch(endpoint, {
@@ -65,8 +67,8 @@ export async function refundHypByCgUid(cgUidInput: string) {
     bodyPrefix: body.slice(0, 240),
   });
 
-  if (!response.ok) throw new Error(`HYP Relay HTTP ${response.status}`);
-  if (!body) throw new Error("HYP Relay returned an empty response");
+  if (!response.ok) throw new Error(`HYP API HTTP ${response.status}`);
+  if (!body) throw new Error("HYP API returned an empty response");
 
   const result = xmlValue(body, "result") || xmlValue(body, "status");
   const status = xmlValue(body, "status") || result;
