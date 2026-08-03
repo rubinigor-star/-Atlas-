@@ -1,8 +1,7 @@
-import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 
 const TOKEN_KEY = "atlas-office-session";
-const apiBaseUrl = String(Constants.expoConfig?.extra?.apiBaseUrl || "").replace(/\/$/, "");
+const API_BASE_URL = "https://www.atlas-one.co";
 
 export type MobileUser = {
   id: string;
@@ -45,9 +44,8 @@ export type DashboardPayload = {
 };
 
 async function request<T>(path: string, options: RequestInit = {}) {
-  if (!apiBaseUrl) throw new Error("API_URL_NOT_CONFIGURED");
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
-  const url = `${apiBaseUrl}${path}`;
+  const url = `${API_BASE_URL}${path}`;
 
   let response: Response;
   try {
