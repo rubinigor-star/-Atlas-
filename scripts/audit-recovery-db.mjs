@@ -39,9 +39,24 @@ try {
       (SELECT COUNT(*)::int FROM "User") AS users
   `);
 
+  const orders = await db.$queryRawUnsafe(`
+    SELECT o."publicId", o.status, o."totalMinor", o."createdAt", o."eventId", e.slug, e.title
+    FROM "Order" o
+    JOIN "Event" e ON e.id = o."eventId"
+    ORDER BY o."createdAt" DESC
+  `);
+
+  const auditLogs = await db.$queryRawUnsafe(`
+    SELECT id, action, "entityType", "entityId", summary, metadata, "createdAt"
+    FROM "AuditLog"
+    WHERE "entityType" = 'Event' OR action ILIKE '%event%'
+    ORDER BY "createdAt" DESC
+    LIMIT 200
+  `);
+
   console.log(`ATLAS_DB_RECOVERY_COUNTS ${JSON.stringify(counts[0] ?? {})}`);
   for (const row of events) {
-    const item = {
+    console.log(`ATLAS_DB_RECOVERY_EVENT ${JSON.stringify({
       id: row.id,
       slug: row.slug,
       title: row.title,
@@ -52,8 +67,29 @@ try {
       orderCount: row.orderCount,
       ticketCount: row.ticketCount,
       poster: posterSummary(row.posterUrl),
-    };
-    console.log(`ATLAS_DB_RECOVERY_EVENT ${JSON.stringify(item)}`);
+    })}`);
+  }
+  for (const row of orders) {
+    console.log(`ATLAS_DB_RECOVERY_ORDER ${JSON.stringify({
+      publicId: row.publicId,
+      status: row.status,
+      totalMinor: row.totalMinor,
+      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+      eventId: row.eventId,
+      slug: row.slug,
+      title: row.title,
+    })}`);
+  }
+  for (const row of auditLogs) {
+    console.log(`ATLAS_DB_RECOVERY_AUDITLOG ${JSON.stringify({
+      id: row.id,
+      action: row.action,
+      entityType: row.entityType,
+      entityId: row.entityId,
+      summary: row.summary,
+      metadata: row.metadata,
+      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+    })}`);
   }
 } finally {
   await db.$disconnect();
