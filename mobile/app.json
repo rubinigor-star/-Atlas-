@@ -17,7 +17,16 @@
         "backgroundColor": "#F3F5F7"
       }
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Разрешите Atlas Office использовать камеру для сканирования QR-кодов билетов.",
+          "recordAudioAndroid": false
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     },
