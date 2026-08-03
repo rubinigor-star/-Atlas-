@@ -54,6 +54,7 @@
 - Set separate `DATABASE_URL` values for Production and Preview.
 - Set `ATLAS_DATABASE_ENV=production` for Production.
 - Set `ATLAS_DATABASE_ENV=preview` for Preview and Development.
+- After changing environment variables, trigger a fresh Preview deployment and verify the deployment guard passes before merging.
 
 ### Supabase
 
