@@ -5,7 +5,7 @@
 1. Production deploys only from `main`.
 2. Preview deployments must use a separate Preview Supabase database.
 3. `ATLAS_DATABASE_ENV=production` is set only for the Vercel Production environment.
-4. `ATLAS_DATABASE_ENV=preview` is set only for Vercel Preview and Development environments.
+4. `ATLAS_DATABASE_ENV=preview` is set only for Vercel Preview. Development may be configured later if local cloud development is required.
 5. No seed, showcase, demo, reset, bulk-update, or bulk-delete script may run from `vercel-build`.
 6. Database schema changes are executed as an explicit migration step after backup and review, never as a side effect of a web build.
 7. Mobile development uses its own branch, Vercel project, and Preview database.
@@ -53,8 +53,8 @@
 - Do not manually promote feature or mobile deployments to Production.
 - Set separate `DATABASE_URL` values for Production and Preview.
 - Set `ATLAS_DATABASE_ENV=production` for Production.
-- Set `ATLAS_DATABASE_ENV=preview` for Preview and Development.
-- After changing environment variables, trigger a fresh Preview deployment and verify the deployment guard passes before merging.
+- Set `ATLAS_DATABASE_ENV=preview` for Preview.
+- Development environment configuration is optional and does not block Preview deployments.
 
 ### Supabase
 
