@@ -1,0 +1,114 @@
+name: Supabase encrypted backup
+
+on:
+  schedule:
+    - cron: '30 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BACKUP_ENCRYPTION_PASSWORD: ${{ secrets.BACKUP_ENCRYPTION_PASSWORD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_DB_URL SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY BACKUP_ENCRYPTION_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "Required GitHub Actions secret is missing: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Create database and Storage exports
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p backup/database backup/storage
+
+          pg_dump \
+            --dbname="$SUPABASE_DB_URL" \
+            --format=custom \
+            --no-owner \
+            --no-privileges \
+            --file=backup/database/atlas.dump
+
+          pg_dump \
+            --dbname="$SUPABASE_DB_URL" \
+            --schema-only \
+            --no-owner \
+            --no-privileges \
+            --file=backup/database/schema.sql
+
+          STORAGE_BACKUP_DIR=backup/storage node scripts/backup-supabase-storage.mjs
+
+      - name: Build backup manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          BACKUP_TIMESTAMP="$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
+          echo "$BACKUP_TIMESTAMP" > backup/TIMESTAMP_UTC.txt
+          printf '%s\n' "$GITHUB_SHA" > backup/GIT_COMMIT.txt
+          find backup -type f -print0 | sort -z | xargs -0 sha256sum > backup/SHA256SUMS.txt
+
+          tar -czf "atlas-supabase-${BACKUP_TIMESTAMP}.tar.gz" backup
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 250000 \
+            -in "atlas-supabase-${BACKUP_TIMESTAMP}.tar.gz" \
+            -out "atlas-supabase-${BACKUP_TIMESTAMP}.tar.gz.enc" \
+            -pass env:BACKUP_ENCRYPTION_PASSWORD
+
+          sha256sum "atlas-supabase-${BACKUP_TIMESTAMP}.tar.gz.enc" > "atlas-supabase-${BACKUP_TIMESTAMP}.tar.gz.enc.sha256"
+          rm -rf backup "atlas-supabase-${BACKUP_TIMESTAMP}.tar.gz"
+          echo "BACKUP_TIMESTAMP=$BACKUP_TIMESTAMP" >> "$GITHUB_ENV"
+
+      - name: Upload encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-supabase-${{ env.BACKUP_TIMESTAMP }}
+          path: |
+            atlas-supabase-${{ env.BACKUP_TIMESTAMP }}.tar.gz.enc
+            atlas-supabase-${{ env.BACKUP_TIMESTAMP }}.tar.gz.enc.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: Write job summary
+        shell: bash
+        run: |
+          {
+            echo '## Atlas backup completed'
+            echo ''
+            echo "- Timestamp: \`${BACKUP_TIMESTAMP}\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo '- Database: custom-format pg_dump + schema-only SQL'
+            echo '- Storage: all buckets and objects'
+            echo '- Encryption: AES-256-CBC, PBKDF2, 250000 iterations'
+            echo '- Retention: 30 days'
+          } >> "$GITHUB_STEP_SUMMARY"
