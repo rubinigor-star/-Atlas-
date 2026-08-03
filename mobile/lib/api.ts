@@ -43,6 +43,15 @@ export type DashboardPayload = {
   }>;
 };
 
+export type TicketValidationPayload = {
+  result: "VALID" | "USED" | "CANCELLED" | "NOT_FOUND";
+  ticketId?: string;
+  eventId?: string;
+  holderName?: string;
+  categoryName?: string;
+  event?: { id: string; title: string } | null;
+};
+
 async function request<T>(path: string, options: RequestInit = {}) {
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
   const url = `${API_BASE_URL}${path}`;
@@ -82,7 +91,9 @@ async function request<T>(path: string, options: RequestInit = {}) {
       preview: raw.slice(0, 300),
     });
     if (response.status === 401) await SecureStore.deleteItemAsync(TOKEN_KEY);
-    throw new Error(typeof body.error === "string" ? body.error : `HTTP_${response.status}`);
+    const error = new Error(typeof body.error === "string" ? body.error : `HTTP_${response.status}`);
+    Object.assign(error, { status: response.status, payload: body });
+    throw error;
   }
 
   return body as T;
@@ -105,6 +116,13 @@ export async function currentUser() {
 
 export async function getDashboard() {
   return request<DashboardPayload>("/api/mobile/dashboard");
+}
+
+export async function validateTicket(code: string) {
+  return request<TicketValidationPayload>("/api/mobile/tickets/validate", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
 }
 
 export async function logout() {
