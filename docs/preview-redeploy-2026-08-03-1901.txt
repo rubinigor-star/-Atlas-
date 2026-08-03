@@ -1,2 +1,3 @@
-Preview redeploy trigger after the final Preview database password and DATABASE_URL update.
+Preview redeploy trigger after updating Preview DIRECT_URL to the IPv4-compatible Supabase session pooler.
+Temporary prisma db push remains enabled only on the Preview branch for one schema bootstrap.
 No Production configuration changed.
