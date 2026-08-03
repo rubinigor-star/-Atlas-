@@ -3,13 +3,15 @@ import { PrismaClient } from '@prisma/client';
 const db = new PrismaClient();
 
 const REFLEX_EVENT_ID = 'cms499jws001ljc6l6sf4e9is';
-const DEMO_SLUGS = [
+const PRICING_TEST_SLUGS = [
   'test-pricing-fixed-calm',
   'test-pricing-scheduled-soon',
   'test-pricing-low-stock',
   'test-pricing-social-proof',
   'test-pricing-maximum',
   'test-pricing-mixed',
+];
+const SHOWCASE_SLUGS = [
   'jazz-nights',
   'magic-adventure',
   'techno-united',
@@ -42,14 +44,22 @@ try {
       select: { id: true, slug: true, title: true, status: true, startsAt: true },
     });
 
-    const hidden = await tx.event.updateMany({
-      where: {
-        slug: { in: DEMO_SLUGS },
-      },
+    const hiddenTests = await tx.event.updateMany({
+      where: { slug: { in: PRICING_TEST_SLUGS } },
       data: { status: 'DRAFT' },
     });
 
-    return { before: reflex, reflex: updatedReflex, hiddenCount: hidden.count };
+    const restoredShowcase = await tx.event.updateMany({
+      where: { slug: { in: SHOWCASE_SLUGS } },
+      data: { status: 'PUBLISHED' },
+    });
+
+    return {
+      before: reflex,
+      reflex: updatedReflex,
+      hiddenPricingTests: hiddenTests.count,
+      restoredShowcase: restoredShowcase.count,
+    };
   });
 
   console.log(`ATLAS_APPROVED_EVENT_RESTORE ${JSON.stringify(result)}`);
