@@ -10,8 +10,27 @@ import { OrderRefundManager } from "@/components/order-refund-manager";
 import { requireEventAccess } from "@/lib/auth";
 
 type AuthorizationRow={provider:string;providerReference:string;status:string;amountMinor:number;cardLast4:string|null;capturedAt:Date|null;voidedAt:Date|null;failureReason:string|null};
+type LegacyAuthorizationRow=AuthorizationRow&{id:string;orderId:string;method:string;currency:string;authorizedAt:Date|null;expiresAt:Date|null;createdAt:Date;updatedAt:Date};
 
 export const dynamic = "force-dynamic";
+
+async function findAuthorization(orderId:string){
+  const canonical=(await db.$queryRaw<AuthorizationRow[]>`SELECT provider,"providerReference",status,"amountMinor","cardLast4","capturedAt","voidedAt","failureReason" FROM "PaymentAuthorization" WHERE "orderId"=${orderId} LIMIT 1`)[0];
+  if(canonical)return canonical;
+
+  try{
+    const legacy=(await db.$queryRawUnsafe<LegacyAuthorizationRow[]>(`SELECT id, orderid AS "orderId", provider, providerreference AS "providerReference", method, status, amountminor AS "amountMinor", currency, cardlast4 AS "cardLast4", authorizedat AS "authorizedAt", capturedat AS "capturedAt", voidedat AS "voidedAt", expiresat AS "expiresAt", failurereason AS "failureReason", createdat AS "createdAt", updatedat AS "updatedAt" FROM paymentauthorization WHERE orderid=$1 LIMIT 1`,orderId))[0];
+    if(!legacy)return undefined;
+
+    await db.$executeRawUnsafe(`INSERT INTO "PaymentAuthorization" (id,"orderId",provider,"providerReference",method,status,"amountMinor",currency,"cardLast4","authorizedAt","capturedAt","voidedAt","expiresAt","failureReason","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT ("orderId") DO NOTHING`,legacy.id,legacy.orderId,legacy.provider,legacy.providerReference,legacy.method,legacy.status,legacy.amountMinor,legacy.currency,legacy.cardLast4,legacy.authorizedAt,legacy.capturedAt,legacy.voidedAt,legacy.expiresAt,legacy.failureReason,legacy.createdAt,legacy.updatedAt);
+
+    console.info("payment.authorization.migrated",{orderId,providerReference:legacy.providerReference});
+    return legacy;
+  }catch(error){
+    console.error("payment.authorization.legacy_lookup_failed",{orderId,message:error instanceof Error?error.message:"Unknown error"});
+    return undefined;
+  }
+}
 
 export default async function OrderAdmin({params,searchParams}:{params:Promise<{publicId:string}>;searchParams:Promise<{returnTo?:string}>}) {
   const {publicId}=await params;
@@ -20,7 +39,7 @@ export default async function OrderAdmin({params,searchParams}:{params:Promise<{
   const order=await db.order.findUnique({where:{publicId},include:{event:true,items:true,tickets:{include:{category:true}}}});
   if(!order)notFound();
   const staff=await requireEventAccess("ORDER_VIEW",order.eventId);
-  const authorization=(await db.$queryRaw<AuthorizationRow[]>`SELECT provider,"providerReference",status,"amountMinor","cardLast4","capturedAt","voidedAt","failureReason" FROM "PaymentAuthorization" WHERE "orderId"=${order.id} LIMIT 1`)[0];
+  const authorization=await findAuthorization(order.id);
   const canRefund=staff.permissionSet.has("ORDER_MANAGE");
   const refunded=authorization?.status==="REFUNDED"||authorization?.status==="PARTIALLY_REFUNDED"||order.status==="CANCELLED";
 
@@ -36,7 +55,7 @@ export default async function OrderAdmin({params,searchParams}:{params:Promise<{
     {order.status==="PENDING_APPROVAL"&&staff.permissionSet.has("REQUEST_REVIEW")&&<><h2>Решение организатора</h2><ApprovalActions publicId={order.publicId} returnTo={returnTo}/></>}
     {order.reviewNote&&<div className="toast">Комментарий: {order.reviewNote}</div>}
     {order.status==="PAID"&&order.tickets.length>0&&canRefund&&<div className="panel" style={{marginTop:20}}><h2 style={{marginTop:0}}>Отправка билетов</h2><p className="muted" style={{marginBottom:0}}>Получатель: <strong>{order.customerEmail}</strong>. Письмо будет отправлено повторно со всеми билетами заказа и PDF-вложением.</p><ResendTicketButton publicId={order.publicId}/></div>}
-    {canRefund&&order.status==="PAID"&&authorization?.provider==="HYP"&&<OrderRefundManager orderId={order.publicId} totalMinor={order.totalMinor} alreadyRefunded={refunded}/>} 
+    {canRefund&&order.status==="PAID"&&authorization?.provider==="HYP"&&<OrderRefundManager orderId={order.publicId} totalMinor={authorization.amountMinor} alreadyRefunded={refunded}/>} 
     {order.tickets.length>0&&<h2>Билеты</h2>}
     {order.tickets.map(ticket=><div className="panel row between" style={{marginBottom:12}} key={ticket.id}><div><span className="pill">{ticket.status}</span><h3>{ticket.category.name}</h3><code>{ticket.publicCode}</code></div><div>{canRefund&&<TicketActions id={ticket.id} status={ticket.status}/>}<Link className="btn secondary" style={{marginTop:8}} href={`/api/tickets/${ticket.id}/pdf`}>PDF</Link></div></div>)}
   </AdminShell>;
