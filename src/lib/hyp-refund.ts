@@ -1,60 +1,53 @@
 const REQUEST_TIMEOUT_MS = 20_000;
+const HYP_ENDPOINT = "https://pay.hyp.co.il/p/";
 
-function required(name: string) {
+function required(name: "HYP_MASOF" | "HYP_PASSP") {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is not configured`);
   return value;
 }
 
-function xmlEscape(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
+function parseHypResponse(body: string) {
+  return new URLSearchParams(body.trim().replace(/^\?/, ""));
 }
 
-function xmlValue(xml: string, tag: string) {
-  const match = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, "i"));
-  return match?.[1]?.trim() || "";
+function safeTransactionId(value: string) {
+  const result = value.replace(/[^0-9A-Za-z_-]/g, "").slice(0, 80);
+  if (!result) throw new Error("Не найден TransId исходной транзакции HYP");
+  return result;
 }
 
-function apiCredentials() {
-  const endpoint = required("HYP_RELAY_URL");
-  if (!/^https:\/\//i.test(endpoint)) throw new Error("HYP_RELAY_URL must use HTTPS");
+export async function refundHypTransaction(input: {
+  transactionId: string;
+  amountMinor: number;
+}) {
+  const transactionId = safeTransactionId(input.transactionId);
+  if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
+    throw new Error("Некорректная сумма возврата");
+  }
 
-  return {
-    endpoint,
-    user: required("HYP_API_KEY"),
-    password: required("HYP_PASSP"),
-  };
-}
-
-export async function refundHypByCgUid(cgUidInput: string) {
-  const cgUid = cgUidInput.replace(/\D/g, "").slice(0, 32);
-  if (!cgUid) throw new Error("Не найден cgUid исходной транзакции HYP");
-
-  const { endpoint, user, password } = apiCredentials();
-  const xml = `<ashrait><request><version>2000</version><language>Eng</language><command>refundDeal</command><refundDeal><terminalNumber>${xmlEscape(required("HYP_MASOF"))}</terminalNumber><cgUid>${xmlEscape(cgUid)}</cgUid></refundDeal></request></ashrait>`;
-  const form = new URLSearchParams({ user, password, int_in: xml });
-
-  console.info("hyp.refund.request", {
-    endpoint: new URL(endpoint).origin + new URL(endpoint).pathname,
-    cgUid,
-    command: "refundDeal",
-    fullRefund: true,
-    credentialsSource: "HYP_API_KEY/HYP_PASSP",
+  const amountIls = input.amountMinor / 100;
+  const params = new URLSearchParams({
+    action: "zikoyAPI",
+    Masof: required("HYP_MASOF"),
+    PassP: required("HYP_PASSP"),
+    TransId: transactionId,
+    Amount: Number.isInteger(amountIls) ? String(amountIls) : amountIls.toFixed(2),
   });
 
-  const response = await fetch(endpoint, {
-    method: "POST",
+  const safeLogParams = new URLSearchParams(params);
+  safeLogParams.set("PassP", "[REDACTED]");
+  console.info("hyp.refund.request", {
+    endpoint: HYP_ENDPOINT,
+    params: safeLogParams.toString(),
+  });
+
+  const response = await fetch(`${HYP_ENDPOINT}?${params.toString()}`, {
+    method: "GET",
     headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/xml, text/xml, text/plain, */*",
+      Accept: "text/plain, application/x-www-form-urlencoded, */*",
       "User-Agent": "Atlas-One-HYP/1.0",
     },
-    body: form,
     cache: "no-store",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
@@ -66,23 +59,31 @@ export async function refundHypByCgUid(cgUidInput: string) {
     bodyPrefix: body.slice(0, 240),
   });
 
-  if (!response.ok) throw new Error(`HYP API HTTP ${response.status}`);
-  if (!body) throw new Error("HYP API returned an empty response");
+  if (!response.ok) throw new Error(`HYP zikoyAPI HTTP ${response.status}`);
+  if (!body) throw new Error("HYP zikoyAPI returned an empty response");
 
-  const result = xmlValue(body, "result") || xmlValue(body, "status");
-  const status = xmlValue(body, "status") || result;
-  const message = xmlValue(body, "userMessage") || xmlValue(body, "message") || xmlValue(body, "statusText");
-  const refundTransactionId = xmlValue(body, "tranId");
+  const result = parseHypResponse(body);
+  const code = result.get("CCode") || result.get("code") || "";
+  const message = result.get("errMsg") || result.get("ErrMsg") || result.get("Message") || "";
+  const refundTransactionId = result.get("Id") || result.get("TransId") || "";
 
-  if (result !== "000" || (status && status !== "000")) {
-    throw new Error(`HYP refund ${result || status || "UNKNOWN"}: ${message || "request rejected"}`);
+  if (code !== "0" && code !== "000") {
+    throw new Error(`HYP refund ${code || "UNKNOWN"}: ${message || "request rejected"}`);
   }
-  if (!refundTransactionId) throw new Error("HYP подтвердил возврат без идентификатора транзакции");
+  if (!refundTransactionId) {
+    throw new Error("HYP подтвердил возврат без нового Id операции");
+  }
+
+  console.info("hyp.refund.succeeded", {
+    originalTransactionId: transactionId,
+    refundTransactionId,
+    amountMinor: input.amountMinor,
+  });
 
   return {
     transactionId: refundTransactionId,
-    result,
+    originalTransactionId: transactionId,
+    code,
     message,
-    cgUid,
   };
 }
