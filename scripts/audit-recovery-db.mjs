@@ -2,11 +2,6 @@ import { PrismaClient } from '@prisma/client';
 
 const db = new PrismaClient();
 
-function safe(value) {
-  if (value instanceof Date) return value.toISOString();
-  return value;
-}
-
 function posterSummary(value) {
   const poster = String(value ?? '');
   return {
@@ -44,19 +39,22 @@ try {
       (SELECT COUNT(*)::int FROM "User") AS users
   `);
 
-  const normalized = events.map((row) => ({
-    ...Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'posterUrl').map(([key, value]) => [key, safe(value)])),
-    poster: posterSummary(row.posterUrl),
-  }));
-
-  const output = {
-    marker: 'ATLAS_DB_RECOVERY_AUDIT_V2',
-    generatedAt: new Date().toISOString(),
-    counts: counts[0] ?? {},
-    events: normalized,
-  };
-
-  console.log(JSON.stringify(output));
+  console.log(`ATLAS_DB_RECOVERY_COUNTS ${JSON.stringify(counts[0] ?? {})}`);
+  for (const row of events) {
+    const item = {
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      status: row.status,
+      startsAt: row.startsAt instanceof Date ? row.startsAt.toISOString() : row.startsAt,
+      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+      updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
+      orderCount: row.orderCount,
+      ticketCount: row.ticketCount,
+      poster: posterSummary(row.posterUrl),
+    };
+    console.log(`ATLAS_DB_RECOVERY_EVENT ${JSON.stringify(item)}`);
+  }
 } finally {
   await db.$disconnect();
 }
