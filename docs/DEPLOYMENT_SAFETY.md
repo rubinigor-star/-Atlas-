@@ -63,4 +63,4 @@
 - Never run seed/reset scripts against Production.
 - Back up Storage separately because database backups do not contain Storage objects.
 
-Last environment separation verification trigger: 2026-08-03.
+Last environment separation verification trigger: 2026-08-03 16:59 IDT.
