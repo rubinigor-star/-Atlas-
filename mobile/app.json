@@ -22,7 +22,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiBaseUrl": "https://atlas-atlasteam1.vercel.app"
+      "apiBaseUrl": "https://www.atlas-one.co"
     }
   }
 }
