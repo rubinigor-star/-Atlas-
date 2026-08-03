@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
-import { refundHypByCgUid } from "@/lib/hyp-refund";
+import { refundHypTransaction } from "@/lib/hyp-refund";
 import { notifyWalletTickets } from "@/lib/wallet-push";
 
 const schema = z.object({
@@ -53,7 +53,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       throw new Error(`Транзакция недоступна для возврата: ${authorization.status}`);
     }
     if (!authorization.providerReference) {
-      throw new Error("У исходной оплаты отсутствует cgUid HYP");
+      throw new Error("У исходной оплаты отсутствует TransId HYP");
     }
 
     authorizationId = authorization.id;
@@ -64,9 +64,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     `;
     if (locked !== 1) throw new Error("Возврат уже запущен другим запросом");
 
-    let result: Awaited<ReturnType<typeof refundHypByCgUid>>;
+    let result: Awaited<ReturnType<typeof refundHypTransaction>>;
     try {
-      result = await refundHypByCgUid(authorization.providerReference);
+      result = await refundHypTransaction({
+        transactionId: authorization.providerReference,
+        amountMinor: authorization.amountMinor,
+      });
     } catch (error) {
       await db.$executeRaw`
         UPDATE "PaymentAuthorization"
@@ -134,7 +137,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         reason: input.reason,
         cardLast4: authorization.cardLast4,
         hypRefundTransactionId: result.transactionId,
-        originalCgUid: result.cgUid,
+        originalTransactionId: result.originalTransactionId,
       },
     });
 
