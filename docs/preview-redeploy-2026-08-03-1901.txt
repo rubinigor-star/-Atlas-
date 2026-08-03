@@ -1,2 +1,2 @@
-Preview redeploy trigger after saving the corrected Preview DATABASE_URL and applying the new Vercel environment value.
+Preview redeploy trigger after the final Preview database password and DATABASE_URL update.
 No Production configuration changed.
