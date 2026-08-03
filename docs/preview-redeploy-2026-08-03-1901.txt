@@ -1,2 +1,2 @@
-Preview redeploy trigger after correcting Preview DATABASE_URL to the Supabase transaction pooler.
+Preview redeploy trigger after saving the corrected Preview DATABASE_URL and applying the new Vercel environment value.
 No Production configuration changed.
