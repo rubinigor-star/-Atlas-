@@ -1,2 +1,2 @@
-Preview redeploy trigger after rebuilding Preview database environment variables.
+Preview redeploy trigger after correcting Preview DATABASE_URL to the Supabase transaction pooler.
 No Production configuration changed.
