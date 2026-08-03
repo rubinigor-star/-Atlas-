@@ -1,4 +1,5 @@
 const HYP_ENDPOINT = "https://pay.hyp.co.il/p/";
+const DEFAULT_RELAY_ENDPOINT = "https://icom.yaad.net/xpo/Relay";
 const REQUEST_TIMEOUT_MS = 20_000;
 
 type RequiredEnv = "HYP_MASOF" | "HYP_API_KEY" | "HYP_PASSP";
@@ -17,8 +18,27 @@ function safeText(value: string, max = 120) {
   return value.replace(/[<>\r\n]/g, " ").trim().slice(0, max);
 }
 
+function xmlEscape(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function xmlValue(xml: string, tag: string) {
+  const match = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, "i"));
+  return match?.[1]?.trim() || "";
+}
+
 function assertHttps(value: string, label: string) {
   if (!/^https:\/\//i.test(value)) throw new Error(`${label} must use HTTPS`);
+}
+
+export function roundToWholeIlsMinor(minor: number) {
+  if (!Number.isFinite(minor)) throw new Error("Некорректная сумма");
+  return Math.round(minor / 100) * 100;
 }
 
 function deploymentOrigin() {
@@ -41,7 +61,7 @@ function parseHypBody(body: string) {
 
 function redact(params: URLSearchParams) {
   const safe = new URLSearchParams(params);
-  for (const key of ["KEY", "PassP", "signature"]) {
+  for (const key of ["KEY", "PassP", "password", "signature"]) {
     if (safe.has(key)) safe.set(key, "[REDACTED]");
   }
   return safe.toString();
@@ -98,6 +118,34 @@ async function callApiSign(what: "SIGN" | "VERIFY", paymentParams: URLSearchPara
   return result;
 }
 
+async function callRelay(xml: string) {
+  const endpoint = optional("HYP_RELAY_URL") || DEFAULT_RELAY_ENDPOINT;
+  assertHttps(endpoint, "HYP Relay URL");
+
+  const form = new URLSearchParams({
+    user: required("HYP_API_KEY"),
+    password: required("HYP_PASSP"),
+    int_in: xml,
+  });
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/xml, text/xml, text/plain, */*",
+      "User-Agent": "Atlas-One-HYP/1.0",
+    },
+    body: form,
+    cache: "no-store",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+
+  const body = (await response.text()).trim();
+  if (!response.ok) throw new Error(`HYP Relay HTTP ${response.status}`);
+  if (!body) throw new Error("HYP Relay returned an empty response");
+  return body;
+}
+
 export type HypPaymentLinkInput = {
   amountIls: number;
   orderId: string;
@@ -116,6 +164,11 @@ export async function createHypPaymentLink(input: HypPaymentLinkInput) {
   const orderId = safeText(input.orderId, 64);
   if (!orderId) throw new Error("HYP order ID is required");
 
+  const requestedMinor = Math.round(input.amountIls * 100);
+  const chargedMinor = roundToWholeIlsMinor(requestedMinor);
+  if (chargedMinor <= 0) throw new Error("Сумма после округления должна быть не меньше 1 ₪");
+  const chargedIls = chargedMinor / 100;
+
   const nameParts = safeText(input.customerName || "Atlas Customer", 100).split(/\s+/).filter(Boolean);
   const firstName = nameParts.shift() || "Atlas";
   const lastName = nameParts.join(" ") || "Customer";
@@ -123,7 +176,7 @@ export async function createHypPaymentLink(input: HypPaymentLinkInput) {
   const paymentParams = new URLSearchParams({
     action: "pay",
     Masof: required("HYP_MASOF"),
-    Amount: input.amountIls.toFixed(2),
+    Amount: chargedIls.toFixed(2),
     Coin: "1",
     Info: safeText(input.description, 120),
     Order: orderId,
@@ -159,7 +212,8 @@ export async function createHypPaymentLink(input: HypPaymentLinkInput) {
 
   console.info("hyp.payment_page.created", {
     orderId,
-    amount: input.amountIls.toFixed(2),
+    requestedMinor,
+    chargedMinor,
     masof: signed.get("Masof") || required("HYP_MASOF"),
     callbackUrl,
   });
@@ -182,7 +236,7 @@ export function hypResultFromUrl(url: URL) {
       url.searchParams.get("ACode") ||
       url.searchParams.get("txId") ||
       "",
-    cgUid: url.searchParams.get("cgUid") || "",
+    cgUid: url.searchParams.get("cgUid") || url.searchParams.get("UID") || "",
     tranId: url.searchParams.get("TransId") || url.searchParams.get("tranId") || "",
     txId: url.searchParams.get("txId") || "",
     amount: url.searchParams.get("Amount") || url.searchParams.get("amount") || "",
@@ -216,6 +270,35 @@ export async function verifyHypCallback(url: URL) {
   }
 }
 
-export async function refundHypDeal(_input: { transactionId: string; amountMinor?: number }) {
-  throw new Error("HYP API refund flow is not enabled until its APISign refund contract is verified");
+export async function refundHypDeal(input: { transactionId: string; amountMinor?: number }) {
+  const transactionId = safeText(input.transactionId, 80);
+  if (!transactionId) throw new Error("Не найден идентификатор исходной транзакции HYP");
+  if (input.amountMinor !== undefined && (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0)) {
+    throw new Error("Некорректная сумма возврата");
+  }
+
+  const amountXml = input.amountMinor === undefined ? "" : `<total>${input.amountMinor}</total>`;
+  const xml = `<ashrait><request><version>2000</version><language>Eng</language><command>refundDeal</command><refundDeal><terminalNumber>${xmlEscape(required("HYP_MASOF"))}</terminalNumber><tranId>${xmlEscape(transactionId)}</tranId>${amountXml}</refundDeal></request></ashrait>`;
+  const responseXml = await callRelay(xml);
+  const result = xmlValue(responseXml, "result") || xmlValue(responseXml, "status");
+  const status = xmlValue(responseXml, "status") || result;
+  const message = xmlValue(responseXml, "userMessage") || xmlValue(responseXml, "message") || xmlValue(responseXml, "statusText");
+  const refundTransactionId = xmlValue(responseXml, "tranId");
+
+  if (result !== "000" || (status && status !== "000")) {
+    throw new Error(`HYP refund ${result || status || "UNKNOWN"}: ${message || "request rejected"}`);
+  }
+  if (!refundTransactionId) throw new Error("HYP подтвердил возврат без идентификатора транзакции");
+
+  console.info("hyp.refund.succeeded", {
+    originalTransactionId: transactionId,
+    refundTransactionId,
+    amountMinor: input.amountMinor ?? null,
+  });
+
+  return {
+    transactionId: refundTransactionId,
+    result,
+    message,
+  };
 }
