@@ -1,5 +1,4 @@
 const REQUEST_TIMEOUT_MS = 20_000;
-const DEFAULT_HYP_API_ENDPOINT = "https://pay.hyp.co.il/xpo/Relay";
 
 function required(name: string) {
   const value = process.env[name]?.trim();
@@ -22,8 +21,8 @@ function xmlValue(xml: string, tag: string) {
 }
 
 function apiCredentials() {
-  const endpoint = process.env.HYP_RELAY_URL?.trim() || DEFAULT_HYP_API_ENDPOINT;
-  if (!/^https:\/\//i.test(endpoint)) throw new Error("HYP API URL must use HTTPS");
+  const endpoint = required("HYP_RELAY_URL");
+  if (!/^https:\/\//i.test(endpoint)) throw new Error("HYP_RELAY_URL must use HTTPS");
 
   return {
     endpoint,
