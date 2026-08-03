@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { hypResultFromUrl, verifyHypCallback } from "@/lib/hyp-yaadpay";
+import { hypResultFromUrl, roundToWholeIlsMinor, verifyHypCallback } from "@/lib/hyp-yaadpay";
 import { commitReservation, releaseReservation } from "@/lib/reservation";
 import { issueTicketsForOrder } from "@/lib/ticket-engine";
 import { sendOrderTicketEmail } from "@/lib/order-email";
@@ -90,15 +90,17 @@ async function finalizeCallback(url: URL): Promise<FinalizeResult> {
 
   const signatureValid = await verifyHypCallback(url).catch(() => false);
   const returnedMinor = Math.round(Number(result.amount || "0") * 100);
+  const chargedMinor = roundToWholeIlsMinor(order.totalMinor);
   const providerReference = result.transactionId.trim();
 
-  if (!signatureValid || !result.success || returnedMinor !== order.totalMinor || !providerReference) {
+  if (!signatureValid || !result.success || returnedMinor !== chargedMinor || !providerReference) {
     console.error("hyp.order.rejected", {
       publicId,
       signatureValid,
       success: result.success,
       returnedMinor,
-      expectedMinor: order.totalMinor,
+      expectedMinor: chargedMinor,
+      originalOrderMinor: order.totalMinor,
       hasProviderReference: Boolean(providerReference),
       code: result.code,
     });
@@ -168,7 +170,7 @@ async function finalizeCallback(url: URL): Promise<FinalizeResult> {
         amountMinor, currency, cardLast4, authorizedAt, capturedAt, expiresAt, createdAt, updatedAt
       ) VALUES (
         ${authorizationId}, ${current.id}, 'HYP', ${providerReference}, 'HOSTED_PAGE', 'CAPTURED',
-        ${current.totalMinor}, ${current.currency}, ${last4}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+        ${chargedMinor}, ${current.currency}, ${last4}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP + INTERVAL '10 years', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       ) ON CONFLICT (orderId) DO NOTHING
     `;
@@ -180,7 +182,8 @@ async function finalizeCallback(url: URL): Promise<FinalizeResult> {
   console.info("hyp.order.finalized", {
     publicId,
     providerReference,
-    amountMinor: order.totalMinor,
+    amountMinor: chargedMinor,
+    originalOrderMinor: order.totalMinor,
     finalized,
   });
 
