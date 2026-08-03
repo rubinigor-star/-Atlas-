@@ -22,7 +22,7 @@ try {
       COUNT(DISTINCT t.id)::int AS "ticketCount"
     FROM "Event" e
     LEFT JOIN "Order" o ON o."eventId" = e.id
-    LEFT JOIN "Ticket" t ON t."eventId" = e.id
+    LEFT JOIN "Ticket" t ON t."orderId" = o.id
     GROUP BY e.id
     ORDER BY e."createdAt" DESC, e.title ASC
   `);
