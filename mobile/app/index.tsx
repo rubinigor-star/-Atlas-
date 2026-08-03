@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -14,7 +15,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getDashboard, login, logout, type DashboardPayload } from "@/lib/api";
+import { getDashboard, login, type DashboardPayload } from "@/lib/api";
 
 const errorMessages: Record<string, string> = {
   INVALID_CREDENTIALS: "Неверный email или пароль.",
@@ -40,6 +41,7 @@ function eventDate(value: string) {
 }
 
 export default function DashboardScreen() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [data, setData] = useState<DashboardPayload | null>(null);
@@ -85,11 +87,6 @@ export default function DashboardScreen() {
     }
   }
 
-  async function signOut() {
-    await logout();
-    setData(null);
-  }
-
   if (loading) {
     return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /><Text style={styles.loadingText}>Загрузка Atlas Office...</Text></SafeAreaView>;
   }
@@ -111,7 +108,7 @@ export default function DashboardScreen() {
               <Text style={styles.label}>Пароль</Text>
               <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" placeholder="Введите пароль" onSubmitEditing={submitLogin} />
             </View>
-            <TouchableOpacity style={[styles.primaryButton, submitting && styles.disabled]} onPress={submitLogin} disabled={submitting}>
+            <TouchableOpacity style={[styles.primaryButton, submitting && styles.disabled]} onPress={submitLogin} disabled={submitting} accessibilityRole="button" accessibilityLabel="Войти в Atlas Office">
               {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Войти</Text>}
             </TouchableOpacity>
           </View>
@@ -119,6 +116,13 @@ export default function DashboardScreen() {
       </SafeAreaView>
     );
   }
+
+  const quickActions = [
+    { icon: "people-outline", title: "Заявки", badge: data.summary.pendingRequests, route: "/requests" },
+    { icon: "receipt-outline", title: "Заказы", badge: data.summary.paidOrders, route: "/orders" },
+    { icon: "scan-outline", title: "Сканер", badge: null, route: "/scanner" },
+    { icon: "stats-chart-outline", title: "Аналитика", badge: null, route: "/analytics" },
+  ] as const;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -132,20 +136,31 @@ export default function DashboardScreen() {
             <Text style={styles.title}>Здравствуйте, {data.user.name.split(" ")[0]}</Text>
             <Text style={styles.subtitle}>{data.user.organization?.name || data.user.jobTitle || "Управление платформой"}</Text>
           </View>
-          <TouchableOpacity style={styles.avatar} onPress={signOut} accessibilityLabel="Выйти из аккаунта">
+          <TouchableOpacity style={styles.avatar} onPress={() => router.push("/profile")} accessibilityRole="button" accessibilityLabel="Открыть профиль">
             <Text style={styles.avatarText}>{initials}</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Оплаченные продажи</Text>
+        <TouchableOpacity style={styles.summaryCard} onPress={() => router.push("/analytics")} activeOpacity={0.82} accessibilityRole="button" accessibilityLabel="Открыть аналитику продаж">
+          <View style={styles.rowBetween}>
+            <Text style={styles.summaryLabel}>Оплаченные продажи</Text>
+            <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+          </View>
           <Text style={styles.summaryValue}>{money(data.summary.revenueMinor)}</Text>
           <Text style={styles.summaryMeta}>{data.summary.paidOrders} заказов · {data.summary.activeEvents} активных мероприятий</Text>
-        </View>
+        </TouchableOpacity>
 
         <View style={styles.statsRow}>
-          <View style={styles.stat}><Text style={styles.statValue}>{data.summary.pendingRequests}</Text><Text style={styles.statLabel}>Новые заявки</Text></View>
-          <View style={styles.stat}><Text style={styles.statValue}>{data.events.reduce((sum, event) => sum + event.sold, 0)}</Text><Text style={styles.statLabel}>Продано билетов</Text></View>
+          <TouchableOpacity style={styles.stat} onPress={() => router.push("/requests")} activeOpacity={0.78} accessibilityRole="button">
+            <Text style={styles.statValue}>{data.summary.pendingRequests}</Text>
+            <Text style={styles.statLabel}>Новые заявки</Text>
+            <Ionicons name="arrow-forward" size={17} color="#6B7280" style={styles.statArrow} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.stat} onPress={() => router.push("/analytics")} activeOpacity={0.78} accessibilityRole="button">
+            <Text style={styles.statValue}>{data.events.reduce((sum, event) => sum + event.sold, 0)}</Text>
+            <Text style={styles.statLabel}>Продано билетов</Text>
+            <Ionicons name="arrow-forward" size={17} color="#6B7280" style={styles.statArrow} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.sectionHeader}>
@@ -156,7 +171,14 @@ export default function DashboardScreen() {
         {data.events.slice(0, 8).map((event) => {
           const percent = event.capacity ? Math.min(100, Math.round((event.sold / event.capacity) * 100)) : 0;
           return (
-            <TouchableOpacity key={event.id} style={styles.eventCard} activeOpacity={0.78}>
+            <TouchableOpacity
+              key={event.id}
+              style={styles.eventCard}
+              activeOpacity={0.78}
+              onPress={() => router.push({ pathname: "/events/[id]", params: { id: event.id } })}
+              accessibilityRole="button"
+              accessibilityLabel={`Открыть мероприятие ${event.title}`}
+            >
               <View style={styles.eventTop}>
                 <View style={styles.eventIcon}><Ionicons name="calendar-outline" size={21} color="#111827" /></View>
                 <View style={styles.eventCopy}>
@@ -166,7 +188,7 @@ export default function DashboardScreen() {
                 <View style={[styles.status, event.status === "DRAFT" && styles.statusDraft]}><Text style={styles.statusText}>{event.status === "PUBLISHED" ? "Опубликовано" : event.status === "DRAFT" ? "Черновик" : "Прошло"}</Text></View>
               </View>
               <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${percent}%` }]} /></View>
-              <View style={styles.eventBottom}><Text style={styles.eventSales}>{event.sold} / {event.capacity || "-"} билетов</Text><Text style={styles.eventSales}>{percent}%</Text></View>
+              <View style={styles.eventBottom}><Text style={styles.eventSales}>{event.sold} / {event.capacity || "-"} билетов</Text><View style={styles.eventLink}><Text style={styles.eventSales}>{percent}%</Text><Ionicons name="chevron-forward" size={15} color="#6B7280" /></View></View>
             </TouchableOpacity>
           );
         })}
@@ -175,16 +197,12 @@ export default function DashboardScreen() {
 
         <Text style={styles.sectionTitle}>Быстрые действия</Text>
         <View style={styles.grid}>
-          {[
-            ["people-outline", "Заявки", data.summary.pendingRequests],
-            ["receipt-outline", "Заказы", data.summary.paidOrders],
-            ["scan-outline", "Сканер", null],
-            ["stats-chart-outline", "Аналитика", null],
-          ].map(([icon, title, badge]) => (
-            <TouchableOpacity key={String(title)} style={styles.actionCard}>
-              <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={24} color="#111827" />
-              <Text style={styles.actionTitle}>{title}</Text>
-              {typeof badge === "number" && <Text style={styles.actionBadge}>{badge}</Text>}
+          {quickActions.map((action) => (
+            <TouchableOpacity key={action.title} style={styles.actionCard} onPress={() => router.push(action.route)} activeOpacity={0.78} accessibilityRole="button" accessibilityLabel={`Открыть раздел ${action.title}`}>
+              <Ionicons name={action.icon} size={24} color="#111827" />
+              <Text style={styles.actionTitle}>{action.title}</Text>
+              {typeof action.badge === "number" && <Text style={styles.actionBadge}>{action.badge}</Text>}
+              <Ionicons name="arrow-forward" size={18} color="#6B7280" style={styles.actionArrow} />
             </TouchableOpacity>
           ))}
         </View>
@@ -218,6 +236,7 @@ const styles = StyleSheet.create({
   avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#111827", alignItems: "center", justifyContent: "center" },
   avatarText: { color: "white", fontWeight: "800" },
   summaryCard: { backgroundColor: "#111827", borderRadius: 24, padding: 22, marginBottom: 14 },
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   summaryLabel: { color: "#A7F3D0", fontSize: 13, fontWeight: "700" },
   summaryValue: { color: "white", fontSize: 31, fontWeight: "800", marginTop: 8 },
   summaryMeta: { color: "#D1D5DB", fontSize: 13, marginTop: 7 },
@@ -225,6 +244,7 @@ const styles = StyleSheet.create({
   stat: { flex: 1, backgroundColor: "white", borderRadius: 18, padding: 17, borderWidth: 1, borderColor: "#E5E7EB" },
   statValue: { fontSize: 24, fontWeight: "800", color: "#111827" },
   statLabel: { marginTop: 5, fontSize: 12.5, color: "#6B7280" },
+  statArrow: { position: "absolute", right: 14, bottom: 14 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 13 },
   sectionTitle: { fontSize: 20, fontWeight: "800", color: "#111827", marginBottom: 14 },
   sectionCount: { fontSize: 13, fontWeight: "800", color: "#6B7280", backgroundColor: "#E5E7EB", paddingHorizontal: 9, paddingVertical: 4, borderRadius: 99 },
@@ -240,6 +260,7 @@ const styles = StyleSheet.create({
   progressTrack: { height: 7, borderRadius: 99, backgroundColor: "#E5E7EB", marginTop: 16, overflow: "hidden" },
   progressFill: { height: "100%", backgroundColor: "#111827", borderRadius: 99 },
   eventBottom: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
+  eventLink: { flexDirection: "row", alignItems: "center", gap: 2 },
   eventSales: { fontSize: 12, color: "#6B7280", fontWeight: "600" },
   empty: { backgroundColor: "white", padding: 22, borderRadius: 20, marginBottom: 24, borderWidth: 1, borderColor: "#E5E7EB" },
   emptyTitle: { fontSize: 16, fontWeight: "800", color: "#111827" },
@@ -248,4 +269,5 @@ const styles = StyleSheet.create({
   actionCard: { width: "48%", minHeight: 112, backgroundColor: "white", borderRadius: 20, padding: 17, borderWidth: 1, borderColor: "#E5E7EB" },
   actionTitle: { marginTop: 16, fontSize: 15, fontWeight: "800", color: "#111827" },
   actionBadge: { position: "absolute", top: 14, right: 14, minWidth: 24, height: 24, borderRadius: 12, backgroundColor: "#111827", color: "white", textAlign: "center", lineHeight: 24, fontSize: 11, fontWeight: "800" },
+  actionArrow: { position: "absolute", right: 15, bottom: 15 },
 });
