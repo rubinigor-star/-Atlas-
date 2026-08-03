@@ -7,6 +7,15 @@ function safe(value) {
   return value;
 }
 
+function posterSummary(value) {
+  const poster = String(value ?? '');
+  return {
+    kind: poster.startsWith('data:') ? 'data-url' : poster.startsWith('http') ? 'remote-url' : poster.startsWith('/') ? 'local-path' : 'other',
+    length: poster.length,
+    preview: poster.startsWith('data:') ? poster.slice(0, 40) : poster,
+  };
+}
+
 try {
   const events = await db.$queryRawUnsafe(`
     SELECT
@@ -35,11 +44,16 @@ try {
       (SELECT COUNT(*)::int FROM "User") AS users
   `);
 
+  const normalized = events.map((row) => ({
+    ...Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'posterUrl').map(([key, value]) => [key, safe(value)])),
+    poster: posterSummary(row.posterUrl),
+  }));
+
   const output = {
-    marker: 'ATLAS_DB_RECOVERY_AUDIT_V1',
+    marker: 'ATLAS_DB_RECOVERY_AUDIT_V2',
     generatedAt: new Date().toISOString(),
     counts: counts[0] ?? {},
-    events: events.map((row) => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, safe(value)]))),
+    events: normalized,
   };
 
   console.log(JSON.stringify(output));
