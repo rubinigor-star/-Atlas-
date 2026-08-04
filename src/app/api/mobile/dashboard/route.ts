@@ -8,10 +8,13 @@ export async function GET(request: Request) {
   const user = await getMobileStaff(request);
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 
+  const now = new Date();
   const scopedEventIds = user.eventAccess.map((access) => access.eventId);
   const eventWhere = {
     ...(user.role === "ADMIN" ? {} : { organizationId: user.organizationId ?? "__none__" }),
     ...(scopedEventIds.length ? { id: { in: scopedEventIds } } : {}),
+    status: "PUBLISHED" as const,
+    startsAt: { gte: now },
   };
 
   const [events, paidRevenue, pendingRequests, recentOrders] = await Promise.all([
@@ -37,11 +40,9 @@ export async function GET(request: Request) {
     }),
   ]);
 
-  const now = new Date();
   const visibleEvents = events.map((event) => {
     const sold = event.categories.reduce((sum, category) => sum + category.sold, 0);
     const capacity = event.categories.reduce((sum, category) => sum + category.capacity, 0);
-    const published = event.status === "PUBLISHED";
 
     return {
       id: event.id,
@@ -49,12 +50,12 @@ export async function GET(request: Request) {
       startsAt: event.startsAt.toISOString(),
       venue: { name: event.venue.name, city: event.venue.city },
       posterUrl: event.posterUrl,
-      published,
+      published: true,
       salesMode: event.salesMode,
       mapEnabled: event.mapEnabled,
       sold,
       capacity,
-      status: event.startsAt < now ? "PAST" : published ? "PUBLISHED" : "DRAFT",
+      status: "PUBLISHED" as const,
     };
   });
 
@@ -74,7 +75,7 @@ export async function GET(request: Request) {
         revenueMinor: paidRevenue._sum.totalMinor ?? 0,
         paidOrders: paidRevenue._count._all,
         pendingRequests,
-        activeEvents: visibleEvents.filter((event) => event.status !== "PAST").length,
+        activeEvents: visibleEvents.length,
       },
       events: visibleEvents,
       recentOrders: recentOrders.map((order) => ({
