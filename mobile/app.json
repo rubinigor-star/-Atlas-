@@ -2,7 +2,7 @@
   "expo": {
     "name": "Atlas Office",
     "slug": "atlas-office",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "orientation": "portrait",
     "scheme": "atlasoffice",
     "userInterfaceStyle": "automatic",
