@@ -13,16 +13,14 @@ export async function GET(request: Request) {
   const eventWhere = {
     ...(user.role === "ADMIN" ? {} : { organizationId: user.organizationId ?? "__none__" }),
     ...(scopedEventIds.length ? { id: { in: scopedEventIds } } : {}),
-    status: "PUBLISHED" as const,
-    startsAt: { gte: now },
   };
 
   const [events, paidRevenue, pendingRequests, recentOrders] = await Promise.all([
     db.event.findMany({
       where: eventWhere,
       include: { venue: true, categories: true },
-      orderBy: { startsAt: "asc" },
-      take: 50,
+      orderBy: { startsAt: "desc" },
+      take: 100,
     }),
     db.order.aggregate({
       where: { event: eventWhere, status: "PAID" },
@@ -43,6 +41,8 @@ export async function GET(request: Request) {
   const visibleEvents = events.map((event) => {
     const sold = event.categories.reduce((sum, category) => sum + category.sold, 0);
     const capacity = event.categories.reduce((sum, category) => sum + category.capacity, 0);
+    const published = event.status === "PUBLISHED";
+    const status = event.startsAt < now ? "PAST" : published ? "PUBLISHED" : "DRAFT";
 
     return {
       id: event.id,
@@ -50,12 +50,12 @@ export async function GET(request: Request) {
       startsAt: event.startsAt.toISOString(),
       venue: { name: event.venue.name, city: event.venue.city },
       posterUrl: event.posterUrl,
-      published: true,
+      published,
       salesMode: event.salesMode,
       mapEnabled: event.mapEnabled,
       sold,
       capacity,
-      status: "PUBLISHED" as const,
+      status,
     };
   });
 
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
         revenueMinor: paidRevenue._sum.totalMinor ?? 0,
         paidOrders: paidRevenue._count._all,
         pendingRequests,
-        activeEvents: visibleEvents.length,
+        activeEvents: visibleEvents.filter((event) => event.status === "PUBLISHED").length,
       },
       events: visibleEvents,
       recentOrders: recentOrders.map((order) => ({
