@@ -12,6 +12,7 @@ export async function GET(request: Request) {
   const eventWhere = {
     ...(user.role === "ADMIN" ? {} : { organizationId: user.organizationId ?? "__none__" }),
     ...(scopedEventIds.length ? { id: { in: scopedEventIds } } : {}),
+    status: "PUBLISHED" as const,
   };
 
   const [events, paidRevenue, pendingRequests, recentOrders] = await Promise.all([
@@ -41,7 +42,6 @@ export async function GET(request: Request) {
   const visibleEvents = events.map((event) => {
     const sold = event.categories.reduce((sum, category) => sum + category.sold, 0);
     const capacity = event.categories.reduce((sum, category) => sum + category.capacity, 0);
-    const published = event.status === "PUBLISHED";
 
     return {
       id: event.id,
@@ -49,12 +49,12 @@ export async function GET(request: Request) {
       startsAt: event.startsAt.toISOString(),
       venue: { name: event.venue.name, city: event.venue.city },
       posterUrl: event.posterUrl,
-      published,
+      published: true,
       salesMode: event.salesMode,
       mapEnabled: event.mapEnabled,
       sold,
       capacity,
-      status: event.startsAt < now ? "PAST" : published ? "PUBLISHED" : "DRAFT",
+      status: event.startsAt < now ? "PAST" : "PUBLISHED",
     };
   });
 
