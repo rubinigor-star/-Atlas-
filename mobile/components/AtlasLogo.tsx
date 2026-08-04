@@ -4,6 +4,8 @@ import { atlasLogoUri } from "@/lib/atlas-brand";
 type AtlasLogoProps = {
   width?: number;
   style?: StyleProp<ImageStyle>;
+  dark?: boolean;
+  office?: boolean;
 };
 
 const OFFICIAL_LOGO_ASPECT_RATIO = 226 / 64;
