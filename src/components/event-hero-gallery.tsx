@@ -7,10 +7,12 @@ import { useLocale } from "@/components/locale-provider";
 import styles from "@/app/events/[slug]/event-detail.module.css";
 import mobile from "@/app/events/[slug]/event-mobile.module.css";
 import fixes from "@/app/events/[slug]/event-gallery-fixes.module.css";
+import behavior from "@/app/events/[slug]/event-gallery-behavior.module.css";
 
 type GalleryItem = {
   id: string;
   type: "video" | "image";
+  kind: "poster" | "gallery" | "video";
   previewUrl: string;
   sourceUrl: string;
   embedUrl?: string;
@@ -79,19 +81,31 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
       next.push({
         id: "hero-video",
         type: "video",
+        kind: "video",
         previewUrl: video.thumbnailUrl || posterUrl,
         sourceUrl: videoUrl,
         embedUrl: video.embedUrl,
         directVideo: video.directVideo,
       });
-      next.push({ id: "hero-poster", type: "image", previewUrl: posterUrl, sourceUrl: posterUrl });
-    } else {
-      next.push({ id: "hero-poster", type: "image", previewUrl: posterUrl, sourceUrl: posterUrl });
     }
+
+    next.push({
+      id: "hero-poster",
+      type: "image",
+      kind: "poster",
+      previewUrl: posterUrl,
+      sourceUrl: posterUrl,
+    });
 
     for (const [index, url] of uniqueImages.entries()) {
       if (url === posterUrl) continue;
-      next.push({ id: `gallery-${index}`, type: "image", previewUrl: url, sourceUrl: url });
+      next.push({
+        id: `gallery-${index}`,
+        type: "image",
+        kind: "gallery",
+        previewUrl: url,
+        sourceUrl: url,
+      });
     }
 
     return next;
@@ -143,9 +157,10 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
   }
 
   function preview(item: GalleryItem, index: number, className: string, viewAll = false) {
+    const mediaClass = item.kind === "poster" ? behavior.posterPreview : behavior.galleryPreview;
     return <button
       type="button"
-      className={className}
+      className={`${className} ${mediaClass}`}
       onClick={() => open(index)}
       aria-label={item.type === "video" ? text.play : `${title} ${index + 1}`}
     >
@@ -156,13 +171,13 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
   }
 
   const active = items[activeIndex] || items[0];
-  const activeIsPoster = active?.id === "hero-poster";
+  const activeIsPoster = active?.kind === "poster";
   const sideItems = items.slice(1, 3);
   const desktopClass = items.length === 1
-    ? `${styles.desktopGallery} ${styles.desktopSingle} ${fixes.desktopGallery} ${fixes.desktopSingle}`
+    ? `${styles.desktopGallery} ${styles.desktopSingle} ${fixes.desktopGallery} ${fixes.desktopSingle} ${behavior.desktopGallery} ${behavior.single}`
     : items.length === 2
-      ? `${styles.desktopGallery} ${styles.desktopPair} ${fixes.desktopGallery} ${fixes.desktopPair}`
-      : `${styles.desktopGallery} ${fixes.desktopGallery}`;
+      ? `${styles.desktopGallery} ${styles.desktopPair} ${fixes.desktopGallery} ${fixes.desktopPair} ${behavior.desktopGallery} ${behavior.pair}`
+      : `${styles.desktopGallery} ${fixes.desktopGallery} ${behavior.desktopGallery}`;
 
   const lightbox = lightboxOpen && active ? <div
     className={`${styles.lightbox} ${fixes.lightbox}`}
@@ -193,7 +208,7 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
   </div> : null;
 
   return <>
-    <div className={`${styles.galleryRoot} ${mobile.galleryRoot} ${fixes.desktopRoot}`}>
+    <div className={`${styles.galleryRoot} ${mobile.galleryRoot} ${fixes.desktopRoot} ${behavior.root}`}>
       <div className={desktopClass}>
         {preview(items[0], 0, styles.desktopMain)}
         {sideItems.length > 0 && <div className={styles.desktopSide}>
@@ -206,8 +221,8 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
         </div>}
       </div>
 
-      <div className={`${styles.mobileGallery} ${mobile.mobileGallery}`}>
-        {items.length > 1 && <div className={`${styles.mobileProgress} ${mobile.mobileProgress}`} aria-hidden="true">
+      <div className={`${styles.mobileGallery} ${mobile.mobileGallery} ${behavior.mobileGallery}`}>
+        {items.length > 1 && <div className={`${styles.mobileProgress} ${mobile.mobileProgress} ${behavior.progress}`} aria-hidden="true">
           {items.map((item, index) => <span key={item.id} className={styles.progressTrack}>
             <i
               key={`${activeIndex}-${index}`}
@@ -217,22 +232,22 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
         </div>}
         <button
           type="button"
-          className={`${styles.mobileMedia} ${mobile.mobileMedia} ${fixes.mobileMedia} ${activeIsPoster ? fixes.mobilePosterFrame : fixes.mobileGalleryFrame}`}
+          className={`${styles.mobileMedia} ${mobile.mobileMedia} ${fixes.mobileMedia} ${behavior.mobileMedia} ${activeIsPoster ? `${fixes.mobilePosterFrame} ${behavior.posterFrame}` : `${fixes.mobileGalleryFrame} ${behavior.galleryFrame}`}`}
           onClick={() => open(activeIndex)}
           aria-label={active.type === "video" ? text.play : `${title} ${activeIndex + 1}`}
         >
-          <img key={`backdrop-${active.id}`} src={active.previewUrl} alt="" aria-hidden="true" className={`${mobile.mobileBackdrop} ${fixes.mobileBackdrop}`}/>
+          <img key={`backdrop-${active.id}`} src={active.previewUrl} alt="" aria-hidden="true" className={`${mobile.mobileBackdrop} ${fixes.mobileBackdrop} ${behavior.backdrop}`}/>
           <img
             key={active.id}
             src={active.previewUrl}
             alt=""
-            className={`${styles.mobileFade} ${mobile.mobilePoster} ${fixes.mobilePoster} ${activeIsPoster ? fixes.mobileSquareArtwork : fixes.mobileFullArtwork}`}
+            className={`${styles.mobileFade} ${mobile.mobilePoster} ${fixes.mobilePoster} ${behavior.artwork} ${activeIsPoster ? `${fixes.mobileSquareArtwork} ${behavior.squareArtwork}` : `${fixes.mobileFullArtwork} ${behavior.fullArtwork}`}`}
           />
           {active.type === "video" && <span className={styles.playButton}><Play size={25} fill="currentColor"/></span>}
         </button>
         {items.length > 1 && <>
-          <button type="button" className={`${styles.carouselArrow} ${styles.carouselArrowLeft}`} onClick={(event) => { event.stopPropagation(); previous(); }} aria-label={text.previous}><ChevronLeft/></button>
-          <button type="button" className={`${styles.carouselArrow} ${styles.carouselArrowRight}`} onClick={(event) => { event.stopPropagation(); next(); }} aria-label={text.next}><ChevronRight/></button>
+          <button type="button" className={`${styles.carouselArrow} ${styles.carouselArrowLeft} ${behavior.carouselArrow}`} onClick={(event) => { event.stopPropagation(); previous(); }} aria-label={text.previous}><ChevronLeft/></button>
+          <button type="button" className={`${styles.carouselArrow} ${styles.carouselArrowRight} ${behavior.carouselArrow}`} onClick={(event) => { event.stopPropagation(); next(); }} aria-label={text.next}><ChevronRight/></button>
         </>}
       </div>
     </div>
