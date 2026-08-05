@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
-import { CalendarDays, ExternalLink, Languages, MapPin, ShieldCheck } from "lucide-react";
+import { CalendarDays, Clock3, ExternalLink, Languages, MapPin, ShieldCheck } from "lucide-react";
 import { db } from "@/lib/db";
-import { eventDate, money } from "@/lib/format";
+import { eventDate, eventDay, eventStartTime, money } from "@/lib/format";
 import { effectiveTicketPrice, ticketPricePresentation } from "@/lib/ticketing";
 import { EventPurchase } from "@/components/event-purchase";
 import { EventShareActions } from "@/components/event-share-actions";
@@ -34,7 +34,8 @@ const copy = {
     about: "О мероприятии",
     readMore: "Читать далее",
     readLess: "Свернуть",
-    date: "Дата и время",
+    date: "Дата мероприятия",
+    start: "Начало мероприятия",
     venue: "Площадка",
     language: "Язык мероприятия",
     secure: "Безопасная покупка",
@@ -46,7 +47,8 @@ const copy = {
     about: "אודות האירוע",
     readMore: "לקריאה נוספת",
     readLess: "צמצום",
-    date: "תאריך ושעה",
+    date: "תאריך האירוע",
+    start: "תחילת האירוע",
     venue: "מקום האירוע",
     language: "שפת האירוע",
     secure: "רכישה מאובטחת",
@@ -58,7 +60,8 @@ const copy = {
     about: "About the event",
     readMore: "Read more",
     readLess: "Show less",
-    date: "Date and time",
+    date: "Event date",
+    start: "Event start",
     venue: "Venue",
     language: "Event language",
     secure: "Secure checkout",
@@ -115,9 +118,9 @@ export default async function EventPage({ params, searchParams }: {
     try {
       const standardPrice = effectiveTicketPrice(category, now);
       const channelPrice = validPromoterLink?.allocationType === "CATEGORY"
-        && validPromoterLink.categoryId === category.id
-        && validPromoterLink.customPriceMinor !== null
-        ? validPromoterLink.customPriceMinor
+        && promoterLink.categoryId === category.id
+        && promoterLink.customPriceMinor !== null
+        ? promoterLink.customPriceMinor
         : standardPrice;
       return [{
         ...category,
@@ -148,7 +151,7 @@ export default async function EventPage({ params, searchParams }: {
       ),
     ),
   ).trim();
-  const shortDescription = presentation.shortDescription || publicDescription.replace(/\s+/g, " ").slice(0, 250);
+  const shortDescription = presentation.shortDescription || publicDescription.replace(/\s+/g, " ").slice(0, 150);
   const text = i18n.messages.event;
   const local = copy[i18n.locale];
   const eventUrl = `https://www.atlas-one.co/events/${event.slug}`;
@@ -208,10 +211,11 @@ export default async function EventPage({ params, searchParams }: {
             : <h2>{local.about}</h2>}
 
           <div className={styles.detailsList}>
-            <div className={styles.detailItem}><CalendarDays size={21}/><div><strong>{local.date}</strong><span>{eventDate(event.startsAt, i18n.locale)}</span></div></div>
+            <div className={styles.detailItem}><CalendarDays size={21}/><div><strong>{local.date}</strong><span>{eventDay(event.startsAt, i18n.locale)}</span></div></div>
+            <div className={styles.detailItem}><Clock3 size={21}/><div><strong>{local.start}</strong><span>{eventStartTime(event.startsAt, i18n.locale)}</span></div></div>
             <div className={styles.detailItem}><MapPin size={21}/><div><strong>{local.venue}</strong><span>{event.venue.name}<br/>{event.venue.address}</span></div></div>
             <div className={styles.detailItem}><Languages size={21}/><div><strong>{local.language}</strong><span>{languageLabel}</span></div></div>
-            <div className={styles.detailItem}><ShieldCheck size={21}/><div><strong>{local.secure}</strong><span>{local.secureInfo}</span></div></div>
+            <div className={`${styles.detailItem} ${styles.detailWide}`}><ShieldCheck size={21}/><div><strong>{local.secure}</strong><span>{local.secureInfo}</span></div></div>
           </div>
 
           {links.length > 0 && <div className={styles.links}>
