@@ -1,117 +1,166 @@
 @media (min-width: 801px) {
   .desktopRoot {
     width: 100%;
-    max-width: 760px;
+    max-width: 700px;
     justify-self: end;
     align-self: center;
   }
 
   .desktopGallery {
     width: 100%;
-    height: 376px !important;
-    max-width: 760px;
+    height: 350px !important;
+    max-width: 700px;
   }
 
   .desktopSingle {
-    width: 376px;
+    width: 350px;
     max-width: 100%;
-    height: 376px !important;
-    grid-template-columns: minmax(0, 376px) !important;
+    height: 350px !important;
+    grid-template-columns: minmax(0, 350px) !important;
     justify-self: end;
   }
 
   .desktopPair {
-    max-width: 680px;
+    max-width: 640px;
   }
 }
 
 .lightbox {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 2147483000 !important;
-  width: 100vw;
-  height: 100dvh;
-  padding: 56px 72px;
-  overflow: hidden;
-  background: rgba(0, 0, 0, .98) !important;
+  z-index: 2147483647 !important;
+  display: grid !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  padding: 62px 76px 34px !important;
+  overflow: hidden !important;
+  place-items: center !important;
+  background: #000 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
   isolation: isolate;
 }
 
 .close {
   position: fixed !important;
-  top: max(18px, env(safe-area-inset-top)) !important;
-  right: max(18px, env(safe-area-inset-right)) !important;
-  z-index: 2147483003 !important;
+  top: max(16px, env(safe-area-inset-top)) !important;
+  right: max(16px, env(safe-area-inset-right)) !important;
+  z-index: 2147483647 !important;
+  display: grid !important;
   width: 52px !important;
   height: 52px !important;
-  border: 1px solid rgba(255, 255, 255, .42) !important;
-  background: rgba(20, 22, 30, .92) !important;
+  place-items: center !important;
+  border: 1px solid rgba(255, 255, 255, .58) !important;
+  border-radius: 999px !important;
+  background: rgba(24, 26, 34, .96) !important;
   color: #fff !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
+  opacity: 1 !important;
+  visibility: visible !important;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, .55) !important;
+}
+
+.close:hover,
+.close:focus-visible {
+  background: #fff !important;
+  color: #0c0d12 !important;
 }
 
 .arrow {
-  z-index: 2147483002 !important;
-  width: 54px !important;
-  height: 54px !important;
-  border: 1px solid rgba(255, 255, 255, .22) !important;
-  background: rgba(31, 36, 65, .88) !important;
+  z-index: 2147483646 !important;
+  display: grid !important;
+  width: 52px !important;
+  height: 52px !important;
+  border: 1px solid rgba(255, 255, 255, .3) !important;
+  background: rgba(31, 36, 65, .92) !important;
 }
 
 .content {
   position: relative;
-  z-index: 2147483001;
-  width: min(1180px, calc(100vw - 160px)) !important;
-  max-height: calc(100dvh - 96px) !important;
+  z-index: 1;
+  display: grid !important;
+  width: min(1120px, calc(100vw - 180px)) !important;
+  height: calc(100dvh - 110px) !important;
+  max-height: calc(100dvh - 110px) !important;
+  place-items: center !important;
 }
 
 .content img,
 .content video {
-  display: block;
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
   max-width: 100% !important;
-  max-height: calc(100dvh - 96px) !important;
+  max-height: 100% !important;
   object-fit: contain !important;
 }
 
-@media (max-width: 1100px) and (min-width: 801px) {
+.content iframe {
+  width: min(1120px, calc(100vw - 180px)) !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
+
+@media (max-width: 1180px) and (min-width: 801px) {
   .desktopRoot {
-    max-width: 650px;
+    max-width: 620px;
   }
 
   .desktopGallery {
-    height: 344px !important;
-    max-width: 650px;
+    height: 320px !important;
+    max-width: 620px;
   }
 
   .desktopSingle {
-    width: 344px;
-    height: 344px !important;
-    grid-template-columns: minmax(0, 344px) !important;
+    width: 320px;
+    height: 320px !important;
+    grid-template-columns: minmax(0, 320px) !important;
   }
 }
 
 @media (max-width: 800px) {
+  .mobileMedia {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    overflow: hidden !important;
+  }
+
   .mobileMedia > .mobileBackdrop {
+    position: absolute !important;
+    inset: -44px !important;
     width: calc(100% + 88px) !important;
     height: calc(100% + 88px) !important;
+    max-width: none !important;
+    max-height: none !important;
     object-fit: cover !important;
+    object-position: center !important;
+    transform: none !important;
   }
 
   .mobileMedia > .mobilePoster {
-    width: 100% !important;
-    height: auto !important;
-    max-width: 620px !important;
+    position: absolute !important;
+    top: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: 50% !important;
+    width: min(100vw, 560px) !important;
+    height: min(100vw, 560px) !important;
+    max-width: none !important;
     max-height: none !important;
     aspect-ratio: 1 / 1 !important;
     object-fit: contain !important;
     object-position: center !important;
+    transform: translate(-50%, -50%) !important;
   }
 
   .lightbox {
-    padding: 52px 12px 18px;
+    padding: 58px 12px 16px !important;
   }
 
   .close {
+    top: max(10px, env(safe-area-inset-top)) !important;
+    right: max(10px, env(safe-area-inset-right)) !important;
     width: 46px !important;
     height: 46px !important;
   }
@@ -122,13 +171,18 @@
   }
 
   .content {
-    width: 100% !important;
-    max-height: calc(100dvh - 76px) !important;
+    width: calc(100vw - 24px) !important;
+    height: calc(100dvh - 82px) !important;
+    max-height: calc(100dvh - 82px) !important;
   }
 
   .content img,
   .content video {
-    max-width: calc(100vw - 24px) !important;
-    max-height: calc(100dvh - 76px) !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+  }
+
+  .content iframe {
+    width: calc(100vw - 24px) !important;
   }
 }
