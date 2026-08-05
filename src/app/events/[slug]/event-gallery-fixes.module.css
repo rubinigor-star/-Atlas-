@@ -1,27 +1,75 @@
 @media (min-width: 801px) {
   .desktopRoot {
-    width: 100%;
-    max-width: 700px;
+    width: 560px;
+    max-width: 100%;
+    height: 360px;
     justify-self: end;
     align-self: center;
   }
 
   .desktopGallery {
-    width: 100%;
-    height: 350px !important;
-    max-width: 700px;
+    width: 560px !important;
+    max-width: 100% !important;
+    height: 360px !important;
+    grid-template-columns: 360px 190px !important;
+    gap: 10px !important;
+    justify-content: end;
+  }
+
+  .desktopMain {
+    width: 360px !important;
+    height: 360px !important;
+    min-height: 360px !important;
+    aspect-ratio: 1 / 1 !important;
+  }
+
+  .desktopMain > img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: center !important;
+  }
+
+  .desktopSide {
+    width: 190px !important;
+    height: 360px !important;
+    grid-template-rows: repeat(2, 175px) !important;
+    gap: 10px !important;
+  }
+
+  .desktopSideItem {
+    width: 190px !important;
+    height: 175px !important;
+    min-height: 175px !important;
+  }
+
+  .desktopSideItem > img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: center !important;
   }
 
   .desktopSingle {
-    width: 350px;
-    max-width: 100%;
-    height: 350px !important;
-    grid-template-columns: minmax(0, 350px) !important;
+    width: 360px !important;
+    max-width: 360px !important;
+    height: 360px !important;
+    grid-template-columns: 360px !important;
     justify-self: end;
   }
 
   .desktopPair {
-    max-width: 640px;
+    width: 560px !important;
+    max-width: 560px !important;
+  }
+
+  .desktopPair .desktopSide {
+    grid-template-rows: 360px !important;
+  }
+
+  .desktopPair .desktopSideItem {
+    height: 360px !important;
+    min-height: 360px !important;
   }
 }
 
@@ -103,18 +151,53 @@
 
 @media (max-width: 1180px) and (min-width: 801px) {
   .desktopRoot {
-    max-width: 620px;
+    width: 490px;
+    height: 320px;
   }
 
   .desktopGallery {
+    width: 490px !important;
     height: 320px !important;
-    max-width: 620px;
+    grid-template-columns: 320px 160px !important;
+  }
+
+  .desktopMain {
+    width: 320px !important;
+    height: 320px !important;
+    min-height: 320px !important;
+  }
+
+  .desktopSide {
+    width: 160px !important;
+    height: 320px !important;
+    grid-template-rows: repeat(2, 155px) !important;
+  }
+
+  .desktopSideItem {
+    width: 160px !important;
+    height: 155px !important;
+    min-height: 155px !important;
   }
 
   .desktopSingle {
-    width: 320px;
+    width: 320px !important;
+    max-width: 320px !important;
     height: 320px !important;
-    grid-template-columns: minmax(0, 320px) !important;
+    grid-template-columns: 320px !important;
+  }
+
+  .desktopPair {
+    width: 490px !important;
+    max-width: 490px !important;
+  }
+
+  .desktopPair .desktopSide {
+    grid-template-rows: 320px !important;
+  }
+
+  .desktopPair .desktopSideItem {
+    height: 320px !important;
+    min-height: 320px !important;
   }
 }
 
