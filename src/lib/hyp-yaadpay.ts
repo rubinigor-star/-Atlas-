@@ -80,7 +80,8 @@ export async function createHypPaymentLink(input: HypPaymentLinkInput) {
 export function hypResultFromUrl(url: URL) {
   const raw = Object.fromEntries(url.searchParams.entries());
   const code = url.searchParams.get("CCode") || url.searchParams.get("code") || url.searchParams.get("errorCode") || "";
-  const transId = url.searchParams.get("TransId") || url.searchParams.get("tranId") || "";
+  const id = url.searchParams.get("Id") || "";
+  const transId = url.searchParams.get("TransId") || url.searchParams.get("tranId") || id;
   return {
     success: code === "0" || code === "000",
     code,
@@ -91,7 +92,7 @@ export function hypResultFromUrl(url: URL) {
     txId: url.searchParams.get("txId") || "",
     uniqueId: url.searchParams.get("uniqueId") || "",
     authorizationCode: url.searchParams.get("ACode") || "",
-    id: url.searchParams.get("Id") || "",
+    id,
     amount: url.searchParams.get("Amount") || url.searchParams.get("amount") || "",
     cardMask: url.searchParams.get("L4digit") || url.searchParams.get("cardMask") || "",
     raw,
@@ -117,7 +118,7 @@ export type HypRefundResult = { resultCode: string; refundTranId: string; status
 
 export async function refundHypDeal(input: { transactionId: string; amountMinor: number }): Promise<HypRefundResult> {
   const transactionId = input.transactionId.trim();
-  if (!/^\d+$/.test(transactionId)) throw new Error("Не найден настоящий TransId исходной транзакции HYP");
+  if (!/^\d+$/.test(transactionId)) throw new Error("Не найден идентификатор исходной транзакции HYP");
   if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) throw new Error("Некорректная сумма возврата");
   const params = new URLSearchParams({ action: "zikoyAPI", Masof: required("HYP_MASOF"), PassP: required("HYP_PASSP"), TransId: transactionId, Amount: (input.amountMinor / 100).toFixed(2) });
   console.info("hyp.refund.request", { endpoint: HYP_ENDPOINT, params: redact(params) });
