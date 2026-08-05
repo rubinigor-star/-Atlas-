@@ -124,7 +124,7 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
 
       return {
         desktopItems: [videoItem, ...gallery],
-        mobileItems: [videoItem, ...gallery, poster],
+        mobileItems: [...gallery, poster],
       };
     }
 
@@ -199,7 +199,7 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
     >
       <img src={item.previewUrl} alt="" onError={(event) => applyPreviewFallback(event, item)}/>
       {item.type === "video" && <span className={behavior.playButton}><Play fill="currentColor"/></span>}
-      {viewAll && <span className={styles.viewAll}><Grid3X3 size={22}/>{text.viewAll}</span>}
+      {viewAll && <span className={behavior.viewAll}><Grid3X3 size={22}/>{text.viewAll}</span>}
     </button>;
   }
 
@@ -250,7 +250,7 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
             item,
             sideIndex + 1,
             styles.desktopSideItem,
-            desktopItems.length > 2 && sideIndex === sideItems.length - 1,
+            sideIndex === sideItems.length - 1,
           ))}
         </div>}
       </div>
@@ -268,7 +268,7 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
           type="button"
           className={`${styles.mobileMedia} ${mobile.mobileMedia} ${fixes.mobileMedia} ${behavior.mobileMedia} ${activeIsPoster ? `${fixes.mobilePosterFrame} ${behavior.posterFrame}` : `${fixes.mobileGalleryFrame} ${behavior.galleryFrame}`}`}
           onClick={() => open(activeIndex)}
-          aria-label={active.type === "video" ? text.play : `${title} ${activeIndex + 1}`}
+          aria-label={`${title} ${activeIndex + 1}`}
         >
           <img key={`backdrop-${active.id}`} src={active.previewUrl} alt="" aria-hidden="true" className={`${mobile.mobileBackdrop} ${fixes.mobileBackdrop} ${behavior.backdrop}`} onError={(event) => applyPreviewFallback(event, active)}/>
           <img
@@ -278,7 +278,6 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
             className={`${styles.mobileFade} ${mobile.mobilePoster} ${fixes.mobilePoster} ${behavior.artwork} ${activeIsPoster ? `${fixes.mobileSquareArtwork} ${behavior.squareArtwork}` : `${fixes.mobileFullArtwork} ${behavior.fullArtwork}`}`}
             onError={(event) => applyPreviewFallback(event, active)}
           />
-          {active.type === "video" && <span className={behavior.playButton}><Play fill="currentColor"/></span>}
         </button>
         {mobileItems.length > 1 && <>
           <button type="button" className={`${styles.carouselArrow} ${styles.carouselArrowLeft} ${behavior.carouselArrow}`} onClick={(event) => { event.stopPropagation(); previous(); }} aria-label={text.previous}><ChevronLeft/></button>
