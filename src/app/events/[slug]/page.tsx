@@ -118,9 +118,9 @@ export default async function EventPage({ params, searchParams }: {
     try {
       const standardPrice = effectiveTicketPrice(category, now);
       const channelPrice = validPromoterLink?.allocationType === "CATEGORY"
-        && promoterLink.categoryId === category.id
-        && promoterLink.customPriceMinor !== null
-        ? promoterLink.customPriceMinor
+        && validPromoterLink.categoryId === category.id
+        && validPromoterLink.customPriceMinor !== null
+        ? validPromoterLink.customPriceMinor
         : standardPrice;
       return [{
         ...category,
