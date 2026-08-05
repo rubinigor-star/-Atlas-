@@ -7,9 +7,8 @@ type Props = {
 };
 
 const MAX_SOURCE_BYTES = 15_000_000;
-const MAX_UPLOAD_BYTES = 1_800_000;
-const MAX_WIDTH = 1600;
-const MAX_HEIGHT = 2000;
+const MAX_UPLOAD_BYTES = 1_200_000;
+const OUTPUT_SIZE = 750;
 
 async function loadImage(file: File): Promise<ImageBitmap | HTMLImageElement> {
   if ("createImageBitmap" in window) return createImageBitmap(file);
@@ -33,18 +32,18 @@ async function optimizePoster(file: File): Promise<File> {
   const image = await loadImage(file);
   const sourceWidth = image.width;
   const sourceHeight = image.height;
-  const scale = Math.min(1, MAX_WIDTH / sourceWidth, MAX_HEIGHT / sourceHeight);
-  const width = Math.max(1, Math.round(sourceWidth * scale));
-  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const cropSize = Math.min(sourceWidth, sourceHeight);
+  const sourceX = Math.max(0, Math.round((sourceWidth - cropSize) / 2));
+  const sourceY = Math.max(0, Math.round((sourceHeight - cropSize) / 2));
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = OUTPUT_SIZE;
+  canvas.height = OUTPUT_SIZE;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Браузер не поддерживает обработку изображения");
-  context.drawImage(image, 0, 0, width, height);
+  context.drawImage(image, sourceX, sourceY, cropSize, cropSize, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
   if ("close" in image && typeof image.close === "function") image.close();
 
-  let quality = 0.88;
+  let quality = 0.9;
   let blob: Blob | null = null;
   while (quality >= 0.5) {
     blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
@@ -52,7 +51,7 @@ async function optimizePoster(file: File): Promise<File> {
     quality -= 0.08;
   }
   if (!blob || blob.size > MAX_UPLOAD_BYTES) throw new Error("Не удалось сжать фотографию. Выберите изображение меньшего размера");
-  return new File([blob], "event-poster.jpg", { type: "image/jpeg" });
+  return new File([blob], "event-poster-750x750.jpg", { type: "image/jpeg" });
 }
 
 export function PosterUploader({ initialUrl }: Props) {
@@ -94,9 +93,9 @@ export function PosterUploader({ initialUrl }: Props) {
         </button>
         <small className="muted">JPG, PNG или WebP · до 15 МБ</small>
       </div>
-      <small className="muted">Рекомендуемый размер: 1600 × 2000 px, вертикальный формат 4:5. Система сама уменьшит и сожмёт большой файл.</small>
+      <small className="muted">Рекомендуемый размер для всех изображений мероприятия: 750 × 750 px. Фотография автоматически обрезается по центру до квадрата и оптимизируется.</small>
       {message && <div className="toast" style={{ marginTop: 10 }}>{message}</div>}
-      {url && <img src={url} alt="Текущая афиша" style={{ width: "min(420px,100%)", aspectRatio: "4 / 5", objectFit: "cover", borderRadius: 16, marginTop: 12 }} />}
+      {url && <img src={url} alt="Текущая афиша" style={{ width: "min(420px,100%)", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 16, marginTop: 12 }} />}
     </div>
   );
 }
