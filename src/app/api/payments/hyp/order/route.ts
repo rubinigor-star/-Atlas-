@@ -10,11 +10,16 @@ import { ensureAbandonedCheckoutRuntime } from "@/lib/abandoned-checkout";
 export const dynamic = "force-dynamic";
 
 type CallbackMode = "browser" | "server";
-
 type FinalizeResult = {
   publicId: string;
   state: "success" | "failed" | "invalid-signature" | "missing-transaction" | "missing-order" | "unknown-order";
   alreadyPaid?: boolean;
+};
+
+type OrderForAuthorization = {
+  id: string;
+  totalMinor: number;
+  currency: string;
 };
 
 let paymentColumnsReady: Promise<void> | undefined;
@@ -92,22 +97,41 @@ async function requestToCallbackUrl(request: Request) {
   return url;
 }
 
-async function updateExistingAuthorization(orderId: string, result: ReturnType<typeof hypResultFromUrl>) {
-  if (!result.transId) return;
+async function upsertAuthorization(order: OrderForAuthorization, result: ReturnType<typeof hypResultFromUrl>) {
+  const transId = result.transId.trim();
+  if (!transId) return;
+
   await ensurePaymentIdentifierColumns();
+  const authorizationId = `auth_${randomUUID().replace(/-/g, "")}`;
+  const last4 = result.cardMask.replace(/\D/g, "").slice(-4) || null;
+
   await db.$executeRawUnsafe(
-    `UPDATE "PaymentAuthorization" SET
-      "providerReference"=$2,
-      "hypTransId"=$2,
-      "hypCgUid"=NULLIF($3,''),
-      "hypTxId"=NULLIF($4,''),
-      "hypUniqueId"=NULLIF($5,''),
-      "providerResponseCode"=NULLIF($6,''),
-      "providerPayloadJson"=$7,
-      "updatedAt"=CURRENT_TIMESTAMP
-     WHERE "orderId"=$1 AND "provider"='HYP'`,
-    orderId,
-    result.transId,
+    `INSERT INTO "PaymentAuthorization" (
+      "id","orderId","provider","providerReference","method","status","amountMinor","currency","cardLast4",
+      "hypTransId","hypCgUid","hypTxId","hypUniqueId","providerResponseCode","providerPayloadJson",
+      "authorizedAt","capturedAt","expiresAt","createdAt","updatedAt"
+    ) VALUES ($1,$2,'HYP',$3,'HOSTED_PAGE','CAPTURED',$4,$5,$6,$3,NULLIF($7,''),NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),$11,
+      CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP + INTERVAL '10 years',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+    ON CONFLICT ("orderId") DO UPDATE SET
+      "providerReference"=EXCLUDED."providerReference",
+      "status"='CAPTURED',
+      "amountMinor"=EXCLUDED."amountMinor",
+      "currency"=EXCLUDED."currency",
+      "cardLast4"=COALESCE(EXCLUDED."cardLast4","PaymentAuthorization"."cardLast4"),
+      "hypTransId"=EXCLUDED."hypTransId",
+      "hypCgUid"=COALESCE(EXCLUDED."hypCgUid","PaymentAuthorization"."hypCgUid"),
+      "hypTxId"=COALESCE(EXCLUDED."hypTxId","PaymentAuthorization"."hypTxId"),
+      "hypUniqueId"=COALESCE(EXCLUDED."hypUniqueId","PaymentAuthorization"."hypUniqueId"),
+      "providerResponseCode"=EXCLUDED."providerResponseCode",
+      "providerPayloadJson"=EXCLUDED."providerPayloadJson",
+      "capturedAt"=COALESCE("PaymentAuthorization"."capturedAt",CURRENT_TIMESTAMP),
+      "updatedAt"=CURRENT_TIMESTAMP`,
+    authorizationId,
+    order.id,
+    transId,
+    order.totalMinor,
+    order.currency,
+    last4,
     result.cgUid,
     result.txId,
     result.uniqueId,
@@ -130,7 +154,7 @@ async function finalizeCallback(url: URL): Promise<FinalizeResult> {
 
   if (order.status === "PAID") {
     if (signatureValid && result.success && returnedMinor === order.totalMinor && transId) {
-      await updateExistingAuthorization(order.id, result);
+      await upsertAuthorization(order, result);
     }
     return { publicId, state: "success", alreadyPaid: true };
   }
