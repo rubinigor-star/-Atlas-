@@ -231,6 +231,8 @@ export default async function EventPage({ params, searchParams }: {
               <div className={`${styles.detailItem} ${styles.detailWide}`}><ShieldCheck size={21}/><div><strong>{local.secure}</strong><span>{local.secureInfo}</span></div></div>
             </div>
 
+            {presentation.faqEnabled && presentation.faq.length > 0 && <EventFaq title={local.faq} items={presentation.faq}/>} 
+
             {links.length > 0 && <div className={styles.links}>
               {links.map((item, index) => <a key={`${item.url}-${index}`} className={styles.externalLink} href={item.url} target="_blank" rel="noreferrer">
                 <span>{item.title || new URL(item.url).hostname}</span><ExternalLink size={15}/>
@@ -246,10 +248,6 @@ export default async function EventPage({ params, searchParams }: {
             : <div className={styles.closedCard}><strong>{text.salesClosed}</strong><p>{text.noTariffs}</p></div>}
         </aside>
       </div>
-
-      {presentation.faq.length > 0 && <div className={`shell ${bodyLayout.shell} ${desktopLayout.wideShell}`}>
-        <EventFaq title={local.faq} items={presentation.faq}/>
-      </div>}
     </section>
   </main>;
 }
