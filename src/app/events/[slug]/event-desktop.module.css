@@ -1,0 +1,54 @@
+@media (min-width: 801px) {
+  .wideShell {
+    width: 100%;
+    max-width: 1380px !important;
+    margin-right: auto;
+    margin-left: auto;
+    padding-right: 22px;
+    padding-left: 22px;
+  }
+
+  .hero {
+    background: #0b0c12 !important;
+  }
+
+  .hero::before {
+    inset: -105px !important;
+    background-position: center 42% !important;
+    filter: blur(72px) brightness(.31) saturate(1.62) !important;
+    opacity: .92 !important;
+    transform: scale(1.2) !important;
+  }
+
+  .hero::after {
+    background:
+      linear-gradient(90deg, rgba(7, 8, 14, .84) 0%, rgba(7, 8, 14, .66) 30%, rgba(8, 9, 15, .43) 63%, rgba(7, 8, 14, .58) 100%),
+      linear-gradient(180deg, rgba(7, 8, 14, .28) 0%, rgba(7, 8, 14, .08) 58%, rgba(7, 8, 14, .38) 100%) !important;
+  }
+
+  .heroGrid {
+    grid-template-columns: minmax(340px, 430px) minmax(0, 1fr) !important;
+    gap: 72px !important;
+  }
+
+  .bodyGrid {
+    grid-template-columns: minmax(0, 1.6fr) minmax(430px, .82fr) !important;
+    gap: 40px !important;
+  }
+}
+
+@media (min-width: 801px) and (max-width: 1180px) {
+  .wideShell {
+    max-width: 1120px !important;
+  }
+
+  .heroGrid {
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr) !important;
+    gap: 38px !important;
+  }
+
+  .bodyGrid {
+    grid-template-columns: minmax(0, 1.25fr) minmax(360px, .78fr) !important;
+    gap: 26px !important;
+  }
+}
