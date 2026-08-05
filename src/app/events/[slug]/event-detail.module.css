@@ -14,15 +14,15 @@
 
 .hero::before {
   position: absolute;
-  inset: -80px;
+  inset: -120px;
   z-index: -2;
   background-image: var(--event-hero-image);
-  background-position: center;
+  background-position: center 35%;
   background-size: cover;
   content: "";
-  filter: blur(78px) saturate(1.35);
-  opacity: .34;
-  transform: scale(1.1);
+  filter: blur(88px) saturate(1.62) brightness(.74);
+  opacity: .82;
+  transform: scale(1.18);
 }
 
 .hero::after {
@@ -30,8 +30,8 @@
   inset: 0;
   z-index: -1;
   background:
-    linear-gradient(90deg, rgba(13, 14, 21, .95) 0%, rgba(13, 14, 21, .72) 52%, rgba(13, 14, 21, .82) 100%),
-    linear-gradient(180deg, rgba(13, 14, 21, .08), #101118 95%);
+    linear-gradient(90deg, rgba(8, 9, 15, .84) 0%, rgba(8, 9, 15, .66) 37%, rgba(8, 9, 15, .46) 68%, rgba(8, 9, 15, .66) 100%),
+    linear-gradient(180deg, rgba(8, 9, 15, .08) 0%, rgba(8, 9, 15, .18) 58%, rgba(8, 9, 15, .82) 100%);
   content: "";
 }
 
