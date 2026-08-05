@@ -16,34 +16,34 @@
     justify-content: end;
   }
 
-  .desktopMain {
+  .desktopGallery > button {
     width: 360px !important;
     height: 360px !important;
     min-height: 360px !important;
     aspect-ratio: 1 / 1 !important;
   }
 
-  .desktopMain > img {
+  .desktopGallery > button > img {
     width: 100% !important;
     height: 100% !important;
     object-fit: cover !important;
     object-position: center !important;
   }
 
-  .desktopSide {
+  .desktopGallery > div {
     width: 190px !important;
     height: 360px !important;
     grid-template-rows: repeat(2, 175px) !important;
     gap: 10px !important;
   }
 
-  .desktopSideItem {
+  .desktopGallery > div > button {
     width: 190px !important;
     height: 175px !important;
     min-height: 175px !important;
   }
 
-  .desktopSideItem > img {
+  .desktopGallery > div > button > img {
     width: 100% !important;
     height: 100% !important;
     object-fit: cover !important;
@@ -63,11 +63,11 @@
     max-width: 560px !important;
   }
 
-  .desktopPair .desktopSide {
+  .desktopPair > div {
     grid-template-rows: 360px !important;
   }
 
-  .desktopPair .desktopSideItem {
+  .desktopPair > div > button {
     height: 360px !important;
     min-height: 360px !important;
   }
@@ -161,19 +161,19 @@
     grid-template-columns: 320px 160px !important;
   }
 
-  .desktopMain {
+  .desktopGallery > button {
     width: 320px !important;
     height: 320px !important;
     min-height: 320px !important;
   }
 
-  .desktopSide {
+  .desktopGallery > div {
     width: 160px !important;
     height: 320px !important;
     grid-template-rows: repeat(2, 155px) !important;
   }
 
-  .desktopSideItem {
+  .desktopGallery > div > button {
     width: 160px !important;
     height: 155px !important;
     min-height: 155px !important;
@@ -191,11 +191,11 @@
     max-width: 490px !important;
   }
 
-  .desktopPair .desktopSide {
+  .desktopPair > div {
     grid-template-rows: 320px !important;
   }
 
-  .desktopPair .desktopSideItem {
+  .desktopPair > div > button {
     height: 320px !important;
     min-height: 320px !important;
   }
