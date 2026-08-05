@@ -95,7 +95,7 @@ export function EventLanguageManager({ eventId, initial }: { eventId: string; in
 
   const help = catalogVisibility === "TARGETED" ? text.targetedHelp : catalogVisibility === "PUBLIC" ? text.publicHelp : text.directHelp;
 
-  return <form className="panel form" onSubmit={submit}>
+  return <form className="panel form" data-unified-save="about" onSubmit={submit}>
     <span className="eyebrow">{text.eyebrow}</span>
     <h2>{text.title}</h2>
     <div className="form-grid two">
@@ -114,7 +114,7 @@ export function EventLanguageManager({ eventId, initial }: { eventId: string; in
         <small className="muted">{help}</small>
       </div>
     </div>
-    <button className="btn" disabled={busy}>{busy ? "…" : text.save}</button>
+    <button className="btn" disabled={busy} data-workspace-local-save="true">{busy ? "…" : text.save}</button>
     {message && <div className="toast save-feedback" role="status">{message}</div>}
   </form>;
 }
