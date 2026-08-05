@@ -1,3 +1,39 @@
+.progress {
+  display: none !important;
+}
+
+.progressTrack {
+  position: relative;
+  display: block;
+  min-width: 0;
+  height: 3px;
+  flex: 1 1 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .34);
+}
+
+.progressFill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #fff;
+}
+
+.progressComplete {
+  width: 100%;
+}
+
+.progressActive {
+  animation: eventGalleryProgress 2s linear forwards;
+}
+
+@keyframes eventGalleryProgress {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
 @media (min-width: 801px) {
   .root {
     width: 602px !important;
@@ -248,10 +284,15 @@
   }
 
   .progress {
+    position: absolute !important;
     top: 74px !important;
     right: 20px !important;
     left: 20px !important;
-    z-index: 7 !important;
+    z-index: 8 !important;
+    display: flex !important;
+    height: 3px !important;
+    gap: 5px !important;
+    pointer-events: none !important;
   }
 
   .carouselArrow {
