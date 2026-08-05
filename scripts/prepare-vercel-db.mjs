@@ -7,18 +7,37 @@ if (!process.env.VERCEL) {
   process.exit(0);
 }
 
-const pooledVariable = process.env.POSTGRES_PRISMA_URL
-  ? "POSTGRES_PRISMA_URL"
-  : "DATABASE_URL";
-const directVariable = process.env.POSTGRES_URL_NON_POOLING
-  ? "POSTGRES_URL_NON_POOLING"
-  : process.env.DIRECT_URL
-    ? "DIRECT_URL"
-    : null;
-const pooledUrl = process.env[pooledVariable] ?? "";
+const isPostgresUrl = (value) =>
+  typeof value === "string" &&
+  (value.startsWith("postgresql://") || value.startsWith("postgres://"));
 
-if (!pooledUrl.startsWith("postgresql://") && !pooledUrl.startsWith("postgres://")) {
-  throw new Error(`${pooledVariable} must be a PostgreSQL connection string on Vercel.`);
+const pooledCandidates = [
+  "POSTGRES_PRISMA_URL",
+  "DATABASE_URL",
+  "POSTGRES_URL",
+];
+const directCandidates = [
+  "POSTGRES_URL_NON_POOLING",
+  "DIRECT_URL",
+];
+
+const pooledVariable = pooledCandidates.find((name) => isPostgresUrl(process.env[name]));
+const directVariable = directCandidates.find((name) => isPostgresUrl(process.env[name])) || null;
+
+console.log("[Atlas database config] PostgreSQL variable availability", {
+  vercelEnv: process.env.VERCEL_ENV || "unknown",
+  candidates: Object.fromEntries(
+    [...pooledCandidates, ...directCandidates].map((name) => [
+      name,
+      process.env[name] ? (isPostgresUrl(process.env[name]) ? "postgres" : "invalid") : "missing",
+    ]),
+  ),
+});
+
+if (!pooledVariable) {
+  throw new Error(
+    "No valid PostgreSQL connection string is available on Vercel. Configure DATABASE_URL, POSTGRES_PRISMA_URL, or POSTGRES_URL for this environment.",
+  );
 }
 
 let schema = await readFile(schemaPath, "utf8");
@@ -37,5 +56,5 @@ if (directVariable && !schema.includes(`directUrl = env("${directVariable}")`)) 
 
 await writeFile(schemaPath, schema);
 console.log(
-  `Prepared Prisma schema for Supabase PostgreSQL using ${pooledVariable}${directVariable ? ` and ${directVariable}` : ""}.`,
+  `Prepared Prisma schema for PostgreSQL using ${pooledVariable}${directVariable ? ` and ${directVariable}` : ""}.`,
 );
