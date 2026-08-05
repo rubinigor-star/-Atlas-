@@ -10,7 +10,7 @@
 
   .hero {
     padding-top: 104px !important;
-    padding-bottom: 38px !important;
+    padding-bottom: 76px !important;
     background: #0b0c12 !important;
   }
 
@@ -43,6 +43,10 @@
 @media (min-width: 801px) and (max-width: 1180px) {
   .wideShell {
     max-width: 1120px !important;
+  }
+
+  .hero {
+    padding-bottom: 68px !important;
   }
 
   .heroGrid {
