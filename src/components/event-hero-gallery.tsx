@@ -119,10 +119,31 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
 
   useEffect(() => {
     if (items.length < 2 || lightboxOpen) return;
-    const interval = window.setInterval(() => {
-      setActiveIndex((current) => (current + 1) % items.length);
-    }, 2000);
-    return () => window.clearInterval(interval);
+
+    const mobileQuery = window.matchMedia("(max-width: 800px)");
+    let intervalId: number | undefined;
+
+    const stop = () => {
+      if (intervalId !== undefined) window.clearInterval(intervalId);
+      intervalId = undefined;
+    };
+
+    const start = () => {
+      stop();
+      if (!mobileQuery.matches) return;
+      intervalId = window.setInterval(() => {
+        setActiveIndex((current) => (current + 1) % items.length);
+      }, 2000);
+    };
+
+    const handleViewportChange = () => start();
+    start();
+    mobileQuery.addEventListener?.("change", handleViewportChange);
+
+    return () => {
+      stop();
+      mobileQuery.removeEventListener?.("change", handleViewportChange);
+    };
   }, [items.length, lightboxOpen]);
 
   useEffect(() => {
@@ -223,10 +244,10 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
 
       <div className={`${styles.mobileGallery} ${mobile.mobileGallery} ${behavior.mobileGallery}`}>
         {items.length > 1 && <div className={`${styles.mobileProgress} ${mobile.mobileProgress} ${behavior.progress}`} aria-hidden="true">
-          {items.map((item, index) => <span key={item.id} className={styles.progressTrack}>
+          {items.map((item, index) => <span key={item.id} className={`${styles.progressTrack} ${behavior.progressTrack}`}>
             <i
               key={`${activeIndex}-${index}`}
-              className={`${styles.progressFill} ${index < activeIndex ? styles.progressComplete : ""} ${index === activeIndex ? styles.progressActive : ""}`}
+              className={`${styles.progressFill} ${behavior.progressFill} ${index < activeIndex ? `${styles.progressComplete} ${behavior.progressComplete}` : ""} ${index === activeIndex ? `${styles.progressActive} ${behavior.progressActive}` : ""}`}
             />
           </span>)}
         </div>}
