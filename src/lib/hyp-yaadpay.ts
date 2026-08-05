@@ -36,7 +36,15 @@ function normalizeCallbackUrl(value: string) {
 }
 
 function parseHypBody(body: string) {
-  return new URLSearchParams(body.trim().replace(/^\?/, ""));
+  const trimmed = body.trim();
+  try {
+    const json = JSON.parse(trimmed) as Record<string, unknown>;
+    return new URLSearchParams(
+      Object.entries(json).map(([key, value]) => [key, value == null ? "" : String(value)]),
+    );
+  } catch {
+    return new URLSearchParams(trimmed.replace(/^\?/, ""));
+  }
 }
 
 function redact(params: URLSearchParams) {
@@ -45,6 +53,21 @@ function redact(params: URLSearchParams) {
     if (safe.has(key)) safe.set(key, "[REDACTED]");
   }
   return safe.toString();
+}
+
+function safeResponse(value: string) {
+  return value
+    .replace(/(PassP=)[^&\s]+/gi, "$1[REDACTED]")
+    .replace(/("?PassP"?\s*[:=]\s*")[^"]+/gi, "$1[REDACTED]")
+    .slice(0, 20_000);
+}
+
+function first(params: URLSearchParams, names: string[]) {
+  for (const name of names) {
+    const value = params.get(name);
+    if (value) return value;
+  }
+  return "";
 }
 
 async function callApiSign(what: "SIGN" | "VERIFY", paymentParams: URLSearchParams) {
@@ -215,6 +238,74 @@ export async function verifyHypCallback(url: URL) {
   }
 }
 
-export async function refundHypDeal(_input: { transactionId: string; amountMinor?: number }) {
-  throw new Error("HYP API refund flow is not enabled until its APISign refund contract is verified");
+export type HypRefundResult = {
+  resultCode: string;
+  refundTranId: string;
+  statusText: string;
+  rawResponse: string;
+};
+
+export async function refundHypDeal(input: {
+  transactionId: string;
+  amountMinor: number;
+}): Promise<HypRefundResult> {
+  const transactionId = input.transactionId.trim();
+  if (!/^\d+$/.test(transactionId)) {
+    throw new Error("Не найден настоящий TransId исходной транзакции HYP");
+  }
+  if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
+    throw new Error("Некорректная сумма возврата");
+  }
+
+  const params = new URLSearchParams({
+    action: "zikoyAPI",
+    Masof: required("HYP_MASOF"),
+    PassP: required("HYP_PASSP"),
+    TransId: transactionId,
+    Amount: (input.amountMinor / 100).toFixed(2),
+  });
+
+  console.info("hyp.refund.request", {
+    endpoint: HYP_ENDPOINT,
+    params: redact(params),
+  });
+
+  const response = await fetch(`${HYP_ENDPOINT}?${params.toString()}`, {
+    method: "GET",
+    headers: {
+      "User-Agent": "Atlas-One-HYP-Refunds/1.0",
+      Accept: "text/plain, application/x-www-form-urlencoded, application/json, */*",
+    },
+    cache: "no-store",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+
+  const body = (await response.text()).trim();
+  if (!response.ok) {
+    throw new Error(`HYP zikoyAPI HTTP ${response.status}: ${safeResponse(body).slice(0, 300)}`);
+  }
+  if (!body) throw new Error("HYP вернул пустой ответ на возврат");
+
+  const result = parseHypBody(body);
+  const resultCode = first(result, ["CCode", "Code", "code", "Error", "error", "result"]);
+  const statusText = first(result, ["ErrMsg", "Message", "message", "Description", "statusText"]);
+  const success = resultCode === "0" || resultCode === "000";
+
+  if (!success) {
+    throw new Error(`HYP zikoyAPI ${resultCode || "UNKNOWN"}: ${statusText || safeResponse(body).slice(0, 300)}`);
+  }
+
+  const refundTranId = first(result, ["TransId", "tranId", "Id", "id"]);
+  console.info("hyp.refund.response", {
+    resultCode,
+    refundTranId,
+    sourceTransactionId: transactionId,
+  });
+
+  return {
+    resultCode,
+    refundTranId,
+    statusText: statusText || "Refund approved",
+    rawResponse: safeResponse(body),
+  };
 }
