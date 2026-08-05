@@ -81,7 +81,7 @@
   width: 100vw !important;
   height: 100vh !important;
   height: 100dvh !important;
-  padding: 48px 70px 28px !important;
+  padding: 48px 140px 32px !important;
   overflow: hidden !important;
   place-items: center !important;
   background: #000 !important;
@@ -115,22 +115,48 @@
 }
 
 .arrow {
+  position: fixed !important;
+  top: 50% !important;
   z-index: 2147483646 !important;
   display: grid !important;
-  width: 52px !important;
-  height: 52px !important;
-  border: 1px solid rgba(255, 255, 255, .3) !important;
+  width: 54px !important;
+  height: 54px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  place-items: center !important;
+  transform: translateY(-50%) !important;
+  border: 1px solid rgba(255, 255, 255, .34) !important;
+  border-radius: 999px !important;
   background: rgba(31, 36, 65, .92) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .44) !important;
+}
+
+.lightbox > .arrow:nth-of-type(2) {
+  left: 34px !important;
+  right: auto !important;
+}
+
+.lightbox > .arrow:nth-of-type(3) {
+  right: 34px !important;
+  left: auto !important;
+}
+
+.arrow:hover,
+.arrow:focus-visible {
+  background: rgba(255, 255, 255, .96) !important;
+  color: #11131b !important;
 }
 
 .content {
-  position: relative;
-  z-index: 1;
+  position: relative !important;
+  z-index: 1 !important;
   display: grid !important;
-  width: min(1600px, calc(100vw - 152px)) !important;
-  height: calc(100dvh - 76px) !important;
-  max-height: calc(100dvh - 76px) !important;
+  width: min(1180px, calc(100vw - 300px)) !important;
+  height: calc(100dvh - 104px) !important;
+  max-height: 820px !important;
   place-items: center !important;
+  overflow: hidden !important;
 }
 
 .content img,
@@ -141,12 +167,17 @@
   max-width: 100% !important;
   max-height: 100% !important;
   object-fit: contain !important;
+  border-radius: 10px !important;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, .48) !important;
 }
 
 .content iframe {
-  width: min(1600px, calc(100vw - 152px)) !important;
+  width: min(1180px, calc(100vw - 300px)) !important;
   max-width: 100% !important;
   max-height: 100% !important;
+  aspect-ratio: 16 / 9 !important;
+  border: 0 !important;
+  border-radius: 10px !important;
 }
 
 @media (max-width: 1180px) and (min-width: 801px) {
@@ -199,6 +230,26 @@
     height: 320px !important;
     min-height: 320px !important;
   }
+
+  .lightbox {
+    padding-inline: 104px !important;
+  }
+
+  .content {
+    width: min(920px, calc(100vw - 224px)) !important;
+  }
+
+  .content iframe {
+    width: min(920px, calc(100vw - 224px)) !important;
+  }
+
+  .lightbox > .arrow:nth-of-type(2) {
+    left: 22px !important;
+  }
+
+  .lightbox > .arrow:nth-of-type(3) {
+    right: 22px !important;
+  }
 }
 
 @media (max-width: 800px) {
@@ -249,7 +300,7 @@
   }
 
   .lightbox {
-    padding: 58px 12px 16px !important;
+    padding: 58px 10px 16px !important;
   }
 
   .close {
@@ -262,10 +313,19 @@
   .arrow {
     width: 44px !important;
     height: 44px !important;
+    background: rgba(31, 36, 65, .84) !important;
+  }
+
+  .lightbox > .arrow:nth-of-type(2) {
+    left: 8px !important;
+  }
+
+  .lightbox > .arrow:nth-of-type(3) {
+    right: 8px !important;
   }
 
   .content {
-    width: calc(100vw - 24px) !important;
+    width: calc(100vw - 28px) !important;
     height: calc(100dvh - 82px) !important;
     max-height: calc(100dvh - 82px) !important;
   }
@@ -274,9 +334,10 @@
   .content video {
     max-width: 100% !important;
     max-height: 100% !important;
+    border-radius: 8px !important;
   }
 
   .content iframe {
-    width: calc(100vw - 24px) !important;
+    width: calc(100vw - 28px) !important;
   }
 }
