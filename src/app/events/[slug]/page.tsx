@@ -7,6 +7,7 @@ import { effectiveTicketPrice, ticketPricePresentation } from "@/lib/ticketing";
 import { EventPurchase } from "@/components/event-purchase";
 import { EventShareActions } from "@/components/event-share-actions";
 import { EventHeroGallery } from "@/components/event-hero-gallery";
+import { EventMobileVideo } from "@/components/event-mobile-video";
 import { EventAboutCard } from "@/components/event-about-card";
 import { parseEventMedia, stripEventMedia } from "@/lib/event-media";
 import { parseEventPresentation, stripEventPresentation } from "@/lib/event-presentation";
@@ -198,32 +199,36 @@ export default async function EventPage({ params, searchParams }: {
 
     <section className={`${styles.body} ${bodyLayout.body}`}>
       <div className={`shell ${styles.bodyGrid} ${bodyLayout.shell} ${bodyLayout.grid} ${desktopLayout.wideShell} ${desktopLayout.bodyGrid}`}>
-        <article className={`${styles.contentCard} ${bodyLayout.content}`}>
-          {publicDescription
-            ? <EventAboutCard
-                heading={local.about}
-                title={event.title}
-                description={publicDescription}
-                posterUrl={event.posterUrl}
-                readMore={local.readMore}
-                readLess={local.readLess}
-              />
-            : <h2>{local.about}</h2>}
+        <div className={bodyLayout.leftColumn}>
+          <EventMobileVideo title={event.title} videoUrl={heroVideo} posterUrl={event.posterUrl}/>
 
-          <div className={styles.detailsList}>
-            <div className={styles.detailItem}><CalendarDays size={21}/><div><strong>{local.date}</strong><span>{eventDay(event.startsAt, i18n.locale)}</span></div></div>
-            <div className={styles.detailItem}><Clock3 size={21}/><div><strong>{local.start}</strong><span>{eventStartTime(event.startsAt, i18n.locale)}</span></div></div>
-            <div className={styles.detailItem}><MapPin size={21}/><div><strong>{local.venue}</strong><span>{event.venue.name}<br/>{event.venue.address}</span></div></div>
-            <div className={styles.detailItem}><Languages size={21}/><div><strong>{local.language}</strong><span>{languageLabel}</span></div></div>
-            <div className={`${styles.detailItem} ${styles.detailWide}`}><ShieldCheck size={21}/><div><strong>{local.secure}</strong><span>{local.secureInfo}</span></div></div>
-          </div>
+          <article className={`${styles.contentCard} ${bodyLayout.content}`}>
+            {publicDescription
+              ? <EventAboutCard
+                  heading={local.about}
+                  title={event.title}
+                  description={publicDescription}
+                  posterUrl={event.posterUrl}
+                  readMore={local.readMore}
+                  readLess={local.readLess}
+                />
+              : <h2>{local.about}</h2>}
 
-          {links.length > 0 && <div className={styles.links}>
-            {links.map((item, index) => <a key={`${item.url}-${index}`} className={styles.externalLink} href={item.url} target="_blank" rel="noreferrer">
-              <span>{item.title || new URL(item.url).hostname}</span><ExternalLink size={15}/>
-            </a>)}
-          </div>}
-        </article>
+            <div className={styles.detailsList}>
+              <div className={styles.detailItem}><CalendarDays size={21}/><div><strong>{local.date}</strong><span>{eventDay(event.startsAt, i18n.locale)}</span></div></div>
+              <div className={styles.detailItem}><Clock3 size={21}/><div><strong>{local.start}</strong><span>{eventStartTime(event.startsAt, i18n.locale)}</span></div></div>
+              <div className={styles.detailItem}><MapPin size={21}/><div><strong>{local.venue}</strong><span>{event.venue.name}<br/>{event.venue.address}</span></div></div>
+              <div className={styles.detailItem}><Languages size={21}/><div><strong>{local.language}</strong><span>{languageLabel}</span></div></div>
+              <div className={`${styles.detailItem} ${styles.detailWide}`}><ShieldCheck size={21}/><div><strong>{local.secure}</strong><span>{local.secureInfo}</span></div></div>
+            </div>
+
+            {links.length > 0 && <div className={styles.links}>
+              {links.map((item, index) => <a key={`${item.url}-${index}`} className={styles.externalLink} href={item.url} target="_blank" rel="noreferrer">
+                <span>{item.title || new URL(item.url).hostname}</span><ExternalLink size={15}/>
+              </a>)}
+            </div>}
+          </article>
+        </div>
 
         <aside id="tickets" className={styles.ticketsColumn}>
           {validPromoterLink && <div className={styles.promoterCard}><strong>{text.personalLink}: {validPromoterLink.label}</strong><p>{text.personalLinkInfo}</p></div>}
