@@ -1,18 +1,19 @@
 .card {
-  margin-top: 34px;
-  padding: 34px 36px 18px;
-  border: 1px solid rgba(15, 23, 42, .08);
-  border-radius: 24px;
-  background: #fff;
-  box-shadow: 0 18px 55px rgba(15, 23, 42, .06);
+  margin-top: 28px;
+  padding: 28px 0 0;
+  border: 0;
+  border-top: 1px solid #e3e6ec;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .title {
-  margin: 0 0 22px;
-  color: #11131b;
-  font-size: clamp(26px, 2.4vw, 36px);
-  line-height: 1.08;
-  letter-spacing: -.8px;
+  margin: 0 0 12px;
+  color: #121621;
+  font-size: 25px;
+  line-height: 1.16;
+  letter-spacing: -.55px;
 }
 
 .list {
@@ -30,28 +31,32 @@
 .question {
   display: flex;
   width: 100%;
-  min-height: 78px;
+  min-height: 54px;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 18px 0;
+  gap: 16px;
+  padding: 12px 0;
   border: 0;
   background: transparent;
-  color: #12141c;
+  color: #151925;
   font: inherit;
-  font-size: 17px;
-  font-weight: 850;
+  font-size: 15px;
+  font-weight: 820;
+  line-height: 1.35;
   text-align: start;
   cursor: pointer;
 }
 
-.question:hover {
+.question:hover,
+.question:focus-visible {
   color: #ff6f39;
 }
 
 .chevron,
 .chevronOpen {
   flex: 0 0 auto;
+  width: 19px;
+  height: 19px;
   transition: transform .2s ease;
 }
 
@@ -65,39 +70,41 @@
 }
 
 .answerOpen {
-  padding: 0 44px 22px 0;
+  padding: 0 34px 15px 0;
 }
 
 .answerOpen p {
   margin: 0;
   color: #62697a;
-  font-size: 16px;
-  line-height: 1.65;
+  font-size: 15px;
+  line-height: 1.55;
   white-space: pre-line;
 }
 
 @media (max-width: 800px) {
   .card {
-    margin: 24px 16px 0;
-    padding: 26px 20px 10px;
-    border-radius: 20px;
+    margin-top: 24px;
+    padding-top: 24px;
   }
 
   .title {
-    margin-bottom: 14px;
-    font-size: 27px;
+    margin-bottom: 10px;
+    font-size: 22px;
+    line-height: 1.22;
+    letter-spacing: -.35px;
   }
 
   .question {
-    min-height: 68px;
-    font-size: 15px;
+    min-height: 52px;
+    padding: 11px 0;
+    font-size: 14px;
   }
 
   .answerOpen {
-    padding: 0 30px 18px 0;
+    padding: 0 28px 14px 0;
   }
 
   .answerOpen p {
-    font-size: 15px;
+    font-size: 14px;
   }
 }
