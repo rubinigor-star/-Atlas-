@@ -18,7 +18,7 @@ type VideoData = {
   directVideo: boolean;
 };
 
-function youtubeData(id: string, posterUrl: string): VideoData {
+function youtubeData(id: string): VideoData {
   return {
     embedUrl: `https://www.youtube.com/embed/${id}`,
     previewUrl: `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
@@ -33,12 +33,12 @@ function parseVideo(url: string | undefined, posterUrl: string): VideoData | nul
     const parsed = new URL(url);
     if (parsed.hostname === "youtu.be") {
       const id = parsed.pathname.split("/").filter(Boolean)[0];
-      return id ? youtubeData(id, posterUrl) : null;
+      return id ? youtubeData(id) : null;
     }
     if (parsed.hostname.includes("youtube.com")) {
       const parts = parsed.pathname.split("/").filter(Boolean);
       const id = parsed.searchParams.get("v") || (parts[0] === "shorts" || parts[0] === "embed" ? parts[1] : parts.at(-1));
-      return id ? youtubeData(id, posterUrl) : null;
+      return id ? youtubeData(id) : null;
     }
     if (parsed.hostname.includes("vimeo.com")) {
       const id = parsed.pathname.split("/").filter(Boolean).at(-1);
