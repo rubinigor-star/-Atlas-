@@ -23,6 +23,7 @@ import styles from "./event-detail.module.css";
 import metaAlignment from "./event-meta-alignment.module.css";
 import mobile from "./event-mobile.module.css";
 import bodyLayout from "./event-body.module.css";
+import desktopLayout from "./event-desktop.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -162,8 +163,8 @@ export default async function EventPage({ params, searchParams }: {
   };
 
   return <main className={styles.page} style={pageStyle}>
-    <section className={`${styles.hero} ${mobile.hero}`}>
-      <div className={`shell ${styles.heroGrid} ${mobile.heroGrid}`}>
+    <section className={`${styles.hero} ${mobile.hero} ${desktopLayout.hero}`}>
+      <div className={`shell ${styles.heroGrid} ${mobile.heroGrid} ${desktopLayout.wideShell} ${desktopLayout.heroGrid}`}>
         <div className={`${styles.heroCopy} ${mobile.heroCopy}`}>
           <div className={styles.location}><MapPin size={17}/><span>{locationLabel}</span></div>
           <h1 className={styles.title}>{event.title}</h1>
@@ -182,7 +183,7 @@ export default async function EventPage({ params, searchParams }: {
         />
       </div>
 
-      <div className={metaAlignment.shell}>
+      <div className={`${metaAlignment.shell} ${desktopLayout.wideShell}`}>
         <div className={`${styles.metaStrip} ${metaAlignment.strip} ${mobile.metaStrip}`}>
           <div className={`${styles.metaItem} ${mobile.metaItem}`}><CalendarDays size={19}/><span>{eventDate(event.startsAt, i18n.locale)}</span></div>
           <div className={`${styles.metaItem} ${mobile.metaItem}`}><MapPin size={19}/><span>{event.venue.name}</span></div>
@@ -193,7 +194,7 @@ export default async function EventPage({ params, searchParams }: {
     </section>
 
     <section className={`${styles.body} ${bodyLayout.body}`}>
-      <div className={`shell ${styles.bodyGrid} ${bodyLayout.shell} ${bodyLayout.grid}`}>
+      <div className={`shell ${styles.bodyGrid} ${bodyLayout.shell} ${bodyLayout.grid} ${desktopLayout.wideShell} ${desktopLayout.bodyGrid}`}>
         <article className={`${styles.contentCard} ${bodyLayout.content}`}>
           {publicDescription
             ? <EventAboutCard
