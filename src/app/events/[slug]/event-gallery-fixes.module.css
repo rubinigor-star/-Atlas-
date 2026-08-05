@@ -81,7 +81,7 @@
   width: 100vw !important;
   height: 100vh !important;
   height: 100dvh !important;
-  padding: 62px 76px 34px !important;
+  padding: 48px 70px 28px !important;
   overflow: hidden !important;
   place-items: center !important;
   background: #000 !important;
@@ -127,9 +127,9 @@
   position: relative;
   z-index: 1;
   display: grid !important;
-  width: min(1120px, calc(100vw - 180px)) !important;
-  height: calc(100dvh - 110px) !important;
-  max-height: calc(100dvh - 110px) !important;
+  width: min(1600px, calc(100vw - 152px)) !important;
+  height: calc(100dvh - 76px) !important;
+  max-height: calc(100dvh - 76px) !important;
   place-items: center !important;
 }
 
@@ -144,7 +144,7 @@
 }
 
 .content iframe {
-  width: min(1120px, calc(100vw - 180px)) !important;
+  width: min(1600px, calc(100vw - 152px)) !important;
   max-width: 100% !important;
   max-height: 100% !important;
 }
