@@ -227,14 +227,25 @@
     right: auto !important;
     bottom: auto !important;
     left: 50% !important;
-    width: min(100vw, 560px) !important;
-    height: min(100vw, 560px) !important;
     max-width: none !important;
+    object-position: center !important;
+    transform: translate(-50%, -50%) !important;
+  }
+
+  .mobilePosterFrame > .mobileSquareArtwork {
+    width: min(calc(100vw - 56px), 520px) !important;
+    height: min(calc(100vw - 56px), 520px) !important;
     max-height: none !important;
     aspect-ratio: 1 / 1 !important;
     object-fit: contain !important;
-    object-position: center !important;
-    transform: translate(-50%, -50%) !important;
+  }
+
+  .mobileGalleryFrame > .mobileFullArtwork {
+    width: min(100vw, 760px) !important;
+    height: auto !important;
+    max-height: calc(100% - 42px) !important;
+    aspect-ratio: 4 / 3 !important;
+    object-fit: contain !important;
   }
 
   .lightbox {
