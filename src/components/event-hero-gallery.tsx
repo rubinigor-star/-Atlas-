@@ -11,6 +11,7 @@ type GalleryItem = {
   previewUrl: string;
   sourceUrl: string;
   embedUrl?: string;
+  directVideo?: boolean;
 };
 
 type Props = {
@@ -26,22 +27,31 @@ const labels = {
   en: { viewAll: "View all", previous: "Previous", next: "Next", close: "Close", play: "Play video" },
 } as const;
 
-function videoData(url?: string) {
+type VideoData = {
+  embedUrl?: string;
+  thumbnailUrl: string | null;
+  directVideo: boolean;
+};
+
+function videoData(url?: string): VideoData | null {
   if (!url) return null;
   try {
     const parsed = new URL(url);
     if (parsed.hostname === "youtu.be") {
       const id = parsed.pathname.split("/").filter(Boolean)[0];
-      return id ? { embedUrl: `https://www.youtube.com/embed/${id}`, thumbnailUrl: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` } : null;
+      return id ? { embedUrl: `https://www.youtube.com/embed/${id}`, thumbnailUrl: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, directVideo: false } : null;
     }
     if (parsed.hostname.includes("youtube.com")) {
       const parts = parsed.pathname.split("/").filter(Boolean);
       const id = parsed.searchParams.get("v") || (parts[0] === "shorts" || parts[0] === "embed" ? parts[1] : parts.at(-1));
-      return id ? { embedUrl: `https://www.youtube.com/embed/${id}`, thumbnailUrl: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` } : null;
+      return id ? { embedUrl: `https://www.youtube.com/embed/${id}`, thumbnailUrl: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, directVideo: false } : null;
     }
     if (parsed.hostname.includes("vimeo.com")) {
       const id = parsed.pathname.split("/").filter(Boolean).at(-1);
-      return id ? { embedUrl: `https://player.vimeo.com/video/${id}`, thumbnailUrl: null } : null;
+      return id ? { embedUrl: `https://player.vimeo.com/video/${id}`, thumbnailUrl: null, directVideo: false } : null;
+    }
+    if (/\.(?:mp4|webm)$/i.test(parsed.pathname) || parsed.hostname.endsWith("blob.vercel-storage.com")) {
+      return { thumbnailUrl: null, directVideo: true };
     }
   } catch {}
   return null;
@@ -68,6 +78,7 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
         previewUrl: video.thumbnailUrl || posterUrl,
         sourceUrl: videoUrl,
         embedUrl: video.embedUrl,
+        directVideo: video.directVideo,
       });
       next.push({ id: "hero-poster", type: "image", previewUrl: posterUrl, sourceUrl: posterUrl });
     } else {
@@ -187,9 +198,19 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
         <button type="button" className={`${styles.lightboxArrow} ${styles.lightboxArrowRight}`} onClick={(event) => { event.stopPropagation(); next(); }} aria-label={text.next}><ChevronRight/></button>
       </>}
       <div className={styles.lightboxContent} onClick={(event) => event.stopPropagation()}>
-        {active.type === "video" && active.embedUrl
-          ? <iframe key={`${active.id}-${activeIndex}`} src={`${active.embedUrl}?autoplay=1`} title={title} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen/>
-          : <img key={`${active.id}-${activeIndex}`} src={active.sourceUrl} alt={`${title} ${activeIndex + 1}`}/>} 
+        {active.type === "video" && active.directVideo
+          ? <video
+              key={`${active.id}-${activeIndex}`}
+              src={active.sourceUrl}
+              controls
+              autoPlay
+              playsInline
+              preload="metadata"
+              style={{ display: "block", width: "min(1420px, 92vw)", maxWidth: "100%", maxHeight: "88vh", background: "#000" }}
+            />
+          : active.type === "video" && active.embedUrl
+            ? <iframe key={`${active.id}-${activeIndex}`} src={`${active.embedUrl}?autoplay=1`} title={title} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen/>
+            : <img key={`${active.id}-${activeIndex}`} src={active.sourceUrl} alt={`${title} ${activeIndex + 1}`}/>} 
       </div>
     </div>}
   </>;
