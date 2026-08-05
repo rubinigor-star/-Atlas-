@@ -13,6 +13,12 @@ const statements = [
     "amountMinor" INTEGER NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'ILS',
     "cardLast4" TEXT,
+    "hypTransId" TEXT,
+    "hypCgUid" TEXT,
+    "hypTxId" TEXT,
+    "hypUniqueId" TEXT,
+    "providerResponseCode" TEXT,
+    "providerPayloadJson" TEXT,
     "authorizedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "capturedAt" TIMESTAMP(3),
     "voidedAt" TIMESTAMP(3),
@@ -21,6 +27,18 @@ const statements = [
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypTransId" TEXT`,
+  `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypCgUid" TEXT`,
+  `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypTxId" TEXT`,
+  `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypUniqueId" TEXT`,
+  `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "providerResponseCode" TEXT`,
+  `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "providerPayloadJson" TEXT`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "PaymentAuthorization_hypTransId_key"
+    ON "PaymentAuthorization"("hypTransId") WHERE "hypTransId" IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS "PaymentAuthorization_hypCgUid_idx"
+    ON "PaymentAuthorization"("hypCgUid")`,
+  `CREATE INDEX IF NOT EXISTS "PaymentAuthorization_hypTxId_idx"
+    ON "PaymentAuthorization"("hypTxId")`,
   `CREATE INDEX IF NOT EXISTS "PaymentAuthorization_status_expiresAt_idx"
     ON "PaymentAuthorization"("status", "expiresAt")`,
   `CREATE TABLE IF NOT EXISTS "Reservation" (
