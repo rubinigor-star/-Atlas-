@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Grid3X3, Play, X } from "lucide-react";
 import { useLocale } from "@/components/locale-provider";
 import styles from "@/app/events/[slug]/event-detail.module.css";
+import mobile from "@/app/events/[slug]/event-mobile.module.css";
 
 type GalleryItem = {
   id: string;
@@ -158,7 +159,7 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
       : styles.desktopGallery;
 
   return <>
-    <div className={styles.galleryRoot}>
+    <div className={`${styles.galleryRoot} ${mobile.galleryRoot}`}>
       <div className={desktopClass}>
         {preview(items[0], 0, styles.desktopMain)}
         {sideItems.length > 0 && <div className={styles.desktopSide}>
@@ -171,8 +172,8 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
         </div>}
       </div>
 
-      <div className={styles.mobileGallery}>
-        {items.length > 1 && <div className={styles.mobileProgress} aria-hidden="true">
+      <div className={`${styles.mobileGallery} ${mobile.mobileGallery}`}>
+        {items.length > 1 && <div className={`${styles.mobileProgress} ${mobile.mobileProgress}`} aria-hidden="true">
           {items.map((item, index) => <span key={item.id} className={styles.progressTrack}>
             <i
               key={`${activeIndex}-${index}`}
@@ -180,8 +181,9 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
             />
           </span>)}
         </div>}
-        <button type="button" className={styles.mobileMedia} onClick={() => open(activeIndex)} aria-label={active.type === "video" ? text.play : `${title} ${activeIndex + 1}`}>
-          <img key={active.id} src={active.previewUrl} alt="" className={styles.mobileFade}/>
+        <button type="button" className={`${styles.mobileMedia} ${mobile.mobileMedia}`} onClick={() => open(activeIndex)} aria-label={active.type === "video" ? text.play : `${title} ${activeIndex + 1}`}>
+          <img key={`backdrop-${active.id}`} src={active.previewUrl} alt="" aria-hidden="true" className={mobile.mobileBackdrop}/>
+          <img key={active.id} src={active.previewUrl} alt="" className={`${styles.mobileFade} ${mobile.mobilePoster}`}/>
           {active.type === "video" && <span className={styles.playButton}><Play size={25} fill="currentColor"/></span>}
         </button>
         {items.length > 1 && <>
