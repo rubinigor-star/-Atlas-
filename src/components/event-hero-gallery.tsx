@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Grid3X3, Play, X } from "lucide-react";
 import { useLocale } from "@/components/locale-provider";
 import styles from "@/app/events/[slug]/event-detail.module.css";
 import mobile from "@/app/events/[slug]/event-mobile.module.css";
+import fixes from "@/app/events/[slug]/event-gallery-fixes.module.css";
 
 type GalleryItem = {
   id: string;
@@ -63,6 +65,7 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
   const text = labels[locale];
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const items = useMemo(() => {
     const uniqueImages = galleryUrls
@@ -93,6 +96,8 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
 
     return next;
   }, [galleryUrls, posterUrl, videoUrl]);
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     setActiveIndex((current) => Math.min(current, Math.max(0, items.length - 1)));
@@ -153,13 +158,41 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
   const active = items[activeIndex] || items[0];
   const sideItems = items.slice(1, 3);
   const desktopClass = items.length === 1
-    ? `${styles.desktopGallery} ${styles.desktopSingle}`
+    ? `${styles.desktopGallery} ${styles.desktopSingle} ${fixes.desktopGallery} ${fixes.desktopSingle}`
     : items.length === 2
-      ? `${styles.desktopGallery} ${styles.desktopPair}`
-      : styles.desktopGallery;
+      ? `${styles.desktopGallery} ${styles.desktopPair} ${fixes.desktopGallery} ${fixes.desktopPair}`
+      : `${styles.desktopGallery} ${fixes.desktopGallery}`;
+
+  const lightbox = lightboxOpen && active ? <div
+    className={`${styles.lightbox} ${fixes.lightbox}`}
+    role="dialog"
+    aria-modal="true"
+    aria-label={title}
+    onClick={() => setLightboxOpen(false)}
+  >
+    <button type="button" className={`${styles.lightboxClose} ${fixes.close}`} onClick={() => setLightboxOpen(false)} aria-label={text.close}><X size={27}/></button>
+    {items.length > 1 && <>
+      <button type="button" className={`${styles.lightboxArrow} ${styles.lightboxArrowLeft} ${fixes.arrow}`} onClick={(event) => { event.stopPropagation(); previous(); }} aria-label={text.previous}><ChevronLeft/></button>
+      <button type="button" className={`${styles.lightboxArrow} ${styles.lightboxArrowRight} ${fixes.arrow}`} onClick={(event) => { event.stopPropagation(); next(); }} aria-label={text.next}><ChevronRight/></button>
+    </>}
+    <div className={`${styles.lightboxContent} ${fixes.content}`} onClick={(event) => event.stopPropagation()}>
+      {active.type === "video" && active.directVideo
+        ? <video
+            key={`${active.id}-${activeIndex}`}
+            src={active.sourceUrl}
+            controls
+            autoPlay
+            playsInline
+            preload="metadata"
+          />
+        : active.type === "video" && active.embedUrl
+          ? <iframe key={`${active.id}-${activeIndex}`} src={`${active.embedUrl}?autoplay=1`} title={title} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen/>
+          : <img key={`${active.id}-${activeIndex}`} src={active.sourceUrl} alt={`${title} ${activeIndex + 1}`}/>} 
+    </div>
+  </div> : null;
 
   return <>
-    <div className={`${styles.galleryRoot} ${mobile.galleryRoot}`}>
+    <div className={`${styles.galleryRoot} ${mobile.galleryRoot} ${fixes.desktopRoot}`}>
       <div className={desktopClass}>
         {preview(items[0], 0, styles.desktopMain)}
         {sideItems.length > 0 && <div className={styles.desktopSide}>
@@ -181,9 +214,9 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
             />
           </span>)}
         </div>}
-        <button type="button" className={`${styles.mobileMedia} ${mobile.mobileMedia}`} onClick={() => open(activeIndex)} aria-label={active.type === "video" ? text.play : `${title} ${activeIndex + 1}`}>
-          <img key={`backdrop-${active.id}`} src={active.previewUrl} alt="" aria-hidden="true" className={mobile.mobileBackdrop}/>
-          <img key={active.id} src={active.previewUrl} alt="" className={`${styles.mobileFade} ${mobile.mobilePoster}`}/>
+        <button type="button" className={`${styles.mobileMedia} ${mobile.mobileMedia} ${fixes.mobileMedia}`} onClick={() => open(activeIndex)} aria-label={active.type === "video" ? text.play : `${title} ${activeIndex + 1}`}>
+          <img key={`backdrop-${active.id}`} src={active.previewUrl} alt="" aria-hidden="true" className={`${mobile.mobileBackdrop} ${fixes.mobileBackdrop}`}/>
+          <img key={active.id} src={active.previewUrl} alt="" className={`${styles.mobileFade} ${mobile.mobilePoster} ${fixes.mobilePoster}`}/>
           {active.type === "video" && <span className={styles.playButton}><Play size={25} fill="currentColor"/></span>}
         </button>
         {items.length > 1 && <>
@@ -193,27 +226,6 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
       </div>
     </div>
 
-    {lightboxOpen && active && <div className={styles.lightbox} role="dialog" aria-modal="true" aria-label={title} onClick={() => setLightboxOpen(false)}>
-      <button type="button" className={styles.lightboxClose} onClick={() => setLightboxOpen(false)} aria-label={text.close}><X/></button>
-      {items.length > 1 && <>
-        <button type="button" className={`${styles.lightboxArrow} ${styles.lightboxArrowLeft}`} onClick={(event) => { event.stopPropagation(); previous(); }} aria-label={text.previous}><ChevronLeft/></button>
-        <button type="button" className={`${styles.lightboxArrow} ${styles.lightboxArrowRight}`} onClick={(event) => { event.stopPropagation(); next(); }} aria-label={text.next}><ChevronRight/></button>
-      </>}
-      <div className={styles.lightboxContent} onClick={(event) => event.stopPropagation()}>
-        {active.type === "video" && active.directVideo
-          ? <video
-              key={`${active.id}-${activeIndex}`}
-              src={active.sourceUrl}
-              controls
-              autoPlay
-              playsInline
-              preload="metadata"
-              style={{ display: "block", width: "min(1420px, 92vw)", maxWidth: "100%", maxHeight: "88vh", background: "#000" }}
-            />
-          : active.type === "video" && active.embedUrl
-            ? <iframe key={`${active.id}-${activeIndex}`} src={`${active.embedUrl}?autoplay=1`} title={title} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen/>
-            : <img key={`${active.id}-${activeIndex}`} src={active.sourceUrl} alt={`${title} ${activeIndex + 1}`}/>} 
-      </div>
-    </div>}
+    {mounted && lightbox ? createPortal(lightbox, document.body) : null}
   </>;
 }
