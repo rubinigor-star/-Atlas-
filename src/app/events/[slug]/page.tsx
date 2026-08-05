@@ -1,28 +1,64 @@
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
 import { CalendarDays, ExternalLink, Languages, MapPin, ShieldCheck } from "lucide-react";
 import { db } from "@/lib/db";
-import { eventDate } from "@/lib/format";
+import { eventDate, money } from "@/lib/format";
 import { effectiveTicketPrice, ticketPricePresentation } from "@/lib/ticketing";
 import { EventPurchase } from "@/components/event-purchase";
 import { EventShareActions } from "@/components/event-share-actions";
-import { parseEventMedia, stripEventMedia, videoEmbedUrl } from "@/lib/event-media";
+import { EventHeroGallery } from "@/components/event-hero-gallery";
+import { parseEventMedia, stripEventMedia } from "@/lib/event-media";
+import { parseEventPresentation, stripEventPresentation } from "@/lib/event-presentation";
 import { stripEventRejectionMessage } from "@/lib/event-approval-message";
 import { stripBuyerQuestions } from "@/lib/buyer-questions";
 import { stripEventMarkers } from "@/lib/event-guest-fields";
 import { parsePricingMarketingStrategy, stripPricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 import { getServerI18n } from "@/lib/server-locale";
-import { eventTypeLabels, parseEventType, stripEventType } from "@/lib/event-type";
+import { stripEventType } from "@/lib/event-type";
 import { eventLanguageLabels } from "@/lib/event-language";
 import { getEventLanguageSettings } from "@/lib/event-language-server";
 import { getEffectiveEventTerms } from "@/lib/commercial-terms";
+import styles from "./event-detail.module.css";
 
 export const dynamic = "force-dynamic";
 
-const languageHeading = { ru: "Язык мероприятия", he: "שפת האירוע", en: "Event language" } as const;
+const copy = {
+  ru: {
+    buyFrom: "Купить билеты от",
+    buy: "Купить билеты",
+    about: "О мероприятии",
+    date: "Дата и время",
+    venue: "Площадка",
+    language: "Язык мероприятия",
+    secure: "Безопасная покупка",
+    secureInfo: "Защищённая оплата и электронный билет",
+  },
+  he: {
+    buyFrom: "רכישת כרטיסים החל מ־",
+    buy: "רכישת כרטיסים",
+    about: "אודות האירוע",
+    date: "תאריך ושעה",
+    venue: "מקום האירוע",
+    language: "שפת האירוע",
+    secure: "רכישה מאובטחת",
+    secureInfo: "תשלום מוגן וכרטיס דיגיטלי",
+  },
+  en: {
+    buyFrom: "Get tickets from",
+    buy: "Get tickets",
+    about: "About the event",
+    date: "Date and time",
+    venue: "Venue",
+    language: "Event language",
+    secure: "Secure checkout",
+    secureInfo: "Protected payment and digital ticket",
+  },
+} as const;
 
-export default async function EventPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
+export default async function EventPage({ params, searchParams }: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const [{ slug }, query, i18n] = await Promise.all([params, searchParams, getServerI18n()]);
   const event = await db.event.findUnique({
     where: { slug },
@@ -51,16 +87,27 @@ export default async function EventPage({ params, searchParams }: { params: Prom
         })
       : Promise.resolve([]),
     getEventLanguageSettings(event.id),
-    getEffectiveEventTerms(event.id,event.organizationId),
+    getEffectiveEventTerms(event.id, event.organizationId),
   ]);
 
   const now = new Date();
-  const validPromoterLink = promoterLink && promoterLink.eventId === event.id && promoterLink.active && (!promoterLink.startsAt || promoterLink.startsAt <= now) && (!promoterLink.endsAt || promoterLink.endsAt >= now) ? promoterLink : null;
+  const validPromoterLink = promoterLink
+    && promoterLink.eventId === event.id
+    && promoterLink.active
+    && (!promoterLink.startsAt || promoterLink.startsAt <= now)
+    && (!promoterLink.endsAt || promoterLink.endsAt >= now)
+    ? promoterLink
+    : null;
+
   const categories = event.categories.flatMap((category) => {
     if (category.hidden) return [];
     try {
       const standardPrice = effectiveTicketPrice(category, now);
-      const channelPrice = validPromoterLink?.allocationType === "CATEGORY" && validPromoterLink.categoryId === category.id && validPromoterLink.customPriceMinor !== null ? validPromoterLink.customPriceMinor : standardPrice;
+      const channelPrice = validPromoterLink?.allocationType === "CATEGORY"
+        && validPromoterLink.categoryId === category.id
+        && validPromoterLink.customPriceMinor !== null
+        ? validPromoterLink.customPriceMinor
+        : standardPrice;
       return [{
         ...category,
         description: stripPricingMarketingStrategy(category.description),
@@ -72,37 +119,94 @@ export default async function EventPage({ params, searchParams }: { params: Prom
       return [];
     }
   });
+
   const objects = zones.flatMap((zone) => zone.tables.map((table) => ({ ...table, zone: { name: zone.name } })));
   const media = parseEventMedia(event.description);
-  const videos = media.filter((item) => item.type === "VIDEO");
+  const presentation = parseEventPresentation(event.description);
+  const heroVideo = media.find((item) => item.type === "VIDEO")?.url;
   const links = media.filter((item) => item.type === "LINK");
-  const eventType = parseEventType(event.description);
   const languageLabel = eventLanguageLabels[i18n.locale][languageSettings.primaryLanguage];
-  const publicDescription = stripEventType(stripEventMarkers(stripBuyerQuestions(stripEventRejectionMessage(stripEventMedia(event.description))))).trim();
+  const publicDescription = stripEventPresentation(
+    stripEventType(
+      stripEventMarkers(
+        stripBuyerQuestions(
+          stripEventRejectionMessage(
+            stripEventMedia(event.description),
+          ),
+        ),
+      ),
+    ),
+  ).trim();
+  const shortDescription = presentation.shortDescription || publicDescription.replace(/\s+/g, " ").slice(0, 250);
   const text = i18n.messages.event;
+  const local = copy[i18n.locale];
   const eventUrl = `https://www.atlas-one.co/events/${event.slug}`;
-  const stageStyle = { "--event-backdrop": `url("${event.posterUrl}")` } as CSSProperties;
-  const feeTerms={salesFeePercentBps:commercialTerms.organizer.salesFeePercentBps,salesFeeFixedMinor:commercialTerms.organizer.salesFeeFixedMinor,serviceFeePayer:commercialTerms.serviceFeePayer};
+  const lowestPrice = categories.length ? Math.min(...categories.map((category) => category.priceMinor)) : null;
+  const ctaLabel = lowestPrice === null ? local.buy : `${local.buyFrom} ${money(lowestPrice, "ILS", i18n.locale)}`;
+  const locationLabel = /(?:israel|ישראל)/i.test(event.venue.city) ? event.venue.city : `${event.venue.city}, Israel`;
+  const pageStyle = { "--event-hero-image": `url("${event.posterUrl}")` } as CSSProperties;
+  const feeTerms = {
+    salesFeePercentBps: commercialTerms.organizer.salesFeePercentBps,
+    salesFeeFixedMinor: commercialTerms.organizer.salesFeeFixedMinor,
+    serviceFeePayer: commercialTerms.serviceFeePayer,
+  };
 
-  return <main className="event-stage" style={stageStyle}>
-    <div className="shell event-experience">
-      <aside className="event-media-rail">
-        <div className="event-media-sticky">
-          <div className="event-poster-frame">
-            <Image src={event.posterUrl} fill alt={event.title} className="event-square-poster" priority sizes="(max-width: 800px) calc(100vw - 32px), 390px" />
+  return <main className={styles.page} style={pageStyle}>
+    <section className={styles.hero}>
+      <div className={`shell ${styles.heroGrid}`}>
+        <div className={styles.heroCopy}>
+          <div className={styles.location}><MapPin size={17}/><span>{locationLabel}</span></div>
+          <h1 className={styles.title}>{event.title}</h1>
+          {shortDescription && <p className={styles.summary}>{shortDescription}</p>}
+          <div className={styles.heroActions}>
+            <a className={styles.buyButton} href="#tickets">{ctaLabel}</a>
+            <div className={styles.shareWrap}><EventShareActions title={event.title} url={eventUrl}/></div>
           </div>
         </div>
-        {videos.map((item, index) => { const embed = videoEmbedUrl(item.url); return embed ? <div className="event-media-card" key={`${item.url}-${index}`}><iframe loading="lazy" src={embed} title={item.title || `${text.videos} ${index + 1}`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div> : <a key={`${item.url}-${index}`} className="event-media-card event-media-link" href={item.url} target="_blank" rel="noreferrer"><span>{item.title || text.openVideo}</span><ExternalLink size={17}/></a>; })}
-        {links.map((item, index) => <a key={`${item.url}-${index}`} className="event-media-card event-media-link" href={item.url} target="_blank" rel="noreferrer"><span>{item.title || new URL(item.url).hostname}</span><ExternalLink size={17}/></a>)}
-      </aside>
 
-      <section className="event-content-panel event-info">
-        <div className="event-title-row"><div><div className="row" style={{flexWrap:"wrap"}}><span className="pill">{eventTypeLabels[i18n.locale][eventType]}</span><span className="pill">{languageLabel}</span><span className="pill">{event.venue.city}</span></div><h1>{event.title}</h1></div><EventShareActions title={event.title} url={eventUrl}/></div>
-        {validPromoterLink && <div className="panel"><strong>{text.personalLink}: {validPromoterLink.label}</strong><p className="muted">{text.personalLinkInfo}</p></div>}
-        <div className="meta"><div className="meta-row"><CalendarDays size={22} /><div><strong>{eventDate(event.startsAt,i18n.locale)}</strong><br /><span className="muted">{text.doors}</span></div></div><div className="meta-row"><MapPin size={22} /><div><strong>{event.venue.name}</strong><br /><span className="muted">{event.venue.address}</span></div></div><div className="meta-row"><Languages size={22} /><div><strong>{languageLabel}</strong><br /><span className="muted">{languageHeading[i18n.locale]}</span></div></div><div className="meta-row"><ShieldCheck size={22} /><div><strong>{text.safeCheckout}</strong><br /><span className="muted">{text.safeCheckoutInfo}</span></div></div></div>
-        {publicDescription&&<section><h2>About</h2><p className="muted" style={{ lineHeight: 1.75 }}>{publicDescription}</p></section>}
-        {categories.length ? <EventPurchase eventId={event.id} categories={categories} objects={objects} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocation={validPromoterLink ? { type: validPromoterLink.allocationType, categoryId: validPromoterLink.categoryId, tableId: validPromoterLink.tableId, customPriceMinor: validPromoterLink.customPriceMinor } : undefined} /> : <div className="panel"><strong>{text.salesClosed}</strong><p className="muted">{text.noTariffs}</p></div>}
-      </section>
-    </div>
+        <EventHeroGallery
+          title={event.title}
+          posterUrl={event.posterUrl}
+          videoUrl={heroVideo}
+          galleryUrls={presentation.galleryEnabled ? presentation.galleryUrls : []}
+        />
+      </div>
+
+      <div className={`shell ${styles.metaStrip}`}>
+        <div className={styles.metaItem}><CalendarDays size={19}/><span>{eventDate(event.startsAt, i18n.locale)}</span></div>
+        <div className={styles.metaItem}><MapPin size={19}/><span>{event.venue.name}</span></div>
+        <div className={styles.metaItem}><Languages size={19}/><span>{languageLabel}</span></div>
+        <div className={styles.metaItem}><ShieldCheck size={19}/><span>{local.secure}</span></div>
+      </div>
+    </section>
+
+    <section className={styles.body}>
+      <div className={`shell ${styles.bodyGrid}`}>
+        <article className={styles.contentCard}>
+          <h2>{local.about}</h2>
+          {publicDescription && <p className={styles.description}>{publicDescription}</p>}
+
+          <div className={styles.detailsList}>
+            <div className={styles.detailItem}><CalendarDays size={21}/><div><strong>{local.date}</strong><span>{eventDate(event.startsAt, i18n.locale)}</span></div></div>
+            <div className={styles.detailItem}><MapPin size={21}/><div><strong>{local.venue}</strong><span>{event.venue.name}<br/>{event.venue.address}</span></div></div>
+            <div className={styles.detailItem}><Languages size={21}/><div><strong>{local.language}</strong><span>{languageLabel}</span></div></div>
+            <div className={styles.detailItem}><ShieldCheck size={21}/><div><strong>{local.secure}</strong><span>{local.secureInfo}</span></div></div>
+          </div>
+
+          {links.length > 0 && <div className={styles.links}>
+            {links.map((item, index) => <a key={`${item.url}-${index}`} className={styles.externalLink} href={item.url} target="_blank" rel="noreferrer">
+              <span>{item.title || new URL(item.url).hostname}</span><ExternalLink size={15}/>
+            </a>)}
+          </div>}
+        </article>
+
+        <aside id="tickets" className={styles.ticketsColumn}>
+          {validPromoterLink && <div className={styles.promoterCard}><strong>{text.personalLink}: {validPromoterLink.label}</strong><p>{text.personalLinkInfo}</p></div>}
+          {categories.length
+            ? <div className={styles.ticketCard}><EventPurchase eventId={event.id} categories={categories} objects={objects} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocation={validPromoterLink ? { type: validPromoterLink.allocationType, categoryId: validPromoterLink.categoryId, tableId: validPromoterLink.tableId, customPriceMinor: validPromoterLink.customPriceMinor } : undefined}/></div>
+            : <div className={styles.closedCard}><strong>{text.salesClosed}</strong><p>{text.noTariffs}</p></div>}
+        </aside>
+      </div>
+    </section>
   </main>;
 }
