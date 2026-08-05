@@ -27,10 +27,10 @@ const icons:Record<EventType,string>={
 export function EventTypeManager({eventId,initialTypes}:{eventId:string;initialTypes:EventType[]}){
  const router=useRouter();const{locale}=useLocale();const[types,setTypes]=useState<EventType[]>(initialTypes);const[message,setMessage]=useState("");
  function toggle(value:EventType){setTypes(current=>current.includes(value)?(current.length===1?current:current.filter(item=>item!==value)):[...current,value])}
- async function save(){setMessage("");const response=await fetch(`/api/admin/events/${eventId}/types`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({eventTypes:types})});const data=await response.json().catch(()=>({}));setMessage(response.ok?"✓ Типы мероприятия сохранены":data.error||"Не удалось сохранить");if(response.ok)router.refresh()}
- return <section className={`panel ${styles.panel}`}>
+ async function save(event:React.FormEvent<HTMLFormElement>){event.preventDefault();setMessage("");const response=await fetch(`/api/admin/events/${eventId}/types`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({eventTypes:types})});const data=await response.json().catch(()=>({}));setMessage(response.ok?"✓ Типы мероприятия сохранены":data.error||"Не удалось сохранить");if(response.ok)router.refresh()}
+ return <form className={`panel ${styles.panel}`} data-unified-save="about" onSubmit={save}>
   <div className={styles.header}><span className="eyebrow">Классификация</span><h2>Тип мероприятия</h2><p className="muted">Выберите один или несколько вариантов, чтобы мероприятие отображалось в подходящих фильтрах.</p></div>
   <div className={styles.options}>{eventTypeValues.map(value=>{const selected=types.includes(value);return <button key={value} type="button" className={`${styles.option} ${selected?styles.selected:""}`} onClick={()=>toggle(value)} aria-pressed={selected}><span className={styles.icon} aria-hidden="true">{icons[value]}</span><span className={styles.label}>{eventTypeLabels[locale][value]}</span><span className={styles.check} aria-hidden="true">✓</span></button>})}</div>
-  <div className={styles.footer}><button type="button" className="btn" onClick={()=>void save()}>Сохранить типы</button>{message&&<span className="muted" role="status">{message}</span>}</div>
- </section>;
+  <div className={styles.footer}><button type="submit" className="btn" data-workspace-local-save="true">Сохранить типы</button>{message&&<span className="muted" role="status">{message}</span>}</div>
+ </form>;
 }
