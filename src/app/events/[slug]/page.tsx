@@ -7,8 +7,10 @@ import { effectiveTicketPrice, ticketPricePresentation } from "@/lib/ticketing";
 import { EventPurchase } from "@/components/event-purchase";
 import { EventShareActions } from "@/components/event-share-actions";
 import { EventHeroGallery } from "@/components/event-hero-gallery";
+import { EventHeroPalette } from "@/components/event-hero-palette";
 import { EventMobileVideo } from "@/components/event-mobile-video";
 import { EventAboutCard } from "@/components/event-about-card";
+import { EventFaq } from "@/components/event-faq";
 import { parseEventMedia, stripEventMedia } from "@/lib/event-media";
 import { parseEventPresentation, stripEventPresentation } from "@/lib/event-presentation";
 import { stripEventRejectionMessage } from "@/lib/event-approval-message";
@@ -25,6 +27,7 @@ import metaAlignment from "./event-meta-alignment.module.css";
 import mobile from "./event-mobile.module.css";
 import bodyLayout from "./event-body.module.css";
 import desktopLayout from "./event-desktop.module.css";
+import palette from "./event-hero-palette.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +36,7 @@ const copy = {
     buyFrom: "Купить билеты от",
     buy: "Купить билеты",
     about: "О мероприятии",
+    faq: "Часто задаваемые вопросы",
     readMore: "Читать далее",
     readLess: "Свернуть",
     date: "Дата мероприятия",
@@ -46,6 +50,7 @@ const copy = {
     buyFrom: "רכישת כרטיסים החל מ־",
     buy: "רכישת כרטיסים",
     about: "אודות האירוע",
+    faq: "שאלות נפוצות",
     readMore: "לקריאה נוספת",
     readLess: "צמצום",
     date: "תאריך האירוע",
@@ -59,6 +64,7 @@ const copy = {
     buyFrom: "Get tickets from",
     buy: "Get tickets",
     about: "About the event",
+    faq: "Frequently asked questions",
     readMore: "Read more",
     readLess: "Show less",
     date: "Event date",
@@ -166,8 +172,10 @@ export default async function EventPage({ params, searchParams }: {
     serviceFeePayer: commercialTerms.serviceFeePayer,
   };
 
-  return <main className={styles.page} style={pageStyle}>
-    <section className={`${styles.hero} ${mobile.hero} ${desktopLayout.hero}`}>
+  return <main id="event-public-page" className={styles.page} style={pageStyle}>
+    <EventHeroPalette posterUrl={event.posterUrl} targetId="event-public-page"/>
+
+    <section className={`${styles.hero} ${mobile.hero} ${desktopLayout.hero} ${palette.heroPalette}`}>
       <div className={`shell ${styles.heroGrid} ${mobile.heroGrid} ${desktopLayout.wideShell} ${desktopLayout.heroGrid}`}>
         <div className={`${styles.heroCopy} ${mobile.heroCopy}`}>
           <div className={styles.location}><MapPin size={17}/><span>{locationLabel}</span></div>
@@ -237,6 +245,10 @@ export default async function EventPage({ params, searchParams }: {
             : <div className={styles.closedCard}><strong>{text.salesClosed}</strong><p>{text.noTariffs}</p></div>}
         </aside>
       </div>
+
+      {presentation.faq.length > 0 && <div className={`shell ${bodyLayout.shell} ${desktopLayout.wideShell}`}>
+        <EventFaq title={local.faq} items={presentation.faq}/>
+      </div>}
     </section>
   </main>;
 }
