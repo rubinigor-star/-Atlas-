@@ -1,0 +1,229 @@
+@media (min-width: 801px) {
+  .root {
+    width: 602px !important;
+    max-width: 100% !important;
+    height: 360px !important;
+    justify-self: end !important;
+    align-self: center !important;
+  }
+
+  .desktopGallery {
+    width: 602px !important;
+    max-width: 100% !important;
+    height: 360px !important;
+    grid-template-columns: 360px 232px !important;
+    gap: 10px !important;
+    justify-content: end !important;
+  }
+
+  .desktopGallery > button {
+    width: 360px !important;
+    height: 360px !important;
+    min-height: 360px !important;
+    aspect-ratio: 1 / 1 !important;
+  }
+
+  .desktopGallery > div {
+    width: 232px !important;
+    height: 360px !important;
+    grid-template-rows: repeat(2, 174px) !important;
+    gap: 12px !important;
+    align-content: center !important;
+  }
+
+  .desktopGallery > div > button {
+    width: 232px !important;
+    height: 174px !important;
+    min-height: 174px !important;
+    aspect-ratio: 4 / 3 !important;
+  }
+
+  .desktopGallery img {
+    width: 100% !important;
+    height: 100% !important;
+    object-position: center !important;
+  }
+
+  .posterPreview img {
+    object-fit: contain !important;
+    background: #0b0d14 !important;
+  }
+
+  .galleryPreview img {
+    object-fit: cover !important;
+  }
+
+  .single {
+    width: 360px !important;
+    max-width: 360px !important;
+    grid-template-columns: 360px !important;
+  }
+
+  .pair > div {
+    grid-template-rows: 174px !important;
+    align-content: center !important;
+  }
+
+  .pair > div > button {
+    height: 174px !important;
+    min-height: 174px !important;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 801px) {
+  .root {
+    width: 539px !important;
+    height: 320px !important;
+  }
+
+  .desktopGallery {
+    width: 539px !important;
+    height: 320px !important;
+    grid-template-columns: 320px 207px !important;
+    gap: 12px !important;
+  }
+
+  .desktopGallery > button {
+    width: 320px !important;
+    height: 320px !important;
+    min-height: 320px !important;
+  }
+
+  .desktopGallery > div {
+    width: 207px !important;
+    height: 320px !important;
+    grid-template-rows: repeat(2, 155px) !important;
+    gap: 10px !important;
+  }
+
+  .desktopGallery > div > button {
+    width: 207px !important;
+    height: 155px !important;
+    min-height: 155px !important;
+  }
+
+  .single {
+    width: 320px !important;
+    max-width: 320px !important;
+    grid-template-columns: 320px !important;
+  }
+
+  .pair > div {
+    grid-template-rows: 155px !important;
+  }
+
+  .pair > div > button {
+    height: 155px !important;
+    min-height: 155px !important;
+  }
+}
+
+@media (max-width: 800px) {
+  .root {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: 100% !important;
+    min-height: 100% !important;
+  }
+
+  .mobileGallery {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    background: #10121b !important;
+  }
+
+  .mobileGallery::after {
+    content: "" !important;
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 3 !important;
+    pointer-events: none !important;
+    background: linear-gradient(180deg, rgba(7, 8, 14, .1) 0%, rgba(7, 8, 14, .02) 37%, rgba(10, 11, 18, .28) 55%, rgba(10, 11, 18, .84) 74%, #10121b 100%) !important;
+  }
+
+  .mobileMedia {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    border-radius: 0 !important;
+  }
+
+  .backdrop {
+    position: absolute !important;
+    inset: -48px !important;
+    z-index: 0 !important;
+    width: calc(100% + 96px) !important;
+    height: calc(100% + 96px) !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: cover !important;
+    object-position: center !important;
+    filter: blur(36px) brightness(.38) saturate(1.28) !important;
+    transform: scale(1.08) !important;
+  }
+
+  .artwork {
+    position: absolute !important;
+    z-index: 1 !important;
+    display: block !important;
+    object-position: center !important;
+  }
+
+  .posterFrame .squareArtwork {
+    top: 118px !important;
+    left: 50% !important;
+    width: min(calc(100vw - 132px), 360px) !important;
+    height: min(calc(100vw - 132px), 360px) !important;
+    max-width: none !important;
+    max-height: none !important;
+    aspect-ratio: 1 / 1 !important;
+    object-fit: contain !important;
+    transform: translateX(-50%) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .24) !important;
+  }
+
+  .galleryFrame .fullArtwork {
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    aspect-ratio: auto !important;
+    object-fit: cover !important;
+    object-position: center top !important;
+    transform: none !important;
+  }
+
+  .progress {
+    top: 74px !important;
+    right: 20px !important;
+    left: 20px !important;
+    z-index: 7 !important;
+  }
+
+  .carouselArrow {
+    top: min(calc(50vw + 50px), 300px) !important;
+    z-index: 7 !important;
+    transform: translateY(-50%) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .posterFrame .squareArtwork {
+    top: 112px !important;
+    width: calc(100vw - 124px) !important;
+    height: calc(100vw - 124px) !important;
+  }
+
+  .carouselArrow {
+    top: calc(50vw + 50px) !important;
+  }
+}
