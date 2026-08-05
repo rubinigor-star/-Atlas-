@@ -18,7 +18,7 @@
   min-width: 0;
 }
 
-.heading {
+.intro .heading {
   margin: 0 0 12px;
   color: #121621;
   font-size: 25px;
@@ -78,7 +78,7 @@
     border-radius: 10px;
   }
 
-  .heading {
+  .intro .heading {
     margin-bottom: 9px;
     font-size: 21px;
   }
