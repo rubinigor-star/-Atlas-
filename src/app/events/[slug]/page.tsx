@@ -28,6 +28,7 @@ import mobile from "./event-mobile.module.css";
 import bodyLayout from "./event-body.module.css";
 import desktopLayout from "./event-desktop.module.css";
 import palette from "./event-hero-palette.module.css";
+import ctaLayout from "./event-cta-layout.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -181,9 +182,9 @@ export default async function EventPage({ params, searchParams }: {
           <div className={styles.location}><MapPin size={17}/><span>{locationLabel}</span></div>
           <h1 className={styles.title}>{event.title}</h1>
           {shortDescription && <p className={styles.summary}>{shortDescription}</p>}
-          <div className={styles.heroActions}>
-            <a className={styles.buyButton} href="#tickets">{ctaLabel}</a>
-            <div className={styles.shareWrap}><EventShareActions title={event.title} url={eventUrl}/></div>
+          <div className={`${styles.heroActions} ${ctaLayout.actions}`}>
+            <a className={`${styles.buyButton} ${ctaLayout.buy}`} href="#tickets">{ctaLabel}</a>
+            <div className={`${styles.shareWrap} ${ctaLayout.share}`}><EventShareActions title={event.title} url={eventUrl}/></div>
           </div>
         </div>
 
