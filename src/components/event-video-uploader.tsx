@@ -1,11 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Trash2, Upload } from "lucide-react";
+import { Film, Plus, Trash2 } from "lucide-react";
 import { upload } from "@vercel/blob/client";
 import { useLocale } from "@/components/locale-provider";
+import styles from "@/components/event-media-manager.module.css";
 
-const MAX_VIDEO_BYTES = 300_000_000;
+const MAX_VIDEO_BYTES = 50_000_000;
 
 type Props = {
   url: string;
@@ -14,36 +15,39 @@ type Props = {
 
 const copy = {
   ru: {
-    upload: "Загрузить видеофайл",
-    replace: "Заменить видеофайл",
+    empty: "Видеофайл не загружен",
+    linked: "Добавлена внешняя ссылка на видео",
+    upload: "Загрузить видео",
+    replace: "Заменить видео",
     remove: "Удалить видео",
-    help: "MP4 или WebM до 300 МБ. Файл загружается напрямую в видеохранилище.",
     progress: "Загрузка видео",
-    done: "Видео загружено. Нажмите «Сохранить основные данные».",
+    done: "Видео загружено. Сохраните основные данные.",
     typeError: "Выберите видео в формате MP4 или WebM",
-    sizeError: "Размер видео не должен превышать 300 МБ",
+    sizeError: "Размер видео не должен превышать 50 МБ",
     uploadError: "Не удалось загрузить видео",
   },
   he: {
-    upload: "העלאת קובץ וידאו",
-    replace: "החלפת קובץ הווידאו",
+    empty: "קובץ הווידאו עדיין לא הועלה",
+    linked: "נוסף קישור חיצוני לווידאו",
+    upload: "העלאת וידאו",
+    replace: "החלפת וידאו",
     remove: "מחיקת וידאו",
-    help: "MP4 או WebM עד 300MB. הקובץ מועלה ישירות לאחסון הווידאו.",
     progress: "מעלה וידאו",
-    done: "הווידאו הועלה. לחצו על שמירת פרטי האירוע.",
+    done: "הווידאו הועלה. שמרו את פרטי האירוע.",
     typeError: "יש לבחור קובץ MP4 או WebM",
-    sizeError: "גודל הווידאו לא יכול לעלות על 300MB",
+    sizeError: "גודל הווידאו לא יכול לעלות על 50MB",
     uploadError: "לא ניתן להעלות את הווידאו",
   },
   en: {
-    upload: "Upload video file",
-    replace: "Replace video file",
+    empty: "No video file uploaded",
+    linked: "An external video link was added",
+    upload: "Upload video",
+    replace: "Replace video",
     remove: "Remove video",
-    help: "MP4 or WebM up to 300 MB. The file uploads directly to video storage.",
     progress: "Uploading video",
-    done: "Video uploaded. Save the event details to apply it.",
+    done: "Video uploaded. Save the event details.",
     typeError: "Choose an MP4 or WebM video",
-    sizeError: "Video must be no larger than 300 MB",
+    sizeError: "Video must be no larger than 50 MB",
     uploadError: "Could not upload video",
   },
 } as const;
@@ -97,7 +101,10 @@ export function EventVideoUploader({ url, onChange }: Props) {
     }
   }
 
-  return <div className="field">
+  const directVideo = Boolean(url && isDirectVideo(url));
+  const addLabel = url ? text.replace : text.upload;
+
+  return <div className={styles.uploaderBody}>
     <input
       ref={inputRef}
       type="file"
@@ -106,18 +113,34 @@ export function EventVideoUploader({ url, onChange }: Props) {
       onChange={(event) => void choose(event.target.files?.[0])}
     />
 
-    <div className="row" style={{ alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-      <button type="button" className="btn secondary" disabled={busy} onClick={() => inputRef.current?.click()}>
-        <Upload size={17}/>{busy ? `${text.progress} ${progress}%` : url && isDirectVideo(url) ? text.replace : text.upload}
+    <div className={styles.videoFrame}>
+      {directVideo
+        ? <video src={url} controls preload="metadata"/>
+        : <div className={styles.emptyFrame}><span><Film size={30}/><br/>{url ? text.linked : text.empty}</span></div>}
+      <button
+        type="button"
+        className={styles.addButton}
+        aria-label={addLabel}
+        title={addLabel}
+        disabled={busy}
+        onClick={() => inputRef.current?.click()}
+      >
+        <Plus size={24}/>
       </button>
-      {url && <button type="button" className="btn secondary danger" disabled={busy} onClick={() => { onChange(""); setMessage(""); }}>
-        <Trash2 size={17}/>{text.remove}
+      {url && <button
+        type="button"
+        className={styles.removeButton}
+        aria-label={text.remove}
+        title={text.remove}
+        disabled={busy}
+        onClick={() => { onChange(""); setMessage(""); }}
+      >
+        <Trash2 size={15}/>
       </button>}
     </div>
 
-    {busy && <progress value={progress} max={100} style={{ width: "100%", height: 10 }}/>} 
-    <small className="muted">{text.help}</small>
-    {url && isDirectVideo(url) && <video src={url} controls preload="metadata" style={{ width: "min(560px,100%)", aspectRatio: "16 / 9", objectFit: "contain", borderRadius: 16, background: "#090b12", marginTop: 10 }}/>} 
-    {message && <div className="toast" style={{ marginTop: 10 }}>{message}</div>}
+    {busy && <progress className={styles.progress} value={progress} max={100}/>} 
+    {busy && <div className={styles.galleryMeta}><span>{text.progress}</span><strong>{progress}%</strong></div>}
+    {message && <div className={styles.status} role="status">{message}</div>}
   </div>;
 }
