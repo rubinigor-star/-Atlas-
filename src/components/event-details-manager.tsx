@@ -11,7 +11,13 @@ import type { EventFaqItem } from "@/lib/event-presentation";
 import styles from "@/components/event-media-manager.module.css";
 
 type MediaItem = { type: "VIDEO" | "LINK"; url: string; title?: string };
-type Presentation = { shortDescription: string; galleryEnabled: boolean; galleryUrls: string[]; faq: EventFaqItem[] };
+type Presentation = {
+  shortDescription: string;
+  galleryEnabled: boolean;
+  galleryUrls: string[];
+  faqEnabled: boolean;
+  faq: EventFaqItem[];
+};
 type EventDetails = {
   id: string;
   title: string;
@@ -48,14 +54,16 @@ const labels = {
     description: "Полное описание",
     links: "Дополнительные ссылки",
     faqTitle: "FAQ мероприятия",
-    faqHelp: "До 7 вопросов. Пустые строки не публикуются.",
+    faqToggle: "Добавить FAQ на страницу мероприятия",
+    faqHelp: "До 7 пар вопрос-ответ. Пустые строки не публикуются.",
+    faqDisabled: "Поставьте галочку, чтобы открыть компактную таблицу FAQ.",
     faqQuestion: "Вопрос",
     faqAnswer: "Ответ",
     date: "Дата и время",
     venue: "Площадка",
     city: "Город",
     address: "Полный адрес",
-    save: "Сохранить основные данные",
+    save: "Сохранить все изменения",
     saved: "Изменения сохранены",
     error: "Не удалось сохранить изменения",
     chars: "символов",
@@ -79,14 +87,16 @@ const labels = {
     description: "תיאור מלא",
     links: "קישורים נוספים",
     faqTitle: "שאלות נפוצות לאירוע",
-    faqHelp: "עד 7 שאלות. שורות ריקות לא יפורסמו.",
+    faqToggle: "הוספת FAQ לעמוד האירוע",
+    faqHelp: "עד 7 זוגות של שאלה ותשובה. שורות ריקות לא יפורסמו.",
+    faqDisabled: "סמנו את התיבה כדי לפתוח טבלת FAQ קומפקטית.",
     faqQuestion: "שאלה",
     faqAnswer: "תשובה",
     date: "תאריך ושעה",
     venue: "מקום האירוע",
     city: "עיר",
     address: "כתובת מלאה",
-    save: "שמירת פרטי האירוע",
+    save: "שמירת כל השינויים",
     saved: "השינויים נשמרו",
     error: "לא ניתן לשמור את השינויים",
     chars: "תווים",
@@ -110,14 +120,16 @@ const labels = {
     description: "Full description",
     links: "Additional links",
     faqTitle: "Event FAQ",
-    faqHelp: "Up to 7 questions. Empty rows are not published.",
+    faqToggle: "Add FAQ to the event page",
+    faqHelp: "Up to 7 question-and-answer pairs. Empty rows are not published.",
+    faqDisabled: "Select the checkbox to open the compact FAQ table.",
     faqQuestion: "Question",
     faqAnswer: "Answer",
     date: "Date and time",
     venue: "Venue",
     city: "City",
     address: "Full address",
-    save: "Save event details",
+    save: "Save all changes",
     saved: "Changes saved",
     error: "Could not save changes",
     chars: "characters",
@@ -132,9 +144,13 @@ function normalizeFaq(value: unknown): EventFaqItem[] {
   }));
 }
 
+function emptyPresentation(): Presentation {
+  return { shortDescription: "", galleryEnabled: false, galleryUrls: [], faqEnabled: false, faq: [] };
+}
+
 function decodePresentation(description: string): Presentation {
   const encoded = description.match(PRESENTATION_MARKER)?.[1];
-  if (!encoded || typeof window === "undefined") return { shortDescription: "", galleryEnabled: false, galleryUrls: [], faq: [] };
+  if (!encoded || typeof window === "undefined") return emptyPresentation();
   try {
     const binary = window.atob(encoded);
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
@@ -142,27 +158,29 @@ function decodePresentation(description: string): Presentation {
     const galleryUrls = Array.isArray(parsed?.galleryUrls)
       ? parsed.galleryUrls.filter((url: unknown): url is string => typeof url === "string" && /^(?:https?:\/\/|data:image\/)/i.test(url)).slice(0, 6)
       : [];
+    const faq = normalizeFaq(parsed?.faq);
     return {
       shortDescription: typeof parsed?.shortDescription === "string" ? parsed.shortDescription.slice(0, SHORT_DESCRIPTION_LIMIT) : "",
       galleryEnabled: parsed?.galleryEnabled === true && galleryUrls.length > 0,
       galleryUrls,
-      faq: normalizeFaq(parsed?.faq),
+      faqEnabled: typeof parsed?.faqEnabled === "boolean" ? parsed.faqEnabled : faq.length > 0,
+      faq,
     };
   } catch {
-    return { shortDescription: "", galleryEnabled: false, galleryUrls: [], faq: [] };
+    return emptyPresentation();
   }
 }
 
 function encodePresentation(value: Presentation) {
-  const faq = value.faq.flatMap((item) => {
-    const question = item.question.trim().slice(0, 180);
-    const answer = item.answer.trim().slice(0, 1200);
-    return question && answer ? [{ question, answer }] : [];
-  }).slice(0, 7);
+  const faq = value.faq.map((item) => ({
+    question: item.question.trim().slice(0, 180),
+    answer: item.answer.trim().slice(0, 1200),
+  })).filter((item) => item.question || item.answer).slice(0, 7);
   const normalized = {
     shortDescription: value.shortDescription.trim().slice(0, SHORT_DESCRIPTION_LIMIT),
     galleryEnabled: value.galleryEnabled && value.galleryUrls.length > 0,
     galleryUrls: value.galleryUrls.slice(0, 6),
+    faqEnabled: value.faqEnabled && faq.some((item) => item.question && item.answer),
     faq,
   };
   if (!normalized.shortDescription && !normalized.galleryUrls.length && !normalized.faq.length) return "";
@@ -186,6 +204,7 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
   const [videoUrl, setVideoUrl] = useState(initialVideoUrl);
   const [galleryEnabled, setGalleryEnabled] = useState(initialPresentation.galleryEnabled);
   const [galleryUrls, setGalleryUrls] = useState(initialPresentation.galleryUrls);
+  const [faqEnabled, setFaqEnabled] = useState(initialPresentation.faqEnabled);
   const [faq, setFaq] = useState<EventFaqItem[]>(initialPresentation.faq);
 
   async function submit(form: HTMLFormElement) {
@@ -201,12 +220,7 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
       ...links,
     ];
     const baseDescription = String(formData.get("description") || "").replace(PRESENTATION_MARKER, "").trim();
-    const marker = encodePresentation({
-      shortDescription,
-      galleryEnabled,
-      galleryUrls,
-      faq,
-    });
+    const marker = encodePresentation({ shortDescription, galleryEnabled, galleryUrls, faqEnabled, faq });
     const description = marker ? `${baseDescription}\n${marker}` : baseDescription;
 
     setMessage("");
@@ -235,10 +249,15 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
     }
   }
 
-  return <form className="panel form" style={{ order: -1 }} onSubmit={(submitEvent) => {
-    submitEvent.preventDefault();
-    void submit(submitEvent.currentTarget);
-  }}>
+  return <form
+    className="panel form"
+    style={{ order: -1 }}
+    data-unified-save="about"
+    onSubmit={(submitEvent) => {
+      submitEvent.preventDefault();
+      void submit(submitEvent.currentTarget);
+    }}
+  >
     <span className="eyebrow">О мероприятии</span>
     <h2>Основная информация</h2>
 
@@ -312,14 +331,16 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
     </div>
 
     <div className="field">
-      <label>{text.faqTitle}</label>
-      <EventFaqEditor
-        items={faq}
-        onChange={setFaq}
-        questionLabel={text.faqQuestion}
-        answerLabel={text.faqAnswer}
-        help={text.faqHelp}
-      />
+      <div className={styles.cardTitleRow}>
+        <label>{text.faqTitle}</label>
+        <label className={styles.toggleRow}>
+          <input type="checkbox" checked={faqEnabled} onChange={(changeEvent) => setFaqEnabled(changeEvent.target.checked)}/>
+          <span>{text.faqToggle}</span>
+        </label>
+      </div>
+      {faqEnabled
+        ? <EventFaqEditor items={faq} onChange={setFaq} questionLabel={text.faqQuestion} answerLabel={text.faqAnswer} help={text.faqHelp}/>
+        : <div className={styles.disabledBody}>{text.faqDisabled}</div>}
     </div>
 
     <div className="form-grid two">
@@ -331,7 +352,7 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
       <div className="field"><label>{text.address}</label><input className="input" name="address" defaultValue={event.address} required/></div>
     </div>
 
-    <button className="btn">{text.save}</button>
+    <button className="btn" data-workspace-local-save="true">{text.save}</button>
     {message && <div className="toast" role="status">{message}</div>}
   </form>;
 }
