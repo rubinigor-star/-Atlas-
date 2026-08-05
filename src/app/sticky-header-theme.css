@@ -19,10 +19,19 @@
   flex: 0 0 76px;
 }
 
-/* Keep the hero background underneath the fixed transparent header. */
+/* Keep immersive public-page backgrounds underneath the fixed header. */
 body.atlas-header-home .live-emotions-hero,
 body:has(.home-page) .live-emotions-hero {
   padding-top: 76px;
+}
+
+body.atlas-header-event .event-stage {
+  padding-top: 118px;
+}
+
+body.atlas-header-event .event-stage::before,
+body.atlas-header-event .event-stage::after {
+  inset: 0;
 }
 
 .atlas-site-header .atlas-header-nav,
@@ -36,9 +45,9 @@ body:has(.home-page) .live-emotions-hero {
     opacity 180ms ease;
 }
 
-/* At the top of the homepage the header is genuinely transparent. */
+/* At the top of immersive pages the header is genuinely transparent. */
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-site-header,
-body.atlas-header-home:not(.atlas-header-scrolled) .atlas-site-header {
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-site-header {
   border-bottom-color: transparent;
   background: transparent;
   box-shadow: none;
@@ -47,55 +56,55 @@ body.atlas-header-home:not(.atlas-header-scrolled) .atlas-site-header {
 }
 
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-header-nav,
-body.atlas-header-home:not(.atlas-header-scrolled) .atlas-header-nav {
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-header-nav {
   color: rgba(255, 255, 255, .72);
 }
 
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-header-nav a:hover,
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-header-nav a:focus-visible,
-body.atlas-header-home:not(.atlas-header-scrolled) .atlas-header-nav a:hover,
-body.atlas-header-home:not(.atlas-header-scrolled) .atlas-header-nav a:focus-visible {
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-header-nav a:hover,
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-header-nav a:focus-visible {
   color: #fff;
 }
 
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-language-button,
-body.atlas-header-home:not(.atlas-header-scrolled) .atlas-language-button {
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-language-button {
   color: rgba(255, 255, 255, .82);
 }
 
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-language-button:hover,
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-language-button:focus-visible,
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-language-button[aria-expanded="true"],
-body.atlas-header-home:not(.atlas-header-scrolled) .atlas-language-button:hover,
-body.atlas-header-home:not(.atlas-header-scrolled) .atlas-language-button:focus-visible,
-body.atlas-header-home:not(.atlas-header-scrolled) .atlas-language-button[aria-expanded="true"] {
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-language-button:hover,
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-language-button:focus-visible,
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-language-button[aria-expanded="true"] {
   background: rgba(255, 255, 255, .09);
   color: #fff;
 }
 
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-header-divider,
-body.atlas-header-home:not(.atlas-header-scrolled) .atlas-header-divider {
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-header-divider {
   background: rgba(255, 255, 255, .20);
 }
 
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-header-icon-button,
-body.atlas-header-home:not(.atlas-header-scrolled) .atlas-header-icon-button {
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-header-icon-button {
   color: #fff;
 }
 
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-header-icon-button:hover,
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-header-icon-button:focus-visible,
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-account-button[aria-expanded="true"],
-body.atlas-header-home:not(.atlas-header-scrolled) .atlas-header-icon-button:hover,
-body.atlas-header-home:not(.atlas-header-scrolled) .atlas-header-icon-button:focus-visible,
-body.atlas-header-home:not(.atlas-header-scrolled) .atlas-account-button[aria-expanded="true"] {
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-header-icon-button:hover,
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-header-icon-button:focus-visible,
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-account-button[aria-expanded="true"] {
   background: rgba(255, 255, 255, .10);
   color: #ff8a1a;
 }
 
 /* As soon as scrolling begins, restore the regular white header. */
 body:has(.home-page).atlas-header-scrolled .atlas-site-header,
-body.atlas-header-home.atlas-header-scrolled .atlas-site-header {
+body:is(.atlas-header-home, .atlas-header-event).atlas-header-scrolled .atlas-site-header {
   border-bottom-color: rgba(15, 23, 42, .08);
   background: rgba(255, 255, 255, .97);
   box-shadow: 0 8px 24px rgba(15, 23, 42, .055);
@@ -113,6 +122,10 @@ body.atlas-header-home.atlas-header-scrolled .atlas-site-header {
   body:has(.home-page) .live-emotions-hero {
     padding-top: 62px;
   }
+
+  body.atlas-header-event .event-stage {
+    padding-top: 80px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -124,6 +137,10 @@ body.atlas-header-home.atlas-header-scrolled .atlas-site-header {
   body.atlas-header-home .live-emotions-hero,
   body:has(.home-page) .live-emotions-hero {
     padding-top: 58px;
+  }
+
+  body.atlas-header-event .event-stage {
+    padding-top: 76px;
   }
 }
 
