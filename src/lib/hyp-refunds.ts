@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 
 const REQUEST_TIMEOUT_MS = 20_000;
+const HYP_ENDPOINT = "https://pay.hyp.co.il/p/";
 
 type RefundInput = {
   cgUid?: string | null;
@@ -19,57 +20,38 @@ export type HypRefundResult = {
   rawResponse: string;
 };
 
-function requiredFirst(names: string[], label: string) {
+function required(name: "HYP_MASOF" | "HYP_PASSP") {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is not configured`);
+  return value;
+}
+
+function safeResponse(value: string) {
+  return value
+    .replace(/(PassP=)[^&\s]+/gi, "$1[REDACTED]")
+    .replace(/("?PassP"?\s*[:=]\s*")[^"]+/gi, "$1[REDACTED]")
+    .slice(0, 20_000);
+}
+
+function parseResponse(body: string) {
+  const trimmed = body.trim();
+
+  try {
+    const json = JSON.parse(trimmed) as Record<string, unknown>;
+    return new URLSearchParams(
+      Object.entries(json).map(([key, value]) => [key, value == null ? "" : String(value)]),
+    );
+  } catch {
+    return new URLSearchParams(trimmed.replace(/^\?/, ""));
+  }
+}
+
+function first(params: URLSearchParams, names: string[]) {
   for (const name of names) {
-    const value = process.env[name]?.trim();
+    const value = params.get(name);
     if (value) return value;
   }
-  throw new Error(`${label} is not configured (${names.join(" or ")})`);
-}
-
-function refundApiUrl() {
-  const value = requiredFirst(["HYP_REFUND_API_URL", "HYP_RELAY_URL"], "HYP refund API URL");
-  if (!/^https:\/\//i.test(value)) throw new Error("HYP refund API URL must use HTTPS");
-  return value.replace(/\/$/, "");
-}
-
-function refundApiUser() {
-  return requiredFirst(
-    ["HYP_REFUND_API_USER", "HYP_API_USER", "HYP_API_KEY"],
-    "HYP refund API user",
-  );
-}
-
-function refundApiPassword() {
-  return requiredFirst(
-    ["HYP_REFUND_API_PASSWORD", "HYP_API_PASSWORD", "HYP_PASSP"],
-    "HYP refund API password",
-  );
-}
-
-function terminalNumber() {
-  return requiredFirst(["HYP_MASOF", "HYP_TERMINAL_NUMBER"], "HYP terminal number");
-}
-
-function xmlText(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-function tag(xml: string, name: string) {
-  const match = xml.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${name}>`, "i"));
-  return match?.[1]?.trim() || "";
-}
-
-function safeResponse(xml: string) {
-  return xml
-    .replace(/<cardNo>[\s\S]*?<\/cardNo>/gi, "<cardNo>[REDACTED]</cardNo>")
-    .replace(/<password>[\s\S]*?<\/password>/gi, "<password>[REDACTED]</password>")
-    .slice(0, 20_000);
+  return "";
 }
 
 export function createRefundIdempotencyKey(orderId: string, amountMinor: number, reason: string) {
@@ -77,76 +59,77 @@ export function createRefundIdempotencyKey(orderId: string, amountMinor: number,
 }
 
 export async function refundHypDeal(input: RefundInput): Promise<HypRefundResult> {
-  const cgUid = input.cgUid?.trim() || "";
-  const tranId = input.tranId?.trim() || "";
-  if (!cgUid && !tranId) throw new Error("Не найден cgUid или tranId исходной транзакции HYP");
+  const sourceTransactionId = input.tranId?.trim() || input.cgUid?.trim() || "";
+  if (!sourceTransactionId) {
+    throw new Error("Не найден TransId исходной транзакции HYP");
+  }
   if (input.amountMinor !== undefined && (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0)) {
     throw new Error("Некорректная сумма возврата");
   }
 
-  const lookup = cgUid
-    ? `<cgUid>${xmlText(cgUid)}</cgUid>`
-    : `<tranId>${xmlText(tranId)}</tranId>`;
-  const total = input.amountMinor === undefined ? "" : `<total>${input.amountMinor}</total>`;
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<ashrait>
-  <request>
-    <version>2000</version>
-    <language>Eng</language>
-    <command>refundDeal</command>
-    <refundDeal>
-      <terminalNumber>${xmlText(terminalNumber())}</terminalNumber>
-      ${lookup}
-      ${total}
-    </refundDeal>
-  </request>
-</ashrait>`;
-
-  const body = new URLSearchParams({
-    user: refundApiUser(),
-    password: refundApiPassword(),
-    int_in: xml,
+  const params = new URLSearchParams({
+    action: "zikoyAPI",
+    Masof: required("HYP_MASOF"),
+    PassP: required("HYP_PASSP"),
+    TransId: sourceTransactionId,
   });
 
-  const endpoint = refundApiUrl();
+  if (input.amountMinor !== undefined) {
+    params.set("Amount", (input.amountMinor / 100).toFixed(2));
+  }
+
   console.info("hyp.refund.request", {
-    endpointHost: new URL(endpoint).host,
-    lookup: cgUid ? "cgUid" : "tranId",
-    partial: input.amountMinor !== undefined,
+    endpoint: HYP_ENDPOINT,
+    action: "zikoyAPI",
+    masofConfigured: true,
+    sourceTransactionId,
+    amount: input.amountMinor === undefined ? "full" : (input.amountMinor / 100).toFixed(2),
   });
 
-  const response = await fetch(endpoint, {
-    method: "POST",
+  const response = await fetch(`${HYP_ENDPOINT}?${params.toString()}`, {
+    method: "GET",
     headers: {
-      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
       "User-Agent": "Atlas-One-HYP-Refunds/1.0",
-      Accept: "application/xml, text/xml, text/plain, */*",
+      Accept: "text/plain, application/x-www-form-urlencoded, application/json, */*",
     },
-    body: body.toString(),
     cache: "no-store",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
-  const responseXml = (await response.text()).trim();
+
+  const body = (await response.text()).trim();
   if (!response.ok) {
-    throw new Error(`HYP refund API HTTP ${response.status}${responseXml ? `: ${responseXml.slice(0, 180)}` : ""}`);
+    throw new Error(`HYP zikoyAPI HTTP ${response.status}: ${safeResponse(body).slice(0, 300)}`);
   }
-  if (!responseXml) throw new Error("HYP вернул пустой ответ на возврат");
+  if (!body) throw new Error("HYP вернул пустой ответ на возврат");
 
-  const resultCode = tag(responseXml, "result") || tag(responseXml, "responseCode");
-  const statusText = tag(responseXml, "statusText") || tag(responseXml, "message") || tag(responseXml, "resultMessage");
-  if (resultCode !== "000" && resultCode !== "0") {
-    throw new Error(`HYP refundDeal ${resultCode || "UNKNOWN"}: ${statusText || "возврат отклонён"}`);
+  const result = parseResponse(body);
+  const resultCode = first(result, ["CCode", "Code", "code", "Error", "error", "result"]);
+  const statusText = first(result, ["ErrMsg", "Message", "message", "Description", "statusText"]);
+  const success = resultCode === "0" || resultCode === "000";
+
+  if (!success) {
+    throw new Error(`HYP zikoyAPI ${resultCode || "UNKNOWN"}: ${statusText || safeResponse(body).slice(0, 300)}`);
   }
 
-  const orgAmount = Number(tag(responseXml, "orgAmount"));
+  const refundTranId = first(result, ["TransId", "tranId", "Id", "id"]);
+  const cgUid = first(result, ["cgUid", "CgUid"]);
+  const amount = Number(first(result, ["Amount", "amount"]));
+
+  console.info("hyp.refund.response", {
+    resultCode,
+    refundTranId,
+    sourceTransactionId,
+    amount: Number.isFinite(amount) ? amount : null,
+  });
+
   return {
     resultCode,
-    refundTranId: tag(responseXml, "tranId"),
-    cgUid: tag(responseXml, "cgUid") || cgUid,
-    status: tag(responseXml, "status"),
-    statusText,
-    orgUid: tag(responseXml, "orgUid"),
-    orgAmountMinor: Number.isFinite(orgAmount) ? orgAmount : null,
-    rawResponse: safeResponse(responseXml),
+    refundTranId,
+    cgUid: cgUid || input.cgUid?.trim() || "",
+    status: resultCode,
+    statusText: statusText || "Permitted transaction",
+    orgUid: "",
+    orgAmountMinor: Number.isFinite(amount) ? Math.round(amount * 100) : null,
+    rawResponse: safeResponse(body),
   };
 }
