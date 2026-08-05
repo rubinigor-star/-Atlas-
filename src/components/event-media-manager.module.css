@@ -20,7 +20,7 @@
 
 .cardHeader {
   display: flex;
-  min-height: 92px;
+  min-height: 160px;
   flex-direction: column;
   gap: 7px;
 }
@@ -268,19 +268,11 @@
   .mediaGrid {
     grid-template-columns: repeat(2, minmax(280px, 1fr));
   }
-
-  .mediaCard:first-child {
-    grid-row: span 2;
-  }
 }
 
 @media (max-width: 760px) {
   .mediaGrid {
     grid-template-columns: 1fr;
-  }
-
-  .mediaCard:first-child {
-    grid-row: auto;
   }
 
   .cardHeader {
