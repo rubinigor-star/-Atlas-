@@ -19,7 +19,7 @@ export type HypRefundResult = {
   rawResponse: string;
 };
 
-function required(name: "HYP_RELAY_URL" | "HYP_API_USER" | "HYP_API_PASSWORD" | "HYP_TERMINAL_NUMBER") {
+function required(name: "HYP_RELAY_URL" | "HYP_API_USER" | "HYP_API_PASSWORD" | "HYP_MASOF") {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is not configured`);
   return value;
@@ -69,7 +69,7 @@ export async function refundHypDeal(input: RefundInput): Promise<HypRefundResult
     <language>Eng</language>
     <command>refundDeal</command>
     <refundDeal>
-      <terminalNumber>${xmlText(required("HYP_TERMINAL_NUMBER"))}</terminalNumber>
+      <terminalNumber>${xmlText(required("HYP_MASOF"))}</terminalNumber>
       ${lookup}
       ${total}
     </refundDeal>
