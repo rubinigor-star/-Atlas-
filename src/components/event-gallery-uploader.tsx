@@ -4,11 +4,9 @@ import { useRef, useState } from "react";
 import { Trash2, Upload } from "lucide-react";
 import { useLocale } from "@/components/locale-provider";
 
-const OUTPUT_WIDTH = 1600;
-const OUTPUT_HEIGHT = 1200;
-const TARGET_RATIO = OUTPUT_WIDTH / OUTPUT_HEIGHT;
-const MAX_SOURCE_BYTES = 15_000_000;
-const MAX_UPLOAD_BYTES = 850_000;
+const TARGET_RATIO = 4 / 3;
+const RATIO_TOLERANCE = 0.01;
+const MAX_UPLOAD_BYTES = 1_000_000;
 const MAX_IMAGES = 6;
 
 type Props = {
@@ -18,44 +16,62 @@ type Props = {
 
 const copy = {
   ru: {
-    add: "Добавить изображения",
+    add: "Добавить фотографии 4:3",
     busy: "Загрузка…",
-    help: "До 6 фотографий. Горизонтальный формат 4:3. Идеальный размер: 1600 × 1200 px. Максимальный исходный файл: 15 МБ. Изображение автоматически обрезается по центру и оптимизируется.",
-    remove: "Удалить изображение",
-    optimize: "Оптимизируем изображения…",
-    upload: "Загружаем изображения…",
-    done: "Изображения добавлены. Нажмите «Сохранить основные данные».",
-    error: "Не удалось загрузить изображение",
+    help: "До 6 фотографий. Горизонтальный формат 4:3. Рекомендуемый размер: 1600 × 1200 px. Максимальный вес каждой фотографии: 1 МБ. Файл загружается без обрезки и изменения размера.",
+    remove: "Удалить фотографию",
+    checking: "Проверяем формат фотографий…",
+    upload: "Загружаем фотографии…",
+    done: "Фотографии добавлены. Нажмите «Сохранить основные данные».",
+    typeError: "Разрешены только JPG, PNG или WebP",
+    sizeError: "Каждая фотография должна весить не больше 1 МБ",
+    ratioError: "Фотография должна иметь горизонтальную пропорцию 4:3, например 1600 × 1200 px",
+    readError: "Не удалось прочитать фотографию",
+    error: "Не удалось загрузить фотографию",
   },
   he: {
-    add: "הוספת תמונות",
+    add: "הוספת תמונות 4:3",
     busy: "מעלה…",
-    help: "עד 6 תמונות. פורמט אופקי 4:3. גודל אידיאלי: 1600 × 1200 פיקסלים. קובץ מקור עד 15MB. התמונה נחתכת מהמרכז ועוברת אופטימיזציה אוטומטית.",
+    help: "עד 6 תמונות בפורמט אופקי 4:3. גודל מומלץ: 1600 × 1200 פיקסלים. משקל מרבי לכל תמונה: 1MB. הקובץ עולה ללא חיתוך וללא שינוי גודל.",
     remove: "מחיקת תמונה",
-    optimize: "מבצע אופטימיזציה לתמונות…",
+    checking: "בודק את פורמט התמונות…",
     upload: "מעלה תמונות…",
     done: "התמונות נוספו. לחצו על שמירת פרטי האירוע.",
+    typeError: "ניתן להעלות רק JPG, PNG או WebP",
+    sizeError: "משקל כל תמונה חייב להיות עד 1MB",
+    ratioError: "התמונה חייבת להיות אופקית ביחס 4:3, לדוגמה 1600 × 1200 פיקסלים",
+    readError: "לא ניתן לקרוא את התמונה",
     error: "לא ניתן להעלות את התמונה",
   },
   en: {
-    add: "Add images",
+    add: "Add 4:3 photos",
     busy: "Uploading…",
-    help: "Up to 6 photos. Horizontal 4:3 format. Ideal size: 1600 × 1200 px. Maximum source file: 15 MB. Images are center-cropped and optimized automatically.",
-    remove: "Remove image",
-    optimize: "Optimizing images…",
-    upload: "Uploading images…",
-    done: "Images added. Save the event details to apply them.",
-    error: "Could not upload image",
+    help: "Up to 6 horizontal 4:3 photos. Recommended size: 1600 × 1200 px. Maximum file size: 1 MB per photo. Files are uploaded without cropping or resizing.",
+    remove: "Remove photo",
+    checking: "Checking photo format…",
+    upload: "Uploading photos…",
+    done: "Photos added. Save the event details to apply them.",
+    typeError: "Only JPG, PNG or WebP files are allowed",
+    sizeError: "Each photo must be no larger than 1 MB",
+    ratioError: "The photo must use a horizontal 4:3 ratio, for example 1600 × 1200 px",
+    readError: "Could not read the photo",
+    error: "Could not upload the photo",
   },
 } as const;
 
-async function loadImage(file: File): Promise<ImageBitmap | HTMLImageElement> {
-  if ("createImageBitmap" in window) return createImageBitmap(file);
+async function readDimensions(file: File): Promise<{ width: number; height: number }> {
+  if ("createImageBitmap" in window) {
+    const image = await createImageBitmap(file);
+    const dimensions = { width: image.width, height: image.height };
+    image.close();
+    return dimensions;
+  }
+
   const url = URL.createObjectURL(file);
   try {
-    return await new Promise<HTMLImageElement>((resolve, reject) => {
+    return await new Promise((resolve, reject) => {
       const image = new Image();
-      image.onload = () => resolve(image);
+      image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
       image.onerror = () => reject(new Error("Could not read image"));
       image.src = url;
     });
@@ -64,40 +80,22 @@ async function loadImage(file: File): Promise<ImageBitmap | HTMLImageElement> {
   }
 }
 
-async function optimizeImage(file: File): Promise<File> {
-  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error("JPG, PNG or WebP only");
-  if (file.size > MAX_SOURCE_BYTES) throw new Error("Image is larger than 15 MB");
+async function validateImage(file: File, text: (typeof copy)[keyof typeof copy]): Promise<File> {
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error(text.typeError);
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error(text.sizeError);
 
-  const image = await loadImage(file);
-  const sourceRatio = image.width / image.height;
-  let cropWidth = image.width;
-  let cropHeight = image.height;
-
-  if (sourceRatio > TARGET_RATIO) {
-    cropWidth = Math.round(image.height * TARGET_RATIO);
-  } else if (sourceRatio < TARGET_RATIO) {
-    cropHeight = Math.round(image.width / TARGET_RATIO);
+  let dimensions: { width: number; height: number };
+  try {
+    dimensions = await readDimensions(file);
+  } catch {
+    throw new Error(text.readError);
   }
 
-  const sourceX = Math.max(0, Math.round((image.width - cropWidth) / 2));
-  const sourceY = Math.max(0, Math.round((image.height - cropHeight) / 2));
-  const canvas = document.createElement("canvas");
-  canvas.width = OUTPUT_WIDTH;
-  canvas.height = OUTPUT_HEIGHT;
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("Canvas is unavailable");
-  context.drawImage(image, sourceX, sourceY, cropWidth, cropHeight, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
-  if ("close" in image && typeof image.close === "function") image.close();
+  if (!dimensions.width || !dimensions.height) throw new Error(text.readError);
+  const ratio = dimensions.width / dimensions.height;
+  if (Math.abs(ratio - TARGET_RATIO) > RATIO_TOLERANCE) throw new Error(text.ratioError);
 
-  let quality = 0.88;
-  let blob: Blob | null = null;
-  while (quality >= 0.46) {
-    blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
-    if (blob && blob.size <= MAX_UPLOAD_BYTES) break;
-    quality -= 0.07;
-  }
-  if (!blob || blob.size > MAX_UPLOAD_BYTES) throw new Error("Could not compress image");
-  return new File([blob], `event-gallery-${OUTPUT_WIDTH}x${OUTPUT_HEIGHT}-${Date.now()}.jpg`, { type: "image/jpeg" });
+  return file;
 }
 
 export function EventGalleryUploader({ urls, onChange }: Props) {
@@ -114,13 +112,13 @@ export function EventGalleryUploader({ urls, onChange }: Props) {
     if (!selected.length) return;
 
     setBusy(true);
-    setMessage(text.optimize);
+    setMessage(text.checking);
     try {
       const next = [...urls];
       for (const file of selected) {
-        const optimized = await optimizeImage(file);
+        const validated = await validateImage(file, text);
         const form = new FormData();
-        form.append("image", optimized);
+        form.append("image", validated);
         setMessage(text.upload);
         const response = await fetch("/api/uploads", { method: "POST", body: form });
         const data = await response.json();
@@ -159,8 +157,8 @@ export function EventGalleryUploader({ urls, onChange }: Props) {
     </div>
     <small className="muted">{text.help}</small>
     {urls.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 12, marginTop: 12 }}>
-      {urls.map((url, index) => <div key={`${url.slice(0,48)}-${index}`} style={{ position: "relative", aspectRatio: "4 / 3" }}>
-        <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 14, display: "block" }}/>
+      {urls.map((url, index) => <div key={`${url.slice(0,48)}-${index}`} style={{ position: "relative", aspectRatio: "4 / 3", background: "#eef0f4", borderRadius: 14, overflow: "hidden" }}>
+        <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 14, display: "block" }}/>
         <button
           type="button"
           aria-label={text.remove}
