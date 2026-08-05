@@ -19,6 +19,7 @@ import { eventLanguageLabels } from "@/lib/event-language";
 import { getEventLanguageSettings } from "@/lib/event-language-server";
 import { getEffectiveEventTerms } from "@/lib/commercial-terms";
 import styles from "./event-detail.module.css";
+import metaAlignment from "./event-meta-alignment.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -172,11 +173,13 @@ export default async function EventPage({ params, searchParams }: {
         />
       </div>
 
-      <div className={`shell ${styles.metaStrip}`}>
-        <div className={styles.metaItem}><CalendarDays size={19}/><span>{eventDate(event.startsAt, i18n.locale)}</span></div>
-        <div className={styles.metaItem}><MapPin size={19}/><span>{event.venue.name}</span></div>
-        <div className={styles.metaItem}><Languages size={19}/><span>{languageLabel}</span></div>
-        <div className={styles.metaItem}><ShieldCheck size={19}/><span>{local.secure}</span></div>
+      <div className={metaAlignment.shell}>
+        <div className={`${styles.metaStrip} ${metaAlignment.strip}`}>
+          <div className={styles.metaItem}><CalendarDays size={19}/><span>{eventDate(event.startsAt, i18n.locale)}</span></div>
+          <div className={styles.metaItem}><MapPin size={19}/><span>{event.venue.name}</span></div>
+          <div className={styles.metaItem}><Languages size={19}/><span>{languageLabel}</span></div>
+          <div className={styles.metaItem}><ShieldCheck size={19}/><span>{local.secure}</span></div>
+        </div>
       </div>
     </section>
 
