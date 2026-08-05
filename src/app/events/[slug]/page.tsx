@@ -20,6 +20,7 @@ import { getEventLanguageSettings } from "@/lib/event-language-server";
 import { getEffectiveEventTerms } from "@/lib/commercial-terms";
 import styles from "./event-detail.module.css";
 import metaAlignment from "./event-meta-alignment.module.css";
+import mobile from "./event-mobile.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -153,9 +154,9 @@ export default async function EventPage({ params, searchParams }: {
   };
 
   return <main className={styles.page} style={pageStyle}>
-    <section className={styles.hero}>
-      <div className={`shell ${styles.heroGrid}`}>
-        <div className={styles.heroCopy}>
+    <section className={`${styles.hero} ${mobile.hero}`}>
+      <div className={`shell ${styles.heroGrid} ${mobile.heroGrid}`}>
+        <div className={`${styles.heroCopy} ${mobile.heroCopy}`}>
           <div className={styles.location}><MapPin size={17}/><span>{locationLabel}</span></div>
           <h1 className={styles.title}>{event.title}</h1>
           {shortDescription && <p className={styles.summary}>{shortDescription}</p>}
@@ -174,11 +175,11 @@ export default async function EventPage({ params, searchParams }: {
       </div>
 
       <div className={metaAlignment.shell}>
-        <div className={`${styles.metaStrip} ${metaAlignment.strip}`}>
-          <div className={styles.metaItem}><CalendarDays size={19}/><span>{eventDate(event.startsAt, i18n.locale)}</span></div>
-          <div className={styles.metaItem}><MapPin size={19}/><span>{event.venue.name}</span></div>
-          <div className={styles.metaItem}><Languages size={19}/><span>{languageLabel}</span></div>
-          <div className={styles.metaItem}><ShieldCheck size={19}/><span>{local.secure}</span></div>
+        <div className={`${styles.metaStrip} ${metaAlignment.strip} ${mobile.metaStrip}`}>
+          <div className={`${styles.metaItem} ${mobile.metaItem}`}><CalendarDays size={19}/><span>{eventDate(event.startsAt, i18n.locale)}</span></div>
+          <div className={`${styles.metaItem} ${mobile.metaItem}`}><MapPin size={19}/><span>{event.venue.name}</span></div>
+          <div className={`${styles.metaItem} ${mobile.metaItem}`}><Languages size={19}/><span>{languageLabel}</span></div>
+          <div className={`${styles.metaItem} ${mobile.metaItem}`}><ShieldCheck size={19}/><span>{local.secure}</span></div>
         </div>
       </div>
     </section>
