@@ -3,13 +3,26 @@ import { requirePermission } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
+const GALLERY_MAX_BYTES = 1_000_000;
+const POSTER_MAX_BYTES = 2_000_000;
+
 export async function POST(req: Request) {
   try {
     await requirePermission("TICKET_MANAGE");
     const data = await req.formData();
-    const file = data.get("image") ?? data.get("poster");
-    if (!(file instanceof File) || !file.type.match(/^image\/(jpeg|png|webp)$/) || file.size > 2_000_000) {
-      throw new Error("Нужен JPG, PNG или WebP до 2 MB");
+    const galleryFile = data.get("image");
+    const posterFile = data.get("poster");
+    const file = galleryFile ?? posterFile;
+    const isGallery = galleryFile instanceof File;
+    const maxBytes = isGallery ? GALLERY_MAX_BYTES : POSTER_MAX_BYTES;
+
+    if (!(file instanceof File) || !file.type.match(/^image\/(jpeg|png|webp)$/)) {
+      throw new Error("Нужен файл JPG, PNG или WebP");
+    }
+    if (file.size > maxBytes) {
+      throw new Error(isGallery
+        ? "Фотография галереи должна весить не больше 1 МБ"
+        : "Главная афиша должна весить не больше 2 МБ");
     }
 
     // Vercel Functions have a read-only application filesystem. Keep the image
