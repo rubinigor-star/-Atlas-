@@ -7,6 +7,7 @@ export type EventPresentation = {
   shortDescription: string;
   galleryEnabled: boolean;
   galleryUrls: string[];
+  faqEnabled: boolean;
   faq: EventFaqItem[];
 };
 
@@ -18,6 +19,7 @@ export const emptyEventPresentation: EventPresentation = {
   shortDescription: "",
   galleryEnabled: false,
   galleryUrls: [],
+  faqEnabled: false,
   faq: [],
 };
 
@@ -46,12 +48,14 @@ export function parseEventPresentation(description: string): EventPresentation {
     const galleryUrls = Array.isArray(parsed?.galleryUrls)
       ? parsed.galleryUrls.filter(validImageUrl).slice(0, 6)
       : [];
+    const faq = normalizeFaq(parsed?.faq);
 
     return {
       shortDescription,
       galleryEnabled: parsed?.galleryEnabled === true && galleryUrls.length > 0,
       galleryUrls,
-      faq: normalizeFaq(parsed?.faq),
+      faqEnabled: typeof parsed?.faqEnabled === "boolean" ? parsed.faqEnabled : faq.length > 0,
+      faq,
     };
   } catch {
     return emptyEventPresentation;
@@ -64,11 +68,13 @@ export function stripEventPresentation(description: string) {
 
 export function withEventPresentation(description: string, presentation: EventPresentation) {
   const clean = stripEventPresentation(description);
+  const faq = normalizeFaq(presentation.faq);
   const normalized: EventPresentation = {
     shortDescription: presentation.shortDescription.trim().slice(0, 150),
     galleryEnabled: presentation.galleryEnabled && presentation.galleryUrls.length > 0,
     galleryUrls: presentation.galleryUrls.filter(validImageUrl).slice(0, 6),
-    faq: normalizeFaq(presentation.faq),
+    faqEnabled: presentation.faqEnabled && faq.length > 0,
+    faq,
   };
 
   if (!normalized.shortDescription && !normalized.galleryUrls.length && !normalized.faq.length) return clean;
