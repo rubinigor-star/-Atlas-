@@ -1,11 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Trash2, Upload } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useLocale } from "@/components/locale-provider";
+import styles from "@/components/event-media-manager.module.css";
 
-const TARGET_RATIO = 4 / 3;
-const RATIO_TOLERANCE = 0.01;
 const MAX_UPLOAD_BYTES = 1_000_000;
 const MAX_IMAGES = 6;
 
@@ -16,115 +15,81 @@ type Props = {
 
 const copy = {
   ru: {
-    add: "Добавить фотографии 4:3",
-    busy: "Загрузка…",
-    help: "До 6 фотографий. Горизонтальный формат 4:3. Рекомендуемый размер: 1600 × 1200 px. Максимальный вес каждой фотографии: 1 МБ. Файл загружается без обрезки и изменения размера.",
+    add: "Загрузить фотографию",
+    replace: "Заменить фотографию",
     remove: "Удалить фотографию",
-    checking: "Проверяем формат фотографий…",
-    upload: "Загружаем фотографии…",
-    done: "Фотографии добавлены. Нажмите «Сохранить основные данные».",
+    upload: "Загружаем фотографию…",
+    done: "Фотография добавлена. Сохраните основные данные.",
     typeError: "Разрешены только JPG, PNG или WebP",
-    sizeError: "Каждая фотография должна весить не больше 1 МБ",
-    ratioError: "Фотография должна иметь горизонтальную пропорцию 4:3, например 1600 × 1200 px",
-    readError: "Не удалось прочитать фотографию",
+    sizeError: "Фотография должна весить не больше 1 МБ",
     error: "Не удалось загрузить фотографию",
+    count: "Загружено",
   },
   he: {
-    add: "הוספת תמונות 4:3",
-    busy: "מעלה…",
-    help: "עד 6 תמונות בפורמט אופקי 4:3. גודל מומלץ: 1600 × 1200 פיקסלים. משקל מרבי לכל תמונה: 1MB. הקובץ עולה ללא חיתוך וללא שינוי גודל.",
+    add: "העלאת תמונה",
+    replace: "החלפת תמונה",
     remove: "מחיקת תמונה",
-    checking: "בודק את פורמט התמונות…",
-    upload: "מעלה תמונות…",
-    done: "התמונות נוספו. לחצו על שמירת פרטי האירוע.",
+    upload: "מעלה תמונה…",
+    done: "התמונה נוספה. שמרו את פרטי האירוע.",
     typeError: "ניתן להעלות רק JPG, PNG או WebP",
-    sizeError: "משקל כל תמונה חייב להיות עד 1MB",
-    ratioError: "התמונה חייבת להיות אופקית ביחס 4:3, לדוגמה 1600 × 1200 פיקסלים",
-    readError: "לא ניתן לקרוא את התמונה",
+    sizeError: "משקל התמונה חייב להיות עד 1MB",
     error: "לא ניתן להעלות את התמונה",
+    count: "הועלו",
   },
   en: {
-    add: "Add 4:3 photos",
-    busy: "Uploading…",
-    help: "Up to 6 horizontal 4:3 photos. Recommended size: 1600 × 1200 px. Maximum file size: 1 MB per photo. Files are uploaded without cropping or resizing.",
+    add: "Upload photo",
+    replace: "Replace photo",
     remove: "Remove photo",
-    checking: "Checking photo format…",
-    upload: "Uploading photos…",
-    done: "Photos added. Save the event details to apply them.",
+    upload: "Uploading photo…",
+    done: "Photo added. Save the event details.",
     typeError: "Only JPG, PNG or WebP files are allowed",
-    sizeError: "Each photo must be no larger than 1 MB",
-    ratioError: "The photo must use a horizontal 4:3 ratio, for example 1600 × 1200 px",
-    readError: "Could not read the photo",
+    sizeError: "The photo must be no larger than 1 MB",
     error: "Could not upload the photo",
+    count: "Uploaded",
   },
 } as const;
 
-async function readDimensions(file: File): Promise<{ width: number; height: number }> {
-  if ("createImageBitmap" in window) {
-    const image = await createImageBitmap(file);
-    const dimensions = { width: image.width, height: image.height };
-    image.close();
-    return dimensions;
-  }
-
-  const url = URL.createObjectURL(file);
-  try {
-    return await new Promise((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
-      image.onerror = () => reject(new Error("Could not read image"));
-      image.src = url;
-    });
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
-async function validateImage(file: File, text: (typeof copy)[keyof typeof copy]): Promise<File> {
+function validateImage(file: File, text: (typeof copy)[keyof typeof copy]) {
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error(text.typeError);
   if (file.size > MAX_UPLOAD_BYTES) throw new Error(text.sizeError);
-
-  let dimensions: { width: number; height: number };
-  try {
-    dimensions = await readDimensions(file);
-  } catch {
-    throw new Error(text.readError);
-  }
-
-  if (!dimensions.width || !dimensions.height) throw new Error(text.readError);
-  const ratio = dimensions.width / dimensions.height;
-  if (Math.abs(ratio - TARGET_RATIO) > RATIO_TOLERANCE) throw new Error(text.ratioError);
-
-  return file;
 }
 
 export function EventGalleryUploader({ urls, onChange }: Props) {
   const { locale } = useLocale();
   const text = copy[locale];
   const inputRef = useRef<HTMLInputElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function choose(files?: FileList | null) {
-    if (!files?.length || busy) return;
-    const available = Math.max(0, MAX_IMAGES - urls.length);
-    const selected = Array.from(files).slice(0, available);
-    if (!selected.length) return;
+  function openPicker(index: number) {
+    if (busy) return;
+    setActiveIndex(index);
+    inputRef.current?.click();
+  }
+
+  async function choose(file?: File) {
+    if (!file || busy) return;
+    try {
+      validateImage(file, text);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : text.error);
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
 
     setBusy(true);
-    setMessage(text.checking);
+    setMessage(text.upload);
     try {
+      const form = new FormData();
+      form.append("image", file);
+      const response = await fetch("/api/uploads", { method: "POST", body: form });
+      const data = await response.json();
+      if (!response.ok || typeof data.url !== "string") throw new Error(data.error || text.error);
+
       const next = [...urls];
-      for (const file of selected) {
-        const validated = await validateImage(file, text);
-        const form = new FormData();
-        form.append("image", validated);
-        setMessage(text.upload);
-        const response = await fetch("/api/uploads", { method: "POST", body: form });
-        const data = await response.json();
-        if (!response.ok || typeof data.url !== "string") throw new Error(data.error || text.error);
-        next.push(data.url);
-      }
+      if (activeIndex < next.length) next[activeIndex] = data.url;
+      else next.push(data.url);
       onChange(next.slice(0, MAX_IMAGES));
       setMessage(text.done);
     } catch (error) {
@@ -135,41 +100,49 @@ export function EventGalleryUploader({ urls, onChange }: Props) {
     }
   }
 
-  return <div className="field">
+  return <div className={styles.uploaderBody}>
     <input
       ref={inputRef}
       type="file"
       accept="image/jpeg,image/png,image/webp"
-      multiple
       hidden
-      onChange={(event) => void choose(event.target.files)}
+      onChange={(event) => void choose(event.target.files?.[0])}
     />
-    <div className="row" style={{ alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-      <button
-        type="button"
-        className="btn secondary"
-        disabled={busy || urls.length >= MAX_IMAGES}
-        onClick={() => inputRef.current?.click()}
-      >
-        <Upload size={17}/>{busy ? text.busy : text.add}
-      </button>
-      <small className="muted">{urls.length}/{MAX_IMAGES}</small>
+
+    <div className={styles.galleryGrid}>
+      {Array.from({ length: MAX_IMAGES }, (_, index) => {
+        const url = urls[index];
+        const addLabel = url ? text.replace : text.add;
+        return <div key={index} className={`${styles.gallerySlot} ${url ? styles.hasImage : ""}`}>
+          {url && <img src={url} alt=""/>}
+          <button
+            type="button"
+            className={styles.slotAddButton}
+            aria-label={addLabel}
+            title={addLabel}
+            disabled={busy}
+            onClick={() => openPicker(index)}
+          >
+            <Plus size={url ? 18 : 28}/>
+          </button>
+          {url && <button
+            type="button"
+            className={styles.removeButton}
+            aria-label={text.remove}
+            title={text.remove}
+            disabled={busy}
+            onClick={() => onChange(urls.filter((_, itemIndex) => itemIndex !== index))}
+          >
+            <Trash2 size={15}/>
+          </button>}
+        </div>;
+      })}
     </div>
-    <small className="muted">{text.help}</small>
-    {urls.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 12, marginTop: 12 }}>
-      {urls.map((url, index) => <div key={`${url.slice(0,48)}-${index}`} style={{ position: "relative", aspectRatio: "4 / 3", background: "#eef0f4", borderRadius: 14, overflow: "hidden" }}>
-        <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 14, display: "block" }}/>
-        <button
-          type="button"
-          aria-label={text.remove}
-          title={text.remove}
-          onClick={() => onChange(urls.filter((_, itemIndex) => itemIndex !== index))}
-          style={{ position: "absolute", top: 7, right: 7, width: 34, height: 34, border: 0, borderRadius: 999, background: "rgba(5,8,15,.78)", color: "white", display: "grid", placeItems: "center", cursor: "pointer" }}
-        >
-          <Trash2 size={16}/>
-        </button>
-      </div>)}
-    </div>}
-    {message && <div className="toast" style={{ marginTop: 10 }}>{message}</div>}
+
+    <div className={styles.galleryMeta}>
+      <span>{text.count}: {urls.length}/{MAX_IMAGES}</span>
+      <span>JPG · PNG · WebP</span>
+    </div>
+    {message && <div className={styles.status} role="status">{message}</div>}
   </div>;
 }
