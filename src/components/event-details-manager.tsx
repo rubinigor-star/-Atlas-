@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { PosterUploader } from "@/components/poster-uploader";
 import { EventGalleryUploader } from "@/components/event-gallery-uploader";
 import { EventVideoUploader } from "@/components/event-video-uploader";
+import { EventFaqEditor } from "@/components/event-faq-editor";
 import { useLocale } from "@/components/locale-provider";
+import type { EventFaqItem } from "@/lib/event-presentation";
 import styles from "@/components/event-media-manager.module.css";
 
 type MediaItem = { type: "VIDEO" | "LINK"; url: string; title?: string };
-type Presentation = { shortDescription: string; galleryEnabled: boolean; galleryUrls: string[] };
+type Presentation = { shortDescription: string; galleryEnabled: boolean; galleryUrls: string[]; faq: EventFaqItem[] };
 type EventDetails = {
   id: string;
   title: string;
@@ -36,7 +38,7 @@ const labels = {
     posterHelp: "Обязательный квадрат 750 × 750 px. JPG, PNG или WebP. Исходный файл до 15 МБ. Афиша автоматически кадрируется по центру и оптимизируется.",
     galleryTitle: "Галерея",
     galleryToggle: "Добавить галерею",
-    galleryHelp: "До 6 фотографий. Рекомендуемый формат: горизонтальный 4:3, 1600 × 1200 px. Обязательное ограничение только одно: не больше 1 МБ на фотографию. Файлы не обрезаются и не меняют размер.",
+    galleryHelp: "До 6 фотографий. Рекомендуемый формат: горизонтальный 4:3, 1600 × 1200 px. Обязательное ограничение только одно: не больше 1 МБ на фотографию.",
     galleryDisabled: "Поставьте галочку, чтобы открыть шесть ячеек для загрузки фотографий.",
     videoTitle: "Видео",
     videoToggle: "Добавить видео",
@@ -45,6 +47,10 @@ const labels = {
     videoLink: "Ссылка YouTube или Vimeo",
     description: "Полное описание",
     links: "Дополнительные ссылки",
+    faqTitle: "FAQ мероприятия",
+    faqHelp: "До 7 вопросов. Пустые строки не публикуются.",
+    faqQuestion: "Вопрос",
+    faqAnswer: "Ответ",
     date: "Дата и время",
     venue: "Площадка",
     city: "Город",
@@ -63,7 +69,7 @@ const labels = {
     posterHelp: "ריבוע חובה בגודל 750 × 750 פיקסלים. JPG, PNG או WebP. קובץ מקור עד 15MB. הכרזה נחתכת למרכז ומותאמת אוטומטית.",
     galleryTitle: "גלריה",
     galleryToggle: "הוספת גלריה",
-    galleryHelp: "עד 6 תמונות. המלצה: פורמט אופקי 4:3 בגודל 1600 × 1200 פיקסלים. ההגבלה היחידה היא משקל של עד 1MB לכל תמונה. הקבצים אינם נחתכים ואינם משנים גודל.",
+    galleryHelp: "עד 6 תמונות. המלצה: פורמט אופקי 4:3 בגודל 1600 × 1200 פיקסלים. ההגבלה היחידה היא משקל של עד 1MB לכל תמונה.",
     galleryDisabled: "סמנו את התיבה כדי לפתוח שש משבצות להעלאת תמונות.",
     videoTitle: "וידאו",
     videoToggle: "הוספת וידאו",
@@ -72,6 +78,10 @@ const labels = {
     videoLink: "קישור YouTube או Vimeo",
     description: "תיאור מלא",
     links: "קישורים נוספים",
+    faqTitle: "שאלות נפוצות לאירוע",
+    faqHelp: "עד 7 שאלות. שורות ריקות לא יפורסמו.",
+    faqQuestion: "שאלה",
+    faqAnswer: "תשובה",
     date: "תאריך ושעה",
     venue: "מקום האירוע",
     city: "עיר",
@@ -90,7 +100,7 @@ const labels = {
     posterHelp: "Required square format: 750 × 750 px. JPG, PNG or WebP. Source file up to 15 MB. The poster is centered, cropped and optimized automatically.",
     galleryTitle: "Gallery",
     galleryToggle: "Add gallery",
-    galleryHelp: "Up to 6 photos. Recommended format: horizontal 4:3 at 1600 × 1200 px. The only required limit is 1 MB per photo. Files are not cropped or resized.",
+    galleryHelp: "Up to 6 photos. Recommended format: horizontal 4:3 at 1600 × 1200 px. The only required limit is 1 MB per photo.",
     galleryDisabled: "Select the checkbox to open six photo upload slots.",
     videoTitle: "Video",
     videoToggle: "Add video",
@@ -99,6 +109,10 @@ const labels = {
     videoLink: "YouTube or Vimeo link",
     description: "Full description",
     links: "Additional links",
+    faqTitle: "Event FAQ",
+    faqHelp: "Up to 7 questions. Empty rows are not published.",
+    faqQuestion: "Question",
+    faqAnswer: "Answer",
     date: "Date and time",
     venue: "Venue",
     city: "City",
@@ -110,9 +124,17 @@ const labels = {
   },
 } as const;
 
+function normalizeFaq(value: unknown): EventFaqItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 7).map((item) => ({
+    question: typeof item?.question === "string" ? item.question.slice(0, 180) : "",
+    answer: typeof item?.answer === "string" ? item.answer.slice(0, 1200) : "",
+  }));
+}
+
 function decodePresentation(description: string): Presentation {
   const encoded = description.match(PRESENTATION_MARKER)?.[1];
-  if (!encoded || typeof window === "undefined") return { shortDescription: "", galleryEnabled: false, galleryUrls: [] };
+  if (!encoded || typeof window === "undefined") return { shortDescription: "", galleryEnabled: false, galleryUrls: [], faq: [] };
   try {
     const binary = window.atob(encoded);
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
@@ -124,19 +146,26 @@ function decodePresentation(description: string): Presentation {
       shortDescription: typeof parsed?.shortDescription === "string" ? parsed.shortDescription.slice(0, SHORT_DESCRIPTION_LIMIT) : "",
       galleryEnabled: parsed?.galleryEnabled === true && galleryUrls.length > 0,
       galleryUrls,
+      faq: normalizeFaq(parsed?.faq),
     };
   } catch {
-    return { shortDescription: "", galleryEnabled: false, galleryUrls: [] };
+    return { shortDescription: "", galleryEnabled: false, galleryUrls: [], faq: [] };
   }
 }
 
 function encodePresentation(value: Presentation) {
+  const faq = value.faq.flatMap((item) => {
+    const question = item.question.trim().slice(0, 180);
+    const answer = item.answer.trim().slice(0, 1200);
+    return question && answer ? [{ question, answer }] : [];
+  }).slice(0, 7);
   const normalized = {
     shortDescription: value.shortDescription.trim().slice(0, SHORT_DESCRIPTION_LIMIT),
     galleryEnabled: value.galleryEnabled && value.galleryUrls.length > 0,
     galleryUrls: value.galleryUrls.slice(0, 6),
+    faq,
   };
-  if (!normalized.shortDescription && !normalized.galleryUrls.length) return "";
+  if (!normalized.shortDescription && !normalized.galleryUrls.length && !normalized.faq.length) return "";
   const bytes = new TextEncoder().encode(JSON.stringify(normalized));
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -157,6 +186,7 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
   const [videoUrl, setVideoUrl] = useState(initialVideoUrl);
   const [galleryEnabled, setGalleryEnabled] = useState(initialPresentation.galleryEnabled);
   const [galleryUrls, setGalleryUrls] = useState(initialPresentation.galleryUrls);
+  const [faq, setFaq] = useState<EventFaqItem[]>(initialPresentation.faq);
 
   async function submit(form: HTMLFormElement) {
     const formData = new FormData(form);
@@ -175,6 +205,7 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
       shortDescription,
       galleryEnabled,
       galleryUrls,
+      faq,
     });
     const description = marker ? `${baseDescription}\n${marker}` : baseDescription;
 
@@ -278,6 +309,17 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
     <div className="field">
       <label>{text.links}</label>
       <textarea name="linkUrls" rows={3} defaultValue={event.media.filter((item) => item.type === "LINK").map((item) => item.url).join("\n")}/>
+    </div>
+
+    <div className="field">
+      <label>{text.faqTitle}</label>
+      <EventFaqEditor
+        items={faq}
+        onChange={setFaq}
+        questionLabel={text.faqQuestion}
+        answerLabel={text.faqAnswer}
+        help={text.faqHelp}
+      />
     </div>
 
     <div className="form-grid two">
