@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
-const MAX_VIDEO_BYTES = 300_000_000;
+const MAX_VIDEO_BYTES = 50_000_000;
 
 export async function POST(request: Request): Promise<NextResponse> {
   const body = await request.json() as HandleUploadBody;
