@@ -156,6 +156,7 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
   }
 
   const active = items[activeIndex] || items[0];
+  const activeIsPoster = active?.id === "hero-poster";
   const sideItems = items.slice(1, 3);
   const desktopClass = items.length === 1
     ? `${styles.desktopGallery} ${styles.desktopSingle} ${fixes.desktopGallery} ${fixes.desktopSingle}`
@@ -214,9 +215,19 @@ export function EventHeroGallery({ title, posterUrl, videoUrl, galleryUrls }: Pr
             />
           </span>)}
         </div>}
-        <button type="button" className={`${styles.mobileMedia} ${mobile.mobileMedia} ${fixes.mobileMedia}`} onClick={() => open(activeIndex)} aria-label={active.type === "video" ? text.play : `${title} ${activeIndex + 1}`}>
+        <button
+          type="button"
+          className={`${styles.mobileMedia} ${mobile.mobileMedia} ${fixes.mobileMedia} ${activeIsPoster ? fixes.mobilePosterFrame : fixes.mobileGalleryFrame}`}
+          onClick={() => open(activeIndex)}
+          aria-label={active.type === "video" ? text.play : `${title} ${activeIndex + 1}`}
+        >
           <img key={`backdrop-${active.id}`} src={active.previewUrl} alt="" aria-hidden="true" className={`${mobile.mobileBackdrop} ${fixes.mobileBackdrop}`}/>
-          <img key={active.id} src={active.previewUrl} alt="" className={`${styles.mobileFade} ${mobile.mobilePoster} ${fixes.mobilePoster}`}/>
+          <img
+            key={active.id}
+            src={active.previewUrl}
+            alt=""
+            className={`${styles.mobileFade} ${mobile.mobilePoster} ${fixes.mobilePoster} ${activeIsPoster ? fixes.mobileSquareArtwork : fixes.mobileFullArtwork}`}
+          />
           {active.type === "video" && <span className={styles.playButton}><Play size={25} fill="currentColor"/></span>}
         </button>
         {items.length > 1 && <>
