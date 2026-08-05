@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 
 const REQUEST_TIMEOUT_MS = 20_000;
+const DEFAULT_RELAY_URL = "https://pay.hyp.co.il/xpo/Relay";
 
 type RefundInput = {
   cgUid?: string | null;
@@ -19,9 +20,15 @@ export type HypRefundResult = {
   rawResponse: string;
 };
 
-function required(name: "HYP_RELAY_URL" | "HYP_API_USER" | "HYP_API_PASSWORD" | "HYP_MASOF") {
+function requiredPaymentCredential(name: "HYP_MASOF" | "HYP_API_KEY" | "HYP_PASSP") {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is not configured`);
+  return value;
+}
+
+function relayUrl() {
+  const value = process.env.HYP_RELAY_URL?.trim() || DEFAULT_RELAY_URL;
+  if (!/^https:\/\//i.test(value)) throw new Error("HYP Relay URL must use HTTPS");
   return value;
 }
 
@@ -58,6 +65,9 @@ export async function refundHypDeal(input: RefundInput): Promise<HypRefundResult
     throw new Error("Некорректная сумма возврата");
   }
 
+  const terminalNumber = requiredPaymentCredential("HYP_MASOF");
+  const apiUser = requiredPaymentCredential("HYP_API_KEY");
+  const apiPassword = requiredPaymentCredential("HYP_PASSP");
   const lookup = cgUid
     ? `<cgUid>${xmlText(cgUid)}</cgUid>`
     : `<tranId>${xmlText(tranId)}</tranId>`;
@@ -69,7 +79,7 @@ export async function refundHypDeal(input: RefundInput): Promise<HypRefundResult
     <language>Eng</language>
     <command>refundDeal</command>
     <refundDeal>
-      <terminalNumber>${xmlText(required("HYP_MASOF"))}</terminalNumber>
+      <terminalNumber>${xmlText(terminalNumber)}</terminalNumber>
       ${lookup}
       ${total}
     </refundDeal>
@@ -77,11 +87,11 @@ export async function refundHypDeal(input: RefundInput): Promise<HypRefundResult
 </ashrait>`;
 
   const body = new URLSearchParams({
-    user: required("HYP_API_USER"),
-    password: required("HYP_API_PASSWORD"),
+    user: apiUser,
+    password: apiPassword,
     int_in: xml,
   });
-  const response = await fetch(required("HYP_RELAY_URL"), {
+  const response = await fetch(relayUrl(), {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
