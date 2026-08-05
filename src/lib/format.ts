@@ -11,6 +11,13 @@ export function eventDate(date: Date, locale: Locale = "ru") {
   return new Intl.DateTimeFormat(intlLocale[locale], { dateStyle: "long", timeStyle: "short", timeZone: ISRAEL_TIME_ZONE }).format(date);
 }
 
+export function eventDay(date: Date, locale: Locale = "ru") {
+  return new Intl.DateTimeFormat(intlLocale[locale], {
+    dateStyle: "long",
+    timeZone: ISRAEL_TIME_ZONE,
+  }).format(date);
+}
+
 export function eventStartTime(date: Date, locale: Locale = "ru") {
   return new Intl.DateTimeFormat(intlLocale[locale], {
     hour: "2-digit",
