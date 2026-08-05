@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 
 const REQUEST_TIMEOUT_MS = 20_000;
-const DEFAULT_RELAY_URL = "https://pay.hyp.co.il/xpo/Relay";
 
 type RefundInput = {
   cgUid?: string | null;
@@ -20,16 +19,36 @@ export type HypRefundResult = {
   rawResponse: string;
 };
 
-function requiredPaymentCredential(name: "HYP_MASOF" | "HYP_API_KEY" | "HYP_PASSP") {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} is not configured`);
-  return value;
+function requiredFirst(names: string[], label: string) {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  throw new Error(`${label} is not configured (${names.join(" or ")})`);
 }
 
-function relayUrl() {
-  const value = process.env.HYP_RELAY_URL?.trim() || DEFAULT_RELAY_URL;
-  if (!/^https:\/\//i.test(value)) throw new Error("HYP Relay URL must use HTTPS");
-  return value;
+function refundApiUrl() {
+  const value = requiredFirst(["HYP_REFUND_API_URL", "HYP_RELAY_URL"], "HYP refund API URL");
+  if (!/^https:\/\//i.test(value)) throw new Error("HYP refund API URL must use HTTPS");
+  return value.replace(/\/$/, "");
+}
+
+function refundApiUser() {
+  return requiredFirst(
+    ["HYP_REFUND_API_USER", "HYP_API_USER", "HYP_API_KEY"],
+    "HYP refund API user",
+  );
+}
+
+function refundApiPassword() {
+  return requiredFirst(
+    ["HYP_REFUND_API_PASSWORD", "HYP_API_PASSWORD", "HYP_PASSP"],
+    "HYP refund API password",
+  );
+}
+
+function terminalNumber() {
+  return requiredFirst(["HYP_MASOF", "HYP_TERMINAL_NUMBER"], "HYP terminal number");
 }
 
 function xmlText(value: string) {
@@ -65,9 +84,6 @@ export async function refundHypDeal(input: RefundInput): Promise<HypRefundResult
     throw new Error("Некорректная сумма возврата");
   }
 
-  const terminalNumber = requiredPaymentCredential("HYP_MASOF");
-  const apiUser = requiredPaymentCredential("HYP_API_KEY");
-  const apiPassword = requiredPaymentCredential("HYP_PASSP");
   const lookup = cgUid
     ? `<cgUid>${xmlText(cgUid)}</cgUid>`
     : `<tranId>${xmlText(tranId)}</tranId>`;
@@ -79,7 +95,7 @@ export async function refundHypDeal(input: RefundInput): Promise<HypRefundResult
     <language>Eng</language>
     <command>refundDeal</command>
     <refundDeal>
-      <terminalNumber>${xmlText(terminalNumber)}</terminalNumber>
+      <terminalNumber>${xmlText(terminalNumber())}</terminalNumber>
       ${lookup}
       ${total}
     </refundDeal>
@@ -87,22 +103,33 @@ export async function refundHypDeal(input: RefundInput): Promise<HypRefundResult
 </ashrait>`;
 
   const body = new URLSearchParams({
-    user: apiUser,
-    password: apiPassword,
+    user: refundApiUser(),
+    password: refundApiPassword(),
     int_in: xml,
   });
-  const response = await fetch(relayUrl(), {
+
+  const endpoint = refundApiUrl();
+  console.info("hyp.refund.request", {
+    endpointHost: new URL(endpoint).host,
+    lookup: cgUid ? "cgUid" : "tranId",
+    partial: input.amountMinor !== undefined,
+  });
+
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
       "User-Agent": "Atlas-One-HYP-Refunds/1.0",
+      Accept: "application/xml, text/xml, text/plain, */*",
     },
     body: body.toString(),
     cache: "no-store",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   const responseXml = (await response.text()).trim();
-  if (!response.ok) throw new Error(`HYP Relay HTTP ${response.status}`);
+  if (!response.ok) {
+    throw new Error(`HYP refund API HTTP ${response.status}${responseXml ? `: ${responseXml.slice(0, 180)}` : ""}`);
+  }
   if (!responseXml) throw new Error("HYP вернул пустой ответ на возврат");
 
   const resultCode = tag(responseXml, "result") || tag(responseXml, "responseCode");
