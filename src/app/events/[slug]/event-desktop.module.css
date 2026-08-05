@@ -1,7 +1,7 @@
 @media (min-width: 801px) {
   .wideShell {
     width: 100%;
-    max-width: 1380px !important;
+    max-width: 1280px !important;
     margin-right: auto;
     margin-left: auto;
     padding-right: 22px;
@@ -9,31 +9,34 @@
   }
 
   .hero {
+    padding-top: 104px !important;
+    padding-bottom: 38px !important;
     background: #0b0c12 !important;
   }
 
   .hero::before {
     inset: -105px !important;
     background-position: center 42% !important;
-    filter: blur(72px) brightness(.31) saturate(1.62) !important;
-    opacity: .92 !important;
+    filter: blur(72px) brightness(.29) saturate(1.55) !important;
+    opacity: .88 !important;
     transform: scale(1.2) !important;
   }
 
   .hero::after {
     background:
-      linear-gradient(90deg, rgba(7, 8, 14, .84) 0%, rgba(7, 8, 14, .66) 30%, rgba(8, 9, 15, .43) 63%, rgba(7, 8, 14, .58) 100%),
-      linear-gradient(180deg, rgba(7, 8, 14, .28) 0%, rgba(7, 8, 14, .08) 58%, rgba(7, 8, 14, .38) 100%) !important;
+      linear-gradient(90deg, rgba(7, 8, 14, .86) 0%, rgba(7, 8, 14, .68) 31%, rgba(8, 9, 15, .45) 66%, rgba(7, 8, 14, .62) 100%),
+      linear-gradient(180deg, rgba(7, 8, 14, .25) 0%, rgba(7, 8, 14, .08) 58%, rgba(7, 8, 14, .42) 100%) !important;
   }
 
   .heroGrid {
-    grid-template-columns: minmax(340px, 430px) minmax(0, 1fr) !important;
-    gap: 72px !important;
+    grid-template-columns: minmax(330px, 390px) minmax(0, 700px) !important;
+    justify-content: space-between !important;
+    gap: 54px !important;
   }
 
   .bodyGrid {
-    grid-template-columns: minmax(0, 1.6fr) minmax(430px, .82fr) !important;
-    gap: 40px !important;
+    grid-template-columns: minmax(0, 1fr) minmax(400px, 430px) !important;
+    gap: 34px !important;
   }
 }
 
@@ -43,12 +46,12 @@
   }
 
   .heroGrid {
-    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr) !important;
-    gap: 38px !important;
+    grid-template-columns: minmax(290px, 350px) minmax(0, 620px) !important;
+    gap: 34px !important;
   }
 
   .bodyGrid {
-    grid-template-columns: minmax(0, 1.25fr) minmax(360px, .78fr) !important;
+    grid-template-columns: minmax(0, 1fr) minmax(350px, 390px) !important;
     gap: 26px !important;
   }
 }
