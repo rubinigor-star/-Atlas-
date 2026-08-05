@@ -17,22 +17,37 @@ type FinalizeResult = {
   alreadyPaid?: boolean;
 };
 
+let paymentColumnsReady: Promise<void> | undefined;
+
+function ensurePaymentIdentifierColumns() {
+  paymentColumnsReady ??= (async () => {
+    const statements = [
+      `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypTransId" TEXT`,
+      `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypCgUid" TEXT`,
+      `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypTxId" TEXT`,
+      `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypUniqueId" TEXT`,
+      `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "providerResponseCode" TEXT`,
+      `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "providerPayloadJson" TEXT`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS "PaymentAuthorization_hypTransId_key" ON "PaymentAuthorization"("hypTransId") WHERE "hypTransId" IS NOT NULL`,
+    ];
+    for (const statement of statements) await db.$executeRawUnsafe(statement);
+  })().catch((error) => {
+    paymentColumnsReady = undefined;
+    throw error;
+  });
+  return paymentColumnsReady;
+}
+
 function publicOrigin(requestUrl: URL) {
-  return process.env.VERCEL_ENV === "production"
-    ? "https://www.atlas-one.co"
-    : requestUrl.origin;
+  return process.env.VERCEL_ENV === "production" ? "https://www.atlas-one.co" : requestUrl.origin;
 }
 
 function orderRedirect(requestUrl: URL, publicId: string, state: string) {
-  return NextResponse.redirect(
-    `${publicOrigin(requestUrl)}/orders/${encodeURIComponent(publicId)}?payment=${encodeURIComponent(state)}`,
-  );
+  return NextResponse.redirect(`${publicOrigin(requestUrl)}/orders/${encodeURIComponent(publicId)}?payment=${encodeURIComponent(state)}`);
 }
 
 function resultRedirect(requestUrl: URL, state: string) {
-  return NextResponse.redirect(
-    `${publicOrigin(requestUrl)}/payments/hyp/result?payment=${encodeURIComponent(state)}`,
-  );
+  return NextResponse.redirect(`${publicOrigin(requestUrl)}/payments/hyp/result?payment=${encodeURIComponent(state)}`);
 }
 
 async function attributeRecoveredCheckout(order: { id: string; eventId: string; customerEmail: string }) {
@@ -65,8 +80,7 @@ async function requestToCallbackUrl(request: Request) {
   const contentType = request.headers.get("content-type") || "";
   if (contentType.includes("application/x-www-form-urlencoded")) {
     const body = await request.text();
-    const params = new URLSearchParams(body);
-    for (const [key, value] of params.entries()) url.searchParams.append(key, value);
+    for (const [key, value] of new URLSearchParams(body).entries()) url.searchParams.append(key, value);
   } else if (contentType.includes("application/json")) {
     const body = await request.json().catch(() => null) as Record<string, unknown> | null;
     if (body) {
@@ -75,8 +89,31 @@ async function requestToCallbackUrl(request: Request) {
       }
     }
   }
-
   return url;
+}
+
+async function updateExistingAuthorization(orderId: string, result: ReturnType<typeof hypResultFromUrl>) {
+  if (!result.transId) return;
+  await ensurePaymentIdentifierColumns();
+  await db.$executeRawUnsafe(
+    `UPDATE "PaymentAuthorization" SET
+      "providerReference"=$2,
+      "hypTransId"=$2,
+      "hypCgUid"=NULLIF($3,''),
+      "hypTxId"=NULLIF($4,''),
+      "hypUniqueId"=NULLIF($5,''),
+      "providerResponseCode"=NULLIF($6,''),
+      "providerPayloadJson"=$7,
+      "updatedAt"=CURRENT_TIMESTAMP
+     WHERE "orderId"=$1 AND "provider"='HYP'`,
+    orderId,
+    result.transId,
+    result.cgUid,
+    result.txId,
+    result.uniqueId,
+    result.code,
+    JSON.stringify(result.raw),
+  );
 }
 
 async function finalizeCallback(url: URL): Promise<FinalizeResult> {
@@ -86,92 +123,93 @@ async function finalizeCallback(url: URL): Promise<FinalizeResult> {
 
   const order = await db.order.findUnique({ where: { publicId }, include: { items: true } });
   if (!order) return { publicId, state: "unknown-order" };
-  if (order.status === "PAID") return { publicId, state: "success", alreadyPaid: true };
 
   const signatureValid = await verifyHypCallback(url).catch(() => false);
   const returnedMinor = Math.round(Number(result.amount || "0") * 100);
-  const providerReference = result.transactionId.trim();
+  const transId = result.transId.trim();
 
-  if (!signatureValid || !result.success || returnedMinor !== order.totalMinor || !providerReference) {
+  if (order.status === "PAID") {
+    if (signatureValid && result.success && returnedMinor === order.totalMinor && transId) {
+      await updateExistingAuthorization(order.id, result);
+    }
+    return { publicId, state: "success", alreadyPaid: true };
+  }
+
+  if (!signatureValid || !result.success || returnedMinor !== order.totalMinor || !transId) {
     console.error("hyp.order.rejected", {
       publicId,
       signatureValid,
       success: result.success,
       returnedMinor,
       expectedMinor: order.totalMinor,
-      hasProviderReference: Boolean(providerReference),
+      hasTransId: Boolean(transId),
+      hasCgUid: Boolean(result.cgUid),
+      hasTxId: Boolean(result.txId),
       code: result.code,
     });
 
     if (!result.success) {
       await db.$transaction(async (tx) => {
         await releaseReservation(order.id, tx);
-        await tx.order.updateMany({
-          where: { id: order.id, status: "PENDING" },
-          data: { status: "CANCELLED" },
-        });
+        await tx.order.updateMany({ where: { id: order.id, status: "PENDING" }, data: { status: "CANCELLED" } });
       });
     }
 
     return {
       publicId,
-      state: !signatureValid
-        ? "invalid-signature"
-        : !providerReference
-          ? "missing-transaction"
-          : "failed",
+      state: !signatureValid ? "invalid-signature" : !transId ? "missing-transaction" : "failed",
     };
   }
 
+  await ensurePaymentIdentifierColumns();
   let finalized = false;
   await db.$transaction(async (tx) => {
-    const current = await tx.order.findUnique({
-      where: { id: order.id },
-      include: { items: true, tickets: true },
-    });
-
+    const current = await tx.order.findUnique({ where: { id: order.id }, include: { items: true, tickets: true } });
     if (!current || current.status === "PAID") return;
     if (current.status !== "PENDING") throw new Error("ORDER_NOT_PAYABLE");
 
     for (const item of current.items) {
-      const category = await tx.ticketCategory.findUnique({
-        where: { eventId_name: { eventId: current.eventId, name: item.categoryName } },
-      });
+      const category = await tx.ticketCategory.findUnique({ where: { eventId_name: { eventId: current.eventId, name: item.categoryName } } });
       if (!category) throw new Error(`CATEGORY_NOT_FOUND:${item.categoryName}`);
-      if (category.sold + item.quantity > category.capacity) {
-        throw new Error(`CATEGORY_SOLD_OUT:${item.categoryName}`);
-      }
-
-      await tx.ticketCategory.update({
-        where: { id: category.id },
-        data: { sold: { increment: item.quantity } },
-      });
-      if (item.tableId) {
-        await tx.table.update({ where: { id: item.tableId }, data: { reserved: true } });
-      }
-      if (item.seatId) {
-        await tx.seat.update({ where: { id: item.seatId }, data: { status: "RESERVED" } });
-      }
+      if (category.sold + item.quantity > category.capacity) throw new Error(`CATEGORY_SOLD_OUT:${item.categoryName}`);
+      await tx.ticketCategory.update({ where: { id: category.id }, data: { sold: { increment: item.quantity } } });
+      if (item.tableId) await tx.table.update({ where: { id: item.tableId }, data: { reserved: true } });
+      if (item.seatId) await tx.seat.update({ where: { id: item.seatId }, data: { status: "RESERVED" } });
     }
 
-    await tx.order.update({
-      where: { id: current.id },
-      data: { status: "PAID", paymentDueAt: null },
-    });
+    await tx.order.update({ where: { id: current.id }, data: { status: "PAID", paymentDueAt: null } });
     await commitReservation(current.id, tx);
 
     const authorizationId = `auth_${randomUUID().replace(/-/g, "")}`;
     const last4 = result.cardMask.replace(/\D/g, "").slice(-4) || null;
-    await tx.$executeRaw`
-      INSERT INTO PaymentAuthorization (
-        id, orderId, provider, providerReference, method, status,
-        amountMinor, currency, cardLast4, authorizedAt, capturedAt, expiresAt, createdAt, updatedAt
-      ) VALUES (
-        ${authorizationId}, ${current.id}, 'HYP', ${providerReference}, 'HOSTED_PAGE', 'CAPTURED',
-        ${current.totalMinor}, ${current.currency}, ${last4}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-        CURRENT_TIMESTAMP + INTERVAL '10 years', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      ) ON CONFLICT (orderId) DO NOTHING
-    `;
+    await tx.$executeRawUnsafe(
+      `INSERT INTO "PaymentAuthorization" (
+        "id","orderId","provider","providerReference","method","status","amountMinor","currency","cardLast4",
+        "hypTransId","hypCgUid","hypTxId","hypUniqueId","providerResponseCode","providerPayloadJson",
+        "authorizedAt","capturedAt","expiresAt","createdAt","updatedAt"
+      ) VALUES ($1,$2,'HYP',$3,'HOSTED_PAGE','CAPTURED',$4,$5,$6,$3,NULLIF($7,''),NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),$11,
+        CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP + INTERVAL '10 years',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      ON CONFLICT ("orderId") DO UPDATE SET
+        "providerReference"=EXCLUDED."providerReference",
+        "hypTransId"=EXCLUDED."hypTransId",
+        "hypCgUid"=EXCLUDED."hypCgUid",
+        "hypTxId"=EXCLUDED."hypTxId",
+        "hypUniqueId"=EXCLUDED."hypUniqueId",
+        "providerResponseCode"=EXCLUDED."providerResponseCode",
+        "providerPayloadJson"=EXCLUDED."providerPayloadJson",
+        "updatedAt"=CURRENT_TIMESTAMP`,
+      authorizationId,
+      current.id,
+      transId,
+      current.totalMinor,
+      current.currency,
+      last4,
+      result.cgUid,
+      result.txId,
+      result.uniqueId,
+      result.code,
+      JSON.stringify(result.raw),
+    );
 
     await issueTicketsForOrder(current.id, tx);
     finalized = true;
@@ -179,22 +217,16 @@ async function finalizeCallback(url: URL): Promise<FinalizeResult> {
 
   console.info("hyp.order.finalized", {
     publicId,
-    providerReference,
+    transId,
+    cgUid: result.cgUid || null,
+    txId: result.txId || null,
     amountMinor: order.totalMinor,
     finalized,
   });
 
   if (finalized) {
-    try {
-      await attributeRecoveredCheckout(order);
-    } catch (error) {
-      console.error("[abandon-recovery-attribution]", publicId, error);
-    }
-    try {
-      await sendOrderTicketEmail(publicId);
-    } catch (error) {
-      console.error("[hyp-ticket-email]", publicId, error);
-    }
+    try { await attributeRecoveredCheckout(order); } catch (error) { console.error("[abandon-recovery-attribution]", publicId, error); }
+    try { await sendOrderTicketEmail(publicId); } catch (error) { console.error("[hyp-ticket-email]", publicId, error); }
   }
 
   return { publicId, state: "success", alreadyPaid: !finalized };
@@ -204,12 +236,10 @@ async function handleCallback(request: Request, mode: CallbackMode) {
   try {
     const url = await requestToCallbackUrl(request);
     const result = await finalizeCallback(url);
-
     if (mode === "server") {
       const status = result.state === "success" ? 200 : 400;
       return NextResponse.json({ ok: result.state === "success", ...result }, { status });
     }
-
     if (!result.publicId) return resultRedirect(url, result.state);
     return orderRedirect(url, result.publicId, result.state);
   } catch (error) {
@@ -217,10 +247,7 @@ async function handleCallback(request: Request, mode: CallbackMode) {
       method: request.method,
       message: error instanceof Error ? error.message : "Unknown callback error",
     });
-
-    if (mode === "server") {
-      return NextResponse.json({ ok: false, error: "callback-failed" }, { status: 500 });
-    }
+    if (mode === "server") return NextResponse.json({ ok: false, error: "callback-failed" }, { status: 500 });
     return resultRedirect(new URL(request.url), "callback-failed");
   }
 }
