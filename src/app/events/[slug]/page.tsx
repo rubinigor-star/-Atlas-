@@ -7,6 +7,7 @@ import { effectiveTicketPrice, ticketPricePresentation } from "@/lib/ticketing";
 import { EventPurchase } from "@/components/event-purchase";
 import { EventShareActions } from "@/components/event-share-actions";
 import { EventHeroGallery } from "@/components/event-hero-gallery";
+import { EventAboutCard } from "@/components/event-about-card";
 import { parseEventMedia, stripEventMedia } from "@/lib/event-media";
 import { parseEventPresentation, stripEventPresentation } from "@/lib/event-presentation";
 import { stripEventRejectionMessage } from "@/lib/event-approval-message";
@@ -21,6 +22,7 @@ import { getEffectiveEventTerms } from "@/lib/commercial-terms";
 import styles from "./event-detail.module.css";
 import metaAlignment from "./event-meta-alignment.module.css";
 import mobile from "./event-mobile.module.css";
+import bodyLayout from "./event-body.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,8 @@ const copy = {
     buyFrom: "Купить билеты от",
     buy: "Купить билеты",
     about: "О мероприятии",
+    readMore: "Читать далее",
+    readLess: "Свернуть",
     date: "Дата и время",
     venue: "Площадка",
     language: "Язык мероприятия",
@@ -39,6 +43,8 @@ const copy = {
     buyFrom: "רכישת כרטיסים החל מ־",
     buy: "רכישת כרטיסים",
     about: "אודות האירוע",
+    readMore: "לקריאה נוספת",
+    readLess: "צמצום",
     date: "תאריך ושעה",
     venue: "מקום האירוע",
     language: "שפת האירוע",
@@ -49,6 +55,8 @@ const copy = {
     buyFrom: "Get tickets from",
     buy: "Get tickets",
     about: "About the event",
+    readMore: "Read more",
+    readLess: "Show less",
     date: "Date and time",
     venue: "Venue",
     language: "Event language",
@@ -184,11 +192,19 @@ export default async function EventPage({ params, searchParams }: {
       </div>
     </section>
 
-    <section className={styles.body}>
-      <div className={`shell ${styles.bodyGrid}`}>
-        <article className={styles.contentCard}>
-          <h2>{local.about}</h2>
-          {publicDescription && <p className={styles.description}>{publicDescription}</p>}
+    <section className={`${styles.body} ${bodyLayout.body}`}>
+      <div className={`shell ${styles.bodyGrid} ${bodyLayout.shell} ${bodyLayout.grid}`}>
+        <article className={`${styles.contentCard} ${bodyLayout.content}`}>
+          {publicDescription
+            ? <EventAboutCard
+                heading={local.about}
+                title={event.title}
+                description={publicDescription}
+                posterUrl={event.posterUrl}
+                readMore={local.readMore}
+                readLess={local.readLess}
+              />
+            : <h2>{local.about}</h2>}
 
           <div className={styles.detailsList}>
             <div className={styles.detailItem}><CalendarDays size={21}/><div><strong>{local.date}</strong><span>{eventDate(event.startsAt, i18n.locale)}</span></div></div>
