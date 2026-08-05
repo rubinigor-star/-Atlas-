@@ -1,30 +1,33 @@
-const PRODUCTION_DATABASE_MARKER = "hiyzvmdmluoyqireysla";
+const ALLOWED_DATABASE_ENVIRONMENTS = new Set(["production", "preview", "shared"]);
 
 export function assertSafeDatabaseEnvironment(): void {
   const deploymentEnvironment = process.env.VERCEL_ENV?.trim().toLowerCase();
   const declaredDatabaseEnvironment = process.env.ATLAS_DATABASE_ENV?.trim().toLowerCase();
-  const configuredDatabaseValues = [
-    process.env.DATABASE_URL,
-    process.env.DIRECT_URL,
-    process.env.POSTGRES_URL,
-    process.env.POSTGRES_PRISMA_URL,
-  ].filter((value): value is string => Boolean(value));
 
-  const productionDatabaseSelected = configuredDatabaseValues.some((value) =>
-    value.toLowerCase().includes(PRODUCTION_DATABASE_MARKER),
-  );
-
-  if (deploymentEnvironment === "preview") {
-    if (declaredDatabaseEnvironment !== "preview" || productionDatabaseSelected) {
-      throw new Error(
-        "[Atlas database safety] Preview access to the Production database is forbidden.",
-      );
-    }
+  if (!declaredDatabaseEnvironment || !ALLOWED_DATABASE_ENVIRONMENTS.has(declaredDatabaseEnvironment)) {
+    throw new Error(
+      `[Atlas database safety] ATLAS_DATABASE_ENV must be one of production, preview or shared. Received "${declaredDatabaseEnvironment || "missing"}".`,
+    );
   }
 
-  if (deploymentEnvironment === "production" && declaredDatabaseEnvironment !== "production") {
+  if (
+    deploymentEnvironment === "production" &&
+    declaredDatabaseEnvironment !== "production" &&
+    declaredDatabaseEnvironment !== "shared"
+  ) {
     throw new Error(
-      "[Atlas database safety] Production deployment requires the Production database environment.",
+      "[Atlas database safety] Production deployment requires ATLAS_DATABASE_ENV=production or shared.",
+    );
+  }
+
+  if (
+    deploymentEnvironment === "preview" &&
+    declaredDatabaseEnvironment !== "preview" &&
+    declaredDatabaseEnvironment !== "shared" &&
+    declaredDatabaseEnvironment !== "production"
+  ) {
+    throw new Error(
+      "[Atlas database safety] Preview deployment requires ATLAS_DATABASE_ENV=preview, shared or production.",
     );
   }
 }
