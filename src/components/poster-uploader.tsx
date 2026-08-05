@@ -84,16 +84,16 @@ export function PosterUploader({ initialUrl }: Props) {
 
   return (
     <div className="field">
-      <label>Главная фотография мероприятия</label>
+      <label>Главная афиша мероприятия</label>
       <input type="hidden" name="posterUrl" value={url} />
       <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(event) => void choose(event.target.files?.[0])} />
       <div className="row" style={{ alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <button type="button" className="btn secondary" disabled={busy} onClick={() => inputRef.current?.click()}>
           {busy ? "Обработка…" : url ? "Заменить фотографию" : "Загрузить фотографию"}
         </button>
-        <small className="muted">JPG, PNG или WebP · до 15 МБ</small>
+        <small className="muted">JPG, PNG или WebP · исходный файл до 15 МБ</small>
       </div>
-      <small className="muted">Рекомендуемый размер для всех изображений мероприятия: 750 × 750 px. Фотография автоматически обрезается по центру до квадрата и оптимизируется.</small>
+      <small className="muted">Главная афиша всегда квадратная: 750 × 750 px. Изображение автоматически обрезается по центру до квадрата и оптимизируется. Дополнительные фотографии галереи загружаются отдельно в формате 4:3.</small>
       {message && <div className="toast" style={{ marginTop: 10 }}>{message}</div>}
       {url && <img src={url} alt="Текущая афиша" style={{ width: "min(420px,100%)", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 16, marginTop: 12 }} />}
     </div>
