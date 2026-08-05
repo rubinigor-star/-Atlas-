@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PosterUploader } from "@/components/poster-uploader";
 import { EventGalleryUploader } from "@/components/event-gallery-uploader";
+import { EventVideoUploader } from "@/components/event-video-uploader";
 import { useLocale } from "@/components/locale-provider";
 
 type MediaItem = { type: "VIDEO" | "LINK"; url: string; title?: string };
@@ -31,7 +32,8 @@ const labels = {
     description: "Полное описание",
     videoCheck: "Добавить видео",
     video: "Главное видео мероприятия",
-    videoHelp: "Ссылка YouTube или Vimeo. Видео откроется только после нажатия Play.",
+    videoLink: "Или вставить ссылку YouTube / Vimeo",
+    videoHelp: "Загрузите MP4/WebM или вставьте ссылку. Видео откроется только после нажатия Play.",
     galleryCheck: "Добавить изображения в галерею",
     galleryHelp: "До 6 квадратных изображений. Рекомендуемый размер: 750 × 750 px.",
     links: "Дополнительные ссылки",
@@ -51,7 +53,8 @@ const labels = {
     description: "תיאור מלא",
     videoCheck: "הוספת וידאו",
     video: "הווידאו הראשי של האירוע",
-    videoHelp: "קישור YouTube או Vimeo. הווידאו ייפתח רק לאחר לחיצה על Play.",
+    videoLink: "או קישור YouTube / Vimeo",
+    videoHelp: "העלו MP4/WebM או הדביקו קישור. הווידאו ייפתח רק לאחר לחיצה על Play.",
     galleryCheck: "הוספת תמונות לגלריה",
     galleryHelp: "עד 6 תמונות מרובעות. גודל מומלץ: 750 × 750 פיקסלים.",
     links: "קישורים נוספים",
@@ -71,7 +74,8 @@ const labels = {
     description: "Full description",
     videoCheck: "Add video",
     video: "Main event video",
-    videoHelp: "YouTube or Vimeo URL. The video opens only after the visitor presses Play.",
+    videoLink: "Or paste a YouTube / Vimeo URL",
+    videoHelp: "Upload MP4/WebM or paste a URL. The video opens only after the visitor presses Play.",
     galleryCheck: "Add images to the gallery",
     galleryHelp: "Up to 6 square images. Recommended size: 750 × 750 px.",
     links: "Additional links",
@@ -207,10 +211,15 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
       <input type="checkbox" checked={videoEnabled} onChange={(changeEvent) => setVideoEnabled(changeEvent.target.checked)}/>
       <span><strong>{text.videoCheck}</strong><small>{text.videoHelp}</small></span>
     </label>
-    {videoEnabled && <div className="field">
-      <label>{text.video}</label>
-      <input className="input" type="url" value={videoUrl} onChange={(changeEvent) => setVideoUrl(changeEvent.target.value)} placeholder="https://youtube.com/watch?v=..."/>
-    </div>}
+    {videoEnabled && <>
+      <div className="field"><label>{text.video}</label></div>
+      <EventVideoUploader url={videoUrl} onChange={setVideoUrl}/>
+      <div className="field">
+        <label>{text.videoLink}</label>
+        <input className="input" type="url" value={videoUrl} onChange={(changeEvent) => setVideoUrl(changeEvent.target.value)} placeholder="https://youtube.com/watch?v=..."/>
+        <small className="muted">{text.videoHelp}</small>
+      </div>
+    </>}
 
     <label className="check-row">
       <input type="checkbox" checked={galleryEnabled} onChange={(changeEvent) => setGalleryEnabled(changeEvent.target.checked)}/>
