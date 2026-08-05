@@ -32,32 +32,28 @@ export function EventFaqEditor({
 
   return <section className={styles.root}>
     <div className={styles.head}>
-      <strong>FAQ</strong>
       <span>{help}</span>
+    </div>
+    <div className={styles.columnHead} aria-hidden="true">
+      <span>#</span><strong>{questionLabel}</strong><strong>{answerLabel}</strong>
     </div>
     <div className={styles.table}>
       {rows.map((row, index) => <div className={styles.row} key={index}>
         <div className={styles.number}>{index + 1}</div>
-        <div className={styles.fields}>
-          <label>
-            <span>{questionLabel}</span>
-            <input
-              className="input"
-              value={row.question}
-              maxLength={180}
-              onChange={(event) => update(index, "question", event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{answerLabel}</span>
-            <textarea
-              rows={3}
-              value={row.answer}
-              maxLength={1200}
-              onChange={(event) => update(index, "answer", event.target.value)}
-            />
-          </label>
-        </div>
+        <input
+          className="input"
+          value={row.question}
+          maxLength={180}
+          aria-label={`${questionLabel} ${index + 1}`}
+          onChange={(event) => update(index, "question", event.target.value)}
+        />
+        <textarea
+          rows={2}
+          value={row.answer}
+          maxLength={1200}
+          aria-label={`${answerLabel} ${index + 1}`}
+          onChange={(event) => update(index, "answer", event.target.value)}
+        />
       </div>)}
     </div>
   </section>;
