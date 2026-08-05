@@ -171,20 +171,19 @@ export function hypResultFromUrl(url: URL) {
   const raw = Object.fromEntries(url.searchParams.entries());
   const code = url.searchParams.get("CCode") || url.searchParams.get("code") || url.searchParams.get("errorCode") || "";
   const success = code === "0" || code === "000";
+  const transId = url.searchParams.get("TransId") || url.searchParams.get("tranId") || "";
 
   return {
     success,
     code,
     orderId: url.searchParams.get("Order") || url.searchParams.get("order") || "",
-    transactionId:
-      url.searchParams.get("Id") ||
-      url.searchParams.get("TransId") ||
-      url.searchParams.get("ACode") ||
-      url.searchParams.get("txId") ||
-      "",
+    transId,
+    transactionId: transId,
     cgUid: url.searchParams.get("cgUid") || "",
-    tranId: url.searchParams.get("TransId") || url.searchParams.get("tranId") || "",
     txId: url.searchParams.get("txId") || "",
+    uniqueId: url.searchParams.get("uniqueId") || "",
+    authorizationCode: url.searchParams.get("ACode") || "",
+    id: url.searchParams.get("Id") || "",
     amount: url.searchParams.get("Amount") || url.searchParams.get("amount") || "",
     cardMask: url.searchParams.get("L4digit") || url.searchParams.get("cardMask") || "",
     raw,
