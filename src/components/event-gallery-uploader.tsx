@@ -4,9 +4,11 @@ import { useRef, useState } from "react";
 import { Trash2, Upload } from "lucide-react";
 import { useLocale } from "@/components/locale-provider";
 
-const OUTPUT_SIZE = 750;
+const OUTPUT_WIDTH = 1600;
+const OUTPUT_HEIGHT = 1200;
+const TARGET_RATIO = OUTPUT_WIDTH / OUTPUT_HEIGHT;
 const MAX_SOURCE_BYTES = 15_000_000;
-const MAX_UPLOAD_BYTES = 320_000;
+const MAX_UPLOAD_BYTES = 850_000;
 const MAX_IMAGES = 6;
 
 type Props = {
@@ -18,7 +20,7 @@ const copy = {
   ru: {
     add: "Добавить изображения",
     busy: "Загрузка…",
-    help: "До 6 изображений. Рекомендуемый размер каждого файла: 750 × 750 px. JPG, PNG или WebP до 15 МБ.",
+    help: "До 6 фотографий. Горизонтальный формат 4:3. Идеальный размер: 1600 × 1200 px. Максимальный исходный файл: 15 МБ. Изображение автоматически обрезается по центру и оптимизируется.",
     remove: "Удалить изображение",
     optimize: "Оптимизируем изображения…",
     upload: "Загружаем изображения…",
@@ -28,7 +30,7 @@ const copy = {
   he: {
     add: "הוספת תמונות",
     busy: "מעלה…",
-    help: "עד 6 תמונות. גודל מומלץ לכל תמונה: 750 × 750 פיקסלים. JPG, PNG או WebP עד 15MB.",
+    help: "עד 6 תמונות. פורמט אופקי 4:3. גודל אידיאלי: 1600 × 1200 פיקסלים. קובץ מקור עד 15MB. התמונה נחתכת מהמרכז ועוברת אופטימיזציה אוטומטית.",
     remove: "מחיקת תמונה",
     optimize: "מבצע אופטימיזציה לתמונות…",
     upload: "מעלה תמונות…",
@@ -38,7 +40,7 @@ const copy = {
   en: {
     add: "Add images",
     busy: "Uploading…",
-    help: "Up to 6 images. Recommended size: 750 × 750 px. JPG, PNG or WebP up to 15 MB.",
+    help: "Up to 6 photos. Horizontal 4:3 format. Ideal size: 1600 × 1200 px. Maximum source file: 15 MB. Images are center-cropped and optimized automatically.",
     remove: "Remove image",
     optimize: "Optimizing images…",
     upload: "Uploading images…",
@@ -67,26 +69,35 @@ async function optimizeImage(file: File): Promise<File> {
   if (file.size > MAX_SOURCE_BYTES) throw new Error("Image is larger than 15 MB");
 
   const image = await loadImage(file);
-  const crop = Math.min(image.width, image.height);
-  const sourceX = Math.max(0, Math.round((image.width - crop) / 2));
-  const sourceY = Math.max(0, Math.round((image.height - crop) / 2));
+  const sourceRatio = image.width / image.height;
+  let cropWidth = image.width;
+  let cropHeight = image.height;
+
+  if (sourceRatio > TARGET_RATIO) {
+    cropWidth = Math.round(image.height * TARGET_RATIO);
+  } else if (sourceRatio < TARGET_RATIO) {
+    cropHeight = Math.round(image.width / TARGET_RATIO);
+  }
+
+  const sourceX = Math.max(0, Math.round((image.width - cropWidth) / 2));
+  const sourceY = Math.max(0, Math.round((image.height - cropHeight) / 2));
   const canvas = document.createElement("canvas");
-  canvas.width = OUTPUT_SIZE;
-  canvas.height = OUTPUT_SIZE;
+  canvas.width = OUTPUT_WIDTH;
+  canvas.height = OUTPUT_HEIGHT;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Canvas is unavailable");
-  context.drawImage(image, sourceX, sourceY, crop, crop, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+  context.drawImage(image, sourceX, sourceY, cropWidth, cropHeight, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
   if ("close" in image && typeof image.close === "function") image.close();
 
-  let quality = 0.84;
+  let quality = 0.88;
   let blob: Blob | null = null;
-  while (quality >= 0.44) {
+  while (quality >= 0.46) {
     blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
     if (blob && blob.size <= MAX_UPLOAD_BYTES) break;
     quality -= 0.07;
   }
   if (!blob || blob.size > MAX_UPLOAD_BYTES) throw new Error("Could not compress image");
-  return new File([blob], `event-gallery-${Date.now()}.jpg`, { type: "image/jpeg" });
+  return new File([blob], `event-gallery-${OUTPUT_WIDTH}x${OUTPUT_HEIGHT}-${Date.now()}.jpg`, { type: "image/jpeg" });
 }
 
 export function EventGalleryUploader({ urls, onChange }: Props) {
@@ -147,8 +158,8 @@ export function EventGalleryUploader({ urls, onChange }: Props) {
       <small className="muted">{urls.length}/{MAX_IMAGES}</small>
     </div>
     <small className="muted">{text.help}</small>
-    {urls.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(120px,1fr))", gap: 12, marginTop: 12 }}>
-      {urls.map((url, index) => <div key={`${url.slice(0,48)}-${index}`} style={{ position: "relative", aspectRatio: "1 / 1" }}>
+    {urls.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 12, marginTop: 12 }}>
+      {urls.map((url, index) => <div key={`${url.slice(0,48)}-${index}`} style={{ position: "relative", aspectRatio: "4 / 3" }}>
         <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 14, display: "block" }}/>
         <button
           type="button"
