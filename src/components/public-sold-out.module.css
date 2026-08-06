@@ -18,6 +18,8 @@
 }
 
 .mediaFrame img {
+  position: relative;
+  z-index: 2;
   display: block !important;
   width: 100% !important;
   height: 100% !important;
@@ -32,15 +34,15 @@
 
 .label {
   position: absolute;
-  top: 1px;
+  top: -24px;
   left: 0;
-  z-index: 2;
+  z-index: 1;
   display: grid;
   width: 100%;
-  height: 28px;
-  padding: 0 12px;
+  height: 34px;
+  padding: 0 12px 6px;
   place-items: center;
-  border-radius: 16px 16px 0 0;
+  border-radius: 16px 16px 5px 5px;
   background: #e51f2b;
   color: #fff;
   font-size: 11px;
@@ -51,8 +53,8 @@
   text-transform: uppercase;
   box-sizing: border-box;
   pointer-events: none;
-  transform: translateY(calc(-100% + 1px));
   transform-origin: center bottom;
+  box-shadow: 0 5px 12px rgba(229, 31, 43, .18);
 }
 
 .lastTickets .label {
@@ -92,9 +94,10 @@
   }
 
   .label {
-    height: 24px;
-    padding: 0 8px;
-    border-radius: 13px 13px 0 0;
+    top: -21px;
+    height: 30px;
+    padding: 0 8px 5px;
+    border-radius: 13px 13px 4px 4px;
     font-size: 9px;
     letter-spacing: .045em;
   }
