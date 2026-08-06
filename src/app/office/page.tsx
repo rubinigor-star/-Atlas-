@@ -5,7 +5,14 @@ import { getCurrentStaff } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export default async function OfficePage() {
-  const staff = await getCurrentStaff();
+  let staff = null;
+
+  try {
+    staff = await getCurrentStaff();
+  } catch {
+    redirect("/office/login?error=SESSION_INVALID");
+  }
+
   if (!staff) redirect("/office/login");
 
   return <AdminPage />;
