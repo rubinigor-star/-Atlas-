@@ -1,0 +1,40 @@
+@media (min-width: 1181px) {
+  form[data-unified-save="about"] [class*="infoPanelSection"] {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  form[data-unified-save="about"] [class*="infoPanelHeader"],
+  form[data-unified-save="about"] [class*="panelHint"],
+  form[data-unified-save="about"] [class*="agePreview"] {
+    grid-column: 1 / -1;
+  }
+
+  form[data-unified-save="about"] [class*="venueFirstGrid"],
+  form[data-unified-save="about"] [class*="locationGrid"],
+  form[data-unified-save="about"] [class*="runtimeGrid"] {
+    display: contents;
+  }
+
+  form[data-unified-save="about"] [class*="venueFirstGrid"] > :nth-child(1) { grid-column: span 4; order: 1; }
+  form[data-unified-save="about"] [class*="venueFirstGrid"] > :nth-child(2) { grid-column: span 2; order: 2; }
+  form[data-unified-save="about"] [class*="venueFirstGrid"] > :nth-child(3) { grid-column: span 4; order: 3; }
+  form[data-unified-save="about"] [class*="locationGrid"] > :nth-child(1) { grid-column: span 2; order: 4; }
+
+  form[data-unified-save="about"] [class*="locationGrid"] > :nth-child(2) { grid-column: span 2; order: 5; }
+  form[data-unified-save="about"] [class*="locationGrid"] > :nth-child(3) { grid-column: span 2; order: 6; }
+  form[data-unified-save="about"] [class*="runtimeGrid"] > :nth-child(1) { grid-column: span 4; order: 7; }
+  form[data-unified-save="about"] [class*="runtimeGrid"] > :nth-child(2) { grid-column: span 2; order: 8; }
+  form[data-unified-save="about"] [class*="locationGrid"] > :nth-child(4) { grid-column: span 2; order: 9; }
+
+  form[data-unified-save="about"] [class*="panelHint"] { order: 10; }
+  form[data-unified-save="about"] [class*="agePreview"] { order: 11; }
+
+  form[data-unified-save="about"] [class*="detailField"] {
+    min-height: 112px;
+  }
+
+  form[data-unified-save="about"] [class*="addressField"] input {
+    font-size: 13px;
+  }
+}
