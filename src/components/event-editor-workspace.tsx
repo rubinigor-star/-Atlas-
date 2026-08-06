@@ -27,10 +27,21 @@ export function EventEditorWorkspace({about,tickets,map,checkout,review,initialT
   for(const form of forms){if(!form.checkValidity()){form.reportValidity();return}}
   setSaving(true);setSaveMessage("");
   forms.forEach(form=>form.requestSubmit());
-  await wait(1200);
+
+  // The main event form rewrites the event description. Wait for those requests to
+  // finish, then save the complete multi-select event type array last so it cannot
+  // be replaced by only the first selected type.
+  await wait(3000);
   const typeSaveButton=section?.querySelector<HTMLButtonElement>('[data-event-type-manager="true"] button[data-workspace-local-save="true"]');
-  typeSaveButton?.click();
-  await wait(typeSaveButton?900:300);
+  if(typeSaveButton){
+   typeSaveButton.click();
+   await wait(1200);
+   // A second final write protects against unusually slow form submissions.
+   typeSaveButton.click();
+   await wait(900);
+  }else{
+   await wait(300);
+  }
   setSaving(false);setSaveMessage(text.sent);
  }
  return <div className={styles.shell}>
