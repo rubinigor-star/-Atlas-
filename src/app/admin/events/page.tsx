@@ -58,6 +58,13 @@ function statusClass(status: string) {
   return `events-status ${status.toLowerCase()}`;
 }
 
+function cardStateClass(status: string, soldOut: boolean) {
+  if (soldOut) return " is-sold-out";
+  if (status === "PUBLISHED") return " is-published";
+  if (status === "DRAFT") return " is-paused";
+  return " is-disabled";
+}
+
 function doorsOpenAt(description: string, startsAt: Date) {
   const match = description.match(doorsPattern)?.[1];
   if (!match) return startsAt;
@@ -159,7 +166,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
               const doors = doorsOpenAt(event.description, event.startsAt);
 
               return (
-                <article className={`events-visual-card${soldOut ? " is-sold-out" : ""}`} key={event.id}>
+                <article className={`events-visual-card${cardStateClass(event.status, soldOut)}`} key={event.id}>
                   <Link prefetch={false} href={`/office/events/${event.id}`} className="events-visual-poster" aria-label={`Открыть ${event.title}`}>
                     <img src={event.posterUrl || "/images/event-placeholder.jpg"} alt={`Афиша мероприятия ${event.title}`} />
                     {soldOut && <strong className="events-sold-out-ribbon">SOLD OUT</strong>}
