@@ -1,13 +1,14 @@
 .loginTopbar {
   position: fixed;
   top: 22px;
-  right: 26px;
+  left: 26px;
   z-index: 100;
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 0;
   background: transparent;
+  direction: ltr;
 }
 
 .siteLogo {
@@ -15,6 +16,7 @@
   align-items: center;
   width: 142px;
   flex: 0 0 auto;
+  overflow: visible;
 }
 
 .siteLogo img {
@@ -26,6 +28,7 @@
 
 .languageControl {
   position: relative;
+  direction: ltr;
 }
 
 .languageButton {
@@ -69,7 +72,7 @@
 .languageMenu {
   position: absolute;
   top: calc(100% + 7px);
-  right: 0;
+  left: 0;
   width: 150px;
   padding: 6px;
   border: 1px solid rgba(255,255,255,.12);
@@ -119,5 +122,10 @@
   .languageButton {
     min-width: 102px;
     min-height: 38px;
+  }
+
+  .languageMenu {
+    right: 0;
+    left: auto;
   }
 }
