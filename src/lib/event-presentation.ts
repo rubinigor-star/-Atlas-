@@ -12,6 +12,7 @@ export type EventPresentation = {
 };
 
 const PRESENTATION_MARKER = /<!--ATLAS_EVENT_PRESENTATION:([A-Za-z0-9+/=]+)-->/;
+const MAX_FAQ_ITEMS = 15;
 const remoteImageUrl = /^https?:\/\//i;
 const inlineImageUrl = /^data:image\/(?:jpeg|png|webp);base64,/i;
 
@@ -33,7 +34,7 @@ function normalizeFaq(value: unknown): EventFaqItem[] {
     const question = typeof item?.question === "string" ? item.question.trim().slice(0, 180) : "";
     const answer = typeof item?.answer === "string" ? item.answer.trim().slice(0, 1200) : "";
     return question && answer ? [{ question, answer }] : [];
-  }).slice(0, 7);
+  }).slice(0, MAX_FAQ_ITEMS);
 }
 
 export function parseEventPresentation(description: string): EventPresentation {
