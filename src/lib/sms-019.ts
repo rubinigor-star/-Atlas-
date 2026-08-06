@@ -15,10 +15,13 @@ function requiredEnv(name: "SMS_019_USERNAME" | "SMS_019_API_TOKEN" | "SMS_019_S
 }
 
 export function getSms019ConfigurationStatus() {
+  const source = process.env.SMS_019_SOURCE?.trim() || "";
   return {
     username: Boolean(process.env.SMS_019_USERNAME?.trim()),
     token: Boolean(process.env.SMS_019_API_TOKEN?.trim()),
-    source: Boolean(process.env.SMS_019_SOURCE?.trim()),
+    source: Boolean(source),
+    sourceLength: source.length,
+    sourceAsciiOnly: /^[\x20-\x7E]*$/.test(source),
   };
 }
 
@@ -62,7 +65,7 @@ export async function sendSms019({ phone, message, campaignName }: { phone: stri
 
   if (!cleanMessage) throw new Error("SMS_MESSAGE_REQUIRED");
   if (cleanMessage.length > 1005) throw new Error("SMS_MESSAGE_TOO_LONG");
-  if (!/^[A-Za-z0-9]{1,11}$/.test(source)) throw new Error("INVALID_SMS_SOURCE");
+  if (source.length > 20) throw new Error("SMS_SOURCE_TOO_LONG");
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
