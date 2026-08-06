@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentStaff } from "@/lib/auth";
-import { atlasBackstageLogoDataUrl } from "@/lib/atlas-backstage-logo";
+import { BackstageLogo, OfficeLoginTopbar } from "./office-login-branding";
 import styles from "./office-login.module.css";
 
 export const dynamic = "force-dynamic";
@@ -24,10 +24,11 @@ export default async function OfficeLoginPage({ searchParams }: { searchParams: 
   const showResend = verification === "failed" || params.error === "EMAIL_NOT_VERIFIED";
 
   return <main className={styles.page}>
+    <OfficeLoginTopbar />
     <div className={styles.cardFrame}>
       <section className={styles.card}>
         <header className={styles.brand}>
-          <img className={styles.logo} src={atlasBackstageLogoDataUrl} width="180" height="77" alt="Atlas One Backstage" />
+          <BackstageLogo className={styles.logo} />
           <p className={styles.kicker}>ATLAS ONE OFFICE</p>
           <h1 className={styles.title}>Вход для организаторов</h1>
           <p className={styles.subtitle}>Управление мероприятиями, заказами, командой и входом гостей.</p>
