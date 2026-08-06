@@ -47,11 +47,11 @@
     align-self: center !important;
   }
 
-  /* A taller 4:3 video composition keeps the copy vertically centered beside it. */
+  /* Keep the gallery on the right grid, but slightly reduce its footprint. */
   .heroGrid > :last-child:has(> div > button:first-child > span) {
-    --desktop-video-height: clamp(360px, 27vw, 430px);
-    --desktop-video-width: clamp(720px, 54vw, 860px);
-    --desktop-video-main-width: clamp(480px, 36vw, 573px);
+    --desktop-video-height: clamp(330px, 24.5vw, 395px);
+    --desktop-video-width: clamp(660px, 50vw, 790px);
+    --desktop-video-main-width: clamp(440px, 33.35vw, 527px);
     width: min(var(--desktop-video-width), 100%) !important;
     max-width: 100% !important;
     height: var(--desktop-video-height) !important;
@@ -136,9 +136,9 @@
   }
 
   .heroGrid > :last-child:has(> div > button:first-child > span) {
-    --desktop-video-height: clamp(260px, 29vw, 340px);
-    --desktop-video-width: clamp(520px, 58vw, 680px);
-    --desktop-video-main-width: clamp(347px, 38.7vw, 453px);
+    --desktop-video-height: clamp(250px, 27vw, 315px);
+    --desktop-video-width: clamp(500px, 54vw, 630px);
+    --desktop-video-main-width: clamp(333px, 36vw, 420px);
   }
 
   .hero > :last-child {
