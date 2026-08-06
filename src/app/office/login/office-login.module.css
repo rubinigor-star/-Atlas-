@@ -54,11 +54,33 @@
   text-align: center;
 }
 
+.logoLockup {
+  position: relative;
+  display: grid;
+  width: min(100%, 330px);
+  justify-items: center;
+  margin: -2px auto 12px;
+  padding-bottom: 30px;
+}
+
 .logo {
   display: block;
-  width: min(100%, 320px);
+  width: min(100%, 305px);
   height: auto;
-  margin: -8px auto -2px;
+}
+
+.backstage {
+  position: absolute;
+  right: 44px;
+  bottom: 0;
+  color: #073f73;
+  font-family: "Segoe Script", "Bradley Hand", cursive;
+  font-size: 39px;
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: -.07em;
+  line-height: 1;
+  transform: rotate(-4deg);
 }
 
 .kicker {
@@ -226,8 +248,17 @@
     border-radius: 24px;
   }
 
+  .logoLockup {
+    width: min(100%, 292px);
+  }
+
   .logo {
-    width: min(100%, 285px);
+    width: min(100%, 270px);
+  }
+
+  .backstage {
+    right: 33px;
+    font-size: 34px;
   }
 
   .links {
