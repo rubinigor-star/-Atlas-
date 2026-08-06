@@ -14,7 +14,7 @@ export function OfficeLanguageSwitch({ compact = false }: { compact?: boolean })
     <Languages size={18} aria-hidden="true" />
     {!compact && <span>{languageLabel}</span>}
     <select aria-label={languageLabel} value={locale} onChange={(event) => setLocale(event.target.value as Locale)} style={{ border: 0, background: "transparent", color: "inherit", font: "inherit", fontWeight: 700, cursor: "pointer", minWidth: compact ? 0 : 92 }}>
-      {(Object.keys(labels) as Locale[]).map((key) => <option key={key} value={key}>{labels[key]}</option>)}
+      {(Object.keys(labels) as Locale[]).map((key) => <option key={key} value={key} style={{ color: "#0f172a", backgroundColor: "#ffffff", fontWeight: 600 }}>{labels[key]}</option>)}
     </select>
   </label>;
 }
