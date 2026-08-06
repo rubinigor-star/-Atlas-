@@ -33,6 +33,8 @@ type EventDetails = {
 
 const SHORT_DESCRIPTION_LIMIT = 150;
 const MAX_FAQ_ITEMS = 15;
+const MIN_FAQ_ITEMS = 3;
+const EMPTY_FAQ_ITEM: EventFaqItem = { question: "", answer: "" };
 const PRESENTATION_MARKER = /<!--ATLAS_EVENT_PRESENTATION:([A-Za-z0-9+/=]+)-->/;
 
 const labels = {
@@ -60,6 +62,7 @@ const labels = {
     faqAnswer: "Ответ",
     faqDuplicate: "Дублировать вопрос и ответ",
     faqInsert: "Добавить вопрос ниже",
+    faqDelete: "Удалить вопрос",
     faqDrag: "Перетащить для изменения порядка",
     faqAppend: "Добавить вопрос",
     faqLimit: "Достигнут максимум 15 вопросов",
@@ -96,6 +99,7 @@ const labels = {
     faqAnswer: "תשובה",
     faqDuplicate: "שכפול השאלה והתשובה",
     faqInsert: "הוספת שאלה מתחת",
+    faqDelete: "מחיקת השאלה",
     faqDrag: "גרירה לשינוי הסדר",
     faqAppend: "הוספת שאלה",
     faqLimit: "הגעתם למקסימום של 15 שאלות",
@@ -132,6 +136,7 @@ const labels = {
     faqAnswer: "Answer",
     faqDuplicate: "Duplicate question and answer",
     faqInsert: "Add a question below",
+    faqDelete: "Delete question",
     faqDrag: "Drag to change the order",
     faqAppend: "Add question",
     faqLimit: "Maximum of 15 questions reached",
@@ -152,6 +157,12 @@ function normalizeFaq(value: unknown): EventFaqItem[] {
     question: typeof item?.question === "string" ? item.question.slice(0, 180) : "",
     answer: typeof item?.answer === "string" ? item.answer.slice(0, 1200) : "",
   }));
+}
+
+function ensureMinimumFaq(items: EventFaqItem[]) {
+  const next = items.slice(0, MAX_FAQ_ITEMS).map((item) => ({ ...item }));
+  while (next.length < MIN_FAQ_ITEMS) next.push({ ...EMPTY_FAQ_ITEM });
+  return next;
 }
 
 function emptyPresentation(): Presentation {
@@ -215,7 +226,7 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
   const [galleryEnabled, setGalleryEnabled] = useState(initialPresentation.galleryEnabled);
   const [galleryUrls, setGalleryUrls] = useState(initialPresentation.galleryUrls);
   const [faqEnabled, setFaqEnabled] = useState(initialPresentation.faqEnabled);
-  const [faq, setFaq] = useState<EventFaqItem[]>(initialPresentation.faq);
+  const [faq, setFaq] = useState<EventFaqItem[]>(initialPresentation.faqEnabled ? ensureMinimumFaq(initialPresentation.faq) : initialPresentation.faq);
 
   async function submit(form: HTMLFormElement) {
     const formData = new FormData(form);
@@ -340,24 +351,36 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
       <textarea name="linkUrls" rows={3} defaultValue={event.media.filter((item) => item.type === "LINK").map((item) => item.url).join("\n")}/>
     </div>
 
-    <div className="field">
-      <label className={styles.toggleRow}>
-        <input type="checkbox" checked={faqEnabled} onChange={(changeEvent) => setFaqEnabled(changeEvent.target.checked)}/>
-        <span>{text.faqToggle}</span>
-      </label>
-      {faqEnabled && <EventFaqEditor
+    <section className={styles.mediaCard}>
+      <header className={styles.cardHeader}>
+        <label className={styles.toggleRow}>
+          <input
+            type="checkbox"
+            checked={faqEnabled}
+            onChange={(changeEvent) => {
+              const enabled = changeEvent.target.checked;
+              setFaqEnabled(enabled);
+              if (enabled) setFaq((current) => ensureMinimumFaq(current));
+            }}
+          />
+          <span>{text.faqToggle}</span>
+        </label>
+      </header>
+      <EventFaqEditor
         items={faq}
         onChange={setFaq}
+        disabled={!faqEnabled}
         questionLabel={text.faqQuestion}
         answerLabel={text.faqAnswer}
         help={text.faqHelp}
         duplicateLabel={text.faqDuplicate}
         insertLabel={text.faqInsert}
+        deleteLabel={text.faqDelete}
         dragLabel={text.faqDrag}
         appendLabel={text.faqAppend}
         limitLabel={text.faqLimit}
-      />}
-    </div>
+      />
+    </section>
 
     <div className="form-grid two">
       <div className="field"><label>{text.date}</label><input className="input" name="startsAt" type="datetime-local" defaultValue={event.startsAt.slice(0, 16)} required/></div>
