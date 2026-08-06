@@ -1,8 +1,8 @@
 .loginTopbar {
   position: fixed;
   top: 22px;
-  left: 26px;
-  z-index: 20;
+  right: 26px;
+  z-index: 100;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -14,16 +14,14 @@
   display: flex;
   align-items: center;
   width: 142px;
+  flex: 0 0 auto;
 }
 
-.siteLogo :global(.atlas-logo) {
-  width: 100%;
-}
-
-.siteLogo :global(.atlas-logo-image) {
+.siteLogo img {
   display: block;
   width: 100%;
   height: auto;
+  object-fit: contain;
 }
 
 .languageControl {
@@ -71,7 +69,7 @@
 .languageMenu {
   position: absolute;
   top: calc(100% + 7px);
-  left: 0;
+  right: 0;
   width: 150px;
   padding: 6px;
   border: 1px solid rgba(255,255,255,.12);
@@ -121,10 +119,5 @@
   .languageButton {
     min-width: 102px;
     min-height: 38px;
-  }
-
-  .languageMenu {
-    right: 0;
-    left: auto;
   }
 }
