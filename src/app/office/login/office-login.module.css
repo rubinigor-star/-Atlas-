@@ -5,134 +5,148 @@
   min-height: 100svh;
   place-items: center;
   overflow: hidden;
-  padding: 40px 20px;
+  padding: 42px 20px;
   background:
-    radial-gradient(circle at 50% 4%, rgba(255, 132, 0, .16), transparent 27%),
-    radial-gradient(circle at 50% 78%, rgba(111, 17, 121, .22), transparent 42%),
-    linear-gradient(180deg, #020202 0%, #030205 56%, #100218 100%);
-  color: #111827;
-}
-
-.page::before,
-.page::after {
-  position: absolute;
-  z-index: -1;
-  content: "";
-  pointer-events: none;
+    radial-gradient(circle at 50% 10%, rgba(255, 122, 0, .14), transparent 28%),
+    radial-gradient(circle at 22% 82%, rgba(86, 40, 190, .18), transparent 36%),
+    radial-gradient(circle at 82% 72%, rgba(0, 91, 172, .16), transparent 34%),
+    linear-gradient(180deg, #030303 0%, #07030d 58%, #12031a 100%);
+  color: #0b1321;
+  font-family: inherit;
 }
 
 .page::before {
+  position: absolute;
   inset: 0;
+  z-index: -2;
+  content: "";
+  pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(0, 0, 0, .5), transparent 19%, transparent 81%, rgba(0, 0, 0, .5)),
-    repeating-linear-gradient(115deg, transparent 0 88px, rgba(255, 255, 255, .012) 89px 90px);
+    repeating-linear-gradient(116deg, transparent 0 90px, rgba(255,255,255,.012) 91px 92px),
+    linear-gradient(90deg, rgba(0,0,0,.5), transparent 20%, transparent 80%, rgba(0,0,0,.5));
 }
 
-.page::after {
-  width: min(760px, 72vw);
-  height: min(760px, 72vw);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 92, 45, .12), rgba(255, 23, 111, .04) 42%, transparent 70%);
+.cardFrame {
+  position: relative;
+  width: min(100%, 470px);
+  padding: 2px;
+  border-radius: 31px;
+  background: conic-gradient(from var(--login-angle), #ff7a00 0deg, #ff7a00 52deg, #6d28d9 126deg, #075ea8 205deg, transparent 262deg, transparent 316deg, #ff7a00 360deg);
+  box-shadow:
+    0 0 20px rgba(255, 122, 0, .20),
+    0 0 42px rgba(109, 40, 217, .18),
+    0 0 74px rgba(7, 94, 168, .14);
+  animation: loginBorderSpin 7s linear infinite;
+}
+
+.cardFrame::before,
+.cardFrame::after {
+  position: absolute;
+  inset: -12px;
+  z-index: -1;
+  border-radius: 40px;
+  content: "";
+  pointer-events: none;
+  background: conic-gradient(from var(--login-angle), rgba(255,122,0,.70), rgba(109,40,217,.58), rgba(7,94,168,.65), transparent 62%, rgba(255,122,0,.70));
   filter: blur(24px);
+  opacity: .48;
+  animation: loginBorderSpin 7s linear infinite;
+}
+
+.cardFrame::after {
+  inset: -32px;
+  filter: blur(50px);
+  opacity: .24;
 }
 
 .card {
-  width: min(100%, 470px);
-  padding: 34px 40px 32px;
-  border: 1px solid rgba(255, 255, 255, .68);
-  border-radius: 30px;
-  background: rgba(255, 255, 255, .97);
-  box-shadow: 0 32px 90px rgba(0, 0, 0, .46), 0 4px 18px rgba(0, 0, 0, .14);
+  position: relative;
+  display: grid;
+  width: 100%;
+  gap: 0;
+  padding: 32px 40px 31px;
+  border-radius: 29px;
+  background: rgba(255, 255, 255, .975);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.88), 0 30px 86px rgba(0,0,0,.43);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
 }
 
 .brand {
   display: grid;
+  width: 100%;
   justify-items: center;
-  margin-bottom: 10px;
+  margin: 0 0 24px;
   text-align: center;
-}
-
-.logoLockup {
-  position: relative;
-  display: grid;
-  width: min(100%, 330px);
-  justify-items: center;
-  margin: -2px auto 12px;
-  padding-bottom: 30px;
 }
 
 .logo {
   display: block;
-  width: min(100%, 305px);
+  width: min(100%, 174px);
   height: auto;
-}
-
-.backstage {
-  position: absolute;
-  right: 44px;
-  bottom: 0;
-  color: #073f73;
-  font-family: "Segoe Script", "Bradley Hand", cursive;
-  font-size: 39px;
-  font-style: italic;
-  font-weight: 700;
-  letter-spacing: -.07em;
-  line-height: 1;
-  transform: rotate(-4deg);
+  margin: 0 auto 7px;
 }
 
 .kicker {
-  margin: 0 0 6px;
-  color: #ff6a00;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: .16em;
+  margin: 0 0 9px;
+  color: #ff6e00;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .17em;
+  line-height: 1.2;
   text-transform: uppercase;
 }
 
 .title {
-  margin: 0;
-  color: #080d18;
-  font-size: clamp(28px, 4vw, 38px);
-  font-weight: 900;
+  max-width: 390px;
+  margin: 0 auto;
+  color: #07101f;
+  font-family: inherit;
+  font-size: clamp(27px, 4vw, 36px);
+  font-weight: 850;
   letter-spacing: -.035em;
-  line-height: 1.04;
+  line-height: 1.05;
   text-align: center;
   text-transform: uppercase;
 }
 
 .subtitle {
-  max-width: 390px;
-  margin: 12px auto 24px;
+  max-width: 360px;
+  margin: 13px auto 0;
   color: #667085;
+  font-family: inherit;
   font-size: 15px;
   line-height: 1.45;
   text-align: center;
 }
 
-.form {
+.form,
+.resend {
   display: grid;
+  width: 100%;
   gap: 15px;
 }
 
 .field {
   display: grid;
+  width: 100%;
   gap: 7px;
 }
 
 .field label {
   color: #202939;
+  font-family: inherit;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 750;
 }
 
 .input {
+  box-sizing: border-box;
   width: 100%;
+  min-width: 0;
   min-height: 54px;
   padding: 0 16px;
-  border: 1px solid #d8dde6;
+  border: 1px solid #d6dce6;
   border-radius: 14px;
   background: #fff;
   color: #111827;
@@ -143,7 +157,15 @@
 
 .input:focus {
   border-color: #ff7a00;
-  box-shadow: 0 0 0 4px rgba(255, 122, 0, .13);
+  box-shadow: 0 0 0 4px rgba(255, 122, 0, .13), 0 0 22px rgba(93, 40, 190, .08);
+}
+
+.primaryButton,
+.secondaryButton,
+.backLink {
+  box-sizing: border-box;
+  width: 100%;
+  font-family: inherit;
 }
 
 .primaryButton {
@@ -151,29 +173,38 @@
   margin-top: 2px;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(100deg, #ff8400 0%, #ff6638 48%, #ff176f 100%);
+  background: linear-gradient(100deg, #ff8200 0%, #f85b42 48%, #6d28d9 100%);
   color: #fff;
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 13px 30px rgba(255, 91, 45, .27);
+  box-shadow: 0 13px 30px rgba(106, 40, 190, .20), 0 8px 22px rgba(255, 104, 24, .20);
   transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
 }
 
 .primaryButton:hover,
 .primaryButton:focus-visible {
-  filter: brightness(1.04);
+  filter: brightness(1.05);
   transform: translateY(-2px);
-  box-shadow: 0 17px 36px rgba(255, 91, 45, .34);
+  box-shadow: 0 17px 38px rgba(106, 40, 190, .27), 0 10px 26px rgba(255,104,24,.25);
 }
 
 .links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 10px 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 16px;
+  width: 100%;
   margin-top: 17px;
   font-size: 13px;
+}
+
+.links a:first-child {
+  text-align: left;
+}
+
+.links a:last-child {
+  text-align: right;
 }
 
 .links a,
@@ -193,7 +224,7 @@
   border-radius: 14px;
   background: #fff;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 750;
   text-decoration: none;
   transition: background .18s ease, border-color .18s ease;
 }
@@ -205,6 +236,7 @@
 }
 
 .notice {
+  width: 100%;
   margin-bottom: 16px;
   padding: 12px 14px;
   border-radius: 12px;
@@ -213,8 +245,6 @@
 }
 
 .resend {
-  display: grid;
-  gap: 13px;
   margin-bottom: 18px;
   padding: 15px;
   border: 1px solid #fed7aa;
@@ -234,8 +264,26 @@
   border-radius: 12px;
   background: #fff;
   color: #202939;
-  font-weight: 800;
+  font-weight: 750;
   cursor: pointer;
+}
+
+@property --login-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes loginBorderSpin {
+  to { --login-angle: 360deg; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardFrame,
+  .cardFrame::before,
+  .cardFrame::after {
+    animation: none;
+  }
 }
 
 @media (max-width: 560px) {
@@ -243,26 +291,42 @@
     padding: 18px 14px;
   }
 
-  .card {
-    padding: 26px 22px 24px;
-    border-radius: 24px;
+  .cardFrame {
+    width: min(100%, 470px);
+    border-radius: 25px;
   }
 
-  .logoLockup {
-    width: min(100%, 292px);
+  .card {
+    padding: 25px 22px 23px;
+    border-radius: 23px;
+  }
+
+  .brand {
+    margin-bottom: 22px;
   }
 
   .logo {
-    width: min(100%, 270px);
+    width: 150px;
+    margin-bottom: 6px;
   }
 
-  .backstage {
-    right: 33px;
-    font-size: 34px;
+  .title {
+    max-width: 330px;
+    font-size: clamp(27px, 9vw, 34px);
+  }
+
+  .subtitle {
+    font-size: 14px;
   }
 
   .links {
-    justify-content: center;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    text-align: center;
+  }
+
+  .links a:first-child,
+  .links a:last-child {
     text-align: center;
   }
 }
