@@ -1,31 +1,29 @@
 .loginTopbar {
   position: fixed;
-  top: 20px;
-  right: 24px;
+  top: 22px;
+  left: 26px;
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 8px 10px 8px 14px;
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 18px;
-  background: rgba(8,10,18,.22);
-  box-shadow: 0 12px 34px rgba(0,0,0,.18);
-  backdrop-filter: blur(16px) saturate(125%);
-  -webkit-backdrop-filter: blur(16px) saturate(125%);
+  gap: 16px;
+  padding: 0;
+  background: transparent;
 }
 
-.topbarLogo {
-  display: block;
-  width: 126px;
-  height: 48px;
-  object-fit: contain;
+.siteLogo {
+  display: flex;
+  align-items: center;
+  width: 142px;
 }
 
-.logoPlaceholder {
+.siteLogo :global(.atlas-logo) {
+  width: 100%;
+}
+
+.siteLogo :global(.atlas-logo-image) {
   display: block;
   width: 100%;
-  min-height: 54px;
+  height: auto;
 }
 
 .languageControl {
@@ -33,29 +31,32 @@
 }
 
 .languageButton {
-  min-width: 116px;
+  min-width: 112px;
   min-height: 42px;
   padding: 0 12px;
-  border: 1px solid rgba(255,255,255,.15);
+  border: 1px solid rgba(255,255,255,.18);
   border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  background: rgba(255,255,255,.08);
+  background: rgba(8,10,18,.28);
   color: #fff;
   font: inherit;
   font-size: 14px;
   font-weight: 650;
   cursor: pointer;
+  box-shadow: 0 10px 26px rgba(0,0,0,.18);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
   transition: border-color .18s ease, background .18s ease;
 }
 
 .languageButton:hover,
 .languageButton:focus-visible,
 .languageButton[aria-expanded="true"] {
-  border-color: rgba(255,132,0,.72);
-  background: rgba(255,255,255,.12);
+  border-color: rgba(255,132,0,.78);
+  background: rgba(255,255,255,.10);
   outline: none;
 }
 
@@ -70,7 +71,7 @@
 .languageMenu {
   position: absolute;
   top: calc(100% + 7px);
-  right: 0;
+  left: 0;
   width: 150px;
   padding: 6px;
   border: 1px solid rgba(255,255,255,.12);
@@ -87,7 +88,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: rgba(255,255,255,.78);
+  color: #fff;
   font: inherit;
   font-size: 14px;
   text-align: start;
@@ -97,7 +98,6 @@
 .languageMenu button:hover,
 .languageMenu button:focus-visible {
   background: rgba(255,255,255,.08);
-  color: #fff;
   outline: none;
 }
 
@@ -108,20 +108,23 @@
 
 @media (max-width: 680px) {
   .loginTopbar {
-    top: 10px;
-    right: 10px;
-    left: 10px;
+    top: 12px;
+    left: 14px;
+    right: 14px;
     justify-content: space-between;
-    padding: 7px 8px 7px 12px;
   }
 
-  .topbarLogo {
-    width: 108px;
-    height: 42px;
+  .siteLogo {
+    width: 118px;
   }
 
   .languageButton {
-    min-width: 104px;
+    min-width: 102px;
     min-height: 38px;
+  }
+
+  .languageMenu {
+    right: 0;
+    left: auto;
   }
 }
