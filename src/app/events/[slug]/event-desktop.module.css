@@ -1,16 +1,16 @@
 @media (min-width: 801px) {
   .wideShell {
     width: 100%;
-    max-width: 1280px !important;
+    max-width: 1340px !important;
     margin-right: auto;
     margin-left: auto;
-    padding-right: 22px;
-    padding-left: 22px;
+    padding-right: 24px;
+    padding-left: 24px;
   }
 
   .hero {
-    padding-top: 104px !important;
-    padding-bottom: 76px !important;
+    padding-top: 112px !important;
+    padding-bottom: 96px !important;
     background: #0b0c12 !important;
   }
 
@@ -29,22 +29,34 @@
   }
 
   .heroGrid {
-    grid-template-columns: minmax(330px, 390px) minmax(0, 700px) !important;
-    justify-content: space-between !important;
-    align-items: stretch !important;
-    gap: 54px !important;
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr) !important;
+    justify-content: stretch !important;
+    align-items: center !important;
+    column-gap: 28px !important;
+    row-gap: 0 !important;
   }
 
-  /* Video preview follows the title-to-CTA grid instead of a 16:9 frame. */
+  .heroGrid > :first-child {
+    width: 100%;
+    max-width: 360px;
+    align-self: center !important;
+    justify-self: start !important;
+  }
+
+  .heroGrid > :last-child {
+    align-self: center !important;
+  }
+
+  /* A taller 4:3 video composition keeps the copy vertically centered beside it. */
   .heroGrid > :last-child:has(> div > button:first-child > span) {
-    --desktop-video-height: clamp(220px, 25.2vw, 340px);
-    --desktop-video-width: clamp(440px, 50.4vw, 676px);
-    --desktop-video-main-width: clamp(293px, 33.6vw, 453px);
+    --desktop-video-height: clamp(360px, 27vw, 430px);
+    --desktop-video-width: clamp(720px, 54vw, 860px);
+    --desktop-video-main-width: clamp(480px, 36vw, 573px);
     width: min(var(--desktop-video-width), 100%) !important;
     max-width: 100% !important;
     height: var(--desktop-video-height) !important;
     justify-self: end !important;
-    align-self: end !important;
+    align-self: center !important;
     overflow: visible !important;
   }
 
@@ -92,6 +104,10 @@
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
+  .hero > :last-child {
+    margin-top: 48px !important;
+  }
+
   .bodyGrid {
     grid-template-columns: minmax(0, 1fr) minmax(400px, 430px) !important;
     gap: 34px !important;
@@ -100,16 +116,33 @@
 
 @media (min-width: 801px) and (max-width: 1180px) {
   .wideShell {
-    max-width: 1120px !important;
+    max-width: 1140px !important;
+    padding-right: 22px;
+    padding-left: 22px;
   }
 
   .hero {
-    padding-bottom: 68px !important;
+    padding-top: 100px !important;
+    padding-bottom: 88px !important;
   }
 
   .heroGrid {
-    grid-template-columns: minmax(290px, 350px) minmax(0, 620px) !important;
-    gap: 34px !important;
+    grid-template-columns: minmax(270px, 310px) minmax(0, 1fr) !important;
+    column-gap: 20px !important;
+  }
+
+  .heroGrid > :first-child {
+    max-width: 310px;
+  }
+
+  .heroGrid > :last-child:has(> div > button:first-child > span) {
+    --desktop-video-height: clamp(260px, 29vw, 340px);
+    --desktop-video-width: clamp(520px, 58vw, 680px);
+    --desktop-video-main-width: clamp(347px, 38.7vw, 453px);
+  }
+
+  .hero > :last-child {
+    margin-top: 40px !important;
   }
 
   .bodyGrid {
