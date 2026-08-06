@@ -9,6 +9,7 @@ import { EventShareActions } from "@/components/event-share-actions";
 import { EventHeroGallery } from "@/components/event-hero-gallery";
 import { EventHeroPalette } from "@/components/event-hero-palette";
 import { EventMobileVideo } from "@/components/event-mobile-video";
+import { EventMobileStickyCta } from "@/components/event-mobile-sticky-cta";
 import { EventAboutCard } from "@/components/event-about-card";
 import { EventFaq } from "@/components/event-faq";
 import { EventMetaStrip } from "@/components/event-meta-strip";
@@ -71,5 +72,6 @@ export default async function EventPage({params,searchParams}:{params:Promise<{s
    </article></div>
    <aside id="tickets" className={styles.ticketsColumn}>{validPromoterLink&&<div className={styles.promoterCard}><strong>{text.personalLink}: {validPromoterLink.label}</strong><p>{text.personalLinkInfo}</p></div>}{categories.length?<div className={styles.ticketCard}><EventPurchase eventId={event.id} categories={categories} objects={objects} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocation={validPromoterLink?{type:validPromoterLink.allocationType,categoryId:validPromoterLink.categoryId,tableId:validPromoterLink.tableId,customPriceMinor:validPromoterLink.customPriceMinor}:undefined}/></div>:<div className={styles.closedCard}><strong>{text.salesClosed}</strong><p>{text.noTariffs}</p></div>}</aside>
   </div></section>
+  {categories.length>0&&<EventMobileStickyCta label={ctaLabel}/>} 
  </main>;
 }
