@@ -1,0 +1,60 @@
+.atlas-account-menu-item,
+.atlas-account-menu-buyer {
+  background: transparent !important;
+  color: #1f2937 !important;
+  transform: none;
+}
+
+.atlas-account-menu-item:hover,
+.atlas-account-menu-item:focus-visible,
+.atlas-account-menu-buyer:hover,
+.atlas-account-menu-buyer:focus-visible {
+  background: transparent !important;
+  color: #1f2937 !important;
+  transform: none;
+  outline: none;
+}
+
+.atlas-account-menu-item strong,
+.atlas-account-menu-item .atlas-account-menu-icon {
+  transition: color 180ms ease, transform 180ms ease, filter 180ms ease;
+}
+
+.atlas-account-menu-item:hover strong,
+.atlas-account-menu-item:focus-visible strong {
+  background: linear-gradient(105deg, #ff8400 0%, #ff4f5e 42%, #b832ff 72%, #1769ff 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: atlas-account-text-flow 1.15s linear infinite;
+}
+
+.atlas-account-menu-item:hover .atlas-account-menu-icon,
+.atlas-account-menu-item:focus-visible .atlas-account-menu-icon {
+  color: #ff5a47;
+  transform: translateX(2px) scale(1.04);
+  filter: drop-shadow(0 3px 8px rgba(255, 90, 71, .22));
+}
+
+[dir="rtl"] .atlas-account-menu-item:hover .atlas-account-menu-icon,
+[dir="rtl"] .atlas-account-menu-item:focus-visible .atlas-account-menu-icon {
+  transform: translateX(-2px) scale(1.04);
+}
+
+.atlas-account-menu-icon {
+  background: transparent !important;
+}
+
+@keyframes atlas-account-text-flow {
+  from { background-position: 0% 50%; }
+  to { background-position: 200% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-account-menu-item:hover strong,
+  .atlas-account-menu-item:focus-visible strong {
+    animation: none;
+    background-position: 50% 50%;
+  }
+}
