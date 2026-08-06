@@ -18,6 +18,20 @@ button.trigger{cursor:pointer}
 .ageValue{display:block;margin-bottom:7px;color:#fff;font-size:36px;line-height:1;text-align:center}.agePopover h3{font-size:16px;text-transform:uppercase;letter-spacing:.03em}.agePopover p{margin-top:12px}.schedulePopover h3{font-size:20px}.venuePopover h3{font-size:21px}.venuePopover p{font-weight:650}
 @keyframes venueActionBorderSpin{to{transform:rotate(360deg)}}
 @media(max-width:1180px) and (min-width:801px){.popover{left:7px;right:7px;padding:23px 17px}.popover h3{font-size:18px}.popover p,.fact{font-size:14px}.fact strong{font-size:14px}.actions a{font-size:12px;padding-inline:10px}}
-@media(max-width:800px){.strip{grid-template-columns:repeat(2,minmax(0,1fr))}.item:nth-child(2){border-right:0}.item:nth-child(-n+2){border-bottom:1px solid rgba(255,255,255,.1)}.popover{position:fixed;z-index:90;left:12px;right:12px;bottom:14px;width:auto;max-width:none;padding:24px;transform:translateY(calc(100% + 28px)) scale(.985);transform-origin:50% 100%;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .22s ease,transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s linear .32s}.popover:before,.popover:after{display:none}.item:hover .popover{opacity:0;visibility:hidden;pointer-events:none;transform:translateY(calc(100% + 28px)) scale(.985)}.item.open .popover,.item:focus-within .popover{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1);transition-delay:0s}.actions{grid-template-columns:1fr 1fr}}
-@media(max-width:480px){.trigger{min-height:58px;padding:10px 8px;font-size:12px;gap:7px}.trigger svg{width:17px;height:17px}.popover{left:10px;right:10px;bottom:10px;padding:22px}.popover h3{font-size:19px}.popover p{font-size:14px}.actions{grid-template-columns:1fr}.actions a{min-height:46px}.ageValue{font-size:32px}}
+@media(max-width:800px){
+.strip{grid-template-columns:repeat(2,minmax(0,1fr));isolation:isolate}
+.item{z-index:1}
+.item.open{z-index:100}
+.item:nth-child(2){border-right:0}
+.item:nth-child(-n+2){border-bottom:1px solid rgba(255,255,255,.1)}
+button.trigger{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.popover{position:absolute;z-index:100;left:0;right:auto;bottom:calc(100% + 10px);width:calc(200% + 1px);max-width:none;padding:24px;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(18px) scale(.98);transform-origin:50% 100%;transition:opacity .2s ease,transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s linear .3s}
+.age .popover{left:auto;right:0}
+.popover:before{display:block;bottom:-18px;height:22px}
+.popover:after{display:block}
+.item:hover .popover{opacity:0;visibility:hidden;pointer-events:none;transform:translateY(18px) scale(.98)}
+.item.open .popover,.item:focus-within .popover{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1);transition-delay:0s}
+.actions{grid-template-columns:1fr 1fr}
+}
+@media(max-width:480px){.trigger{min-height:58px;padding:10px 8px;font-size:12px;gap:7px}.trigger svg{width:17px;height:17px}.popover{bottom:calc(100% + 9px);padding:22px}.popover h3{font-size:19px}.popover p{font-size:14px}.actions{grid-template-columns:1fr}.actions a{min-height:46px}.ageValue{font-size:32px}}
 @media(prefers-reduced-motion:reduce){.popover,.actions a,.actions a::before{transition:none;animation:none!important}}
