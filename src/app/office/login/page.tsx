@@ -1,6 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getCurrentStaff } from "@/lib/auth";
 import { BackstageLogo, OfficeLoginTopbar } from "./office-login-branding";
 import styles from "./office-login.module.css";
 
@@ -15,9 +13,6 @@ const errors: Record<string,string> = {
 };
 
 export default async function OfficeLoginPage({ searchParams }: { searchParams: Promise<Record<string,string|string[]|undefined>> }) {
-  const currentStaff = await getCurrentStaff();
-  if (currentStaff) redirect(currentStaff.role === "ADMIN" ? "/platform" : "/office");
-
   const params = await searchParams;
   const error = typeof params.error === "string" ? errors[params.error] : "";
   const verification = typeof params.verification === "string" ? params.verification : "";
