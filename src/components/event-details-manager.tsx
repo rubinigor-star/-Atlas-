@@ -32,6 +32,7 @@ type EventDetails = {
 };
 
 const SHORT_DESCRIPTION_LIMIT = 150;
+const MAX_FAQ_ITEMS = 15;
 const PRESENTATION_MARKER = /<!--ATLAS_EVENT_PRESENTATION:([A-Za-z0-9+/=]+)-->/;
 
 const labels = {
@@ -53,12 +54,15 @@ const labels = {
     videoLink: "Ссылка YouTube или Vimeo",
     description: "Полное описание",
     links: "Дополнительные ссылки",
-    faqTitle: "FAQ мероприятия",
     faqToggle: "Добавить FAQ на страницу мероприятия",
-    faqHelp: "До 7 пар вопрос-ответ. Пустые строки не публикуются.",
-    faqDisabled: "Поставьте галочку, чтобы открыть компактную таблицу FAQ.",
+    faqHelp: "До 15 пар вопрос-ответ. Пустые строки не публикуются.",
     faqQuestion: "Вопрос",
     faqAnswer: "Ответ",
+    faqDuplicate: "Дублировать вопрос и ответ",
+    faqInsert: "Добавить вопрос ниже",
+    faqDrag: "Перетащить для изменения порядка",
+    faqAppend: "Добавить вопрос",
+    faqLimit: "Достигнут максимум 15 вопросов",
     date: "Дата и время",
     venue: "Площадка",
     city: "Город",
@@ -86,12 +90,15 @@ const labels = {
     videoLink: "קישור YouTube או Vimeo",
     description: "תיאור מלא",
     links: "קישורים נוספים",
-    faqTitle: "שאלות נפוצות לאירוע",
     faqToggle: "הוספת FAQ לעמוד האירוע",
-    faqHelp: "עד 7 זוגות של שאלה ותשובה. שורות ריקות לא יפורסמו.",
-    faqDisabled: "סמנו את התיבה כדי לפתוח טבלת FAQ קומפקטית.",
+    faqHelp: "עד 15 זוגות של שאלה ותשובה. שורות ריקות לא יפורסמו.",
     faqQuestion: "שאלה",
     faqAnswer: "תשובה",
+    faqDuplicate: "שכפול השאלה והתשובה",
+    faqInsert: "הוספת שאלה מתחת",
+    faqDrag: "גרירה לשינוי הסדר",
+    faqAppend: "הוספת שאלה",
+    faqLimit: "הגעתם למקסימום של 15 שאלות",
     date: "תאריך ושעה",
     venue: "מקום האירוע",
     city: "עיר",
@@ -119,12 +126,15 @@ const labels = {
     videoLink: "YouTube or Vimeo link",
     description: "Full description",
     links: "Additional links",
-    faqTitle: "Event FAQ",
     faqToggle: "Add FAQ to the event page",
-    faqHelp: "Up to 7 question-and-answer pairs. Empty rows are not published.",
-    faqDisabled: "Select the checkbox to open the compact FAQ table.",
+    faqHelp: "Up to 15 question-and-answer pairs. Empty rows are not published.",
     faqQuestion: "Question",
     faqAnswer: "Answer",
+    faqDuplicate: "Duplicate question and answer",
+    faqInsert: "Add a question below",
+    faqDrag: "Drag to change the order",
+    faqAppend: "Add question",
+    faqLimit: "Maximum of 15 questions reached",
     date: "Date and time",
     venue: "Venue",
     city: "City",
@@ -138,7 +148,7 @@ const labels = {
 
 function normalizeFaq(value: unknown): EventFaqItem[] {
   if (!Array.isArray(value)) return [];
-  return value.slice(0, 7).map((item) => ({
+  return value.slice(0, MAX_FAQ_ITEMS).map((item) => ({
     question: typeof item?.question === "string" ? item.question.slice(0, 180) : "",
     answer: typeof item?.answer === "string" ? item.answer.slice(0, 1200) : "",
   }));
@@ -175,7 +185,7 @@ function encodePresentation(value: Presentation) {
   const faq = value.faq.map((item) => ({
     question: item.question.trim().slice(0, 180),
     answer: item.answer.trim().slice(0, 1200),
-  })).filter((item) => item.question || item.answer).slice(0, 7);
+  })).filter((item) => item.question || item.answer).slice(0, MAX_FAQ_ITEMS);
   const normalized = {
     shortDescription: value.shortDescription.trim().slice(0, SHORT_DESCRIPTION_LIMIT),
     galleryEnabled: value.galleryEnabled && value.galleryUrls.length > 0,
@@ -331,16 +341,22 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
     </div>
 
     <div className="field">
-      <div className={styles.cardTitleRow}>
-        <label>{text.faqTitle}</label>
-        <label className={styles.toggleRow}>
-          <input type="checkbox" checked={faqEnabled} onChange={(changeEvent) => setFaqEnabled(changeEvent.target.checked)}/>
-          <span>{text.faqToggle}</span>
-        </label>
-      </div>
-      {faqEnabled
-        ? <EventFaqEditor items={faq} onChange={setFaq} questionLabel={text.faqQuestion} answerLabel={text.faqAnswer} help={text.faqHelp}/>
-        : <div className={styles.disabledBody}>{text.faqDisabled}</div>}
+      <label className={styles.toggleRow}>
+        <input type="checkbox" checked={faqEnabled} onChange={(changeEvent) => setFaqEnabled(changeEvent.target.checked)}/>
+        <span>{text.faqToggle}</span>
+      </label>
+      {faqEnabled && <EventFaqEditor
+        items={faq}
+        onChange={setFaq}
+        questionLabel={text.faqQuestion}
+        answerLabel={text.faqAnswer}
+        help={text.faqHelp}
+        duplicateLabel={text.faqDuplicate}
+        insertLabel={text.faqInsert}
+        dragLabel={text.faqDrag}
+        appendLabel={text.faqAppend}
+        limitLabel={text.faqLimit}
+      />}
     </div>
 
     <div className="form-grid two">
