@@ -71,3 +71,45 @@ export async function failNotification(id: string, message: string, providerStat
     message,
   );
 }
+
+export type NotificationDeliveryRow = {
+  id: string;
+  channel: string;
+  type: string;
+  recipient: string;
+  status: string;
+  providerStatus: string | null;
+  providerMessage: string | null;
+  priceMinor: number;
+  sentAt: Date | null;
+  createdAt: Date;
+};
+
+export async function listNotificationDeliveries(limit = 50) {
+  await ensureNotificationLedger();
+  const safeLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+  return db.$queryRawUnsafe<NotificationDeliveryRow[]>(
+    `SELECT "id","channel","type","recipient","status","providerStatus","providerMessage","priceMinor","sentAt","createdAt"
+     FROM "NotificationDelivery"
+     ORDER BY "createdAt" DESC
+     LIMIT $1`,
+    safeLimit,
+  );
+}
+
+export async function getSmsLedgerSummary() {
+  await ensureNotificationLedger();
+  const rows = await db.$queryRawUnsafe<Array<{ sentCount: bigint; failedCount: bigint; billedMinor: bigint }>>(
+    `SELECT
+       COUNT(*) FILTER (WHERE "channel"='SMS' AND "status"='SENT') AS "sentCount",
+       COUNT(*) FILTER (WHERE "channel"='SMS' AND "status"='FAILED') AS "failedCount",
+       COALESCE(SUM("priceMinor") FILTER (WHERE "channel"='SMS' AND "status"='SENT'),0) AS "billedMinor"
+     FROM "NotificationDelivery"`,
+  );
+  const row = rows[0];
+  return {
+    sentCount: Number(row?.sentCount ?? 0),
+    failedCount: Number(row?.failedCount ?? 0),
+    billedMinor: Number(row?.billedMinor ?? 0),
+  };
+}
