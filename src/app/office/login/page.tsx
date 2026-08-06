@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { atlasBackstageLogoDataUrl } from "@/lib/atlas-backstage-logo";
+import { OfficeLanguageControl } from "./office-login-branding";
 import styles from "./office-login.module.css";
+import brandingStyles from "./office-login-branding.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +20,17 @@ export default async function OfficeLoginPage({ searchParams }: { searchParams: 
   const showResend = verification === "failed" || params.error === "EMAIL_NOT_VERIFIED";
 
   return <main className={styles.page}>
+    <div className={brandingStyles.loginTopbar}>
+      <Link href="/" className={brandingStyles.siteLogo} aria-label="Atlas One">
+        <img src="/atlas-one-logo-dark.png" alt="Atlas One" />
+      </Link>
+      <OfficeLanguageControl />
+    </div>
+
     <div className={styles.cardFrame}>
       <section className={styles.card}>
         <header className={styles.brand}>
-          <img className={styles.logo} src={atlasBackstageLogoDataUrl} alt="Atlas One Backstage" />
+          <img className={styles.logo} src="/branding/atlas-backstage-logo.svg" alt="Atlas One Backstage" />
           <p className={styles.kicker}>ATLAS ONE OFFICE</p>
           <h1 className={styles.title}>Вход для организаторов</h1>
           <p className={styles.subtitle}>Управление мероприятиями, заказами, командой и входом гостей.</p>
