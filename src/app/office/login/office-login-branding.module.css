@@ -118,6 +118,29 @@
   font-weight: 700;
 }
 
+:global(html[dir="rtl"] form[action="/api/office/auth/login"] label),
+:global(html[dir="rtl"] form[action="/api/office/auth/resend-verification"] label) {
+  text-align: right;
+}
+
+:global(html[dir="rtl"] form[action="/api/office/auth/login"] input),
+:global(html[dir="rtl"] form[action="/api/office/auth/resend-verification"] input) {
+  direction: ltr;
+  text-align: left;
+}
+
+:global(html[dir="rtl"] form[action="/api/office/auth/login"] + div) {
+  direction: rtl;
+}
+
+:global(html[dir="rtl"] form[action="/api/office/auth/login"] + div a:first-child) {
+  text-align: right !important;
+}
+
+:global(html[dir="rtl"] form[action="/api/office/auth/login"] + div a:last-child) {
+  text-align: left !important;
+}
+
 @media (max-width: 680px) {
   .loginTopbar {
     top: 12px;
@@ -145,5 +168,10 @@
   .languageButton {
     min-height: 36px;
     font-size: 13px;
+  }
+
+  :global(html[dir="rtl"] form[action="/api/office/auth/login"] + div a:first-child),
+  :global(html[dir="rtl"] form[action="/api/office/auth/login"] + div a:last-child) {
+    text-align: center !important;
   }
 }
