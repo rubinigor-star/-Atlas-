@@ -1,10 +1,9 @@
 .mediaFrame {
   position: relative;
-  display: grid;
-  grid-template-rows: 28px auto;
   width: 100%;
   max-width: 100%;
-  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  overflow: visible;
   border: 2px solid #d92027;
   border-radius: 18px;
   background: #d92027;
@@ -22,7 +21,7 @@
 .mediaFrame img {
   display: block !important;
   width: 100% !important;
-  height: auto !important;
+  height: 100% !important;
   aspect-ratio: 1 / 1;
   object-fit: cover !important;
   border: 0 !important;
@@ -33,14 +32,16 @@
 }
 
 .label {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: -2px;
   z-index: 2;
   display: grid;
-  min-width: 0;
-  width: 100%;
+  width: calc(100% + 4px);
   height: 28px;
   padding: 0 12px;
   place-items: center;
+  border-radius: 16px 16px 0 0;
   background: #d92027;
   color: #fff;
   font-size: 11px;
@@ -51,6 +52,7 @@
   text-transform: uppercase;
   box-sizing: border-box;
   pointer-events: none;
+  transform: translateY(calc(-100% + 2px));
   animation: availabilityPulse 1.55s ease-in-out infinite;
 }
 
@@ -79,7 +81,6 @@
 
 @media (max-width: 600px) {
   .mediaFrame {
-    grid-template-rows: 24px auto;
     border-width: 2px;
     border-radius: 15px;
   }
@@ -95,6 +96,7 @@
   .label {
     height: 24px;
     padding: 0 8px;
+    border-radius: 13px 13px 0 0;
     font-size: 9px;
     letter-spacing: .055em;
   }
