@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { claimNotification, completeNotification, failNotification } from "@/lib/notification-ledger";
 import { sendSms019 } from "@/lib/sms-019";
 
 function baseUrl() {
@@ -10,7 +11,7 @@ export function getSmsPriceMinor() {
   return Number.isInteger(value) && value >= 0 ? value : 20;
 }
 
-export async function sendOrderTicketSms(publicId: string) {
+export async function sendOrderTicketSms(publicId: string, options?: { automatic?: boolean }) {
   const order = await db.order.findUnique({
     where: { publicId },
     include: { event: true, tickets: true },
@@ -20,21 +21,33 @@ export async function sendOrderTicketSms(publicId: string) {
   if (order.status !== "PAID") throw new Error("Билет можно отправить только после оплаты");
   if (!order.tickets.length) throw new Error("В заказе ещё нет билетов");
 
-  const orderUrl = `${baseUrl()}/orders/${encodeURIComponent(order.publicId)}`;
-  const message = `Atlas One: билеты на ${order.event.title}. Заказ ${order.publicId}. Открыть билеты: ${orderUrl}`;
-  const result = await sendSms019({
-    phone: order.customerPhone,
-    message,
-    campaignName: `ticket-${order.publicId}`,
+  const priceMinor = getSmsPriceMinor();
+  const automatic = Boolean(options?.automatic);
+  const claim = await claimNotification({
+    dedupeKey: automatic ? `ticket-sms:auto:${order.id}` : undefined,
+    organizationId: order.event.organizationId,
+    orderId: order.id,
+    channel: "SMS",
+    type: automatic ? "TICKET_AUTO" : "TICKET_RESEND",
+    recipient: order.customerPhone,
+    priceMinor,
+    metadata: { publicId: order.publicId, eventId: order.eventId },
   });
 
-  if (!result.ok) {
-    throw new Error(result.providerMessage || `019SMS error ${result.status}`);
+  if (!claim.claimed) {
+    return { recipient: order.customerPhone, providerStatus: "ALREADY_SENT", priceMinor: 0, alreadySent: true };
   }
 
-  return {
-    recipient: order.customerPhone,
-    providerStatus: result.providerStatus ?? null,
-    priceMinor: getSmsPriceMinor(),
-  };
+  const orderUrl = `${baseUrl()}/orders/${encodeURIComponent(order.publicId)}`;
+  const message = `Atlas One: билеты на ${order.event.title}. Заказ ${order.publicId}. Открыть билеты: ${orderUrl}`;
+  const result = await sendSms019({ phone: order.customerPhone, message, campaignName: `ticket-${order.publicId}` });
+
+  if (!result.ok) {
+    const errorMessage = result.providerMessage || `019SMS error ${result.status}`;
+    await failNotification(claim.id!, errorMessage, result.providerStatus);
+    throw new Error(errorMessage);
+  }
+
+  await completeNotification(claim.id!, { providerStatus: result.providerStatus, providerMessage: result.providerMessage });
+  return { recipient: order.customerPhone, providerStatus: result.providerStatus ?? null, priceMinor, alreadySent: false };
 }
