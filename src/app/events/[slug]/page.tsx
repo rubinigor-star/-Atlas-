@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
-import { CalendarDays, Clock3, ExternalLink, Languages, MapPin, ShieldCheck } from "lucide-react";
+import { CalendarDays, Clock3, ExternalLink, Languages, MapPin, ShieldCheck, Theater } from "lucide-react";
 import { db } from "@/lib/db";
 import { eventDate, eventDay, eventStartTime, money } from "@/lib/format";
 import { effectiveTicketPrice, ticketPricePresentation } from "@/lib/ticketing";
@@ -159,7 +159,7 @@ export default async function EventPage({ params, searchParams }: {
       ),
     ),
   ).trim();
-  const shortDescription = presentation.shortDescription || publicDescription.replace(/\s+/g, " ").slice(0, 150);
+  const shortDescription = presentation.shortDescription || publicDescription.replace(/\s+/g, " ").slice(0, 100);
   const text = i18n.messages.event;
   const local = copy[i18n.locale];
   const eventUrl = `https://www.atlas-one.co/events/${event.slug}`;
@@ -199,9 +199,9 @@ export default async function EventPage({ params, searchParams }: {
       <div className={`${metaAlignment.shell} ${desktopLayout.wideShell}`}>
         <div className={`${styles.metaStrip} ${metaAlignment.strip} ${mobile.metaStrip}`}>
           <div className={`${styles.metaItem} ${mobile.metaItem}`}><CalendarDays size={19}/><span>{eventDate(event.startsAt, i18n.locale)}</span></div>
-          <div className={`${styles.metaItem} ${mobile.metaItem}`}><MapPin size={19}/><span>{event.venue.name}</span></div>
-          <div className={`${styles.metaItem} ${mobile.metaItem}`}><Languages size={19}/><span>{languageLabel}</span></div>
-          <div className={`${styles.metaItem} ${mobile.metaItem}`}><ShieldCheck size={19}/><span>{local.secure}</span></div>
+          <div className={`${styles.metaItem} ${mobile.metaItem}`}><MapPin size={19}/><span>{event.venue.city}</span></div>
+          <div className={`${styles.metaItem} ${mobile.metaItem}`}><Theater size={19}/><span>{event.venue.name}</span></div>
+          <div className={`${styles.metaItem} ${mobile.metaItem}`}><ShieldCheck size={19}/><span>{presentation.ageRestriction}</span></div>
         </div>
       </div>
     </section>
