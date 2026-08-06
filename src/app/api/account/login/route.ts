@@ -2,12 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { createCustomerMagicToken } from "@/lib/customer-auth";
-import { createGenericShortLink } from "@/lib/generic-short-link";
 import { claimNotification, completeNotification, failNotification } from "@/lib/notification-ledger";
-import { sendSms019 } from "@/lib/sms-019";
 
 const schema = z.object({ email: z.string().trim().email().max(250) });
-const LOGIN_LINK_TTL_MS = 15 * 60_000;
 const LOGIN_RATE_LIMIT_MS = 2 * 60_000;
 
 function escapeHtml(value: string) {
@@ -21,7 +18,7 @@ export async function POST(request: Request) {
     const latestOrder = await db.order.findFirst({
       where: { customerEmail: normalized },
       orderBy: { createdAt: "desc" },
-      select: { customerPhone: true },
+      select: { id: true },
     });
 
     // Always return success to avoid exposing whether an email exists.
@@ -40,8 +37,7 @@ export async function POST(request: Request) {
 
     const origin = new URL(request.url).origin;
     const token = createCustomerMagicToken(normalized);
-    const verifyPath = `/api/account/verify?token=${encodeURIComponent(token)}`;
-    const emailUrl = `${origin}${verifyPath}`;
+    const emailUrl = `${origin}/api/account/verify?token=${encodeURIComponent(token)}`;
     const apiKey = process.env.RESEND_API_KEY;
     const from = process.env.RESEND_FROM_EMAIL;
     if (!apiKey || !from) throw new Error("Resend не настроен в Vercel");
@@ -61,32 +57,6 @@ export async function POST(request: Request) {
       throw new Error("Не удалось отправить ссылку для входа");
     }
     await completeNotification(requestClaim.id!, { providerStatus: response.status, providerMessage: "Resend accepted" });
-
-    if (latestOrder.customerPhone && process.env.SMS_019_API_TOKEN) {
-      const smsClaim = await claimNotification({
-        dedupeKey: `customer-login-sms:${normalized}:${rateBucket}`,
-        channel: "SMS",
-        type: "CUSTOMER_LOGIN",
-        recipient: latestOrder.customerPhone,
-        priceMinor: 0,
-        metadata: { email: normalized },
-      });
-      if (smsClaim.claimed) {
-        const shortUrl = await createGenericShortLink({
-          targetPath: verifyPath,
-          expiresAt: new Date(Date.now() + LOGIN_LINK_TTL_MS),
-          singleUse: true,
-          requestOrigin: origin,
-        });
-        const sms = await sendSms019({
-          phone: latestOrder.customerPhone,
-          message: `Atlas One: вход в личный кабинет. Ссылка действует 15 минут: ${shortUrl}`,
-          campaignName: "customer-login",
-        });
-        if (sms.ok) await completeNotification(smsClaim.id!, { providerStatus: sms.providerStatus, providerMessage: sms.providerMessage });
-        else await failNotification(smsClaim.id!, sms.providerMessage || `019SMS error ${sms.status}`, sms.providerStatus);
-      }
-    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
