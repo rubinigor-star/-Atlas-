@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 25;
 const soldOutPattern = /<!--ATLAS_SOLD_OUT:true-->/;
+const lastTicketsPattern = /<!--ATLAS_LAST_TICKETS:true-->/;
 const doorsPattern = /<!--ATLAS_DOORS_OPEN:([^>]+)-->/;
 
 type EventsPageProps = {
@@ -163,6 +164,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
               const remaining = Math.max(0, capacity - sold);
               const eventRevenue = revenueByEvent.get(event.id) || 0;
               const soldOut = soldOutPattern.test(event.description);
+              const lastTickets = lastTicketsPattern.test(event.description);
               const doors = doorsOpenAt(event.description, event.startsAt);
 
               return (
@@ -170,6 +172,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
                   <Link prefetch={false} href={`/office/events/${event.id}`} className="events-visual-poster" aria-label={`Открыть ${event.title}`}>
                     <img src={event.posterUrl || "/images/event-placeholder.jpg"} alt={`Афиша мероприятия ${event.title}`} />
                     {soldOut && <strong className="events-sold-out-ribbon">SOLD OUT</strong>}
+                    {lastTickets && !soldOut && <strong className="events-last-tickets-ribbon">ПОСЛЕДНИЕ БИЛЕТЫ</strong>}
                     <span>{fill}% заполнено</span>
                   </Link>
 
@@ -197,6 +200,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
                       slug: event.slug,
                       status: event.status,
                       soldOut,
+                      lastTickets,
                       startsAt: event.startsAt.toISOString(),
                       doorsOpenAt: doors.toISOString(),
                       salesStart: event.salesStart.toISOString(),
