@@ -31,7 +31,65 @@
   .heroGrid {
     grid-template-columns: minmax(330px, 390px) minmax(0, 700px) !important;
     justify-content: space-between !important;
+    align-items: stretch !important;
     gap: 54px !important;
+  }
+
+  /* Video preview follows the title-to-CTA grid instead of a 16:9 frame. */
+  .heroGrid > :last-child:has(> div > button:first-child > span) {
+    --desktop-video-height: clamp(220px, 25.2vw, 340px);
+    --desktop-video-width: clamp(440px, 50.4vw, 676px);
+    --desktop-video-main-width: clamp(293px, 33.6vw, 453px);
+    width: min(var(--desktop-video-width), 100%) !important;
+    max-width: 100% !important;
+    height: var(--desktop-video-height) !important;
+    justify-self: end !important;
+    align-self: end !important;
+    overflow: visible !important;
+  }
+
+  .heroGrid > :last-child:has(> div > button:first-child > span) > div:first-child {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    grid-template-columns: minmax(0, var(--desktop-video-main-width)) minmax(0, 1fr) !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+    gap: 10px !important;
+    justify-content: end !important;
+    align-items: stretch !important;
+  }
+
+  .heroGrid > :last-child:has(> div > button:first-child > span) > div:first-child > button:first-child {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    aspect-ratio: 4 / 3 !important;
+  }
+
+  .heroGrid > :last-child:has(> div > button:first-child > span) > div:first-child > div {
+    width: 100% !important;
+    height: 100% !important;
+    grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    align-content: stretch !important;
+  }
+
+  .heroGrid > :last-child:has(> div > button:first-child > span) > div:first-child > div > button {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+
+  .heroGrid > :last-child:has(> div > button:first-child > span) > div:first-child > div:has(> button:only-child) {
+    grid-template-rows: minmax(0, 1fr) !important;
+  }
+
+  .heroGrid > :last-child:has(> div > button:only-child) {
+    width: min(var(--desktop-video-main-width), 100%) !important;
+  }
+
+  .heroGrid > :last-child:has(> div > button:only-child) > div:first-child {
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 
   .bodyGrid {
