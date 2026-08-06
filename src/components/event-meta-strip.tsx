@@ -22,11 +22,20 @@ const copy = {
   en: { doors: "Doors open", start: "Event starts", map: "Show on map", waze: "Navigate with Waze", age: "Age restriction", notSet: "Not specified" },
 } as const;
 
+function buildVenueDestination(venue: string, address: string, city: string) {
+  const parts = [venue, address, city, "Israel"]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part, index, all) => all.findIndex((candidate) => candidate.toLocaleLowerCase() === part.toLocaleLowerCase()) === index);
+  return parts.join(", ");
+}
+
 export function EventMetaStrip(props: Props) {
   const t = copy[props.locale];
-  const query = encodeURIComponent(props.address || `${props.venue}, ${props.city}`);
-  const mapUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
-  const wazeUrl = `https://www.waze.com/ul?q=${query}&navigate=yes`;
+  const exactDestination = buildVenueDestination(props.venue, props.address, props.city);
+  const encodedDestination = encodeURIComponent(exactDestination);
+  const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodedDestination}`;
+  const wazeUrl = `https://www.waze.com/ul?q=${encodedDestination}&navigate=yes`;
   const fullDate = new Intl.DateTimeFormat(localeCode[props.locale], {
     weekday: "long",
     day: "numeric",
@@ -60,8 +69,8 @@ export function EventMetaStrip(props: Props) {
         <h3>{props.venue}</h3>
         <p>{props.address}</p>
         <div className={styles.actions}>
-          <a href={mapUrl} target="_blank" rel="noreferrer"><Map size={16}/><span>{t.map}</span></a>
-          <a href={wazeUrl} target="_blank" rel="noreferrer"><Navigation size={16}/><span>{t.waze}</span></a>
+          <a href={mapUrl} target="_blank" rel="noreferrer" aria-label={`${t.map}: ${exactDestination}`}><Map size={16}/><span>{t.map}</span></a>
+          <a href={wazeUrl} target="_blank" rel="noreferrer" aria-label={`${t.waze}: ${exactDestination}`}><Navigation size={16}/><span>{t.waze}</span></a>
         </div>
       </div>
     </div>
