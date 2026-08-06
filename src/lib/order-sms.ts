@@ -35,7 +35,7 @@ export async function sendOrderTicketSms(publicId: string, options?: { automatic
     return { recipient: order.customerPhone, providerStatus: "ALREADY_SENT", priceMinor: 0, alreadySent: true };
   }
 
-  const ticketUrl = shortTicketUrl(order.publicId);
+  const ticketUrl = await shortTicketUrl(order.publicId);
   const message = `Ваши билеты на ${order.event.title} готовы. Заказ: ${order.publicId}. Билеты: ${ticketUrl}`;
   const result = await sendSms019({ phone: order.customerPhone, message, campaignName: `ticket-${order.publicId}` });
 
