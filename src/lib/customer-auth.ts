@@ -1,8 +1,8 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 
-const COOKIE = "atlas_customer_session";
-const TTL_SECONDS = 60 * 60 * 24 * 30;
+export const customerSessionCookie = "atlas_customer_session";
+export const customerSessionTtlSeconds = 60 * 60 * 24 * 30;
 const MAGIC_LINK_TTL_SECONDS = 60 * 15;
 
 type CustomerSession = {
@@ -48,23 +48,27 @@ export function verifyCustomerMagicToken(token: string) {
   return decode(token);
 }
 
+export function createCustomerSessionToken(email: string) {
+  return encode(email, Math.floor(Date.now() / 1000) + customerSessionTtlSeconds);
+}
+
 export async function createCustomerSession(email: string) {
   const store = await cookies();
-  store.set(COOKIE, encode(email, Math.floor(Date.now() / 1000) + TTL_SECONDS), {
+  store.set(customerSessionCookie, createCustomerSessionToken(email), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: TTL_SECONDS,
+    maxAge: customerSessionTtlSeconds,
   });
 }
 
 export async function clearCustomerSession() {
   const store = await cookies();
-  store.delete(COOKIE);
+  store.delete(customerSessionCookie);
 }
 
 export async function getCustomerSession() {
   const store = await cookies();
-  return decode(store.get(COOKIE)?.value || "");
+  return decode(store.get(customerSessionCookie)?.value || "");
 }
