@@ -1,3 +1,5 @@
+@import "./admin-event-layout-overrides.css";
+
 :root {
   --atlas-heading-font: "Roboto Flex", "Noto Sans Hebrew", Arial, Helvetica, sans-serif;
   --atlas-body-font: "Inter", "Noto Sans Hebrew", Arial, Helvetica, sans-serif;
