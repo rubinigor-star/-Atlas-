@@ -49,7 +49,8 @@ export function EventMetaStrip(props: Props) {
     year: "numeric",
     timeZone: "Asia/Jerusalem",
   }).format(new Date(props.startsAt));
-  const formattedFullDate = fullDate.charAt(0).toUpperCase() + fullDate.slice(1);
+  const normalizedFullDate = props.locale === "ru" ? fullDate.replace(/\s*г\.?$/i, "") : fullDate;
+  const formattedFullDate = normalizedFullDate.charAt(0).toUpperCase() + normalizedFullDate.slice(1);
 
   useEffect(() => {
     function closeOutside(event: PointerEvent) {
