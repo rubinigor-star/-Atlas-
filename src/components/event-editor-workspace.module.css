@@ -8,6 +8,9 @@
 .active .index{background:#ffe2d8;color:#bd3d1f}
 .content{min-width:0}.hidden{display:none}
 :global([data-workspace-local-save="true"]){display:none!important}
+:global([data-editor-tab="about"] .toast),
+:global([data-editor-tab="about"] .save-feedback),
+:global([data-editor-tab="about"] [data-event-type-manager="true"] [role="status"]){display:none!important}
 .footer{position:static;display:grid;grid-template-columns:auto minmax(260px,1fr) auto;align-items:center;gap:12px;margin-top:4px;padding:14px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 12px 32px rgba(15,23,42,.08)}
 .secondary{border:1px solid var(--line);border-radius:12px;background:#fff;padding:11px 17px;font-weight:750;cursor:pointer}.secondary:disabled{opacity:.4;cursor:not-allowed}
 .saveGroup{display:flex;min-width:0;align-items:center;justify-content:center;gap:12px}.saveGroup :global(.btn){min-width:260px}.saveMessage{min-width:0;color:#64748b;font-size:13px;line-height:1.3}
