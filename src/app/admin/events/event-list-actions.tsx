@@ -24,39 +24,9 @@ type EventListActionsProps = {
 };
 
 const labels = {
-  ru: {
-    edit: "Редактировать",
-    pause: "Приостановить",
-    publish: "Опубликовать",
-    soldOut: "SOLD OUT",
-    available: "Вернуть в продажу",
-    copy: "Копировать",
-    page: "Страница события",
-    working: "Выполняется...",
-    copySuffix: "копия",
-  },
-  he: {
-    edit: "עריכה",
-    pause: "השהיה",
-    publish: "פרסום",
-    soldOut: "SOLD OUT",
-    available: "החזרה למכירה",
-    copy: "שכפול",
-    page: "עמוד האירוע",
-    working: "מתבצע...",
-    copySuffix: "עותק",
-  },
-  en: {
-    edit: "Edit",
-    pause: "Pause",
-    publish: "Publish",
-    soldOut: "SOLD OUT",
-    available: "Return to sale",
-    copy: "Duplicate",
-    page: "Event page",
-    working: "Working...",
-    copySuffix: "copy",
-  },
+  ru: { edit: "Редактировать", pause: "Приостановить", paused: "Приостановлено", publish: "Опубликовать", soldOut: "SOLD OUT", available: "Вернуть в продажу", copy: "Копировать", page: "Страница события", working: "Выполняется...", copySuffix: "копия" },
+  he: { edit: "עריכה", pause: "השהיה", paused: "מושהה", publish: "פרסום", soldOut: "SOLD OUT", available: "החזרה למכירה", copy: "שכפול", page: "עמוד האירוע", working: "מתבצע...", copySuffix: "עותק" },
+  en: { edit: "Edit", pause: "Pause", paused: "Paused", publish: "Publish", soldOut: "SOLD OUT", available: "Return to sale", copy: "Duplicate", page: "Event page", working: "Working...", copySuffix: "copy" },
 } as const;
 
 function currentLocale() {
@@ -72,6 +42,7 @@ export function EventListActions({ event, canManage }: EventListActionsProps) {
   const locale = currentLocale();
   const t = labels[locale];
   const published = event.status === "PUBLISHED";
+  const paused = event.status === "DRAFT";
 
   const uniqueClone = useMemo(() => {
     const suffix = Date.now().toString(36);
@@ -143,16 +114,28 @@ export function EventListActions({ event, canManage }: EventListActionsProps) {
         </Link>
 
         {canManage && (
-          <button className="event-card-control" type="button" disabled={Boolean(busy)} onClick={() => runListAction(published ? "pause" : "publish")}>
+          <button
+            className={`event-card-control${paused ? " is-paused" : ""}`}
+            type="button"
+            aria-pressed={paused}
+            disabled={Boolean(busy)}
+            onClick={() => runListAction(published ? "pause" : "publish")}
+          >
             {published ? <Pause size={17} aria-hidden="true" /> : <Play size={17} aria-hidden="true" />}
-            <span>{busy === "pause" || busy === "publish" ? t.working : published ? t.pause : t.publish}</span>
+            <span>{busy === "pause" || busy === "publish" ? t.working : paused ? t.paused : published ? t.pause : t.publish}</span>
           </button>
         )}
 
         {canManage && (
-          <button className="event-card-control" type="button" disabled={Boolean(busy)} onClick={() => runListAction(event.soldOut ? "available" : "soldOut")}>
+          <button
+            className={`event-card-control${event.soldOut ? " is-sold-out" : ""}`}
+            type="button"
+            aria-pressed={event.soldOut}
+            disabled={Boolean(busy)}
+            onClick={() => runListAction(event.soldOut ? "available" : "soldOut")}
+          >
             {event.soldOut ? <RotateCcw size={17} aria-hidden="true" /> : <ShoppingBag size={17} aria-hidden="true" />}
-            <span>{busy === "soldOut" || busy === "available" ? t.working : event.soldOut ? t.available : t.soldOut}</span>
+            <span>{busy === "soldOut" || busy === "available" ? t.working : event.soldOut ? t.soldOut : t.soldOut}</span>
           </button>
         )}
 
