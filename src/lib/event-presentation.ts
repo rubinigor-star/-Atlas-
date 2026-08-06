@@ -5,6 +5,7 @@ export type EventFaqItem = {
 
 export type EventPresentation = {
   shortDescription: string;
+  ageRestriction: string;
   galleryEnabled: boolean;
   galleryUrls: string[];
   faqEnabled: boolean;
@@ -13,11 +14,13 @@ export type EventPresentation = {
 
 const PRESENTATION_MARKER = /<!--ATLAS_EVENT_PRESENTATION:([A-Za-z0-9+/=]+)-->/;
 const MAX_FAQ_ITEMS = 15;
+const AGE_RESTRICTIONS = ["Детское", "3+", "6+", "12+", "16+", "18+", "Без ограничений"] as const;
 const remoteImageUrl = /^https?:\/\//i;
 const inlineImageUrl = /^data:image\/(?:jpeg|png|webp);base64,/i;
 
 export const emptyEventPresentation: EventPresentation = {
   shortDescription: "",
+  ageRestriction: "Без ограничений",
   galleryEnabled: false,
   galleryUrls: [],
   faqEnabled: false,
@@ -26,6 +29,12 @@ export const emptyEventPresentation: EventPresentation = {
 
 function validImageUrl(value: unknown): value is string {
   return typeof value === "string" && (remoteImageUrl.test(value) || inlineImageUrl.test(value));
+}
+
+function normalizeAgeRestriction(value: unknown) {
+  return typeof value === "string" && AGE_RESTRICTIONS.includes(value as (typeof AGE_RESTRICTIONS)[number])
+    ? value
+    : "Без ограничений";
 }
 
 function normalizeFaq(value: unknown): EventFaqItem[] {
@@ -44,7 +53,7 @@ export function parseEventPresentation(description: string): EventPresentation {
   try {
     const parsed = JSON.parse(Buffer.from(encoded, "base64").toString("utf8"));
     const shortDescription = typeof parsed?.shortDescription === "string"
-      ? parsed.shortDescription.trim().slice(0, 150)
+      ? parsed.shortDescription.trim().slice(0, 100)
       : "";
     const galleryUrls = Array.isArray(parsed?.galleryUrls)
       ? parsed.galleryUrls.filter(validImageUrl).slice(0, 6)
@@ -53,6 +62,7 @@ export function parseEventPresentation(description: string): EventPresentation {
 
     return {
       shortDescription,
+      ageRestriction: normalizeAgeRestriction(parsed?.ageRestriction),
       galleryEnabled: parsed?.galleryEnabled === true && galleryUrls.length > 0,
       galleryUrls,
       faqEnabled: typeof parsed?.faqEnabled === "boolean" ? parsed.faqEnabled : faq.length > 0,
@@ -71,14 +81,15 @@ export function withEventPresentation(description: string, presentation: EventPr
   const clean = stripEventPresentation(description);
   const faq = normalizeFaq(presentation.faq);
   const normalized: EventPresentation = {
-    shortDescription: presentation.shortDescription.trim().slice(0, 150),
+    shortDescription: presentation.shortDescription.trim().slice(0, 100),
+    ageRestriction: normalizeAgeRestriction(presentation.ageRestriction),
     galleryEnabled: presentation.galleryEnabled && presentation.galleryUrls.length > 0,
     galleryUrls: presentation.galleryUrls.filter(validImageUrl).slice(0, 6),
     faqEnabled: presentation.faqEnabled && faq.length > 0,
     faq,
   };
 
-  if (!normalized.shortDescription && !normalized.galleryUrls.length && !normalized.faq.length) return clean;
+  if (!normalized.shortDescription && normalized.ageRestriction === "Без ограничений" && !normalized.galleryUrls.length && !normalized.faq.length) return clean;
 
   const encoded = Buffer.from(JSON.stringify(normalized), "utf8").toString("base64");
   return `${clean}\n<!--ATLAS_EVENT_PRESENTATION:${encoded}-->`;
