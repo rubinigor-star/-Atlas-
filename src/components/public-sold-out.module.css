@@ -1,0 +1,41 @@
+.event {
+  position: relative !important;
+}
+
+.event img {
+  border: 3px solid #d92027 !important;
+  box-sizing: border-box;
+}
+
+.label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 6;
+  min-width: 108px;
+  padding: 6px 14px;
+  border-radius: 0 0 11px 11px;
+  background: #d92027;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: .08em;
+  text-align: center;
+  transform: translateX(-50%);
+  box-shadow: 0 5px 16px rgba(148, 13, 20, .28);
+  pointer-events: none;
+}
+
+@media (max-width: 600px) {
+  .event img {
+    border-width: 2px !important;
+  }
+
+  .label {
+    min-width: 84px;
+    padding: 5px 10px;
+    border-radius: 0 0 8px 8px;
+    font-size: 9px;
+  }
+}
