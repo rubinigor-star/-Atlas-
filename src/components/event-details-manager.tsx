@@ -2,17 +2,20 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CalendarDays, MapPin, ShieldCheck, Theater } from "lucide-react";
 import { PosterUploader } from "@/components/poster-uploader";
 import { EventGalleryUploader } from "@/components/event-gallery-uploader";
 import { EventVideoUploader } from "@/components/event-video-uploader";
 import { EventFaqEditor } from "@/components/event-faq-editor";
 import { useLocale } from "@/components/locale-provider";
 import type { EventFaqItem } from "@/lib/event-presentation";
+import { israelCities } from "@/lib/israel-cities";
 import styles from "@/components/event-media-manager.module.css";
 
 type MediaItem = { type: "VIDEO" | "LINK"; url: string; title?: string };
 type Presentation = {
   shortDescription: string;
+  ageRestriction: string;
   galleryEnabled: boolean;
   galleryUrls: string[];
   faqEnabled: boolean;
@@ -31,17 +34,34 @@ type EventDetails = {
   address: string;
 };
 
-const SHORT_DESCRIPTION_LIMIT = 150;
+const TITLE_LIMIT = 50;
+const SHORT_DESCRIPTION_LIMIT = 100;
 const MAX_FAQ_ITEMS = 15;
 const MIN_FAQ_ITEMS = 3;
 const EMPTY_FAQ_ITEM: EventFaqItem = { question: "", answer: "" };
 const PRESENTATION_MARKER = /<!--ATLAS_EVENT_PRESENTATION:([A-Za-z0-9+/=]+)-->/;
+const AGE_RESTRICTIONS = ["Детское", "3+", "6+", "12+", "16+", "18+", "Без ограничений"];
+const ISRAEL_VENUES = [
+  "Reading 3", "Hangar 11", "Expo Tel Aviv", "Menora Mivtachim Arena", "Heichal HaTarbut Tel Aviv",
+  "Barby Tel Aviv", "Zappa Tel Aviv", "Zappa Herzliya", "Zappa Haifa", "Zappa Jerusalem",
+  "Gray Tel Aviv", "Gray Yehud", "Gray Modi'in", "Gray Kfar Saba", "Amphi Shuni",
+  "Caesarea Amphitheater", "Sultan's Pool", "Pais Arena Jerusalem", "International Convention Center Haifa",
+  "Romema Arena", "Congress Center Haifa", "Auditorium Haifa", "Krieger Arts Center", "Beit Nagler",
+  "MALINA Night Club", "Другой зал",
+];
 
 const labels = {
   ru: {
     title: "Официальное название мероприятия",
+    titleHelp: "Максимум 50 символов.",
     shortDescription: "Краткое описание",
-    shortHelp: "Показывается под названием мероприятия. Максимум 150 символов.",
+    shortHelp: "Показывается под названием мероприятия. Максимум 100 символов.",
+    publicPanel: "Информационная панель страницы мероприятия",
+    publicPanelHelp: "Эти четыре значения отображаются в верхней панели страницы мероприятия.",
+    date: "Дата",
+    city: "Город",
+    venue: "Зал",
+    age: "Возраст",
     media: "Медиафайлы мероприятия",
     posterTitle: "Главная афиша",
     posterHelp: "Обязательный квадрат 750 × 750 px. JPG, PNG или WebP. Исходный файл до 15 МБ. Афиша автоматически кадрируется по центру и оптимизируется.",
@@ -66,9 +86,6 @@ const labels = {
     faqDrag: "Перетащить для изменения порядка",
     faqAppend: "Добавить вопрос",
     faqLimit: "Достигнут максимум 15 вопросов",
-    date: "Дата и время",
-    venue: "Площадка",
-    city: "Город",
     address: "Полный адрес",
     save: "Сохранить все изменения",
     saved: "Изменения сохранены",
@@ -77,8 +94,15 @@ const labels = {
   },
   he: {
     title: "השם הרשמי של האירוע",
+    titleHelp: "עד 50 תווים.",
     shortDescription: "תיאור קצר",
-    shortHelp: "מופיע מתחת לשם האירוע. עד 150 תווים.",
+    shortHelp: "מופיע מתחת לשם האירוע. עד 100 תווים.",
+    publicPanel: "סרגל המידע בעמוד האירוע",
+    publicPanelHelp: "ארבעת הערכים האלה מוצגים בסרגל העליון של עמוד האירוע.",
+    date: "תאריך",
+    city: "עיר",
+    venue: "אולם",
+    age: "הגבלת גיל",
     media: "מדיה לאירוע",
     posterTitle: "כרזה ראשית",
     posterHelp: "ריבוע חובה בגודל 750 × 750 פיקסלים. JPG, PNG או WebP. קובץ מקור עד 15MB. הכרזה נחתכת למרכז ומותאמת אוטומטית.",
@@ -103,9 +127,6 @@ const labels = {
     faqDrag: "גרירה לשינוי הסדר",
     faqAppend: "הוספת שאלה",
     faqLimit: "הגעתם למקסימום של 15 שאלות",
-    date: "תאריך ושעה",
-    venue: "מקום האירוע",
-    city: "עיר",
     address: "כתובת מלאה",
     save: "שמירת כל השינויים",
     saved: "השינויים נשמרו",
@@ -114,8 +135,15 @@ const labels = {
   },
   en: {
     title: "Official event name",
+    titleHelp: "Maximum 50 characters.",
     shortDescription: "Short description",
-    shortHelp: "Shown below the event name. Maximum 150 characters.",
+    shortHelp: "Shown below the event name. Maximum 100 characters.",
+    publicPanel: "Event page information bar",
+    publicPanelHelp: "These four values appear in the event page's upper information bar.",
+    date: "Date",
+    city: "City",
+    venue: "Venue",
+    age: "Age restriction",
     media: "Event media",
     posterTitle: "Main poster",
     posterHelp: "Required square format: 750 × 750 px. JPG, PNG or WebP. Source file up to 15 MB. The poster is centered, cropped and optimized automatically.",
@@ -140,9 +168,6 @@ const labels = {
     faqDrag: "Drag to change the order",
     faqAppend: "Add question",
     faqLimit: "Maximum of 15 questions reached",
-    date: "Date and time",
-    venue: "Venue",
-    city: "City",
     address: "Full address",
     save: "Save all changes",
     saved: "Changes saved",
@@ -166,7 +191,7 @@ function ensureMinimumFaq(items: EventFaqItem[]) {
 }
 
 function emptyPresentation(): Presentation {
-  return { shortDescription: "", galleryEnabled: false, galleryUrls: [], faqEnabled: false, faq: [] };
+  return { shortDescription: "", ageRestriction: "Без ограничений", galleryEnabled: false, galleryUrls: [], faqEnabled: false, faq: [] };
 }
 
 function decodePresentation(description: string): Presentation {
@@ -182,6 +207,7 @@ function decodePresentation(description: string): Presentation {
     const faq = normalizeFaq(parsed?.faq);
     return {
       shortDescription: typeof parsed?.shortDescription === "string" ? parsed.shortDescription.slice(0, SHORT_DESCRIPTION_LIMIT) : "",
+      ageRestriction: typeof parsed?.ageRestriction === "string" && AGE_RESTRICTIONS.includes(parsed.ageRestriction) ? parsed.ageRestriction : "Без ограничений",
       galleryEnabled: parsed?.galleryEnabled === true && galleryUrls.length > 0,
       galleryUrls,
       faqEnabled: typeof parsed?.faqEnabled === "boolean" ? parsed.faqEnabled : faq.length > 0,
@@ -199,12 +225,12 @@ function encodePresentation(value: Presentation) {
   })).filter((item) => item.question || item.answer).slice(0, MAX_FAQ_ITEMS);
   const normalized = {
     shortDescription: value.shortDescription.trim().slice(0, SHORT_DESCRIPTION_LIMIT),
+    ageRestriction: AGE_RESTRICTIONS.includes(value.ageRestriction) ? value.ageRestriction : "Без ограничений",
     galleryEnabled: value.galleryEnabled && value.galleryUrls.length > 0,
     galleryUrls: value.galleryUrls.slice(0, 6),
     faqEnabled: value.faqEnabled && faq.some((item) => item.question && item.answer),
     faq,
   };
-  if (!normalized.shortDescription && !normalized.galleryUrls.length && !normalized.faq.length) return "";
   const bytes = new TextEncoder().encode(JSON.stringify(normalized));
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -218,9 +244,13 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
   const initialPresentation = useMemo(() => decodePresentation(event.description), [event.description]);
   const cleanDescription = useMemo(() => event.description.replace(PRESENTATION_MARKER, "").trim(), [event.description]);
   const initialVideoUrl = event.media.find((item) => item.type === "VIDEO")?.url || "";
+  const cityOptions = useMemo(() => event.city && !israelCities.includes(event.city as (typeof israelCities)[number]) ? [event.city, ...israelCities] : [...israelCities], [event.city]);
+  const venueOptions = useMemo(() => event.venueName && !ISRAEL_VENUES.includes(event.venueName) ? [event.venueName, ...ISRAEL_VENUES] : ISRAEL_VENUES, [event.venueName]);
 
   const [message, setMessage] = useState("");
+  const [title, setTitle] = useState(event.title.slice(0, TITLE_LIMIT));
   const [shortDescription, setShortDescription] = useState((event.shortDescription || initialPresentation.shortDescription).slice(0, SHORT_DESCRIPTION_LIMIT));
+  const [ageRestriction, setAgeRestriction] = useState(initialPresentation.ageRestriction);
   const [videoEnabled, setVideoEnabled] = useState(Boolean(initialVideoUrl));
   const [videoUrl, setVideoUrl] = useState(initialVideoUrl);
   const [galleryEnabled, setGalleryEnabled] = useState(initialPresentation.galleryEnabled);
@@ -241,8 +271,10 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
       ...links,
     ];
     const baseDescription = String(formData.get("description") || "").replace(PRESENTATION_MARKER, "").trim();
-    const marker = encodePresentation({ shortDescription, galleryEnabled, galleryUrls, faqEnabled, faq });
+    const marker = encodePresentation({ shortDescription, ageRestriction, galleryEnabled, galleryUrls, faqEnabled, faq });
     const description = marker ? `${baseDescription}\n${marker}` : baseDescription;
+    const chosenDate = String(formData.get("startsAtDate") || event.startsAt.slice(0, 10));
+    const existingTime = event.startsAt.slice(11, 16) || "12:00";
 
     setMessage("");
     try {
@@ -251,10 +283,10 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           action: "update",
-          title: formData.get("title"),
+          title,
           description,
           posterUrl: formData.get("posterUrl"),
-          startsAt: new Date(String(formData.get("startsAt"))).toISOString(),
+          startsAt: new Date(`${chosenDate}T${existingTime}`).toISOString(),
           venueName: formData.get("venueName"),
           city: formData.get("city"),
           address: formData.get("address"),
@@ -284,7 +316,11 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
 
     <div className="field">
       <label>{text.title}</label>
-      <input className="input" name="title" defaultValue={event.title} required/>
+      <input className="input" name="title" maxLength={TITLE_LIMIT} value={title} onChange={(changeEvent) => setTitle(changeEvent.target.value)} required/>
+      <div className="row between" style={{ gap: 12 }}>
+        <small className="muted">{text.titleHelp}</small>
+        <small className="muted" style={{ whiteSpace: "nowrap" }}>{title.length}/{TITLE_LIMIT} {text.chars}</small>
+      </div>
     </div>
 
     <div className="field">
@@ -295,6 +331,42 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
         <small className="muted" style={{ whiteSpace: "nowrap" }}>{shortDescription.length}/{SHORT_DESCRIPTION_LIMIT} {text.chars}</small>
       </div>
     </div>
+
+    <section className={styles.infoPanelSection}>
+      <header className={styles.infoPanelHeader}>
+        <h3>{text.publicPanel}</h3>
+        <p>{text.publicPanelHelp}</p>
+      </header>
+      <div className={styles.infoControlStrip}>
+        <label className={styles.infoControl}>
+          <CalendarDays size={20}/>
+          <span>{text.date}</span>
+          <input name="startsAtDate" type="date" defaultValue={event.startsAt.slice(0, 10)} required/>
+        </label>
+        <label className={styles.infoControl}>
+          <MapPin size={20}/>
+          <span>{text.city}</span>
+          <select name="city" defaultValue={event.city} required>
+            {cityOptions.map((city) => <option key={city} value={city}>{city}</option>)}
+          </select>
+        </label>
+        <label className={styles.infoControl}>
+          <Theater size={20}/>
+          <span>{text.venue}</span>
+          <select name="venueName" defaultValue={event.venueName} required>
+            {venueOptions.map((venue) => <option key={venue} value={venue}>{venue}</option>)}
+          </select>
+        </label>
+        <label className={styles.infoControl}>
+          <ShieldCheck size={20}/>
+          <span>{text.age}</span>
+          <select value={ageRestriction} onChange={(changeEvent) => setAgeRestriction(changeEvent.target.value)} size={1}>
+            {AGE_RESTRICTIONS.map((restriction) => <option key={restriction} value={restriction}>{restriction}</option>)}
+          </select>
+        </label>
+      </div>
+      <div className="field"><label>{text.address}</label><input className="input" name="address" defaultValue={event.address} required/></div>
+    </section>
 
     <div className="field">
       <label>{text.media}</label>
@@ -381,15 +453,6 @@ export function EventDetailsManager({ event }: { event: EventDetails }) {
         limitLabel={text.faqLimit}
       />
     </section>
-
-    <div className="form-grid two">
-      <div className="field"><label>{text.date}</label><input className="input" name="startsAt" type="datetime-local" defaultValue={event.startsAt.slice(0, 16)} required/></div>
-      <div className="field"><label>{text.venue}</label><input className="input" name="venueName" defaultValue={event.venueName} required/></div>
-    </div>
-    <div className="form-grid two">
-      <div className="field"><label>{text.city}</label><input className="input" name="city" defaultValue={event.city} required/></div>
-      <div className="field"><label>{text.address}</label><input className="input" name="address" defaultValue={event.address} required/></div>
-    </div>
 
     <button className="btn" data-workspace-local-save="true">{text.save}</button>
     {message && <div className="toast" role="status">{message}</div>}
