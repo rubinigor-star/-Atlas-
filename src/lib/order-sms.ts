@@ -1,10 +1,7 @@
 import { db } from "@/lib/db";
 import { claimNotification, completeNotification, failNotification } from "@/lib/notification-ledger";
 import { sendSms019 } from "@/lib/sms-019";
-
-function baseUrl() {
-  return (process.env.PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, "");
-}
+import { shortTicketUrl } from "@/lib/short-ticket-link";
 
 export function getSmsPriceMinor() {
   const value = Number(process.env.SMS_PRICE_MINOR ?? "20");
@@ -38,8 +35,8 @@ export async function sendOrderTicketSms(publicId: string, options?: { automatic
     return { recipient: order.customerPhone, providerStatus: "ALREADY_SENT", priceMinor: 0, alreadySent: true };
   }
 
-  const orderUrl = `${baseUrl()}/orders/${encodeURIComponent(order.publicId)}`;
-  const message = `Atlas One: билеты на ${order.event.title}. Заказ ${order.publicId}. Открыть билеты: ${orderUrl}`;
+  const ticketUrl = shortTicketUrl(order.publicId);
+  const message = `Ваши билеты на ${order.event.title} готовы. Заказ: ${order.publicId}. Билеты: ${ticketUrl}`;
   const result = await sendSms019({ phone: order.customerPhone, message, campaignName: `ticket-${order.publicId}` });
 
   if (!result.ok) {
@@ -49,5 +46,5 @@ export async function sendOrderTicketSms(publicId: string, options?: { automatic
   }
 
   await completeNotification(claim.id!, { providerStatus: result.providerStatus, providerMessage: result.providerMessage });
-  return { recipient: order.customerPhone, providerStatus: result.providerStatus ?? null, priceMinor, alreadySent: false };
+  return { recipient: order.customerPhone, providerStatus: result.providerStatus ?? null, priceMinor, alreadySent: false, ticketUrl };
 }
