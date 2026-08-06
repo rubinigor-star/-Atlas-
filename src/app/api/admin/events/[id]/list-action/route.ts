@@ -35,8 +35,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
         : { description: setSoldOut(event.description, input.action === "soldOut") };
 
     const updated = await db.event.update({ where: { id }, data, select: { status: true, description: true } });
-    await writeAudit({
-      actor,
+    await writeAudit(actor, {
       action: `EVENT_${input.action.toUpperCase()}`,
       entityType: "Event",
       entityId: id,
