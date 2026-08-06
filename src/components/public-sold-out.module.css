@@ -1,10 +1,27 @@
 .event {
   position: relative !important;
+  isolation: isolate;
 }
 
 .event img {
-  border: 3px solid #d92027 !important;
+  position: relative;
+  z-index: 1;
+  border: 0 !important;
+  border-radius: inherit;
   box-sizing: border-box;
+  outline: 3px solid #d92027;
+  outline-offset: 2px;
+  box-shadow: 0 7px 20px rgba(148, 13, 20, .16);
+  transform-origin: center;
+  transition: transform .24s ease, outline-color .2s ease, box-shadow .24s ease !important;
+}
+
+.event:hover img,
+.event:focus-visible img,
+.event:focus-within img {
+  transform: scale(1.035) !important;
+  outline-color: #ef252d;
+  box-shadow: 0 12px 28px rgba(148, 13, 20, .25);
 }
 
 .label {
@@ -29,7 +46,14 @@
 
 @media (max-width: 600px) {
   .event img {
-    border-width: 2px !important;
+    outline-width: 2px;
+    outline-offset: 2px;
+  }
+
+  .event:hover img,
+  .event:focus-visible img,
+  .event:focus-within img {
+    transform: scale(1.025) !important;
   }
 
   .label {
