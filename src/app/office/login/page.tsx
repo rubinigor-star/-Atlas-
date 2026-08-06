@@ -110,9 +110,7 @@ export default async function OfficeLoginPage({ searchParams }: { searchParams: 
 
   return <main className={styles.page}>
     <div className={brandingStyles.loginTopbar}>
-      <Link href="/" className={brandingStyles.siteLogo} aria-label="Atlas One">
-        <AtlasLogo />
-      </Link>
+      <AtlasLogo />
       <OfficeLanguageControl />
     </div>
 
