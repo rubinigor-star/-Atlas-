@@ -1,0 +1,127 @@
+.loginTopbar {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 10px 8px 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 18px;
+  background: rgba(8,10,18,.22);
+  box-shadow: 0 12px 34px rgba(0,0,0,.18);
+  backdrop-filter: blur(16px) saturate(125%);
+  -webkit-backdrop-filter: blur(16px) saturate(125%);
+}
+
+.topbarLogo {
+  display: block;
+  width: 126px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.logoPlaceholder {
+  display: block;
+  width: 100%;
+  min-height: 54px;
+}
+
+.languageControl {
+  position: relative;
+}
+
+.languageButton {
+  min-width: 116px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: rgba(255,255,255,.08);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease;
+}
+
+.languageButton:hover,
+.languageButton:focus-visible,
+.languageButton[aria-expanded="true"] {
+  border-color: rgba(255,132,0,.72);
+  background: rgba(255,255,255,.12);
+  outline: none;
+}
+
+.languageButton svg {
+  transition: transform .18s ease;
+}
+
+.languageButton[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.languageMenu {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  width: 150px;
+  padding: 6px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px;
+  background: rgba(14,15,23,.96);
+  box-shadow: 0 18px 42px rgba(0,0,0,.36);
+  backdrop-filter: blur(16px);
+}
+
+.languageMenu button {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255,255,255,.78);
+  font: inherit;
+  font-size: 14px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.languageMenu button:hover,
+.languageMenu button:focus-visible {
+  background: rgba(255,255,255,.08);
+  color: #fff;
+  outline: none;
+}
+
+.languageMenu button[data-selected="true"] {
+  color: #ff9a24;
+  font-weight: 700;
+}
+
+@media (max-width: 680px) {
+  .loginTopbar {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    justify-content: space-between;
+    padding: 7px 8px 7px 12px;
+  }
+
+  .topbarLogo {
+    width: 108px;
+    height: 42px;
+  }
+
+  .languageButton {
+    min-width: 104px;
+    min-height: 38px;
+  }
+}
