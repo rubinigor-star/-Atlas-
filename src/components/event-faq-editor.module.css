@@ -8,6 +8,34 @@
   background: #fafbfc;
 }
 
+.disabled {
+  position: relative;
+  overflow: hidden;
+  background: #f3f5f8;
+}
+
+.disabled::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(245, 247, 250, .38);
+  content: "";
+  pointer-events: none;
+}
+
+.disabled .row,
+.disabled .columnHead,
+.disabled .head {
+  opacity: .58;
+  filter: grayscale(.18);
+}
+
+.disabled input,
+.disabled textarea {
+  color: #737b8d;
+  -webkit-text-fill-color: #737b8d;
+}
+
 .head {
   display: flex;
   min-height: 18px;
@@ -23,7 +51,7 @@
 .columnHead,
 .row {
   display: grid;
-  grid-template-columns: 28px minmax(240px, .95fr) minmax(300px, 1.05fr) 116px;
+  grid-template-columns: 28px minmax(240px, .95fr) minmax(300px, 1.05fr) 150px;
   gap: 8px;
   align-items: center;
 }
@@ -120,6 +148,13 @@
   color: #2155d9;
 }
 
+.deleteButton:hover,
+.deleteButton:focus-visible {
+  border-color: #f0a6ae;
+  background: #fff1f2;
+  color: #c62f42;
+}
+
 .iconButton:active {
   transform: translateY(1px);
 }
@@ -181,7 +216,7 @@
 @media (max-width: 1040px) {
   .columnHead,
   .row {
-    grid-template-columns: 28px minmax(190px, .9fr) minmax(240px, 1.1fr) 108px;
+    grid-template-columns: 28px minmax(190px, .9fr) minmax(240px, 1.1fr) 142px;
   }
 }
 
