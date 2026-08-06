@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { Locale } from "@/components/locale-provider";
+import { AtlasLogo } from "@/components/atlas-logo";
 import { localeNames } from "@/lib/i18n";
 import { atlasBackstageLogoDataUrl } from "@/lib/atlas-backstage-logo";
 import styles from "./office-login-branding.module.css";
@@ -13,28 +14,8 @@ function isLocale(value: string | null | undefined): value is Locale {
   return value === "ru" || value === "he" || value === "en";
 }
 
-function useLogoObjectUrl() {
-  const [url, setUrl] = useState("");
-
-  useEffect(() => {
-    const comma = atlasBackstageLogoDataUrl.indexOf(",");
-    if (comma < 0) return;
-
-    const binary = window.atob(atlasBackstageLogoDataUrl.slice(comma + 1));
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-
-    const objectUrl = URL.createObjectURL(new Blob([bytes], { type: "image/png" }));
-    setUrl(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, []);
-
-  return url;
-}
-
 export function BackstageLogo({ className }: { className?: string }) {
-  const logoUrl = useLogoObjectUrl();
-  return logoUrl ? <img className={className} src={logoUrl} alt="Atlas One Backstage" /> : <span className={styles.logoPlaceholder} aria-hidden="true" />;
+  return <img className={className} src={atlasBackstageLogoDataUrl} alt="Atlas One Backstage" />;
 }
 
 export function OfficeLoginTopbar() {
@@ -55,13 +36,11 @@ export function OfficeLoginTopbar() {
     setOpen(false);
     window.localStorage.setItem("atlas-locale", nextLocale);
     document.cookie = `atlas_locale=${nextLocale}; path=/; max-age=31536000; samesite=lax`;
-    document.documentElement.lang = nextLocale;
-    document.documentElement.dir = nextLocale === "he" ? "rtl" : "ltr";
     window.location.reload();
   }
 
   return <div className={styles.loginTopbar}>
-    <BackstageLogo className={styles.topbarLogo} />
+    <div className={styles.siteLogo}><AtlasLogo dark /></div>
     <div className={styles.languageControl}>
       <button type="button" className={styles.languageButton} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(value => !value)}>
         <span>{activeName}</span>
