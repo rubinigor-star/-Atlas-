@@ -141,6 +141,38 @@ textarea::placeholder {
   font-weight: 400;
 }
 
+/* Keep the complete public event experience on the same typography system as the homepage. */
+#event-public-page,
+#event-public-page a,
+#event-public-page button,
+#event-public-page input,
+#event-public-page textarea,
+#event-public-page select,
+#event-public-page p,
+#event-public-page span,
+#event-public-page small,
+#event-public-page label,
+#event-public-page strong,
+#event-public-page b {
+  font-family: var(--atlas-body-font);
+  font-optical-sizing: auto;
+  font-synthesis: none;
+}
+
+#event-public-page h1,
+#event-public-page h2,
+#event-public-page h3,
+#event-public-page h4,
+#event-public-page h5,
+#event-public-page h6 {
+  font-family: var(--atlas-heading-font);
+  font-style: normal;
+  font-stretch: normal;
+  font-variation-settings: "wght" 700, "wdth" 100;
+  font-optical-sizing: auto;
+  font-synthesis: none;
+}
+
 /* Mobile keeps the desktop typefaces and variable-font axes.
    Only responsive font sizes and line boxes are allowed to change. */
 @media (max-width: 980px) {
