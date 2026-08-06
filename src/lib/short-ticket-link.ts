@@ -3,7 +3,11 @@ import { createHmac, timingSafeEqual } from "crypto";
 const VERSION = "v1";
 
 function secret() {
-  const value = process.env.CUSTOMER_AUTH_SECRET || process.env.NEXTAUTH_SECRET || process.env.SESSION_SECRET;
+  const value =
+    process.env.SHORT_LINK_SIGNING_SECRET ||
+    process.env.CUSTOMER_AUTH_SECRET ||
+    process.env.NEXTAUTH_SECRET ||
+    process.env.SESSION_SECRET;
   if (!value) throw new Error("Missing short-link signing secret");
   return value;
 }
