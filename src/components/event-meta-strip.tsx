@@ -17,9 +17,9 @@ type Props = {
 
 const localeCode: Record<Locale, string> = { ru: "ru-IL", he: "he-IL", en: "en-IL" };
 const copy = {
-  ru: { doors: "Открытие дверей", start: "Начало мероприятия", map: "Показать на карте", waze: "Маршрут в Waze", age: "Возрастное ограничение" },
-  he: { doors: "פתיחת דלתות", start: "תחילת האירוע", map: "הצגה במפה", waze: "ניווט ב-Waze", age: "הגבלת גיל" },
-  en: { doors: "Doors open", start: "Event starts", map: "Show on map", waze: "Navigate with Waze", age: "Age restriction" },
+  ru: { doors: "Открытие дверей", start: "Начало мероприятия", map: "Показать на карте", waze: "Маршрут в Waze", age: "Возрастное ограничение", notSet: "Не указано" },
+  he: { doors: "פתיחת דלתות", start: "תחילת האירוע", map: "הצגה במפה", waze: "ניווט ב-Waze", age: "הגבלת גיל", notSet: "לא צוין" },
+  en: { doors: "Doors open", start: "Event starts", map: "Show on map", waze: "Navigate with Waze", age: "Age restriction", notSet: "Not specified" },
 } as const;
 
 export function EventMetaStrip(props: Props) {
@@ -43,7 +43,7 @@ export function EventMetaStrip(props: Props) {
         <div className={styles.popIcon}><CalendarDays/></div>
         <h3>{formattedFullDate}</h3>
         <div className={styles.facts}>
-          {props.doorsOpenTime && <div className={styles.fact}><span>{t.doors}</span><strong>{props.doorsOpenTime}</strong></div>}
+          <div className={styles.fact}><span>{t.doors}</span><strong>{props.doorsOpenTime || t.notSet}</strong></div>
           <div className={styles.fact}><span>{t.start}</span><strong>{props.startTime}</strong></div>
         </div>
       </div>
