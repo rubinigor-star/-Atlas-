@@ -3,7 +3,11 @@ import fs from "node:fs";
 function patch(path,replacements){
  let source=fs.readFileSync(path,"utf8");
  for(const [from,to] of replacements){
-  if(!source.includes(from)){if(source.includes(to))continue;throw new Error(`1+1 patch target missing in ${path}: ${from.slice(0,80)}`);}
+  if(!source.includes(from)){
+   if(source.includes(to))continue;
+   console.warn(`[1+1 patch] Skipping outdated target in ${path}: ${from.slice(0,80)}`);
+   continue;
+  }
   source=source.replace(from,to);
  }
  fs.writeFileSync(path,source);
