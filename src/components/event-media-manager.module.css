@@ -11,13 +11,14 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
+  margin-bottom: 28px;
 }
 
 .primaryFieldsGrid :global(.field) {
   position: relative;
   min-width: 0;
   margin: 0;
-  padding-bottom: 22px;
+  padding-bottom: 24px;
 }
 
 .primaryFieldsGrid input,
@@ -26,12 +27,17 @@
   box-sizing: border-box;
 }
 
+.primaryFieldsGrid input {
+  min-height: 52px;
+}
+
 .primaryFieldsGrid textarea {
-  height: 48px;
-  min-height: 48px;
-  max-height: 48px;
+  height: 72px;
+  min-height: 72px;
+  max-height: 72px;
   resize: none;
   overflow-y: auto;
+  line-height: 1.45;
 }
 
 .fieldCounter {
@@ -46,11 +52,16 @@
 
 .infoPanelSection {
   display: grid;
-  gap: 16px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
   padding: 20px;
   border: 1px solid #d8dde7;
   border-radius: 20px;
   background: #f8f9fb;
+}
+
+.infoPanelHeader {
+  grid-column: 1 / -1;
 }
 
 .infoPanelHeader h3 {
@@ -65,17 +76,39 @@
   font-size: 13px;
 }
 
-.venueFirstGrid {
-  display: grid;
-  grid-template-columns: minmax(260px, 1.45fr) repeat(3, minmax(160px, .72fr));
-  gap: 12px;
-  align-items: stretch;
+.venueFirstGrid,
+.locationGrid {
+  display: contents;
 }
 
-.locationGrid {
-  display: grid;
-  grid-template-columns: minmax(220px, .75fr) minmax(360px, 1.6fr);
-  gap: 12px;
+.venueFirstGrid > :nth-child(1) {
+  grid-column: 1 / span 2;
+  grid-row: 2;
+}
+
+.locationGrid > :nth-child(1) {
+  grid-column: 3 / span 1;
+  grid-row: 2;
+}
+
+.locationGrid > :nth-child(2) {
+  grid-column: 4 / span 3;
+  grid-row: 2;
+}
+
+.venueFirstGrid > :nth-child(2) {
+  grid-column: 1 / span 2;
+  grid-row: 3;
+}
+
+.venueFirstGrid > :nth-child(3) {
+  grid-column: 3 / span 2;
+  grid-row: 3;
+}
+
+.venueFirstGrid > :nth-child(4) {
+  grid-column: 5 / span 2;
+  grid-row: 3;
 }
 
 .detailField {
@@ -136,12 +169,14 @@
 }
 
 .panelHint {
-  margin-top: -6px;
+  grid-column: 1 / -1;
+  margin-top: -4px;
   color: #66758d;
   font-size: 12px;
 }
 
 .agePreview {
+  grid-column: 1 / -1;
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -250,15 +285,29 @@
 
 @media (max-width: 1180px) {
   .mediaGrid { grid-template-columns: repeat(2, minmax(280px, 1fr)); }
-  .venueFirstGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .locationGrid { grid-template-columns: 1fr 1.5fr; }
+  .infoPanelSection { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .infoPanelHeader,
+  .agePreview,
+  .panelHint { grid-column: 1 / -1; }
+  .venueFirstGrid > :nth-child(1),
+  .locationGrid > :nth-child(1),
+  .locationGrid > :nth-child(2),
+  .venueFirstGrid > :nth-child(2),
+  .venueFirstGrid > :nth-child(3),
+  .venueFirstGrid > :nth-child(4) {
+    grid-column: auto;
+    grid-row: auto;
+  }
 }
 
 @media (max-width: 760px) {
   .primaryFieldsGrid,
   .mediaGrid,
-  .venueFirstGrid,
-  .locationGrid { grid-template-columns: 1fr; }
+  .infoPanelSection { grid-template-columns: 1fr; }
+  .primaryFieldsGrid { margin-bottom: 22px; }
   .cardHeader { min-height: 0; }
   .infoPanelSection { padding: 14px; }
+  .infoPanelHeader,
+  .agePreview,
+  .panelHint { grid-column: 1; }
 }
