@@ -5,7 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { useLocale, type Locale } from "@/components/locale-provider";
 import { localeNames } from "@/lib/i18n";
 import { atlasBackstageLogoDataUrl } from "@/lib/atlas-backstage-logo";
-import styles from "./office-login.module.css";
+import styles from "./office-login-branding.module.css";
 
 const locales: Locale[] = ["ru", "he", "en"];
 
