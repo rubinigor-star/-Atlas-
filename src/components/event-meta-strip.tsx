@@ -1,8 +1,12 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import { CalendarDays, Map, MapPin, Navigation, ShieldCheck, Theater } from "lucide-react";
 import { getAgeRestrictionDescription } from "@/lib/event-info-options";
 import styles from "./event-meta-strip.module.css";
 
 type Locale = "ru" | "he" | "en";
+type OpenCard = "date" | "venue" | "age" | null;
 type Props = {
   locale: Locale;
   startsAt: string;
@@ -31,6 +35,8 @@ function buildVenueDestination(venue: string, address: string, city: string) {
 }
 
 export function EventMetaStrip(props: Props) {
+  const [openCard, setOpenCard] = useState<OpenCard>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
   const t = copy[props.locale];
   const exactDestination = buildVenueDestination(props.venue, props.address, props.city);
   const encodedDestination = encodeURIComponent(exactDestination);
@@ -45,10 +51,31 @@ export function EventMetaStrip(props: Props) {
   }).format(new Date(props.startsAt));
   const formattedFullDate = fullDate.charAt(0).toUpperCase() + fullDate.slice(1);
 
-  return <div className={styles.strip}>
-    <div className={`${styles.item} ${styles.date}`}>
-      <button type="button" className={styles.trigger}><CalendarDays size={19}/><span>{props.date}</span></button>
-      <div className={`${styles.popover} ${styles.schedulePopover}`} role="tooltip">
+  useEffect(() => {
+    function closeOutside(event: PointerEvent) {
+      if (stripRef.current && !stripRef.current.contains(event.target as Node)) setOpenCard(null);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpenCard(null);
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
+
+  function toggle(card: Exclude<OpenCard, null>) {
+    setOpenCard((current) => current === card ? null : card);
+  }
+
+  return <div ref={stripRef} className={styles.strip}>
+    <div className={`${styles.item} ${styles.date} ${openCard === "date" ? styles.open : ""}`}>
+      <button type="button" className={styles.trigger} aria-expanded={openCard === "date"} onClick={() => toggle("date")}>
+        <CalendarDays size={19}/><span>{props.date}</span>
+      </button>
+      <div className={`${styles.popover} ${styles.schedulePopover}`} role="dialog" aria-label={formattedFullDate}>
         <div className={styles.popIcon}><CalendarDays/></div>
         <h3>{formattedFullDate}</h3>
         <div className={styles.facts}>
@@ -62,9 +89,11 @@ export function EventMetaStrip(props: Props) {
       <div className={styles.trigger}><MapPin size={19}/><span>{props.city}</span></div>
     </div>
 
-    <div className={`${styles.item} ${styles.venue}`}>
-      <button type="button" className={styles.trigger}><Theater size={19}/><span>{props.venue}</span></button>
-      <div className={`${styles.popover} ${styles.venuePopover}`} role="tooltip">
+    <div className={`${styles.item} ${styles.venue} ${openCard === "venue" ? styles.open : ""}`}>
+      <button type="button" className={styles.trigger} aria-expanded={openCard === "venue"} onClick={() => toggle("venue")}>
+        <Theater size={19}/><span>{props.venue}</span>
+      </button>
+      <div className={`${styles.popover} ${styles.venuePopover}`} role="dialog" aria-label={props.venue}>
         <div className={styles.popIcon}><Theater/></div>
         <h3>{props.venue}</h3>
         <p>{props.address}</p>
@@ -75,9 +104,11 @@ export function EventMetaStrip(props: Props) {
       </div>
     </div>
 
-    <div className={`${styles.item} ${styles.age}`}>
-      <button type="button" className={styles.trigger}><ShieldCheck size={19}/><span>{props.ageRestriction}</span></button>
-      <div className={`${styles.popover} ${styles.agePopover}`} role="tooltip">
+    <div className={`${styles.item} ${styles.age} ${openCard === "age" ? styles.open : ""}`}>
+      <button type="button" className={styles.trigger} aria-expanded={openCard === "age"} onClick={() => toggle("age")}>
+        <ShieldCheck size={19}/><span>{props.ageRestriction}</span>
+      </button>
+      <div className={`${styles.popover} ${styles.agePopover}`} role="dialog" aria-label={`${t.age}: ${props.ageRestriction}`}>
         <div className={styles.popIcon}><ShieldCheck/></div>
         <strong className={styles.ageValue}>{props.ageRestriction}</strong>
         <h3>{t.age}</h3>
