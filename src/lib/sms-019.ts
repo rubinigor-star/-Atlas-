@@ -36,13 +36,20 @@ export function normalizeIsraeliMobilePhone(input: string) {
   return local;
 }
 
-function parseProviderPayload(value: unknown) {
+function normalizeProviderStatus(value: unknown): string | number | null {
+  if (typeof value === "string" || typeof value === "number") return value;
+  return null;
+}
+
+function parseProviderPayload(value: unknown): { status: string | number | null; message: string | null } {
   if (!value || typeof value !== "object") return { status: null, message: null };
   const record = value as Record<string, unknown>;
   const candidate = (record.sms && typeof record.sms === "object" ? record.sms : record) as Record<string, unknown>;
+  const rawMessage = candidate.message ?? record.message;
+
   return {
-    status: candidate.status ?? record.status ?? null,
-    message: typeof (candidate.message ?? record.message) === "string" ? String(candidate.message ?? record.message) : null,
+    status: normalizeProviderStatus(candidate.status ?? record.status),
+    message: typeof rawMessage === "string" ? rawMessage : null,
   };
 }
 
