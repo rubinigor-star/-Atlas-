@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { createCustomerMagicToken } from "@/lib/customer-auth";
+import { claimNotification, completeNotification, failNotification } from "@/lib/notification-ledger";
+import { sendSms019 } from "@/lib/sms-019";
 
 const schema = z.object({ email: z.string().trim().email().max(250) });
 
@@ -17,10 +19,14 @@ export async function POST(request: Request) {
   try {
     const { email } = schema.parse(await request.json());
     const normalized = email.toLowerCase();
-    const hasOrders = await db.order.count({ where: { customerEmail: normalized } });
+    const latestOrder = await db.order.findFirst({
+      where: { customerEmail: normalized },
+      orderBy: { createdAt: "desc" },
+      select: { customerPhone: true },
+    });
 
     // Always return success to avoid exposing whether an email exists.
-    if (!hasOrders) return NextResponse.json({ ok: true });
+    if (!latestOrder) return NextResponse.json({ ok: true });
 
     const token = createCustomerMagicToken(normalized);
     const url = `${baseUrl()}/api/account/verify?token=${encodeURIComponent(token)}`;
@@ -39,6 +45,26 @@ export async function POST(request: Request) {
       }),
     });
     if (!response.ok) throw new Error("Не удалось отправить ссылку для входа");
+
+    if (latestOrder.customerPhone && process.env.SMS_019_API_TOKEN) {
+      const claim = await claimNotification({
+        channel: "SMS",
+        type: "CUSTOMER_LOGIN",
+        recipient: latestOrder.customerPhone,
+        priceMinor: 0,
+        metadata: { email: normalized },
+      });
+      if (claim.claimed) {
+        const sms = await sendSms019({
+          phone: latestOrder.customerPhone,
+          message: `Atlas One: ссылка для входа в личный кабинет действует 15 минут: ${url}`,
+          campaignName: "customer-login",
+        });
+        if (sms.ok) await completeNotification(claim.id!, { providerStatus: sms.providerStatus, providerMessage: sms.providerMessage });
+        else await failNotification(claim.id!, sms.providerMessage || `019SMS error ${sms.status}`, sms.providerStatus);
+      }
+    }
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось отправить ссылку" }, { status: 400 });
