@@ -5,14 +5,20 @@ import { requirePermission } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 
 const inputSchema = z.object({
-  action: z.enum(["pause", "publish", "soldOut", "available"]),
+  action: z.enum(["pause", "publish", "soldOut", "available", "lastTickets", "clearLastTickets"]),
 });
 
 const soldOutMarker = /\n?<!--ATLAS_SOLD_OUT:(?:true|false)-->/g;
+const lastTicketsMarker = /\n?<!--ATLAS_LAST_TICKETS:(?:true|false)-->/g;
 
-function setSoldOut(description: string, soldOut: boolean) {
-  const clean = description.replace(soldOutMarker, "").trimEnd();
-  return `${clean}\n<!--ATLAS_SOLD_OUT:${soldOut ? "true" : "false"}-->`;
+function setSalesState(description: string, state: "available" | "soldOut" | "lastTickets") {
+  const clean = description
+    .replace(soldOutMarker, "")
+    .replace(lastTicketsMarker, "")
+    .trimEnd();
+  const soldOut = state === "soldOut";
+  const lastTickets = state === "lastTickets";
+  return `${clean}\n<!--ATLAS_SOLD_OUT:${soldOut ? "true" : "false"}-->\n<!--ATLAS_LAST_TICKETS:${lastTickets ? "true" : "false"}-->`;
 }
 
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
@@ -32,7 +38,11 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       ? { status: "DRAFT" as const }
       : input.action === "publish"
         ? { status: "PUBLISHED" as const }
-        : { description: setSoldOut(event.description, input.action === "soldOut") };
+        : input.action === "soldOut"
+          ? { description: setSalesState(event.description, "soldOut") }
+          : input.action === "lastTickets"
+            ? { description: setSalesState(event.description, "lastTickets") }
+            : { description: setSalesState(event.description, "available") };
 
     const updated = await db.event.update({ where: { id }, data, select: { status: true, description: true } });
     await writeAudit(actor, {
@@ -46,6 +56,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       ok: true,
       status: updated.status,
       soldOut: /<!--ATLAS_SOLD_OUT:true-->/.test(updated.description),
+      lastTickets: /<!--ATLAS_LAST_TICKETS:true-->/.test(updated.description),
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось выполнить действие" }, { status: 400 });
