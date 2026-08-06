@@ -16,6 +16,7 @@ export async function PlatformShell({children}:{children:React.ReactNode}){
         <Link href="/platform/organizers">Организаторы</Link>
         <Link href="/platform/events">Все мероприятия</Link>
         <Link href="/platform/homepage">Главная страница</Link>
+        <Link href="/platform/integrations/sms">Интеграции - SMS</Link>
       </nav>
       <OfficeAccountMenu currentEmail={admin.email} currentName={admin.name}/>
     </aside>

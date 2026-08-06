@@ -1,6 +1,15 @@
 import { createOfficeActionToken } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { createGenericShortLink } from "@/lib/generic-short-link";
+import { claimNotification, completeNotification, failNotification } from "@/lib/notification-ledger";
+import { sendSms019 } from "@/lib/sms-019";
 
-function baseUrl() { return (process.env.NEXT_PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, ""); }
+function baseUrl() {
+  if (process.env.VERCEL_ENV === "production") return (process.env.PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, "");
+  const previewHost = process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
+  if (previewHost) return `https://${previewHost.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
+  return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+}
 function escapeHtml(value: string) { return value.replace(/[&<>'"]/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char] || char); }
 
 async function send(to: string, subject: string, title: string, text: string, href: string, button: string) {
@@ -16,12 +25,55 @@ async function send(to: string, subject: string, title: string, text: string, hr
   if (!response.ok) throw new Error(typeof payload?.message === "string" ? payload.message : `Resend: ${response.status}`);
 }
 
+function phoneFromJobTitle(jobTitle: string | null) {
+  if (!jobTitle) return null;
+  const match = jobTitle.match(/(?:\+972|972|0)?5\d{8}/);
+  return match?.[0] ?? null;
+}
+
+async function sendOrganizerAuthSms(userId: string, type: "VERIFY" | "RESET", targetPath: string) {
+  if (!process.env.SMS_019_API_TOKEN) return;
+  const user = await db.user.findUnique({ where: { id: userId }, select: { jobTitle: true, organizationId: true } });
+  const phone = phoneFromJobTitle(user?.jobTitle ?? null);
+  if (!phone) return;
+
+  const rateBucket = Math.floor(Date.now() / (2 * 60_000));
+  const claim = await claimNotification({
+    dedupeKey: `organizer-auth-sms:${type}:${userId}:${rateBucket}`,
+    channel: "SMS",
+    type: type === "VERIFY" ? "ORGANIZER_VERIFY" : "ORGANIZER_PASSWORD_RESET",
+    recipient: phone,
+    organizationId: user?.organizationId ?? null,
+    priceMinor: 0,
+    metadata: { userId },
+  });
+  if (!claim.claimed) return;
+
+  const shortUrl = await createGenericShortLink({
+    targetPath,
+    expiresAt: new Date(Date.now() + 60 * 60_000),
+    singleUse: true,
+  });
+  const message = type === "VERIFY"
+    ? `Atlas One: подтвердите email организатора. Ссылка действует 1 час: ${shortUrl}`
+    : `Atlas One: восстановление пароля организатора. Ссылка действует 1 час: ${shortUrl}`;
+  const result = await sendSms019({ phone, message, campaignName: type === "VERIFY" ? "office-verify" : "office-reset" });
+  if (result.ok) await completeNotification(claim.id!, { providerStatus: result.providerStatus, providerMessage: result.providerMessage });
+  else await failNotification(claim.id!, result.providerMessage || `019SMS error ${result.status}`, result.providerStatus);
+}
+
 export async function sendOrganizerVerification(userId: string, email: string) {
   const token = createOfficeActionToken("verify", userId, email);
-  await send(email, "Подтвердите email Atlas One", "Подтвердите рабочий email", "После подтверждения вы сможете войти в кабинет организатора и начать создавать мероприятия.", `${baseUrl()}/api/office/auth/verify?token=${encodeURIComponent(token)}`, "Подтвердить email");
+  const targetPath = `/api/office/auth/verify?token=${encodeURIComponent(token)}`;
+  const href = `${baseUrl()}${targetPath}`;
+  await send(email, "Подтвердите email Atlas One", "Подтвердите рабочий email", "После подтверждения вы сможете войти в кабинет организатора и начать создавать мероприятия.", href, "Подтвердить email");
+  try { await sendOrganizerAuthSms(userId, "VERIFY", targetPath); } catch (error) { console.error("[office-verify-sms]", error); }
 }
 
 export async function sendOrganizerPasswordReset(userId: string, email: string) {
   const token = createOfficeActionToken("reset", userId, email);
-  await send(email, "Восстановление доступа Atlas One", "Создайте новый пароль", "Мы получили запрос на восстановление доступа к кабинету организатора.", `${baseUrl()}/office/reset-password?token=${encodeURIComponent(token)}`, "Создать новый пароль");
+  const targetPath = `/office/reset-password?token=${encodeURIComponent(token)}`;
+  const href = `${baseUrl()}${targetPath}`;
+  await send(email, "Восстановление доступа Atlas One", "Создайте новый пароль", "Мы получили запрос на восстановление доступа к кабинету организатора.", href, "Создать новый пароль");
+  try { await sendOrganizerAuthSms(userId, "RESET", targetPath); } catch (error) { console.error("[office-reset-sms]", error); }
 }
