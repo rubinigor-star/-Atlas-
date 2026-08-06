@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
-import AdminPage from "@/app/admin/page";
 import { getCurrentStaff } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
+
+const LOGIN_PATH = "/office/login?next=%2Foffice";
 
 export default async function OfficePage() {
   let staff: Awaited<ReturnType<typeof getCurrentStaff>> = null;
@@ -10,10 +11,11 @@ export default async function OfficePage() {
   try {
     staff = await getCurrentStaff();
   } catch {
-    redirect("/office/login");
+    redirect(LOGIN_PATH);
   }
 
-  if (!staff) redirect("/office/login");
+  if (!staff) redirect(LOGIN_PATH);
 
+  const { default: AdminPage } = await import("@/app/admin/page");
   return <AdminPage />;
 }
