@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, ExternalLink, Pause, Pencil, Play, ShoppingBag, RotateCcw } from "lucide-react";
+import { Copy, ExternalLink, Pause, Pencil, Play, ShoppingBag, RotateCcw, Ticket } from "lucide-react";
 
 type EventListActionsProps = {
   event: {
@@ -12,6 +12,7 @@ type EventListActionsProps = {
     slug: string;
     status: string;
     soldOut: boolean;
+    lastTickets: boolean;
     startsAt: string;
     salesStart: string;
     salesEnd: string;
@@ -24,9 +25,9 @@ type EventListActionsProps = {
 };
 
 const labels = {
-  ru: { edit: "Редактировать", pause: "Приостановить", paused: "Приостановлено", publish: "Опубликовать", soldOut: "SOLD OUT", available: "Вернуть в продажу", copy: "Копировать", page: "Страница события", working: "Выполняется...", copySuffix: "копия" },
-  he: { edit: "עריכה", pause: "השהיה", paused: "מושהה", publish: "פרסום", soldOut: "SOLD OUT", available: "החזרה למכירה", copy: "שכפול", page: "עמוד האירוע", working: "מתבצע...", copySuffix: "עותק" },
-  en: { edit: "Edit", pause: "Pause", paused: "Paused", publish: "Publish", soldOut: "SOLD OUT", available: "Return to sale", copy: "Duplicate", page: "Event page", working: "Working...", copySuffix: "copy" },
+  ru: { edit: "Редактировать", pause: "Приостановить", paused: "Приостановлено", publish: "Опубликовать", soldOut: "SOLD OUT", available: "Вернуть в продажу", lastTickets: "Последние билеты", copy: "Копировать", page: "Страница события", working: "Выполняется...", copySuffix: "копия" },
+  he: { edit: "עריכה", pause: "השהיה", paused: "מושהה", publish: "פרסום", soldOut: "SOLD OUT", available: "החזרה למכירה", lastTickets: "כרטיסים אחרונים", copy: "שכפול", page: "עמוד האירוע", working: "מתבצע...", copySuffix: "עותק" },
+  en: { edit: "Edit", pause: "Pause", paused: "Paused", publish: "Publish", soldOut: "SOLD OUT", available: "Return to sale", lastTickets: "Last tickets", copy: "Duplicate", page: "Event page", working: "Working...", copySuffix: "copy" },
 } as const;
 
 function currentLocale() {
@@ -52,7 +53,7 @@ export function EventListActions({ event, canManage }: EventListActionsProps) {
     };
   }, [event.slug, event.title, t.copySuffix]);
 
-  async function runListAction(action: "pause" | "publish" | "soldOut" | "available") {
+  async function runListAction(action: "pause" | "publish" | "soldOut" | "available" | "lastTickets" | "clearLastTickets") {
     setBusy(action);
     setError("");
     try {
@@ -128,6 +129,19 @@ export function EventListActions({ event, canManage }: EventListActionsProps) {
 
         {canManage && (
           <button
+            className={`event-card-control${event.lastTickets ? " is-last-tickets" : ""}`}
+            type="button"
+            aria-pressed={event.lastTickets}
+            disabled={Boolean(busy)}
+            onClick={() => runListAction(event.lastTickets ? "clearLastTickets" : "lastTickets")}
+          >
+            <Ticket size={17} aria-hidden="true" />
+            <span>{busy === "lastTickets" || busy === "clearLastTickets" ? t.working : t.lastTickets}</span>
+          </button>
+        )}
+
+        {canManage && (
+          <button
             className={`event-card-control${event.soldOut ? " is-sold-out" : ""}`}
             type="button"
             aria-pressed={event.soldOut}
@@ -135,21 +149,21 @@ export function EventListActions({ event, canManage }: EventListActionsProps) {
             onClick={() => runListAction(event.soldOut ? "available" : "soldOut")}
           >
             {event.soldOut ? <RotateCcw size={17} aria-hidden="true" /> : <ShoppingBag size={17} aria-hidden="true" />}
-            <span>{busy === "soldOut" || busy === "available" ? t.working : event.soldOut ? t.soldOut : t.soldOut}</span>
+            <span>{busy === "soldOut" || busy === "available" ? t.working : t.soldOut}</span>
           </button>
         )}
 
+        <Link className={`event-card-control event-card-control-wide${published ? "" : " is-disabled"}`} aria-disabled={!published} tabIndex={published ? 0 : -1} href={published ? `/events/${event.slug}` : "#"} target={published ? "_blank" : undefined}>
+          <ExternalLink size={17} aria-hidden="true" />
+          <span>{t.page}</span>
+        </Link>
+
         {canManage && (
-          <button className="event-card-control" type="button" disabled={Boolean(busy)} onClick={duplicateEvent}>
+          <button className="event-card-control event-card-control-wide" type="button" disabled={Boolean(busy)} onClick={duplicateEvent}>
             <Copy size={17} aria-hidden="true" />
             <span>{busy === "copy" ? t.working : t.copy}</span>
           </button>
         )}
-
-        <Link className={`event-card-control${published ? "" : " is-disabled"}`} aria-disabled={!published} tabIndex={published ? 0 : -1} href={published ? `/events/${event.slug}` : "#"} target={published ? "_blank" : undefined}>
-          <ExternalLink size={17} aria-hidden="true" />
-          <span>{t.page}</span>
-        </Link>
       </div>
       {error && <p className="event-card-action-error" role="alert">{error}</p>}
     </div>
