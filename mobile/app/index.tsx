@@ -28,14 +28,6 @@ const errorMessages: Record<string, string> = {
   UNAUTHORIZED: "Сессия завершена. Войдите снова.",
 };
 
-type EventTab = "PUBLISHED" | "PAST" | "DRAFT";
-
-const tabs: Array<{ key: EventTab; label: string }> = [
-  { key: "PUBLISHED", label: "Активные" },
-  { key: "PAST", label: "Прошедшие" },
-  { key: "DRAFT", label: "Черновики" },
-];
-
 function eventDate(value: string) {
   return new Intl.DateTimeFormat("ru-IL", {
     day: "numeric",
@@ -57,7 +49,6 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<EventTab>("PUBLISHED");
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -75,21 +66,13 @@ export default function DashboardScreen() {
 
   useEffect(() => { void load(); }, []);
 
-  const eventCounts = useMemo(() => {
-    const counts: Record<EventTab, number> = { PUBLISHED: 0, PAST: 0, DRAFT: 0 };
-    for (const event of data?.events || []) counts[event.status] += 1;
-    return counts;
-  }, [data?.events]);
-
   const events = useMemo(() => {
     const query = search.trim().toLowerCase();
     return (data?.events || [])
-      .filter((event) => event.status === activeTab)
+      .filter((event) => event.status === "PUBLISHED")
       .filter((event) => !query || `${event.title} ${event.venue.name} ${event.venue.city}`.toLowerCase().includes(query))
-      .sort((a, b) => activeTab === "PAST"
-        ? new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime()
-        : new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
-  }, [activeTab, data?.events, search]);
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  }, [data?.events, search]);
 
   async function submitLogin() {
     if (!email.trim() || !password) return;
@@ -101,7 +84,9 @@ export default function DashboardScreen() {
     } catch (error) {
       const code = error instanceof Error ? error.message : "UNKNOWN_ERROR";
       Alert.alert("Не удалось войти", errorMessages[code] || "Проверьте данные и соединение.");
-    } finally { setSubmitting(false); }
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function signOut() {
@@ -110,7 +95,9 @@ export default function DashboardScreen() {
     setData(null);
   }
 
-  if (loading) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /><Text style={styles.loadingText}>Загрузка Atlas Office...</Text></SafeAreaView>;
+  if (loading) {
+    return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /><Text style={styles.loadingText}>Загрузка Atlas Office...</Text></SafeAreaView>;
+  }
 
   if (!data) {
     return (
@@ -134,16 +121,9 @@ export default function DashboardScreen() {
   const menuItems = [
     ["calendar-outline", "Мероприятия", "/"],
     ["receipt-outline", "Заказы", "/orders"],
-    ["scan-outline", "Сканер", "/scanner"],
     ["stats-chart-outline", "Аналитика", "/analytics"],
     ["person-outline", "Профиль", "/profile"],
   ] as const;
-
-  const emptyText = activeTab === "PAST"
-    ? "Здесь появятся завершённые мероприятия."
-    : activeTab === "DRAFT"
-      ? "Здесь будут незавершённые мероприятия."
-      : "Опубликованных будущих мероприятий пока нет.";
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -154,30 +134,18 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(true); }} />}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(true); }} />}
+      >
         <View style={styles.headingRow}>
-          <View><Text style={styles.title}>Мои мероприятия</Text><Text style={styles.subtitle}>{eventCounts.PUBLISHED} активных</Text></View>
-          <TouchableOpacity style={styles.profileChip} onPress={() => router.push("/profile")} accessibilityRole="button"><Ionicons name="person-outline" size={20} color="#17213C" /></TouchableOpacity>
-        </View>
-
-        <View style={styles.tabs}>
-          {tabs.map((tab) => {
-            const selected = activeTab === tab.key;
-            return (
-              <TouchableOpacity
-                key={tab.key}
-                style={[styles.tab, selected && styles.tabActive]}
-                onPress={() => setActiveTab(tab.key)}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-              >
-                <Text style={[styles.tabText, selected && styles.tabTextActive]}>{tab.label}</Text>
-                <View style={[styles.tabCount, selected && styles.tabCountActive]}>
-                  <Text style={[styles.tabCountText, selected && styles.tabCountTextActive]}>{eventCounts[tab.key]}</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+          <View>
+            <Text style={styles.title}>Активные мероприятия</Text>
+            <Text style={styles.subtitle}>{events.length} сейчас в работе</Text>
+          </View>
+          <TouchableOpacity style={styles.profileChip} onPress={() => router.push("/profile")} accessibilityRole="button">
+            <Ionicons name="person-outline" size={20} color="#17213C" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.searchBox}>
@@ -187,41 +155,66 @@ export default function DashboardScreen() {
         </View>
 
         {events.map((event) => {
-          const percent = event.capacity ? Math.min(100, Math.round((event.sold / event.capacity) * 100)) : 0;
-          const isDraft = event.status === "DRAFT";
-          const isPast = event.status === "PAST";
+          const attendancePercent = event.sold ? Math.min(100, Math.round((event.checkedIn / event.sold) * 100)) : 0;
           return (
-            <TouchableOpacity key={event.id} style={[styles.eventCard, isDraft && styles.draftCard]} activeOpacity={0.84} onPress={() => router.push({ pathname: "/events/[id]", params: { id: event.id } })} accessibilityRole="button" accessibilityLabel={`Открыть мероприятие ${event.title}`}>
+            <TouchableOpacity
+              key={event.id}
+              style={styles.eventCard}
+              activeOpacity={0.84}
+              onPress={() => router.push({ pathname: "/events/[id]", params: { id: event.id } })}
+              accessibilityRole="button"
+              accessibilityLabel={`Открыть мероприятие ${event.title}`}
+            >
               <View style={styles.posterWrap}>
-                {event.posterUrl ? <Image source={{ uri: event.posterUrl }} style={[styles.poster, isPast && styles.pastPoster]} resizeMode="cover" /> : <View style={styles.posterFallback}><Ionicons name={isDraft ? "document-text-outline" : "images-outline"} size={30} color="#7B8498" /></View>}
+                {event.posterUrl ? (
+                  <Image source={{ uri: event.posterUrl }} style={styles.poster} resizeMode="cover" />
+                ) : (
+                  <View style={styles.posterFallback}><Ionicons name="images-outline" size={30} color="#7B8498" /></View>
+                )}
               </View>
               <View style={styles.eventBody}>
                 <View style={styles.eventTitleRow}>
                   <View style={styles.eventText}>
-                    {isDraft && <View style={styles.draftBadge}><Text style={styles.draftBadgeText}>ЧЕРНОВИК</Text></View>}
                     <Text style={styles.eventTitle} numberOfLines={2}>{event.title}</Text>
                     <Text style={styles.eventMeta} numberOfLines={1}>{eventDate(event.startsAt)}</Text>
                     <Text style={styles.eventMeta} numberOfLines={1}>{event.venue.name}, {event.venue.city}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={21} color="#8A92A3" />
                 </View>
+
                 <View style={styles.metricRow}>
+                  <View><Text style={styles.metricValue}>{event.checkedIn}</Text><Text style={styles.metricLabel}>пришли</Text></View>
                   <View><Text style={styles.metricValue}>{event.sold}</Text><Text style={styles.metricLabel}>продано</Text></View>
-                  <View><Text style={styles.metricValue}>{event.capacity || "-"}</Text><Text style={styles.metricLabel}>вместимость</Text></View>
-                  <View><Text style={styles.metricValue}>{percent}%</Text><Text style={styles.metricLabel}>заполнение</Text></View>
+                  <View><Text style={styles.metricValue}>{attendancePercent}%</Text><Text style={styles.metricLabel}>посещаемость</Text></View>
                 </View>
-                <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${percent}%` }, isPast && styles.pastProgress, isDraft && styles.draftProgress]} /></View>
+                <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${attendancePercent}%` }]} /></View>
+
+                <View style={[styles.checkInBadge, event.checkInOpen ? styles.checkInBadgeOpen : styles.checkInBadgeClosed]}>
+                  <Ionicons name={event.checkInOpen ? "scan-outline" : "time-outline"} size={15} color={event.checkInOpen ? "#168044" : "#7B8498"} />
+                  <Text style={event.checkInOpen ? styles.checkInTextOpen : styles.checkInTextClosed}>
+                    {event.checkInOpen ? "Вход открыт" : `Сканер откроется ${eventDate(event.checkInOpensAt)}`}
+                  </Text>
+                </View>
               </View>
             </TouchableOpacity>
           );
         })}
-        {!events.length && <View style={styles.empty}><Text style={styles.emptyTitle}>Мероприятия не найдены</Text><Text style={styles.emptyText}>{search ? "Измени запрос или очисти поиск." : emptyText}</Text></View>}
+
+        {!events.length && (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>Активных мероприятий нет</Text>
+            <Text style={styles.emptyText}>{search ? "Измени запрос или очисти поиск." : "Здесь показываются только опубликованные мероприятия, которые ещё не завершили операционное окно входа."}</Text>
+          </View>
+        )}
       </ScrollView>
 
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.replace("/")} accessibilityRole="button"><Ionicons name="calendar" size={23} color="#6D45FF" /><Text style={styles.navActive}>Мероприятия</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push("/scanner")} accessibilityRole="button"><Ionicons name="scan-outline" size={23} color="#737B8D" /><Text style={styles.navText}>Сканер</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push("/profile")} accessibilityRole="button"><Ionicons name="person-outline" size={23} color="#737B8D" /><Text style={styles.navText}>Профиль</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.replace("/")} accessibilityRole="button">
+          <Ionicons name="calendar" size={23} color="#6D45FF" /><Text style={styles.navActive}>Мероприятия</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push("/profile")} accessibilityRole="button">
+          <Ionicons name="person-outline" size={23} color="#737B8D" /><Text style={styles.navText}>Профиль</Text>
+        </TouchableOpacity>
       </View>
 
       <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
@@ -261,53 +254,43 @@ const styles = StyleSheet.create({
   headingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
   title: { fontSize: 27, fontWeight: "900", color: "#17213C" },
   subtitle: { fontSize: 13, color: "#7B8498", marginTop: 4 },
-  profileChip: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#E6E8EF" },
-  tabs: { flexDirection: "row", backgroundColor: "#EDEFF5", borderRadius: 16, padding: 4, marginBottom: 12 },
-  tab: { flex: 1, minHeight: 44, borderRadius: 13, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 4 },
-  tabActive: { backgroundColor: "#FFFFFF", shadowColor: "#101A36", shadowOpacity: 0.07, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-  tabText: { fontSize: 12, fontWeight: "700", color: "#747D90" },
-  tabTextActive: { color: "#17213C" },
-  tabCount: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, alignItems: "center", justifyContent: "center", backgroundColor: "#DDE1EA" },
-  tabCountActive: { backgroundColor: "#6D45FF" },
-  tabCountText: { fontSize: 10, fontWeight: "800", color: "#737B8D" },
-  tabCountTextActive: { color: "#FFFFFF" },
-  searchBox: { height: 50, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#E5E8F0", flexDirection: "row", alignItems: "center", paddingHorizontal: 15, gap: 10, marginBottom: 14 },
+  profileChip: { width: 42, height: 42, borderRadius: 15, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E3E6ED", alignItems: "center", justifyContent: "center" },
+  searchBox: { height: 52, borderRadius: 16, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E5EC", flexDirection: "row", alignItems: "center", paddingHorizontal: 15, gap: 10, marginBottom: 14 },
   searchInput: { flex: 1, fontSize: 15, color: "#17213C" },
-  eventCard: { backgroundColor: "#fff", borderRadius: 20, marginBottom: 13, padding: 10, flexDirection: "row", borderWidth: 1, borderColor: "#E7E9F0", shadowColor: "#0B1633", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  draftCard: { borderStyle: "dashed", backgroundColor: "#FCFBFF" },
-  posterWrap: { width: 104, height: 138, borderRadius: 14, overflow: "hidden", backgroundColor: "#EDF0F5" },
+  eventCard: { backgroundColor: "#fff", borderRadius: 22, overflow: "hidden", borderWidth: 1, borderColor: "#E4E7ED", marginBottom: 15 },
+  posterWrap: { height: 150, backgroundColor: "#E9ECF2" },
   poster: { width: "100%", height: "100%" },
-  pastPoster: { opacity: 0.72 },
   posterFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
-  eventBody: { flex: 1, paddingLeft: 13, paddingVertical: 4 },
+  eventBody: { padding: 16 },
   eventTitleRow: { flexDirection: "row", alignItems: "flex-start" },
-  eventText: { flex: 1, paddingRight: 6 },
-  eventTitle: { fontSize: 17, lineHeight: 21, fontWeight: "850", color: "#17213C" },
-  eventMeta: { fontSize: 12.5, lineHeight: 18, color: "#778094", marginTop: 2 },
-  draftBadge: { alignSelf: "flex-start", borderRadius: 7, backgroundColor: "#EEE9FF", paddingHorizontal: 7, paddingVertical: 3, marginBottom: 5 },
-  draftBadgeText: { color: "#6D45FF", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
-  metricRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 14 },
-  metricValue: { fontSize: 15, fontWeight: "850", color: "#17213C" },
-  metricLabel: { fontSize: 10.5, color: "#8A92A3", marginTop: 2 },
-  progressTrack: { height: 5, borderRadius: 99, backgroundColor: "#EBE7FF", marginTop: 11, overflow: "hidden" },
+  eventText: { flex: 1, paddingRight: 10 },
+  eventTitle: { fontSize: 19, lineHeight: 24, fontWeight: "900", color: "#17213C" },
+  eventMeta: { fontSize: 12.5, color: "#7D8698", marginTop: 4 },
+  metricRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 16 },
+  metricValue: { fontSize: 18, fontWeight: "900", color: "#17213C" },
+  metricLabel: { fontSize: 11, color: "#8A92A3", marginTop: 2 },
+  progressTrack: { height: 7, borderRadius: 99, backgroundColor: "#ECE8FF", overflow: "hidden", marginTop: 12 },
   progressFill: { height: "100%", borderRadius: 99, backgroundColor: "#6D45FF" },
-  pastProgress: { backgroundColor: "#9AA2B2" },
-  draftProgress: { backgroundColor: "#B09AFF" },
-  empty: { padding: 28, backgroundColor: "#fff", borderRadius: 20, alignItems: "center" },
-  emptyTitle: { fontSize: 17, fontWeight: "800", color: "#17213C" },
-  emptyText: { fontSize: 13, color: "#7B8498", marginTop: 6, textAlign: "center" },
+  checkInBadge: { alignSelf: "flex-start", marginTop: 13, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 7, flexDirection: "row", alignItems: "center", gap: 6 },
+  checkInBadgeOpen: { backgroundColor: "#EAF9EF" },
+  checkInBadgeClosed: { backgroundColor: "#F0F1F4" },
+  checkInTextOpen: { color: "#168044", fontSize: 11.5, fontWeight: "800" },
+  checkInTextClosed: { color: "#7B8498", fontSize: 11.5, fontWeight: "700" },
+  empty: { backgroundColor: "#fff", borderRadius: 20, padding: 28, alignItems: "center", borderWidth: 1, borderColor: "#E4E7ED" },
+  emptyTitle: { fontSize: 18, fontWeight: "900", color: "#17213C" },
+  emptyText: { marginTop: 7, fontSize: 13, lineHeight: 19, textAlign: "center", color: "#7B8498" },
   bottomNav: { position: "absolute", left: 0, right: 0, bottom: 0, height: 82, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E6E8EF", flexDirection: "row", justifyContent: "space-around", paddingTop: 11 },
-  navItem: { alignItems: "center", minWidth: 90 },
+  navItem: { alignItems: "center", minWidth: 120 },
   navActive: { color: "#6D45FF", fontSize: 11.5, fontWeight: "800", marginTop: 4 },
-  navText: { color: "#747D90", fontSize: 11.5, fontWeight: "650", marginTop: 4 },
+  navText: { color: "#747D90", fontSize: 11.5, fontWeight: "600", marginTop: 4 },
   modalRoot: { flex: 1, flexDirection: "row" },
-  backdrop: { flex: 1, backgroundColor: "rgba(1,8,26,0.55)" },
-  drawer: { width: "82%", backgroundColor: "#071536", paddingTop: 58, paddingHorizontal: 22, paddingBottom: 30 },
-  drawerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  drawerName: { color: "#fff", fontSize: 20, fontWeight: "850", marginTop: 32 },
-  drawerRole: { color: "#8E9AB3", fontSize: 13, marginTop: 4, marginBottom: 24 },
-  drawerItem: { height: 54, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)", flexDirection: "row", alignItems: "center", gap: 13 },
-  drawerItemText: { flex: 1, color: "#F2F5FB", fontSize: 15, fontWeight: "650" },
-  logoutItem: { marginTop: "auto", height: 54, flexDirection: "row", alignItems: "center", gap: 13 },
-  logoutText: { color: "#FF6B6B", fontSize: 15, fontWeight: "750" },
+  backdrop: { flex: 1, backgroundColor: "rgba(5,12,32,0.46)" },
+  drawer: { width: 290, backgroundColor: "#071536", paddingTop: 58, paddingHorizontal: 18, paddingBottom: 30 },
+  drawerHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 28 },
+  drawerName: { color: "#fff", fontSize: 20, fontWeight: "900" },
+  drawerRole: { color: "#8997B5", fontSize: 12.5, marginTop: 4, marginBottom: 24 },
+  drawerItem: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: 11, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.07)" },
+  drawerItemText: { flex: 1, color: "#DCE2F2", fontSize: 14.5, fontWeight: "700" },
+  logoutItem: { minHeight: 54, flexDirection: "row", alignItems: "center", gap: 11, marginTop: 18 },
+  logoutText: { color: "#FF8585", fontSize: 14.5, fontWeight: "800" },
 });
