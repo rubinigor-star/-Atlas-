@@ -1,24 +1,38 @@
+const PRODUCTION_SUPABASE_PROJECT_REF = "hiyzvmdmluoyqireysla";
+
 const vercelEnv = process.env.VERCEL_ENV?.trim().toLowerCase();
 const atlasDatabaseEnv = process.env.ATLAS_DATABASE_ENV?.trim().toLowerCase();
+const databaseUrls = [
+  process.env.DATABASE_URL,
+  process.env.DIRECT_URL,
+  process.env.POSTGRES_URL,
+  process.env.POSTGRES_PRISMA_URL,
+].filter(Boolean);
 
-// Temporary development mode: Preview and Production intentionally share the
-// same database. Do not block Preview deployments based on database URLs or
-// ATLAS_DATABASE_ENV until a separate Preview database is introduced.
+const pointsToProductionSupabase = databaseUrls.some((value) =>
+  value.toLowerCase().includes(PRODUCTION_SUPABASE_PROJECT_REF),
+);
+
 if (vercelEnv === "preview") {
-  console.warn(
-    `[Atlas database safety] Preview is allowed to use the shared Production database. ATLAS_DATABASE_ENV=${atlasDatabaseEnv || "missing"}.`,
-  );
+  if (atlasDatabaseEnv !== "preview") {
+    throw new Error(
+      `[Atlas database safety] Preview deployment blocked: ATLAS_DATABASE_ENV must equal "preview", received "${atlasDatabaseEnv || "missing"}".`,
+    );
+  }
+
+  if (pointsToProductionSupabase) {
+    throw new Error(
+      "[Atlas database safety] Preview deployment blocked: database URL points to the Production Supabase project.",
+    );
+  }
 }
 
-// Keep the Production marker check so an accidental non-production setting
-// cannot silently reach the live deployment. Missing marker is tolerated for
-// now because the project is operating with one shared database configuration.
-if (vercelEnv === "production" && atlasDatabaseEnv && atlasDatabaseEnv !== "production") {
+if (vercelEnv === "production" && atlasDatabaseEnv !== "production") {
   throw new Error(
-    `[Atlas database safety] Production deployment blocked: ATLAS_DATABASE_ENV must equal "production" when set, received "${atlasDatabaseEnv}".`,
+    `[Atlas database safety] Production deployment blocked: ATLAS_DATABASE_ENV must equal "production", received "${atlasDatabaseEnv || "missing"}".`,
   );
 }
 
 console.log(
-  `[Atlas database safety] Environment accepted: vercel=${vercelEnv || "local"}, database=${atlasDatabaseEnv || "shared"}.`,
+  `[Atlas database safety] Environment accepted: vercel=${vercelEnv || "local"}, database=${atlasDatabaseEnv || "local"}.`,
 );
