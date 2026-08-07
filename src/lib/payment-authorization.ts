@@ -77,18 +77,19 @@ export async function createTestAuthorization(params: {
 }
 
 export async function captureTestAuthorization(orderId: string, executor: SqlExecutor = db) {
-  const rows = await executor.$queryRaw<Array<{ id: string; status: AuthorizationStatus; expiresAt: Date; amountMinor: number; currency: string }>>`
-    SELECT id, status, expiresAt, amountMinor, currency FROM PaymentAuthorization WHERE orderId = ${orderId} LIMIT 1
+  const rows = await executor.$queryRaw<Array<{ id: string; provider: string; status: AuthorizationStatus; expiresAt: Date; amountMinor: number; currency: string }>>`
+    SELECT id, provider, status, expiresAt, amountMinor, currency FROM PaymentAuthorization WHERE orderId = ${orderId} LIMIT 1
   `;
   const authorization = rows[0];
   if (!authorization) throw new Error("Авторизация оплаты не найдена");
+  if (authorization.provider !== "ATLAS_TEST") throw new Error("Реальная HYP-авторизация должна быть списана через HYP, локальный test capture запрещён");
   if (authorization.status === "CAPTURED") return authorization;
   if (authorization.status === "FAILED") throw new Error("Авторизация недоступна для списания");
 
   const changed = await executor.$executeRaw`
     UPDATE PaymentAuthorization
     SET status = 'CAPTURED', capturedAt = CURRENT_TIMESTAMP, voidedAt = NULL, expiresAt = CURRENT_TIMESTAMP + INTERVAL '10 years', updatedAt = CURRENT_TIMESTAMP
-    WHERE id = ${authorization.id} AND status IN ('AUTHORIZED', 'VOIDED', 'EXPIRED')
+    WHERE id = ${authorization.id} AND provider = 'ATLAS_TEST' AND status IN ('AUTHORIZED', 'VOIDED', 'EXPIRED')
   `;
   if (changed !== 1) {
     const refreshed = await executor.$queryRaw<Array<{ status: AuthorizationStatus }>>`SELECT status FROM PaymentAuthorization WHERE id = ${authorization.id} LIMIT 1`;
@@ -98,16 +99,17 @@ export async function captureTestAuthorization(orderId: string, executor: SqlExe
 }
 
 export async function voidTestAuthorization(orderId: string, executor: SqlExecutor = db) {
-  const rows = await executor.$queryRaw<Array<{ id: string; status: AuthorizationStatus }>>`
-    SELECT id, status FROM PaymentAuthorization WHERE orderId = ${orderId} LIMIT 1
+  const rows = await executor.$queryRaw<Array<{ id: string; provider: string; status: AuthorizationStatus }>>`
+    SELECT id, provider, status FROM PaymentAuthorization WHERE orderId = ${orderId} LIMIT 1
   `;
   const authorization = rows[0];
   if (!authorization) throw new Error("Авторизация оплаты не найдена");
+  if (authorization.provider !== "ATLAS_TEST") throw new Error("Реальная HYP-авторизация должна быть отменена через HYP, локальный test void запрещён");
   if (authorization.status === "VOIDED") return authorization;
   if (authorization.status !== "AUTHORIZED") throw new Error("Авторизация недоступна для отмены");
   const changed = await executor.$executeRaw`
     UPDATE PaymentAuthorization SET status = 'VOIDED', voidedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
-    WHERE id = ${authorization.id} AND status = 'AUTHORIZED'
+    WHERE id = ${authorization.id} AND provider = 'ATLAS_TEST' AND status = 'AUTHORIZED'
   `;
   if (changed !== 1) throw new Error("Авторизация была изменена другой операцией");
   return { ...authorization, status: "VOIDED" as const };
