@@ -104,7 +104,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
 
   const [allEvents,hiddenEventIds,tours,tourLinks,marqueeRows]=await Promise.all([
     db.event.findMany({
-      where: { status: "PUBLISHED" },
+      where: { status: "PUBLISHED", startsAt: { gte: new Date() } },
       select: {
         id: true,
         slug: true,
