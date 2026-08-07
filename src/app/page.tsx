@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
 
 type TourRow={id:string;slug:string;title:string;description:string;posterurl:string|null};
 type TourEventRow={tourid:string;eventid:string;position:number};
+type MarqueeRow={eventId:string;position:number};
 type CategoryKey="children"|"theatre"|"concerts"|"standup"|"clubs"|"deals";
 
 const intlLocale: Record<Locale,string>={ru:"ru-IL",he:"he-IL",en:"en-IL"};
@@ -97,38 +98,33 @@ function shortDateRange(start:Date,end:Date,locale:Locale){
 }
 
 export default async function Home({searchParams}:{searchParams:Promise<{category?:string}>}) {
-  const { locale, messages } = await getServerI18n();
-  const params=await searchParams;
+  const [{ locale, messages },params,cookieStore]=await Promise.all([getServerI18n(),searchParams,cookies()]);
   const selectedCategory=categoryKeys.includes(params.category as CategoryKey)?params.category as CategoryKey:null;
-  const cookieStore = await cookies();
   const preferredEventLanguages = parsePreferredEventLanguages(cookieStore.get(EVENT_LANGUAGE_COOKIE)?.value, locale);
-  const hiddenEventIds = await getHiddenEventIds(preferredEventLanguages);
-  const events = await db.event.findMany({
-    where: {
-      status: "PUBLISHED",
-      ...(hiddenEventIds.length ? { id: { notIn: hiddenEventIds } } : {}),
-    },
-    select: {
-      id: true,
-      slug: true,
-      title: true,
-      description: true,
-      posterUrl: true,
-      startsAt: true,
-      venue: { select: { city: true, name: true } },
-      categories: { where: { hidden: false }, select: { priceMinor: true } },
-    },
-    orderBy: { startsAt: "asc" },
-  });
 
-  let tours:TourRow[]=[];
-  let tourLinks:TourEventRow[]=[];
-  try{
-    tours=await db.$queryRawUnsafe<TourRow[]>(`SELECT id,slug,title,description,posterurl FROM tour ORDER BY createdat DESC`);
-    tourLinks=await db.$queryRawUnsafe<TourEventRow[]>(`SELECT tourid,eventid,position FROM tourevent ORDER BY position ASC`);
-  }catch{
-    tours=[];tourLinks=[];
-  }
+  const [allEvents,hiddenEventIds,tours,tourLinks,marqueeRows]=await Promise.all([
+    db.event.findMany({
+      where: { status: "PUBLISHED" },
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        description: true,
+        posterUrl: true,
+        startsAt: true,
+        venue: { select: { city: true, name: true } },
+        categories: { where: { hidden: false }, select: { priceMinor: true } },
+      },
+      orderBy: { startsAt: "asc" },
+    }),
+    getHiddenEventIds(preferredEventLanguages),
+    db.$queryRawUnsafe<TourRow[]>(`SELECT id,slug,title,description,posterurl FROM tour ORDER BY createdat DESC`).catch(()=>[] as TourRow[]),
+    db.$queryRawUnsafe<TourEventRow[]>(`SELECT tourid,eventid,position FROM tourevent ORDER BY position ASC`).catch(()=>[] as TourEventRow[]),
+    db.$queryRawUnsafe<MarqueeRow[]>(`SELECT "eventId","position" FROM "HomeMarqueeEvent" WHERE "active"=TRUE ORDER BY "position" ASC`).catch(()=>[] as MarqueeRow[]),
+  ]);
+
+  const hiddenEventIdSet=new Set(hiddenEventIds);
+  const events=hiddenEventIdSet.size?allEvents.filter(event=>!hiddenEventIdSet.has(event.id)):allEvents;
 
   type EventRow=(typeof events)[number];
   type TourCard={tour:TourRow;linked:EventRow[];poster:string;minimumPrice:number|null;cities:string[]};
@@ -160,16 +156,11 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
   const visibleCards=buildCards(filteredEvents);
   const copy=heroCopy[locale];
 
-  let marqueeRows:Array<{eventId:string;position:number}>=[];
-  try{
-    marqueeRows=await db.$queryRawUnsafe<Array<{eventId:string;position:number}>>(`SELECT "eventId","position" FROM "HomeMarqueeEvent" WHERE "active"=TRUE ORDER BY "position" ASC`);
-  }catch{
-    marqueeRows=[];
-  }
   const marqueeEventById=new Map(events.map(event=>[event.id,event]));
+  const now=Date.now();
   const marqueeCards=marqueeRows
     .map(row=>marqueeEventById.get(row.eventId))
-    .filter((event):event is EventRow=>Boolean(event&&event.startsAt.getTime()>=Date.now()))
+    .filter((event):event is EventRow=>Boolean(event&&event.startsAt.getTime()>=now))
     .map(event=>({
       id:`event-${event.id}`,
       href:`/events/${event.slug}`,
@@ -190,6 +181,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
         <nav className="live-emotions-categories" aria-label={messages.common.events}>
           {heroCategories.map(({key,icon})=><Link
             href={`/?category=${key}#events`}
+            prefetch={false}
             className="live-emotions-category"
             data-active={selectedCategory===key?"true":"false"}
             key={key}
@@ -210,6 +202,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
           {[false,true].map(duplicate=><div className="live-events-group" aria-hidden={duplicate?"true":undefined} key={duplicate?"duplicate":"primary"}>
             {marqueeCards.map((card,index)=><Link
               href={card.href}
+              prefetch={false}
               className="live-event-preview"
               tabIndex={duplicate?-1:undefined}
               key={`${duplicate?"duplicate":"primary"}-${card.id}`}
@@ -220,7 +213,8 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
                 height={750}
                 alt={duplicate?"":card.title}
                 className="live-event-preview-image"
-                priority={!duplicate&&index<3}
+                priority={!duplicate&&index<2}
+                quality={68}
                 sizes="(max-width: 520px) 44vw, (max-width: 900px) 30vw, 250px"
               />
               <span className="live-event-preview-copy">
@@ -239,8 +233,8 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
         <EventLanguagePreferences locale={locale} initial={preferredEventLanguages}/>
       </div>
       <div className="event-grid">
-        {visibleCards.tourCards.map(({tour,linked,poster,minimumPrice,cities},index)=>{const cityLine=cities.join(" · ");return <Link className="card" href={`/tours/${tour.slug}`} key={tour.id}>
-          <Image src={poster} width={750} height={750} alt={tour.title} className="card-img" priority={index===0} sizes="(max-width: 520px) 50vw, (max-width: 800px) 50vw, (max-width: 1100px) 33vw, 25vw"/>
+        {visibleCards.tourCards.map(({tour,linked,poster,minimumPrice,cities})=>{const cityLine=cities.join(" · ");return <Link className="card" href={`/tours/${tour.slug}`} prefetch={false} key={tour.id}>
+          <Image src={poster} width={750} height={750} alt={tour.title} className="card-img" quality={72} sizes="(max-width: 520px) 50vw, (max-width: 800px) 50vw, (max-width: 1100px) 33vw, 25vw"/>
           <div className="card-body">
             <span className="pill card-tag">{messages.home.tour} · {linked.length} {messages.home.dates}</span>
             <h3 className="card-title">{tour.title}</h3>
@@ -249,8 +243,8 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
             <div className="row between card-actions"><strong>{minimumPrice===null?messages.home.salesSoon:`${messages.home.from} ${money(minimumPrice,"ILS",locale)}`}</strong><span className="btn">{messages.home.chooseCity}</span></div>
           </div>
         </Link>})}
-        {visibleCards.standaloneEvents.map((event,index)=>{const minimumPrice=event.categories.length?Math.min(...event.categories.map(category=>category.priceMinor)):null;const city=displayCity(event.venue.city,locale);const eventType=parseEventType(event.description);return <Link className="card" href={`/events/${event.slug}`} key={event.id}>
-          <Image src={event.posterUrl} width={750} height={750} alt={event.title} className="card-img" priority={visibleCards.tourCards.length===0&&index===0} sizes="(max-width: 520px) 50vw, (max-width: 800px) 50vw, (max-width: 1100px) 33vw, 25vw"/>
+        {visibleCards.standaloneEvents.map(event=>{const minimumPrice=event.categories.length?Math.min(...event.categories.map(category=>category.priceMinor)):null;const city=displayCity(event.venue.city,locale);const eventType=parseEventType(event.description);return <Link className="card" href={`/events/${event.slug}`} prefetch={false} key={event.id}>
+          <Image src={event.posterUrl} width={750} height={750} alt={event.title} className="card-img" quality={72} sizes="(max-width: 520px) 50vw, (max-width: 800px) 50vw, (max-width: 1100px) 33vw, 25vw"/>
           <div className="card-body">
             <span className="pill card-tag">{eventTypeLabels[locale][eventType]}</span>
             <h3 className="card-title">{event.title}</h3>
