@@ -96,3 +96,54 @@
     font-size: 13px !important;
   }
 }
+
+/* Information-panel direction is explicit so field labels never inherit an
+   unrelated alignment from surrounding admin UI. Russian and English are LTR;
+   Hebrew reverses the icon/text order and aligns from the right. */
+html:not([lang^="he"]) form[data-unified-save="about"] [class*="infoPanelHeader"],
+html:not([lang^="he"]) form[data-unified-save="about"] [class*="panelHint"] {
+  direction: ltr !important;
+  text-align: left !important;
+}
+
+html:not([lang^="he"]) form[data-unified-save="about"] [class*="detailField"] > span {
+  width: 100% !important;
+  direction: ltr !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+html:not([lang^="he"]) form[data-unified-save="about"] [class*="runtimeInputs"] label,
+html:not([lang^="he"]) form[data-unified-save="about"] [class*="runtimeInputs"] small {
+  direction: ltr !important;
+  text-align: left !important;
+}
+
+html:not([lang^="he"]) form[data-unified-save="about"] [class*="agePreview"] {
+  direction: ltr !important;
+  text-align: left !important;
+}
+
+html[lang^="he"] form[data-unified-save="about"] [class*="infoPanelHeader"],
+html[lang^="he"] form[data-unified-save="about"] [class*="panelHint"] {
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+html[lang^="he"] form[data-unified-save="about"] [class*="detailField"] > span {
+  width: 100% !important;
+  direction: rtl !important;
+  justify-content: flex-start !important;
+  text-align: right !important;
+}
+
+html[lang^="he"] form[data-unified-save="about"] [class*="runtimeInputs"] label,
+html[lang^="he"] form[data-unified-save="about"] [class*="runtimeInputs"] small {
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+html[lang^="he"] form[data-unified-save="about"] [class*="agePreview"] {
+  direction: rtl !important;
+  text-align: right !important;
+}
