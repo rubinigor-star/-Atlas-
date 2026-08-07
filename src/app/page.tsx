@@ -153,7 +153,6 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
     return {tourCards,standaloneEvents,totalCards:tourCards.length+standaloneEvents.length};
   };
 
-  const allCards=buildCards(events);
   const selectedTypes=selectedCategory?categoryTypes[selectedCategory]:null;
   const filteredEvents=selectedTypes
     ?events.filter(event=>selectedTypes.includes(parseEventType(event.description)))
@@ -161,22 +160,23 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
   const visibleCards=buildCards(filteredEvents);
   const copy=heroCopy[locale];
 
-  const marqueeCards=[
-    ...allCards.tourCards.map(({tour,poster,cities,linked})=>({
-      id:`tour-${tour.id}`,
-      href:`/tours/${tour.slug}`,
-      title:tour.title,
-      poster,
-      meta:`${cities.join(" · ")} · ${shortDateRange(linked[0].startsAt,linked[linked.length-1].startsAt,locale)}`,
-    })),
-    ...allCards.standaloneEvents.map(event=>({
+  let marqueeRows:Array<{eventId:string;position:number}>=[];
+  try{
+    marqueeRows=await db.$queryRawUnsafe<Array<{eventId:string;position:number}>>(`SELECT "eventId","position" FROM "HomeMarqueeEvent" WHERE "active"=TRUE ORDER BY "position" ASC`);
+  }catch{
+    marqueeRows=[];
+  }
+  const marqueeEventById=new Map(events.map(event=>[event.id,event]));
+  const marqueeCards=marqueeRows
+    .map(row=>marqueeEventById.get(row.eventId))
+    .filter((event):event is EventRow=>Boolean(event&&event.startsAt.getTime()>=Date.now()))
+    .map(event=>({
       id:`event-${event.id}`,
       href:`/events/${event.slug}`,
       title:event.title,
       poster:event.posterUrl,
       meta:`${displayCity(event.venue.city,locale)} · ${shortDate(event.startsAt,locale)}`,
-    })),
-  ].slice(0,14);
+    }));
 
   return <main className="home-page">
     <section className="live-emotions-hero" aria-labelledby="live-emotions-title">
