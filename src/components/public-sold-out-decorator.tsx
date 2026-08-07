@@ -50,9 +50,6 @@ export function PublicSoldOutDecorator() {
           return;
         }
 
-        // Important: do not re-parent or insert nodes inside React-managed markup.
-        // Client-side navigation relies on the DOM tree matching React's virtual tree.
-        // Availability is therefore represented only by classes/data attributes and CSS.
         link.classList.add(styles.availabilityLink);
         link.classList.toggle(styles.soldOut, state === "soldOut");
         link.classList.toggle(styles.lastTickets, state === "lastTickets");
@@ -62,7 +59,7 @@ export function PublicSoldOutDecorator() {
       });
     }
 
-    fetch("/api/events/sold-out", { cache: "no-store" })
+    fetch("/api/events/sold-out")
       .then((response) => response.ok ? response.json() as Promise<AvailabilityPayload> : Promise.reject(new Error("Availability request failed")))
       .then((payload) => {
         if (cancelled) return;
