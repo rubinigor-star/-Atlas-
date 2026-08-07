@@ -29,6 +29,10 @@ export type DashboardPayload = {
     mapEnabled: boolean;
     sold: number;
     capacity: number;
+    checkedIn: number;
+    checkInOpensAt: string;
+    checkInClosesAt: string;
+    checkInOpen: boolean;
     status: "PAST" | "PUBLISHED" | "DRAFT";
   }>;
   recentOrders: Array<{
@@ -118,10 +122,10 @@ export async function getDashboard() {
   return request<DashboardPayload>("/api/mobile/dashboard");
 }
 
-export async function validateTicket(code: string) {
+export async function validateTicket(eventId: string, code: string) {
   return request<TicketValidationPayload>("/api/mobile/tickets/validate", {
     method: "POST",
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({ eventId, code }),
   });
 }
 
