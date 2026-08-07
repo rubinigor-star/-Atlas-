@@ -3,11 +3,12 @@ import { db } from "@/lib/db";
 import {
   authenticateOfficeUser,
   createOfficeCredential,
-  createOfficeSession,
   ensureDemoOrganizerPlatform,
   ensureOfficeAuthTable,
+  officeSessionCookie,
   verifyOfficePassword,
 } from "@/lib/auth";
+import { createOfficeSessionToken, officeSessionTtlSeconds } from "@/lib/office-session-token";
 
 const PLATFORM_OWNER_EMAIL = "rubin.igor@gmail.com";
 const PLATFORM_OWNER_BOOTSTRAP_HASH =
@@ -37,6 +38,14 @@ export async function POST(request: Request) {
 
   if (!result.ok) return NextResponse.redirect(new URL(`/office/login?error=${result.error}`, request.url), 303);
   if (result.user.role === "ADMIN") await ensureDemoOrganizerPlatform();
-  await createOfficeSession(result.user.id);
-  return NextResponse.redirect(new URL(result.user.role === "ADMIN" ? "/platform" : "/office", request.url), 303);
+
+  const response = NextResponse.redirect(new URL(result.user.role === "ADMIN" ? "/platform" : "/office", request.url), 303);
+  response.cookies.set(officeSessionCookie, createOfficeSessionToken(result.user.id), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: officeSessionTtlSeconds,
+  });
+  return response;
 }

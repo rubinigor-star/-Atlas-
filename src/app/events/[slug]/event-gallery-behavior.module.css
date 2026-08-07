@@ -1,0 +1,510 @@
+.mobileGallery {
+  display: none !important;
+}
+
+.playButton {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  z-index: 6 !important;
+  display: grid !important;
+  width: 78px !important;
+  height: 78px !important;
+  place-items: center !important;
+  transform: translate(-50%, -50%) !important;
+  border: 2px solid rgba(255, 255, 255, .86) !important;
+  border-radius: 999px !important;
+  background: rgba(9, 11, 18, .72) !important;
+  color: #fff !important;
+  pointer-events: none !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .46) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.playButton svg {
+  width: 34px !important;
+  height: 34px !important;
+  margin-left: 4px !important;
+}
+
+.viewAll {
+  position: absolute !important;
+  right: 12px !important;
+  bottom: 12px !important;
+  z-index: 7 !important;
+  display: inline-flex !important;
+  min-height: 38px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 0 13px !important;
+  border: 1px solid rgba(255, 255, 255, .28) !important;
+  border-radius: 999px !important;
+  background: rgba(8, 10, 17, .78) !important;
+  color: #fff !important;
+  font-size: 13px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+  pointer-events: none !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .36) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.progress {
+  display: none !important;
+}
+
+.progressTrack {
+  position: relative;
+  display: block;
+  min-width: 0;
+  height: 3px;
+  flex: 1 1 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .34);
+}
+
+.progressFill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #fff;
+}
+
+.progressComplete {
+  width: 100%;
+}
+
+.progressActive {
+  animation: eventGalleryProgress 2s linear forwards;
+}
+
+@keyframes eventGalleryProgress {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@media (min-width: 801px) {
+  .root {
+    width: 602px !important;
+    max-width: 100% !important;
+    height: 360px !important;
+    justify-self: end !important;
+    align-self: center !important;
+    overflow: hidden !important;
+  }
+
+  .desktopGallery {
+    display: grid !important;
+    width: 602px !important;
+    max-width: 100% !important;
+    height: 360px !important;
+    grid-template-columns: 360px 232px !important;
+    grid-template-rows: 360px !important;
+    gap: 10px !important;
+    justify-content: end !important;
+    align-items: stretch !important;
+    overflow: visible !important;
+  }
+
+  .desktopGallery > button,
+  .desktopGallery > div > button {
+    position: relative !important;
+    display: block !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 14px !important;
+    background: #0b0d14 !important;
+    transform: scale(1) !important;
+    transition: transform 180ms ease, box-shadow 180ms ease !important;
+    cursor: pointer !important;
+  }
+
+  .desktopGallery > button {
+    width: 360px !important;
+    height: 360px !important;
+    min-height: 360px !important;
+    aspect-ratio: 1 / 1 !important;
+  }
+
+  .desktopGallery > div {
+    display: grid !important;
+    width: 232px !important;
+    height: 360px !important;
+    grid-template-rows: repeat(2, 174px) !important;
+    gap: 12px !important;
+    align-content: center !important;
+    overflow: visible !important;
+  }
+
+  .desktopGallery > div > button {
+    width: 232px !important;
+    height: 174px !important;
+    min-height: 174px !important;
+    aspect-ratio: 4 / 3 !important;
+  }
+
+  .desktopGallery img {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-position: center !important;
+    filter: brightness(1) !important;
+    transition: filter 180ms ease, transform 240ms ease !important;
+  }
+
+  .posterPreview img {
+    object-fit: contain !important;
+    background: #0b0d14 !important;
+  }
+
+  .galleryPreview img {
+    object-fit: cover !important;
+  }
+
+  .single {
+    width: 360px !important;
+    max-width: 360px !important;
+    grid-template-columns: 360px !important;
+  }
+
+  .pair > div {
+    grid-template-rows: 174px !important;
+    align-content: center !important;
+  }
+
+  .pair > div > button {
+    height: 174px !important;
+    min-height: 174px !important;
+  }
+
+  .videoRoot {
+    width: 780px !important;
+    height: 315px !important;
+    max-width: 100% !important;
+  }
+
+  .videoDesktopGallery {
+    width: 780px !important;
+    height: 315px !important;
+    grid-template-columns: 560px 210px !important;
+    grid-template-rows: 315px !important;
+    gap: 10px !important;
+  }
+
+  .videoDesktopGallery > button {
+    width: 560px !important;
+    height: 315px !important;
+    min-height: 315px !important;
+    aspect-ratio: 16 / 9 !important;
+  }
+
+  .videoDesktopGallery > div {
+    width: 210px !important;
+    height: 315px !important;
+    grid-template-rows: repeat(2, 152px) !important;
+    gap: 11px !important;
+  }
+
+  .videoDesktopGallery > div > button {
+    width: 210px !important;
+    height: 152px !important;
+    min-height: 152px !important;
+    aspect-ratio: 4 / 3 !important;
+  }
+
+  .videoMainPreview img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: center !important;
+    background: #05060a !important;
+  }
+
+  .videoSingle {
+    width: 560px !important;
+    max-width: 560px !important;
+    grid-template-columns: 560px !important;
+  }
+
+  .videoPair > div {
+    grid-template-rows: 315px !important;
+  }
+
+  .videoPair > div > button {
+    height: 315px !important;
+    min-height: 315px !important;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 801px) {
+  .desktopGallery > button:hover,
+  .desktopGallery > div > button:hover {
+    transform: scale(.972) !important;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, .34) !important;
+  }
+
+  .desktopGallery > button:hover img,
+  .desktopGallery > div > button:hover img {
+    filter: brightness(.72) !important;
+  }
+}
+
+@media (min-width: 1181px) {
+  :global(.shell):has(> .videoRoot) {
+    grid-template-columns: minmax(340px, .72fr) minmax(700px, 1.5fr) !important;
+    gap: 30px !important;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 801px) {
+  .root {
+    width: 539px !important;
+    height: 320px !important;
+  }
+
+  .desktopGallery {
+    width: 539px !important;
+    height: 320px !important;
+    grid-template-columns: 320px 207px !important;
+    grid-template-rows: 320px !important;
+    gap: 12px !important;
+  }
+
+  .desktopGallery > button {
+    width: 320px !important;
+    height: 320px !important;
+    min-height: 320px !important;
+  }
+
+  .desktopGallery > div {
+    width: 207px !important;
+    height: 320px !important;
+    grid-template-rows: repeat(2, 155px) !important;
+    gap: 10px !important;
+  }
+
+  .desktopGallery > div > button {
+    width: 207px !important;
+    height: 155px !important;
+    min-height: 155px !important;
+  }
+
+  .single {
+    width: 320px !important;
+    max-width: 320px !important;
+    grid-template-columns: 320px !important;
+  }
+
+  .pair > div {
+    grid-template-rows: 155px !important;
+  }
+
+  .pair > div > button {
+    height: 155px !important;
+    min-height: 155px !important;
+  }
+
+  .videoRoot {
+    width: 651px !important;
+    height: 261px !important;
+  }
+
+  .videoDesktopGallery {
+    width: 651px !important;
+    height: 261px !important;
+    grid-template-columns: 464px 176px !important;
+    grid-template-rows: 261px !important;
+    gap: 11px !important;
+  }
+
+  .videoDesktopGallery > button {
+    width: 464px !important;
+    height: 261px !important;
+    min-height: 261px !important;
+  }
+
+  .videoDesktopGallery > div {
+    width: 176px !important;
+    height: 261px !important;
+    grid-template-rows: repeat(2, 125px) !important;
+    gap: 11px !important;
+  }
+
+  .videoDesktopGallery > div > button {
+    width: 176px !important;
+    height: 125px !important;
+    min-height: 125px !important;
+  }
+
+  .videoSingle {
+    width: 464px !important;
+    max-width: 464px !important;
+    grid-template-columns: 464px !important;
+  }
+
+  .videoPair > div {
+    grid-template-rows: 261px !important;
+  }
+
+  .videoPair > div > button {
+    height: 261px !important;
+    min-height: 261px !important;
+  }
+}
+
+@media (max-width: 800px) {
+  .desktopGallery {
+    display: none !important;
+  }
+
+  .mobileGallery {
+    display: block !important;
+  }
+
+  :global(.shell):has(> .root) {
+    position: relative !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #10121b !important;
+  }
+
+  :global(.shell):has(> .root) > :first-child {
+    position: relative !important;
+    inset: auto !important;
+    z-index: 9 !important;
+    width: 100% !important;
+    margin-top: clamp(400px, 92vw, 500px) !important;
+    padding: 104px 24px 30px !important;
+    background: linear-gradient(180deg, rgba(16, 18, 27, 0) 0%, rgba(16, 18, 27, .72) 26%, rgba(16, 18, 27, .96) 57%, #10121b 100%) !important;
+  }
+
+  .root {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: 100% !important;
+    min-height: 100% !important;
+  }
+
+  .mobileGallery {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    background: #10121b !important;
+  }
+
+  .mobileGallery::after {
+    content: "" !important;
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 3 !important;
+    pointer-events: none !important;
+    background: linear-gradient(180deg, rgba(7, 8, 14, .1) 0%, rgba(7, 8, 14, .02) 37%, rgba(10, 11, 18, .28) 55%, rgba(10, 11, 18, .84) 74%, #10121b 100%) !important;
+  }
+
+  .mobileMedia {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    border-radius: 0 !important;
+  }
+
+  .backdrop {
+    position: absolute !important;
+    inset: -48px !important;
+    z-index: 0 !important;
+    width: calc(100% + 96px) !important;
+    height: calc(100% + 96px) !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: cover !important;
+    object-position: center !important;
+    filter: blur(36px) brightness(.38) saturate(1.28) !important;
+    transform: scale(1.08) !important;
+  }
+
+  .artwork {
+    position: absolute !important;
+    z-index: 1 !important;
+    display: block !important;
+    object-position: center !important;
+  }
+
+  .posterFrame .squareArtwork {
+    top: 118px !important;
+    left: 50% !important;
+    width: min(calc(100vw - 132px), 360px) !important;
+    height: min(calc(100vw - 132px), 360px) !important;
+    max-width: none !important;
+    max-height: none !important;
+    aspect-ratio: 1 / 1 !important;
+    object-fit: contain !important;
+    transform: translateX(-50%) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .24) !important;
+  }
+
+  .galleryFrame .fullArtwork {
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    aspect-ratio: auto !important;
+    object-fit: cover !important;
+    object-position: center top !important;
+    transform: none !important;
+  }
+
+  .progress {
+    position: absolute !important;
+    top: 74px !important;
+    right: 20px !important;
+    left: 20px !important;
+    z-index: 8 !important;
+    display: flex !important;
+    height: 3px !important;
+    gap: 5px !important;
+    pointer-events: none !important;
+  }
+
+  .carouselArrow {
+    top: min(calc(50vw + 50px), 300px) !important;
+    z-index: 7 !important;
+    transform: translateY(-50%) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  :global(.shell):has(> .root) > :first-child {
+    margin-top: clamp(378px, 96vw, 462px) !important;
+    padding: 94px 20px 28px !important;
+  }
+
+  .posterFrame .squareArtwork {
+    top: 112px !important;
+    width: calc(100vw - 124px) !important;
+    height: calc(100vw - 124px) !important;
+  }
+
+  .carouselArrow {
+    top: calc(50vw + 50px) !important;
+  }
+}

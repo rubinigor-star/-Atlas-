@@ -1,0 +1,29 @@
+.heroPalette {
+  --event-color-a: 48 63 126;
+  --event-color-b: 133 55 90;
+  background:
+    radial-gradient(circle at 78% 20%, rgb(var(--event-color-a) / .62) 0%, rgb(var(--event-color-a) / .22) 31%, transparent 58%),
+    radial-gradient(circle at 24% 72%, rgb(var(--event-color-b) / .48) 0%, rgb(var(--event-color-b) / .16) 34%, transparent 62%),
+    #0b0c12 !important;
+}
+
+.heroPalette::before {
+  inset: -150px !important;
+  background-position: center 38% !important;
+  background-size: 118% auto !important;
+  filter: blur(104px) saturate(2.05) brightness(.82) !important;
+  opacity: .78 !important;
+  transform: scale(1.26) !important;
+}
+
+.heroPalette::after {
+  background:
+    linear-gradient(90deg, rgba(7, 8, 14, .80) 0%, rgba(7, 8, 14, .50) 38%, rgba(7, 8, 14, .28) 69%, rgba(7, 8, 14, .48) 100%),
+    linear-gradient(180deg, rgba(7, 8, 14, .04) 0%, rgba(7, 8, 14, .14) 58%, rgba(9, 10, 16, .88) 100%) !important;
+}
+
+@media (max-width: 800px) {
+  .heroPalette {
+    background: #10121b !important;
+  }
+}

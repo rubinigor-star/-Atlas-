@@ -1,0 +1,234 @@
+.loginTopbar {
+  position: fixed;
+  top: 18px;
+  left: 28px;
+  right: auto;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0;
+  background: transparent;
+  direction: ltr;
+}
+
+.loginTopbar :global(.atlas-logo) {
+  width: 142px;
+  min-width: 142px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  overflow: visible;
+}
+
+.loginTopbar :global(.atlas-logo-image) {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 42px;
+  overflow: visible;
+}
+
+.languageControl {
+  position: relative;
+  display: flex;
+  align-items: center;
+  direction: ltr;
+}
+
+.languageControl::before {
+  width: 1px;
+  height: 30px;
+  margin-inline-end: 16px;
+  background: rgba(255,255,255,.22);
+  content: "";
+}
+
+.languageButton {
+  min-width: 0;
+  min-height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: transparent;
+  color: #fff;
+  font-family: var(--atlas-body-font);
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: none;
+  transition: color .18s ease, opacity .18s ease;
+}
+
+.languageButton:hover,
+.languageButton:focus-visible,
+.languageButton[aria-expanded="true"] {
+  border: 0;
+  background: transparent;
+  color: #ff9a24;
+  outline: none;
+}
+
+.languageButton svg {
+  transition: transform .18s ease;
+}
+
+.languageButton[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.languageMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: auto;
+  width: 150px;
+  padding: 6px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px;
+  background: rgba(14,15,23,.97);
+  box-shadow: 0 18px 42px rgba(0,0,0,.36);
+  backdrop-filter: blur(16px);
+}
+
+.languageMenu button {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  font-family: var(--atlas-body-font);
+  font-size: 14px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.languageMenu button:hover,
+.languageMenu button:focus-visible {
+  background: rgba(255,255,255,.08);
+  outline: none;
+}
+
+.languageMenu button[data-selected="true"] {
+  color: #ff9a24;
+  font-weight: 700;
+}
+
+/* The homepage logo already identifies the brand, so the card keeps only its function. */
+.loginTopbar + div {
+  width: min(100%, 438px) !important;
+}
+
+.loginTopbar + div > section {
+  padding: 27px 36px 27px !important;
+  font-family: var(--atlas-body-font) !important;
+}
+
+.loginTopbar + div > section header {
+  margin-bottom: 20px !important;
+}
+
+.loginTopbar + div > section header img {
+  display: none !important;
+}
+
+.loginTopbar + div > section header p:first-of-type {
+  margin-bottom: 9px !important;
+  font-family: var(--atlas-body-font) !important;
+}
+
+.loginTopbar + div > section h1 {
+  font-family: var(--atlas-heading-font) !important;
+  font-weight: 950 !important;
+  font-synthesis: none;
+}
+
+.loginTopbar + div > section p,
+.loginTopbar + div > section label,
+.loginTopbar + div > section input,
+.loginTopbar + div > section button,
+.loginTopbar + div > section a {
+  font-family: var(--atlas-body-font) !important;
+}
+
+:global(html[lang="he"]) .loginTopbar + div > section h1 {
+  letter-spacing: -.02em !important;
+  line-height: 1 !important;
+}
+
+:global(html[dir="rtl"]) form[action="/api/office/auth/login"] label,
+:global(html[dir="rtl"]) form[action="/api/office/auth/resend-verification"] label {
+  text-align: right;
+}
+
+:global(html[dir="rtl"]) form[action="/api/office/auth/login"] input,
+:global(html[dir="rtl"]) form[action="/api/office/auth/resend-verification"] input {
+  direction: ltr;
+  text-align: left;
+}
+
+:global(html[dir="rtl"]) form[action="/api/office/auth/login"] + div {
+  direction: rtl;
+}
+
+:global(html[dir="rtl"]) form[action="/api/office/auth/login"] + div a:first-child {
+  text-align: right !important;
+}
+
+:global(html[dir="rtl"]) form[action="/api/office/auth/login"] + div a:last-child {
+  text-align: left !important;
+}
+
+@media (max-width: 680px) {
+  .loginTopbar {
+    top: 12px;
+    left: 14px;
+    right: 14px;
+    justify-content: flex-start;
+    gap: 12px;
+  }
+
+  .loginTopbar :global(.atlas-logo) {
+    width: 118px;
+    min-width: 118px;
+    height: 36px;
+  }
+
+  .loginTopbar :global(.atlas-logo-image) {
+    max-height: 36px;
+  }
+
+  .languageControl::before {
+    height: 26px;
+    margin-inline-end: 12px;
+  }
+
+  .languageButton {
+    min-height: 36px;
+    font-size: 13px;
+  }
+
+  .languageMenu {
+    left: 0;
+    right: auto;
+  }
+
+  .loginTopbar + div {
+    width: min(100%, 438px) !important;
+  }
+
+  .loginTopbar + div > section {
+    padding: 24px 22px 23px !important;
+  }
+
+  :global(html[dir="rtl"]) form[action="/api/office/auth/login"] + div a:first-child,
+  :global(html[dir="rtl"]) form[action="/api/office/auth/login"] + div a:last-child {
+    text-align: center !important;
+  }
+}

@@ -13,6 +13,7 @@ import "./event-detail-sticky.css";
 import "./logo.css";
 import "./logo-variants.css";
 import "./site-header.css";
+import "./account-menu-polish.css";
 import "./sticky-header-theme.css";
 import "./mobile-drawer-fix.css";
 import "./mobile-language-header.css";

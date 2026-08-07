@@ -1,44 +1,87 @@
 import "./events-list.css";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
+import { EventListActions } from "./event-list-actions";
+import { EventStatusFilter } from "./event-status-filter";
 import { canAccessEvent, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { eventDate, money } from "@/lib/format";
+import { getServerI18n } from "@/lib/server-locale";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 25;
+const soldOutPattern = /<!--ATLAS_SOLD_OUT:true-->/;
+const lastTicketsPattern = /<!--ATLAS_LAST_TICKETS:true-->/;
+const doorsPattern = /<!--ATLAS_DOORS_OPEN:([^>]+)-->/;
 
 type EventsPageProps = {
   searchParams: Promise<{ status?: string; page?: string }>;
 };
 
 const statusLabels: Record<string, string> = {
-  DRAFT: "Черновик",
+  DRAFT: "Приостановлено",
   REVIEW: "На модерации",
   PENDING_REVIEW: "На модерации",
   PUBLISHED: "Опубликовано",
   COMPLETED: "Завершено",
-  CANCELLED: "Отменено",
+  CANCELLED: "Выключено",
   ARCHIVED: "Архив",
 };
 
-const filters = [
-  { value: "all", label: "Все" },
-  { value: "active", label: "Активные" },
-  { value: "DRAFT", label: "Черновики" },
-  { value: "PUBLISHED", label: "Опубликованные" },
-  { value: "past", label: "Прошедшие" },
-  { value: "CANCELLED", label: "Отменённые" },
-];
+const filterValues = ["all", "active", "DRAFT", "PUBLISHED", "past", "CANCELLED"] as const;
+type FilterValue = (typeof filterValues)[number];
+
+const filterCopy: Record<"ru" | "he" | "en", {
+  label: string;
+  clear: string;
+  options: Record<FilterValue, string>;
+}> = {
+  ru: {
+    label: "Статус мероприятия",
+    clear: "Сбросить",
+    options: {
+      all: "Все",
+      active: "Активные",
+      DRAFT: "Приостановленные",
+      PUBLISHED: "Опубликованные",
+      past: "Прошедшие",
+      CANCELLED: "Выключенные",
+    },
+  },
+  en: {
+    label: "Event status",
+    clear: "Clear",
+    options: {
+      all: "All",
+      active: "Active",
+      DRAFT: "Paused",
+      PUBLISHED: "Published",
+      past: "Past",
+      CANCELLED: "Disabled",
+    },
+  },
+  he: {
+    label: "סטטוס אירוע",
+    clear: "נקה",
+    options: {
+      all: "הכל",
+      active: "פעילים",
+      DRAFT: "מושהים",
+      PUBLISHED: "פורסמו",
+      past: "אירועים שעברו",
+      CANCELLED: "מושבתים",
+    },
+  },
+};
 
 function isInactiveStatus(status: string) {
-  return status === "CANCELLED" || status === "ARCHIVED";
+  return status === "CANCELLED" || status === "ARCHIVED" || status === "DRAFT";
 }
 
 function matchesFilter(event: { status: string; startsAt: Date }, filter: string, now: Date) {
   if (filter === "all") return true;
-  if (filter === "active") return event.startsAt >= now && !isInactiveStatus(event.status);
+  if (filter === "active") return event.startsAt >= now && event.status === "PUBLISHED";
   if (filter === "past") return event.startsAt < now;
   return event.status === filter;
 }
@@ -55,12 +98,33 @@ function statusClass(status: string) {
   return `events-status ${status.toLowerCase()}`;
 }
 
+function cardStateClass(status: string, soldOut: boolean) {
+  if (soldOut) return " is-sold-out";
+  if (status === "PUBLISHED") return " is-published";
+  if (status === "DRAFT") return " is-paused";
+  return " is-disabled";
+}
+
+function doorsOpenAt(description: string, startsAt: Date) {
+  const match = description.match(doorsPattern)?.[1];
+  if (!match) return startsAt;
+  const parsed = new Date(match);
+  return Number.isNaN(parsed.getTime()) ? startsAt : parsed;
+}
+
 export default async function EventsPage({ searchParams }: EventsPageProps) {
   const staff = await requirePermission("EVENT_VIEW");
+  const { locale } = await getServerI18n();
   const query = await searchParams;
   const status = query.status || "all";
   const requestedPage = Math.max(1, Number.parseInt(query.page || "1", 10) || 1);
   const now = new Date();
+  const filterText = filterCopy[locale];
+  const filterOptions = filterValues.map((value) => ({
+    value,
+    label: filterText.options[value],
+    href: pageHref(value, 1),
+  }));
 
   const eventIndex = await db.event.findMany({
     where: { organizationId: staff.organizationId! },
@@ -81,10 +145,13 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
           id: true,
           title: true,
           slug: true,
+          description: true,
           posterUrl: true,
           status: true,
           startsAt: true,
-          venue: { select: { name: true, city: true } },
+          salesStart: true,
+          salesEnd: true,
+          venue: { select: { name: true, city: true, address: true } },
           categories: { select: { capacity: true, sold: true } },
         },
       })
@@ -101,6 +168,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   const eventById = new Map(events.map((event) => [event.id, event]));
   const revenueByEvent = new Map(revenueRows.map((row) => [row.eventId, row._sum.totalMinor || 0]));
   const orderedEvents = pageIds.map((id) => eventById.get(id)).filter((event): event is NonNullable<typeof event> => Boolean(event));
+  const canManage = staff.permissionSet.has("EVENT_MANAGE");
 
   return (
     <AdminShell>
@@ -110,15 +178,17 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
           <h1>Мероприятия</h1>
           <p className="muted">Все мероприятия организации в одном визуальном рабочем списке.</p>
         </div>
-        {staff.permissionSet.has("EVENT_MANAGE") && <Link prefetch={false} href="/office/events/new" className="btn">+ Создать мероприятие</Link>}
+        {canManage && <Link prefetch={false} href="/office/events/new" className="btn">+ Создать мероприятие</Link>}
       </div>
 
-      <div className="row" style={{ flexWrap: "wrap", gap: 8, margin: "22px 0" }}>
-        {filters.map((filter) => (
-          <Link prefetch={false} key={filter.value} href={pageHref(filter.value, 1)} className={status === filter.value ? "btn dark" : "btn secondary"}>
-            {filter.label}
-          </Link>
-        ))}
+      <div className="event-status-filter-row">
+        <EventStatusFilter
+          locale={locale}
+          label={filterText.label}
+          clearLabel={filterText.clear}
+          current={status}
+          options={filterOptions}
+        />
       </div>
 
       <div className="stats">
@@ -141,11 +211,16 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
               const fill = capacity ? Math.min(100, Math.round((sold / capacity) * 100)) : 0;
               const remaining = Math.max(0, capacity - sold);
               const eventRevenue = revenueByEvent.get(event.id) || 0;
+              const soldOut = soldOutPattern.test(event.description);
+              const lastTickets = lastTicketsPattern.test(event.description);
+              const doors = doorsOpenAt(event.description, event.startsAt);
 
               return (
-                <article className="events-visual-card" key={event.id}>
+                <article className={`events-visual-card${cardStateClass(event.status, soldOut)}`} key={event.id}>
                   <Link prefetch={false} href={`/office/events/${event.id}`} className="events-visual-poster" aria-label={`Открыть ${event.title}`}>
                     <img src={event.posterUrl || "/images/event-placeholder.jpg"} alt={`Афиша мероприятия ${event.title}`} />
+                    {soldOut && <strong className="events-sold-out-ribbon">SOLD OUT</strong>}
+                    {lastTickets && !soldOut && <strong className="events-last-tickets-ribbon">ПОСЛЕДНИЕ БИЛЕТЫ</strong>}
                     <span>{fill}% заполнено</span>
                   </Link>
 
@@ -158,17 +233,31 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
                     <p className="events-visual-venue">{event.venue.name}, {event.venue.city}</p>
                     <div className="events-visual-progress" aria-label={`Заполнено ${fill}%`}><i style={{ width: `${fill}%` }} /></div>
                     <div className="events-visual-metrics">
-                      <div><small>Продано</small><strong>{sold} / {capacity}</strong></div>
+                      <div><small>Продано</small><strong>{sold}</strong></div>
                       <div><small>Осталось</small><strong>{remaining}</strong></div>
+                      <div><small>Вместимость</small><strong>{capacity}</strong></div>
                       <div><small>Выручка</small><strong>{money(eventRevenue)}</strong></div>
                     </div>
                   </div>
 
-                  <div className="events-visual-actions">
-                    <Link prefetch={false} className="btn" href={`/office/events/${event.id}`}>{staff.permissionSet.has("EVENT_MANAGE") ? "Управлять" : "Открыть"}</Link>
-                    {event.status === "PUBLISHED" && <Link prefetch={false} className="btn secondary" href={`/events/${event.slug}`} target="_blank">Страница события</Link>}
-                    <span className="events-visual-slug">/{event.slug}</span>
-                  </div>
+                  <EventListActions
+                    canManage={canManage}
+                    event={{
+                      id: event.id,
+                      title: event.title,
+                      slug: event.slug,
+                      status: event.status,
+                      soldOut,
+                      lastTickets,
+                      startsAt: event.startsAt.toISOString(),
+                      doorsOpenAt: doors.toISOString(),
+                      salesStart: event.salesStart.toISOString(),
+                      salesEnd: event.salesEnd.toISOString(),
+                      venueName: event.venue.name,
+                      city: event.venue.city,
+                      address: event.venue.address,
+                    }}
+                  />
                 </article>
               );
             })}
