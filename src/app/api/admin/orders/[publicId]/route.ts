@@ -62,7 +62,7 @@ async function getAuthorization(orderId: string): Promise<AuthorizationRow | nul
   return rows[0] ?? null;
 }
 
-async function assertApprovalPreflight(publicId: string) {
+async function assertApprovalPreflight(publicId: string, action: "approve" | "reject") {
   const current = await db.order.findUnique({ where: { publicId }, include: { items: true } });
   if (!current) throw new Error("Заявка не найдена");
   if (current.status !== "PENDING_APPROVAL") throw new Error("Эта заявка уже рассмотрена");
@@ -74,7 +74,7 @@ async function assertApprovalPreflight(publicId: string) {
   if (!legacyDemoOrder && !authorization) throw new Error("Предварительная авторизация оплаты не найдена");
   if (!legacyDemoOrder && authorization?.amountMinor !== current.totalMinor) throw new Error("Сумма авторизации не совпадает с суммой заказа");
 
-  if (!legacyDemoOrder) {
+  if (!legacyDemoOrder && action === "approve") {
     const active = await db.$queryRaw<Array<{ exists: number | bigint }>>`
       SELECT COUNT(*) AS exists FROM Reservation WHERE orderId = ${current.id} AND status = 'ACTIVE' AND expiresAt > CURRENT_TIMESTAMP
     `;
@@ -208,7 +208,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ public
     if (!target) throw new Error("Заявка не найдена");
     const actor = await requireEventAccess("REQUEST_REVIEW", target.eventId);
 
-    const preflight = await assertApprovalPreflight(publicId);
+    const preflight = await assertApprovalPreflight(publicId, input.action);
     const { authorization } = preflight;
 
     if (input.action === "approve") await captureProviderAuthorization(authorization);
