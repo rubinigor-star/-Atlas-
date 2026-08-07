@@ -4,6 +4,16 @@ import { getMobileStaff } from "@/lib/mobile-auth";
 
 export const dynamic = "force-dynamic";
 
+const CHECKIN_OPENS_BEFORE_MS = 3 * 60 * 60 * 1000;
+const CHECKIN_CLOSES_AFTER_MS = 12 * 60 * 60 * 1000;
+
+function checkInWindow(startsAt: Date) {
+  return {
+    opensAt: new Date(startsAt.getTime() - CHECKIN_OPENS_BEFORE_MS),
+    closesAt: new Date(startsAt.getTime() + CHECKIN_CLOSES_AFTER_MS),
+  };
+}
+
 export async function GET(request: Request) {
   const user = await getMobileStaff(request);
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
@@ -38,26 +48,50 @@ export async function GET(request: Request) {
     }),
   ]);
 
+  const eventIds = events.map((event) => event.id);
+  const usedTickets = eventIds.length
+    ? await db.ticket.findMany({
+        where: {
+          status: "USED",
+          order: { eventId: { in: eventIds }, status: "PAID" },
+        },
+        select: { order: { select: { eventId: true } } },
+      })
+    : [];
+
+  const checkedInByEvent = new Map<string, number>();
+  for (const ticket of usedTickets) {
+    checkedInByEvent.set(ticket.order.eventId, (checkedInByEvent.get(ticket.order.eventId) ?? 0) + 1);
+  }
+
   const visibleEvents = events.map((event) => {
     const sold = event.categories.reduce((sum, category) => sum + category.sold, 0);
     const capacity = event.categories.reduce((sum, category) => sum + category.capacity, 0);
     const published = event.status === "PUBLISHED";
-    const status = event.startsAt < now ? "PAST" : published ? "PUBLISHED" : "DRAFT";
+    const { opensAt, closesAt } = checkInWindow(event.startsAt);
+    const isPast = now > closesAt;
+    const status = isPast ? "PAST" : published ? "PUBLISHED" : "DRAFT";
 
     return {
       id: event.id,
       title: event.title,
       startsAt: event.startsAt.toISOString(),
       venue: { name: event.venue.name, city: event.venue.city },
-      posterUrl: event.posterUrl,
+      posterUrl: event.posterUrl?.trim() || null,
       published,
       salesMode: event.salesMode,
       mapEnabled: event.mapEnabled,
       sold,
       capacity,
+      checkedIn: checkedInByEvent.get(event.id) ?? 0,
+      checkInOpensAt: opensAt.toISOString(),
+      checkInClosesAt: closesAt.toISOString(),
+      checkInOpen: published && now >= opensAt && now <= closesAt,
       status,
     };
   });
+
+  const activeEvents = visibleEvents.filter((event) => event.status === "PUBLISHED");
 
   return NextResponse.json(
     {
@@ -75,9 +109,9 @@ export async function GET(request: Request) {
         revenueMinor: paidRevenue._sum.totalMinor ?? 0,
         paidOrders: paidRevenue._count._all,
         pendingRequests,
-        activeEvents: visibleEvents.filter((event) => event.status === "PUBLISHED").length,
+        activeEvents: activeEvents.length,
       },
-      events: visibleEvents,
+      events: activeEvents,
       recentOrders: recentOrders.map((order) => ({
         id: order.id,
         publicId: order.publicId,
