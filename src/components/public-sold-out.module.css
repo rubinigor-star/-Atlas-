@@ -1,38 +1,9 @@
-.mediaFrame {
+.availabilityLink {
   position: relative;
-  width: 100%;
-  max-width: 100%;
-  aspect-ratio: 1 / 1;
-  overflow: visible;
-  border: 0;
-  border-radius: 18px;
-  background: transparent;
-  box-sizing: border-box;
-  transform-origin: center center;
-  transition: transform .22s ease, filter .22s ease;
+  isolation: isolate;
 }
 
-.mediaFrame:hover {
-  transform: scale(1.025);
-  filter: drop-shadow(0 12px 22px rgba(15, 23, 42, .14));
-}
-
-.mediaFrame img {
-  position: relative;
-  z-index: 2;
-  display: block !important;
-  width: 100% !important;
-  height: 100% !important;
-  aspect-ratio: 1 / 1;
-  object-fit: cover !important;
-  border: 0 !important;
-  border-radius: 18px !important;
-  box-sizing: border-box;
-  transform: none !important;
-  transition: none !important;
-}
-
-.label {
+.availabilityLink::before {
   position: absolute;
   top: -27px;
   left: 0;
@@ -46,6 +17,8 @@
   border-radius: 18px 18px 0 0;
   background: #e51f2b;
   color: #fff;
+  content: attr(data-atlas-availability-label);
+  direction: ltr;
   font-size: 11px;
   font-weight: 900;
   line-height: 1;
@@ -58,7 +31,32 @@
   box-shadow: 0 5px 12px rgba(229, 31, 43, .18);
 }
 
-.lastTickets .label {
+.availabilityLink[data-atlas-availability-dir="rtl"]::before {
+  direction: rtl;
+}
+
+.availabilityLink > img {
+  position: relative;
+  z-index: 2;
+}
+
+/* The main event grid intentionally lets the availability tab sit just above
+   the square artwork, matching the established Atlas card treatment. */
+:global(.home-page .event-grid) .availabilityLink {
+  overflow: visible !important;
+}
+
+/* Marquee cards clip their artwork for rounded corners. Keep the label inside
+   that card rather than changing its overflow behavior. */
+:global(.live-event-preview).availabilityLink::before {
+  top: 0;
+  height: 31px;
+  padding: 0 10px;
+  border-radius: 17px 17px 0 0;
+  z-index: 3;
+}
+
+.lastTickets::before {
   animation: lastTicketsTextPulse 1.25s ease-in-out infinite;
 }
 
@@ -74,36 +72,26 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mediaFrame,
-  .lastTickets .label {
+  .lastTickets::before {
     animation: none;
-    transition: none;
   }
 }
 
 @media (max-width: 600px) {
-  .mediaFrame {
-    border-radius: 15px;
-  }
-
-  .mediaFrame:hover {
-    transform: scale(1.012);
-  }
-
-  .mediaFrame img {
-    border-radius: 15px !important;
-  }
-
-  .label {
+  .availabilityLink::before {
     top: -23px;
-    left: 0;
-    right: 0;
-    width: auto;
     height: 39px;
     padding: 0 8px 14px;
     border-radius: 15px 15px 0 0;
     font-size: 9px;
     letter-spacing: .045em;
+  }
+
+  :global(.live-event-preview).availabilityLink::before {
+    top: 0;
+    height: 27px;
+    padding: 0 7px;
+    border-radius: 15px 15px 0 0;
   }
 
   @keyframes lastTicketsTextPulse {
