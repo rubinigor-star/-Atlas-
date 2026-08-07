@@ -19,6 +19,8 @@ function ensurePaymentIdentifierColumns() {
       `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypTxId" TEXT`,
       `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypUniqueId" TEXT`,
       `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypAuthorizationCode" TEXT`,
+      `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypCardToken" TEXT`,
+      `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypCardExp" TEXT`,
       `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "providerResponseCode" TEXT`,
       `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "providerPayloadJson" TEXT`,
       `CREATE UNIQUE INDEX IF NOT EXISTS "PaymentAuthorization_hypTransId_key" ON "PaymentAuthorization"("hypTransId") WHERE "hypTransId" IS NOT NULL`,
@@ -60,9 +62,9 @@ async function saveAuthorization(order: { id: string; totalMinor: number; curren
   await db.$executeRawUnsafe(
     `INSERT INTO "PaymentAuthorization" (
       "id","orderId","provider","providerReference","method","status","amountMinor","currency","cardLast4",
-      "hypTransId","hypCgUid","hypTxId","hypUniqueId","hypAuthorizationCode","providerResponseCode","providerPayloadJson",
+      "hypTransId","hypCgUid","hypTxId","hypUniqueId","hypAuthorizationCode","hypCardToken","hypCardExp","providerResponseCode","providerPayloadJson",
       "authorizedAt","capturedAt","expiresAt","createdAt","updatedAt"
-    ) VALUES ($1,$2,'HYP',$3,'HOSTED_PAGE','AUTHORIZED',$4,$5,$6,$3,NULLIF($7,''),NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),NULLIF($11,''),$12,
+    ) VALUES ($1,$2,'HYP',$3,'HOSTED_PAGE','AUTHORIZED',$4,$5,$6,$3,NULLIF($7,''),NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),NULLIF($13,''),$14,
       CURRENT_TIMESTAMP,NULL,CURRENT_TIMESTAMP + INTERVAL '24 hours',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
     ON CONFLICT ("orderId") DO UPDATE SET
       "provider"='HYP',
@@ -75,6 +77,8 @@ async function saveAuthorization(order: { id: string; totalMinor: number; curren
       "hypTxId"=EXCLUDED."hypTxId",
       "hypUniqueId"=EXCLUDED."hypUniqueId",
       "hypAuthorizationCode"=EXCLUDED."hypAuthorizationCode",
+      "hypCardToken"=COALESCE(EXCLUDED."hypCardToken","PaymentAuthorization"."hypCardToken"),
+      "hypCardExp"=COALESCE(EXCLUDED."hypCardExp","PaymentAuthorization"."hypCardExp"),
       "providerResponseCode"=EXCLUDED."providerResponseCode",
       "providerPayloadJson"=EXCLUDED."providerPayloadJson",
       "cardLast4"=COALESCE(EXCLUDED."cardLast4","PaymentAuthorization"."cardLast4"),
@@ -83,7 +87,7 @@ async function saveAuthorization(order: { id: string; totalMinor: number; curren
       "expiresAt"=CURRENT_TIMESTAMP + INTERVAL '24 hours',
       "updatedAt"=CURRENT_TIMESTAMP`,
     authorizationId, order.id, transId, order.totalMinor, order.currency, last4,
-    result.cgUid, result.txId, result.uniqueId, result.authorizationCode, result.code, JSON.stringify(result.raw),
+    result.cgUid, result.txId, result.uniqueId, result.authorizationCode, result.cardToken, result.cardExp, result.code, JSON.stringify(result.raw),
   );
 }
 
@@ -121,7 +125,15 @@ async function finalizeAuthorization(url: URL) {
     try { await sendApprovalRequestReceivedEmail(publicId); }
     catch (error) { console.error("[approval-request-email]", { publicId, message: error instanceof Error ? error.message : "Unknown email error" }); }
   }
-  console.info("hyp.approval.authorized", { publicId, transId, authorizationCode: result.authorizationCode || null, amountMinor: order.totalMinor });
+  console.info("hyp.approval.authorized", {
+    publicId,
+    transId,
+    cgUid: result.cgUid || null,
+    authorizationCode: result.authorizationCode || null,
+    hasCardToken: Boolean(result.cardToken),
+    hasCardExp: Boolean(result.cardExp),
+    amountMinor: order.totalMinor,
+  });
   return { publicId, state: "authorized" as State, alreadyAuthorized: changed.count === 0 };
 }
 
