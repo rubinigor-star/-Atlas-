@@ -10,9 +10,9 @@ export const dynamic = "force-dynamic";
 type AccountCopy = { eyebrow:string; title:string; signed:string; logout:string; upcoming:string; history:string; empty:string; emptyHelp:string; order:string; tickets:string; total:string; open:string; pending:string; awaiting:string; paid:string; rejected:string; cancelled:string; eventPassed:string };
 
 const copy: Record<"ru" | "he" | "en", AccountCopy> = {
-  ru: { eyebrow:"Личный кабинет", title:"Мои заказы и билеты", signed:"Вы вошли как", logout:"Выйти", upcoming:"Предстоящие", history:"История", empty:"Заказов пока нет", emptyHelp:"Покупки, оформленные на этот email, появятся здесь автоматически.", order:"Заказ", tickets:"Билетов", total:"Сумма", open:"Открыть заказ", pending:"Ожидает решения", awaiting:"Ожидает оплаты", paid:"Оплачен", rejected:"Не подтверждён", cancelled:"Отменён", eventPassed:"Мероприятие завершено" },
-  he: { eyebrow:"האזור האישי", title:"ההזמנות והכרטיסים שלי", signed:"מחוברים באמצעות", logout:"יציאה", upcoming:"אירועים קרובים", history:"היסטוריה", empty:"עדיין אין הזמנות", emptyHelp:"רכישות שבוצעו עם כתובת האימייל הזו יופיעו כאן אוטומטית.", order:"הזמנה", tickets:"כרטיסים", total:"סכום", open:"פתיחת ההזמנה", pending:"ממתינה לבדיקה", awaiting:"ממתינה לתשלום", paid:"שולמה", rejected:"לא אושרה", cancelled:"בוטלה", eventPassed:"האירוע הסתיים" },
-  en: { eyebrow:"Customer account", title:"My orders and tickets", signed:"Signed in as", logout:"Sign out", upcoming:"Upcoming", history:"History", empty:"No orders yet", emptyHelp:"Purchases made with this email will appear here automatically.", order:"Order", tickets:"Tickets", total:"Total", open:"Open order", pending:"Awaiting review", awaiting:"Awaiting payment", paid:"Paid", rejected:"Not approved", cancelled:"Cancelled", eventPassed:"Event ended" },
+  ru: { eyebrow:"Личный кабинет", title:"Мои заказы и билеты", signed:"Вы вошли как", logout:"Выйти", upcoming:"Предстоящие", history:"История", empty:"Заказов пока нет", emptyHelp:"Покупки, оформленные на этот email, появятся здесь автоматически.", order:"Заказ", tickets:"Билетов", total:"Сумма заказа", open:"Открыть заказ", pending:"Ожидает решения", awaiting:"Ожидает оплаты", paid:"Оплачен", rejected:"Не подтверждён", cancelled:"Отменён", eventPassed:"Мероприятие завершено" },
+  he: { eyebrow:"האזור האישי", title:"ההזמנות והכרטיסים שלי", signed:"מחוברים באמצעות", logout:"יציאה", upcoming:"אירועים קרובים", history:"היסטוריה", empty:"עדיין אין הזמנות", emptyHelp:"רכישות שבוצעו עם כתובת האימייל הזו יופיעו כאן אוטומטית.", order:"הזמנה", tickets:"כרטיסים", total:"סכום ההזמנה", open:"פתיחת ההזמנה", pending:"ממתינה לבדיקה", awaiting:"ממתינה לתשלום", paid:"שולמה", rejected:"לא אושרה", cancelled:"בוטלה", eventPassed:"האירוע הסתיים" },
+  en: { eyebrow:"Customer account", title:"My orders and tickets", signed:"Signed in as", logout:"Sign out", upcoming:"Upcoming", history:"History", empty:"No orders yet", emptyHelp:"Purchases made with this email will appear here automatically.", order:"Order", tickets:"Tickets", total:"Order total", open:"Open order", pending:"Awaiting review", awaiting:"Awaiting payment", paid:"Paid", rejected:"Not approved", cancelled:"Cancelled", eventPassed:"Event ended" },
 };
 
 function statusLabel(status: string, text: AccountCopy) {
@@ -29,11 +29,16 @@ export default async function CustomerAccountPage() {
   if (!session) redirect("/account/login");
   const { locale } = await getServerI18n();
   const text = copy[locale];
-  const orders = await db.order.findMany({
+  const allOrders = await db.order.findMany({
     where: { customerEmail: session.email },
     include: { event: { include: { venue: true } }, tickets: true },
     orderBy: { createdAt: "desc" },
   });
+
+  // A cancelled order with no ticket is only an unsuccessful checkout/payment attempt,
+  // not a completed purchase. Keep it in the financial database for audit, but do not
+  // present it to the customer as a purchase in "My orders and tickets".
+  const orders = allOrders.filter((order) => !(order.status === "CANCELLED" && order.tickets.length === 0));
   const now = new Date();
   const upcoming = orders.filter((order) => order.event.startsAt >= now && !["CANCELLED", "REJECTED"].includes(order.status));
   const history = orders.filter((order) => !upcoming.some((item) => item.id === order.id));
