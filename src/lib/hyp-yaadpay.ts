@@ -1,14 +1,22 @@
 const HYP_ENDPOINT = "https://pay.hyp.co.il/p/";
 const REQUEST_TIMEOUT_MS = 20_000;
+const RELAY_TIMEOUT_MS = 30_000;
 
 type RequiredEnv = "HYP_MASOF" | "HYP_API_KEY" | "HYP_PASSP";
+type RelayRequiredEnv = "HYP_RELAY_URL" | "HYP_API_USER" | "HYP_API_PASSWORD";
 
 function required(name: RequiredEnv) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is not configured`);
   return value;
 }
+function relayRequired(name: RelayRequiredEnv) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is not configured for HYP two-phase payments`);
+  return value;
+}
 function optional(name: string) { return process.env[name]?.trim() || ""; }
+function relayTerminalNumber() { return optional("HYP_TERMINAL_NUMBER") || required("HYP_MASOF"); }
 function safeText(value: string, max = 120) { return value.replace(/[<>\r\n]/g, " ").trim().slice(0, max); }
 function assertHttps(value: string, label: string) { if (!/^https:\/\//i.test(value)) throw new Error(`${label} must use HTTPS`); }
 function deploymentOrigin() {
@@ -40,6 +48,32 @@ function safeResponse(value: string) {
 function first(params: URLSearchParams, names: string[]) {
   for (const name of names) { const value = params.get(name); if (value) return value; }
   return "";
+}
+function escapeXml(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+function xmlValue(xml: string, tag: string) {
+  return xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"))?.[1]?.trim() || "";
+}
+
+async function relayRequest(xml: string) {
+  const endpoint = relayRequired("HYP_RELAY_URL");
+  assertHttps(endpoint, "HYP Relay URL");
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "Atlas-One-HYP-Relay/1.0" },
+    body: new URLSearchParams({
+      user: relayRequired("HYP_API_USER"),
+      password: relayRequired("HYP_API_PASSWORD"),
+      int_in: xml,
+    }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
+  });
+  const body = (await response.text()).trim();
+  if (!response.ok) throw new Error(`HYP Relay HTTP ${response.status}`);
+  if (!body) throw new Error("HYP Relay returned an empty response");
+  return body;
 }
 
 async function callApiSign(what: "SIGN" | "VERIFY", paymentParams: URLSearchParams) {
@@ -85,16 +119,18 @@ export function hypResultFromUrl(url: URL) {
   return {
     success: code === "0" || code === "000",
     code,
-    orderId: url.searchParams.get("Order") || url.searchParams.get("order") || "",
+    orderId: url.searchParams.get("Order") || url.searchParams.get("order") || url.searchParams.get("uniqueId") || url.searchParams.get("uniqueID") || "",
     transId,
     transactionId: transId,
     cgUid: url.searchParams.get("cgUid") || "",
     txId: url.searchParams.get("txId") || "",
-    uniqueId: url.searchParams.get("uniqueId") || "",
-    authorizationCode: url.searchParams.get("ACode") || "",
+    uniqueId: url.searchParams.get("uniqueId") || url.searchParams.get("uniqueID") || "",
+    authorizationCode: url.searchParams.get("ACode") || url.searchParams.get("authNumber") || "",
     id,
-    amount: url.searchParams.get("Amount") || url.searchParams.get("amount") || "",
+    amount: url.searchParams.get("Amount") || url.searchParams.get("amount") || url.searchParams.get("total") || "",
     cardMask: url.searchParams.get("L4digit") || url.searchParams.get("cardMask") || "",
+    cardToken: url.searchParams.get("cardToken") || url.searchParams.get("CardToken") || url.searchParams.get("Token") || "",
+    cardExp: url.searchParams.get("cardExp") || url.searchParams.get("CardExp") || url.searchParams.get("Tokef") || "",
     raw,
   };
 }
@@ -112,6 +148,43 @@ export async function verifyHypCallback(url: URL) {
     console.error("hyp.callback.verification_failed", { orderId: result.orderId, message: error instanceof Error ? error.message : "Unknown verification error" });
     return false;
   }
+}
+
+export type HypCaptureResult = { resultCode: string; captureTranId: string; statusText: string; rawResponse: string };
+
+export async function captureHypAuthorization(input: { cardToken: string; cardExp: string; cgUid: string; amountMinor: number }): Promise<HypCaptureResult> {
+  const cardToken = input.cardToken.trim();
+  const cardExp = input.cardExp.replace(/\D/g, "");
+  const cgUid = input.cgUid.trim();
+  if (!/^\d{8,32}$/.test(cardToken)) throw new Error("HYP cardToken не сохранён для предварительной авторизации");
+  if (!/^\d{4}$/.test(cardExp)) throw new Error("HYP cardExp не сохранён для предварительной авторизации");
+  if (!cgUid) throw new Error("HYP cgUid не сохранён для предварительной авторизации");
+  if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) throw new Error("Некорректная сумма списания HYP");
+  const xml = `<ashrait><request><version>2000</version><language>ENG</language><command>doDeal</command><doDeal><terminalNumber>${escapeXml(relayTerminalNumber())}</terminalNumber><cardId>${escapeXml(cardToken)}</cardId><cardExpiration>${escapeXml(cardExp)}</cardExpiration><total>${input.amountMinor}</total><transactionType>Debit</transactionType><creditType>RegularCredit</creditType><currency>ILS</currency><transactionCode>Phone</transactionCode><validation>AutoComm</validation><cgUid>${escapeXml(cgUid)}</cgUid></doDeal></request></ashrait>`;
+  console.info("hyp.capture.request", { cgUid, amountMinor: input.amountMinor });
+  const body = await relayRequest(xml);
+  const resultCode = xmlValue(body, "result") || xmlValue(body, "status");
+  const statusText = xmlValue(body, "userMessage") || xmlValue(body, "message") || xmlValue(body, "statusText");
+  if (resultCode !== "000") throw new Error(`HYP capture ${resultCode || "UNKNOWN"}: ${statusText || "request rejected"}`);
+  const captureTranId = xmlValue(body, "tranId");
+  console.info("hyp.capture.response", { cgUid, resultCode, captureTranId });
+  return { resultCode, captureTranId, statusText: statusText || "Capture approved", rawResponse: safeResponse(body) };
+}
+
+export type HypCancelAuthorizationResult = { resultCode: string; cancelTranId: string; statusText: string; rawResponse: string };
+
+export async function cancelHypAuthorization(input: { cgUid: string }): Promise<HypCancelAuthorizationResult> {
+  const cgUid = input.cgUid.trim();
+  if (!cgUid) throw new Error("HYP cgUid не сохранён для отмены предварительной авторизации");
+  const xml = `<ashrait><request><version>2000</version><language>ENG</language><command>cancelDeal</command><cancelDeal><terminalNumber>${escapeXml(relayTerminalNumber())}</terminalNumber><cgUid>${escapeXml(cgUid)}</cgUid></cancelDeal></request></ashrait>`;
+  console.info("hyp.authorization_cancel.request", { cgUid });
+  const body = await relayRequest(xml);
+  const resultCode = xmlValue(body, "result") || xmlValue(body, "status");
+  const statusText = xmlValue(body, "userMessage") || xmlValue(body, "message") || xmlValue(body, "statusText");
+  if (resultCode !== "000" && resultCode !== "314") throw new Error(`HYP cancelDeal ${resultCode || "UNKNOWN"}: ${statusText || "request rejected"}`);
+  const cancelTranId = xmlValue(body, "tranId");
+  console.info("hyp.authorization_cancel.response", { cgUid, resultCode, cancelTranId });
+  return { resultCode, cancelTranId, statusText: statusText || "Authorization cancelled", rawResponse: safeResponse(body) };
 }
 
 export type HypRefundResult = { resultCode: string; refundTranId: string; statusText: string; rawResponse: string };
