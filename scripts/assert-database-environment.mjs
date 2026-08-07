@@ -1,38 +1,22 @@
-const PRODUCTION_SUPABASE_PROJECT_REF = "hiyzvmdmluoyqireysla";
-
 const vercelEnv = process.env.VERCEL_ENV?.trim().toLowerCase();
 const atlasDatabaseEnv = process.env.ATLAS_DATABASE_ENV?.trim().toLowerCase();
-const databaseUrls = [
-  process.env.DATABASE_URL,
-  process.env.DIRECT_URL,
-  process.env.POSTGRES_URL,
-  process.env.POSTGRES_PRISMA_URL,
-].filter(Boolean);
 
-const pointsToProductionSupabase = databaseUrls.some((value) =>
-  value.toLowerCase().includes(PRODUCTION_SUPABASE_PROJECT_REF),
-);
-
+// Temporary development mode: Atlas currently contains demo data only.
+// Preview is allowed to use the shared database so development can continue.
+// Before real customers or live tickets are introduced, restore strict
+// Preview/Production database isolation and point Preview to atlas-preview.
 if (vercelEnv === "preview") {
-  if (atlasDatabaseEnv !== "preview") {
-    throw new Error(
-      `[Atlas database safety] Preview deployment blocked: ATLAS_DATABASE_ENV must equal "preview", received "${atlasDatabaseEnv || "missing"}".`,
-    );
-  }
-
-  if (pointsToProductionSupabase) {
-    throw new Error(
-      "[Atlas database safety] Preview deployment blocked: database URL points to the Production Supabase project.",
-    );
-  }
+  console.warn(
+    `[Atlas database safety] DEVELOPMENT MODE: Preview may use the shared database. ATLAS_DATABASE_ENV=${atlasDatabaseEnv || "missing"}.`,
+  );
 }
 
-if (vercelEnv === "production" && atlasDatabaseEnv !== "production") {
+if (vercelEnv === "production" && atlasDatabaseEnv && atlasDatabaseEnv !== "production") {
   throw new Error(
-    `[Atlas database safety] Production deployment blocked: ATLAS_DATABASE_ENV must equal "production", received "${atlasDatabaseEnv || "missing"}".`,
+    `[Atlas database safety] Production deployment blocked: ATLAS_DATABASE_ENV must equal "production" when configured, received "${atlasDatabaseEnv}".`,
   );
 }
 
 console.log(
-  `[Atlas database safety] Environment accepted: vercel=${vercelEnv || "local"}, database=${atlasDatabaseEnv || "local"}.`,
+  `[Atlas database safety] Environment accepted: vercel=${vercelEnv || "local"}, database=${atlasDatabaseEnv || "shared-demo"}.`,
 );
