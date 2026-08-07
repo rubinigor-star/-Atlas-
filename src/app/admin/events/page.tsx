@@ -2,9 +2,11 @@ import "./events-list.css";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { EventListActions } from "./event-list-actions";
+import { EventStatusFilter } from "./event-status-filter";
 import { canAccessEvent, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { eventDate, money } from "@/lib/format";
+import { getServerI18n } from "@/lib/server-locale";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +29,51 @@ const statusLabels: Record<string, string> = {
   ARCHIVED: "Архив",
 };
 
-const filters = [
-  { value: "all", label: "Все" },
-  { value: "active", label: "Активные" },
-  { value: "DRAFT", label: "Приостановленные" },
-  { value: "PUBLISHED", label: "Опубликованные" },
-  { value: "past", label: "Прошедшие" },
-  { value: "CANCELLED", label: "Выключенные" },
-];
+const filterValues = ["all", "active", "DRAFT", "PUBLISHED", "past", "CANCELLED"] as const;
+type FilterValue = (typeof filterValues)[number];
+
+const filterCopy: Record<"ru" | "he" | "en", {
+  label: string;
+  clear: string;
+  options: Record<FilterValue, string>;
+}> = {
+  ru: {
+    label: "Статус мероприятия",
+    clear: "Сбросить",
+    options: {
+      all: "Все",
+      active: "Активные",
+      DRAFT: "Приостановленные",
+      PUBLISHED: "Опубликованные",
+      past: "Прошедшие",
+      CANCELLED: "Выключенные",
+    },
+  },
+  en: {
+    label: "Event status",
+    clear: "Clear",
+    options: {
+      all: "All",
+      active: "Active",
+      DRAFT: "Paused",
+      PUBLISHED: "Published",
+      past: "Past",
+      CANCELLED: "Disabled",
+    },
+  },
+  he: {
+    label: "סטטוס אירוע",
+    clear: "נקה",
+    options: {
+      all: "הכל",
+      active: "פעילים",
+      DRAFT: "מושהים",
+      PUBLISHED: "פורסמו",
+      past: "אירועים שעברו",
+      CANCELLED: "מושבתים",
+    },
+  },
+};
 
 function isInactiveStatus(status: string) {
   return status === "CANCELLED" || status === "ARCHIVED" || status === "DRAFT";
@@ -75,10 +114,17 @@ function doorsOpenAt(description: string, startsAt: Date) {
 
 export default async function EventsPage({ searchParams }: EventsPageProps) {
   const staff = await requirePermission("EVENT_VIEW");
+  const { locale } = await getServerI18n();
   const query = await searchParams;
   const status = query.status || "all";
   const requestedPage = Math.max(1, Number.parseInt(query.page || "1", 10) || 1);
   const now = new Date();
+  const filterText = filterCopy[locale];
+  const filterOptions = filterValues.map((value) => ({
+    value,
+    label: filterText.options[value],
+    href: pageHref(value, 1),
+  }));
 
   const eventIndex = await db.event.findMany({
     where: { organizationId: staff.organizationId! },
@@ -135,12 +181,14 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         {canManage && <Link prefetch={false} href="/office/events/new" className="btn">+ Создать мероприятие</Link>}
       </div>
 
-      <div className="row" style={{ flexWrap: "wrap", gap: 8, margin: "22px 0" }}>
-        {filters.map((filter) => (
-          <Link prefetch={false} key={filter.value} href={pageHref(filter.value, 1)} className={status === filter.value ? "btn dark" : "btn secondary"}>
-            {filter.label}
-          </Link>
-        ))}
+      <div className="event-status-filter-row">
+        <EventStatusFilter
+          locale={locale}
+          label={filterText.label}
+          clearLabel={filterText.clear}
+          current={status}
+          options={filterOptions}
+        />
       </div>
 
       <div className="stats">
