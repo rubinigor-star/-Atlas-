@@ -40,20 +40,19 @@
   z-index: 2;
 }
 
-/* The main event grid intentionally lets the availability tab sit just above
-   the square artwork, matching the established Atlas card treatment. */
+/* Main grid: the status tab sits behind the square poster and only its top is visible. */
 :global(.home-page .event-grid) .availabilityLink {
   overflow: visible !important;
 }
 
-/* Marquee cards clip their artwork for rounded corners. Keep the label inside
-   that card rather than changing its overflow behavior. */
+/* Marquee uses the exact same layering. The tab is the width of the square poster,
+   extends under it, and the poster masks the lower part. */
+:global(.live-event-preview).availabilityLink {
+  overflow: visible !important;
+}
+
 :global(.live-event-preview).availabilityLink::before {
-  top: 0;
-  height: 31px;
-  padding: 0 10px;
-  border-radius: 17px 17px 0 0;
-  z-index: 3;
+  border-radius: 24px 24px 0 0;
 }
 
 .lastTickets::before {
@@ -88,10 +87,7 @@
   }
 
   :global(.live-event-preview).availabilityLink::before {
-    top: 0;
-    height: 27px;
-    padding: 0 7px;
-    border-radius: 15px 15px 0 0;
+    border-radius: 17px 17px 0 0;
   }
 
   @keyframes lastTicketsTextPulse {
