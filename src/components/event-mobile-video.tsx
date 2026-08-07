@@ -93,6 +93,8 @@ export function EventMobileVideo({ title, videoUrl, posterUrl }: Props) {
         <img
           src={video.previewUrl}
           alt=""
+          loading="lazy"
+          decoding="async"
           onError={(event) => {
             if (video.fallbackUrl && event.currentTarget.src !== video.fallbackUrl) {
               event.currentTarget.src = video.fallbackUrl;
