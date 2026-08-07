@@ -57,7 +57,7 @@ async function callApiSign(what: "SIGN" | "VERIFY", paymentParams: URLSearchPara
   return result;
 }
 
-export type HypPaymentLinkInput = { amountIls: number; orderId: string; description: string; customerName?: string; customerEmail?: string; customerPhone?: string; returnUrl: string; language?: "HEB" | "ENG" };
+export type HypPaymentLinkInput = { amountIls: number; orderId: string; description: string; customerName?: string; customerEmail?: string; customerPhone?: string; returnUrl: string; language?: "HEB" | "ENG"; authorizationOnly?: boolean };
 
 export async function createHypPaymentLink(input: HypPaymentLinkInput) {
   if (!Number.isFinite(input.amountIls) || input.amountIls <= 0) throw new Error("Некорректная сумма оплаты");
@@ -67,13 +67,13 @@ export async function createHypPaymentLink(input: HypPaymentLinkInput) {
   const nameParts = safeText(input.customerName || "Atlas Customer", 100).split(/\s+/).filter(Boolean);
   const firstName = nameParts.shift() || "Atlas";
   const lastName = nameParts.join(" ") || "Customer";
-  const paymentParams = new URLSearchParams({ action: "pay", Masof: required("HYP_MASOF"), Amount: input.amountIls.toFixed(2), Coin: "1", Info: safeText(input.description, 120), Order: orderId, ClientName: firstName, ClientLName: lastName, email: safeText(input.customerEmail || "", 120), cell: safeText(input.customerPhone || "", 30), phone: safeText(input.customerPhone || "", 30), PageLang: input.language || "HEB", UTF8: "True", UTF8out: "True", MoreData: "True", Sign: "True", Tash: "1", FixTash: "True", sendemail: "False", SendHesh: "False", Postpone: "False", J5: "False", tmp: optional("HYP_TEMPLATE") || "1", ReturnUrl: callbackUrl, SuccessUrl: callbackUrl, ErrorUrl: callbackUrl, CancelUrl: callbackUrl });
+  const paymentParams = new URLSearchParams({ action: "pay", Masof: required("HYP_MASOF"), Amount: input.amountIls.toFixed(2), Coin: "1", Info: safeText(input.description, 120), Order: orderId, ClientName: firstName, ClientLName: lastName, email: safeText(input.customerEmail || "", 120), cell: safeText(input.customerPhone || "", 30), phone: safeText(input.customerPhone || "", 30), PageLang: input.language || "HEB", UTF8: "True", UTF8out: "True", MoreData: "True", Sign: "True", Tash: "1", FixTash: "True", sendemail: "False", SendHesh: "False", Postpone: "False", J5: input.authorizationOnly ? "True" : "False", tmp: optional("HYP_TEMPLATE") || "1", ReturnUrl: callbackUrl, SuccessUrl: callbackUrl, ErrorUrl: callbackUrl, CancelUrl: callbackUrl });
   const signed = await callApiSign("SIGN", paymentParams);
   if (signed.get("action") !== "pay") throw new Error("HYP APISign response does not contain action=pay");
   if (!signed.get("signature")) throw new Error("HYP APISign response does not contain signature");
   const paymentUrl = `${HYP_ENDPOINT}?${signed.toString()}`;
   assertHttps(paymentUrl, "HYP payment page URL");
-  console.info("hyp.payment_page.created", { orderId, amount: input.amountIls.toFixed(2), masof: signed.get("Masof") || required("HYP_MASOF"), callbackUrl });
+  console.info("hyp.payment_page.created", { orderId, amount: input.amountIls.toFixed(2), authorizationOnly: Boolean(input.authorizationOnly), masof: signed.get("Masof") || required("HYP_MASOF"), callbackUrl });
   return paymentUrl;
 }
 
