@@ -30,8 +30,10 @@ export default async function OrderPage({
       QRCode.toDataURL(ticket.publicCode, { margin: 1, width: 360, errorCorrectionLevel: "M" }),
     ),
   );
-  const pending = order.status === "PENDING_APPROVAL";
+  const pendingPayment = order.status === "PENDING";
+  const pendingApproval = order.status === "PENDING_APPROVAL";
   const rejected = order.status === "REJECTED";
+  const cancelled = order.status === "CANCELLED";
   const awaitingPayment = order.status === "AWAITING_PAYMENT";
   const paid = order.status === "PAID";
   const design = parseTicketDesign(order.event.ticketTemplate);
@@ -43,25 +45,35 @@ export default async function OrderPage({
     process.env.APPLE_WALLET_WWDR_CERT_BASE64,
   );
 
+  const isFailure = rejected || cancelled;
+  const isWaiting = pendingPayment || pendingApproval || awaitingPayment;
+  const title = paid
+    ? "Спасибо! Заказ оформлен"
+    : pendingApproval
+      ? "Заявка отправлена организатору"
+      : pendingPayment
+        ? "Ожидаем подтверждение оплаты"
+        : awaitingPayment
+          ? "Заявка одобрена"
+          : rejected
+            ? "Заявка отклонена"
+            : cancelled
+              ? "Оплата не завершена"
+              : "Статус заказа обновлён";
+
   return (
     <main className="shell">
       <section className="panel success">
-        {pending && <Clock3 color="#d68b00" size={58} />}
-        {rejected && <XCircle color="#b42318" size={58} />}
-        {!pending && !rejected && <CheckCircle2 color="#0c9b66" size={58} />}
+        {paid && <CheckCircle2 color="#0c9b66" size={58} />}
+        {isWaiting && <Clock3 color="#d68b00" size={58} />}
+        {isFailure && <XCircle color="#b42318" size={58} />}
 
-        <h1>
-          {pending
-            ? "Заявка отправлена"
-            : rejected
-              ? "Заявка отклонена"
-              : awaitingPayment
-                ? "Заявка одобрена"
-                : "Спасибо! Заказ оформлен"}
-        </h1>
+        <h1>{title}</h1>
         <p className="muted">
-          {pending && "Организатор проверит данные. До одобрения оплата и выпуск билета недоступны."}
-          {rejected && (order.reviewNote || "Организатор не подтвердил участие в мероприятии.")}
+          {pendingPayment && "Платёж ещё не подтверждён. Билет не выпущен, и заказ нельзя считать оплаченным."}
+          {pendingApproval && "Данные и предварительная авторизация карты получены. Деньги будут списаны только после подтверждения организатором."}
+          {rejected && (order.reviewNote || "Организатор не подтвердил участие. Деньги не должны быть списаны.")}
+          {cancelled && "Платёж или предварительная авторизация не были успешно завершены. Билет не выпущен."}
           {awaitingPayment && "Организатор подтвердил участие. Теперь можно завершить оплату и получить билет."}
           {paid && "Оплата подтверждена. Билеты отправлены на email и доступны ниже."}
         </p>
@@ -111,7 +123,7 @@ export default async function OrderPage({
 
         {paid && <ResendTicketButton publicId={order.publicId} />}
 
-        {order.tickets.map((ticket, index) => (
+        {paid && order.tickets.map((ticket, index) => (
           <TicketCard key={ticket.id} ticket={ticket} qr={qrs[index]} design={design} event={order.event} orderNumber={order.publicId} walletReady={walletReady} />
         ))}
         <Link href="/" className="btn dark" style={{ marginTop: 20 }}>
