@@ -45,14 +45,24 @@
   overflow: visible !important;
 }
 
-/* Marquee uses the exact same layering. The tab is the width of the square poster,
-   extends under it, and the poster masks the lower part. */
+/* Marquee uses the same back-layer treatment without increasing the card width. */
 :global(.live-event-preview).availabilityLink {
   overflow: visible !important;
 }
 
 :global(.live-event-preview).availabilityLink::before {
+  top: -18px;
+  height: 36px;
+  padding: 0 10px 18px;
   border-radius: 24px 24px 0 0;
+}
+
+:global(.live-event-preview).availabilityLink > img {
+  border-radius: 24px 24px 0 0;
+}
+
+:global(.live-event-preview).availabilityLink > :global(.live-event-preview-copy) {
+  border-radius: 0 0 24px 24px;
 }
 
 .lastTickets::before {
@@ -76,6 +86,20 @@
   }
 }
 
+@media (max-width: 900px) {
+  :global(.live-event-preview).availabilityLink::before {
+    border-radius: 19px 19px 0 0;
+  }
+
+  :global(.live-event-preview).availabilityLink > img {
+    border-radius: 19px 19px 0 0;
+  }
+
+  :global(.live-event-preview).availabilityLink > :global(.live-event-preview-copy) {
+    border-radius: 0 0 19px 19px;
+  }
+}
+
 @media (max-width: 600px) {
   .availabilityLink::before {
     top: -23px;
@@ -87,7 +111,18 @@
   }
 
   :global(.live-event-preview).availabilityLink::before {
+    top: -14px;
+    height: 28px;
+    padding: 0 7px 14px;
     border-radius: 17px 17px 0 0;
+  }
+
+  :global(.live-event-preview).availabilityLink > img {
+    border-radius: 17px 17px 0 0;
+  }
+
+  :global(.live-event-preview).availabilityLink > :global(.live-event-preview-copy) {
+    border-radius: 0 0 17px 17px;
   }
 
   @keyframes lastTicketsTextPulse {
