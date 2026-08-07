@@ -7,7 +7,12 @@
 .index{flex:0 0 auto;display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#eef2f6;color:#64748b;font-size:11px;line-height:1;font-weight:900}
 .active .index{background:#ffe2d8;color:#bd3d1f}
 .content{min-width:0}.hidden{display:none}
-.footer{position:sticky;bottom:12px;z-index:15;display:flex;justify-content:space-between;gap:12px;padding:13px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.96);box-shadow:0 14px 38px rgba(15,23,42,.12);backdrop-filter:blur(10px)}
+:global([data-workspace-local-save="true"]){display:none!important}
+:global([data-editor-tab="about"] .toast),
+:global([data-editor-tab="about"] .save-feedback),
+:global([data-editor-tab="about"] [data-event-type-manager="true"] [role="status"]){display:none!important}
+.footer{position:static;display:grid;grid-template-columns:auto minmax(260px,1fr) auto;align-items:center;gap:12px;margin-top:4px;padding:14px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 12px 32px rgba(15,23,42,.08)}
 .secondary{border:1px solid var(--line);border-radius:12px;background:#fff;padding:11px 17px;font-weight:750;cursor:pointer}.secondary:disabled{opacity:.4;cursor:not-allowed}
+.saveGroup{display:flex;min-width:0;align-items:center;justify-content:center;gap:12px}.saveGroup :global(.btn){min-width:260px}.saveMessage{min-width:0;color:#64748b;font-size:13px;line-height:1.3}
 @media(max-width:1180px){.tabs{grid-template-columns:repeat(5,minmax(150px,1fr));overflow-x:auto;scrollbar-width:thin}.tab{min-height:72px;font-size:13px;padding-inline:9px}}
-@media(max-width:760px){.tabs{display:flex;overflow-x:auto;top:58px;padding:7px;border-radius:16px}.tab{flex:0 0 178px;min-height:66px;font-size:13px}.footer{align-items:stretch;flex-direction:column}.footer>*{width:100%}}
+@media(max-width:760px){.tabs{display:flex;overflow-x:auto;top:58px;padding:7px;border-radius:16px}.tab{flex:0 0 178px;min-height:66px;font-size:13px}.footer{grid-template-columns:1fr;align-items:stretch}.footer>*{width:100%}.saveGroup{align-items:stretch;flex-direction:column}.saveGroup :global(.btn){min-width:0;width:100%}.saveMessage{text-align:center}}

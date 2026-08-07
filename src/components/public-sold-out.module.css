@@ -1,0 +1,107 @@
+.availabilityLink {
+  position: relative;
+  isolation: isolate;
+}
+
+.availabilityLink::before {
+  position: absolute;
+  top: -27px;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: grid;
+  width: auto;
+  height: 45px;
+  padding: 0 12px 16px;
+  place-items: center;
+  border-radius: 18px 18px 0 0;
+  background: #e51f2b;
+  color: #fff;
+  content: attr(data-atlas-availability-label);
+  direction: ltr;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: .06em;
+  text-align: center;
+  text-transform: uppercase;
+  box-sizing: border-box;
+  pointer-events: none;
+  transform-origin: center bottom;
+  box-shadow: 0 5px 12px rgba(229, 31, 43, .18);
+}
+
+.availabilityLink[data-atlas-availability-dir="rtl"]::before {
+  direction: rtl;
+}
+
+.availabilityLink > img {
+  position: relative;
+  z-index: 2;
+}
+
+/* The main event grid intentionally lets the availability tab sit just above
+   the square artwork, matching the established Atlas card treatment. */
+:global(.home-page .event-grid) .availabilityLink {
+  overflow: visible !important;
+}
+
+/* Marquee cards clip their artwork for rounded corners. Keep the label inside
+   that card rather than changing its overflow behavior. */
+:global(.live-event-preview).availabilityLink::before {
+  top: 0;
+  height: 31px;
+  padding: 0 10px;
+  border-radius: 17px 17px 0 0;
+  z-index: 3;
+}
+
+.lastTickets::before {
+  animation: lastTicketsTextPulse 1.25s ease-in-out infinite;
+}
+
+@keyframes lastTicketsTextPulse {
+  0%, 100% {
+    font-size: 11px;
+    letter-spacing: .06em;
+  }
+  50% {
+    font-size: 12px;
+    letter-spacing: .075em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lastTickets::before {
+    animation: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .availabilityLink::before {
+    top: -23px;
+    height: 39px;
+    padding: 0 8px 14px;
+    border-radius: 15px 15px 0 0;
+    font-size: 9px;
+    letter-spacing: .045em;
+  }
+
+  :global(.live-event-preview).availabilityLink::before {
+    top: 0;
+    height: 27px;
+    padding: 0 7px;
+    border-radius: 15px 15px 0 0;
+  }
+
+  @keyframes lastTicketsTextPulse {
+    0%, 100% {
+      font-size: 9px;
+      letter-spacing: .045em;
+    }
+    50% {
+      font-size: 10px;
+      letter-spacing: .06em;
+    }
+  }
+}

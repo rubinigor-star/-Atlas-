@@ -1,0 +1,18 @@
+.shell {
+  width: 100%;
+  max-width: 1180px;
+  margin: 42px auto 0;
+  padding: 0 22px;
+}
+
+.strip {
+  margin-top: 0;
+}
+
+@media (max-width: 800px) {
+  .shell {
+    max-width: none;
+    margin-top: 0;
+    padding: 0;
+  }
+}

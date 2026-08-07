@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const CANONICAL_HOST = "www.atlas-one.co";
 const PUBLIC_OFFICE_PATHS = ["/office/login", "/office/register", "/office/forgot-password", "/office/reset-password"];
+const LEGACY_FAVICON_PATHS = new Set(["/favicon.ico", "/favicon.png"]);
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -9,6 +10,13 @@ export function proxy(request: NextRequest) {
   const isVercelHost = host.endsWith(".vercel.app");
   const isProductionDeployment = process.env.VERCEL_ENV === "production";
   const isPublicGet = request.method === "GET" && !pathname.startsWith("/api/") && !pathname.startsWith("/_next/");
+
+  if (LEGACY_FAVICON_PATHS.has(pathname)) {
+    const icon = request.nextUrl.clone();
+    icon.pathname = "/atlas-app-icon.svg";
+    icon.search = "";
+    return NextResponse.redirect(icon, 308);
+  }
 
   // Keep Preview deployments on their branch domains. Only the production
   // Vercel alias redirects public traffic to the canonical Atlas domain.
@@ -46,5 +54,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image).*)"],
 };

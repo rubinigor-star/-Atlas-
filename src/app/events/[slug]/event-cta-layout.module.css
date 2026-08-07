@@ -1,0 +1,51 @@
+.actions {
+  width: 100%;
+  flex-wrap: nowrap !important;
+}
+
+.buy {
+  width: min(100%, 340px) !important;
+  min-width: 300px !important;
+  min-height: 58px !important;
+  flex: 0 1 340px !important;
+  padding-inline: 34px !important;
+  white-space: nowrap !important;
+}
+
+.share {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 1180px) and (min-width: 801px) {
+  .buy {
+    min-width: 270px !important;
+    flex-basis: 300px !important;
+    padding-inline: 26px !important;
+  }
+}
+
+@media (max-width: 800px) {
+  .actions {
+    gap: 10px !important;
+  }
+
+  .buy {
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 56px !important;
+    flex: 1 1 auto !important;
+    padding-inline: 18px !important;
+    font-size: 16px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .actions {
+    gap: 7px !important;
+  }
+
+  .buy {
+    padding-inline: 13px !important;
+    font-size: 15px !important;
+  }
+}

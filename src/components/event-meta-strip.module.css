@@ -1,0 +1,46 @@
+.strip{position:relative;z-index:20;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible;border:1px solid rgba(255,255,255,.08);border-radius:15px;background:rgba(28,28,36,.96);box-shadow:0 12px 36px rgba(0,0,0,.18)}
+.strip:has(.item.open){z-index:5000}
+.item{position:relative;min-width:0;border-right:1px solid rgba(255,255,255,.1)}
+.item:last-child{border-right:0}
+.trigger{display:flex;width:100%;min-height:66px;align-items:center;justify-content:center;gap:10px;padding:12px 16px;border:0;background:transparent;color:#f5f5f8;font:inherit;font-weight:750;cursor:default}
+button.trigger{cursor:pointer}
+.trigger span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.date .trigger svg{color:#ff812a}.city .trigger svg{color:#6f9cff}.venue .trigger svg{color:#b96cff}.age .trigger svg{color:#20d6a3}
+.popover{position:absolute;z-index:5100;left:10px;right:10px;bottom:calc(100% + 6px);width:auto;min-width:0;padding:26px 22px;border:1px solid rgba(255,255,255,.16);border-radius:20px;background:linear-gradient(145deg,rgba(24,23,33,.99),rgba(17,16,24,.985));color:#fff;box-shadow:0 28px 80px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.08);backdrop-filter:blur(18px) saturate(125%);-webkit-backdrop-filter:blur(18px) saturate(125%);opacity:0;visibility:hidden;pointer-events:none;transform:translateY(18px) scale(.97);transform-origin:50% 100%;transition:opacity .2s ease,transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s linear .28s}
+.popover:before{position:absolute;left:0;right:0;bottom:-16px;height:20px;content:""}
+.item:hover .popover,.item:focus-within .popover,.item.open .popover,.popover:hover{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1);transition-delay:0s}
+.popover:after{position:absolute;left:50%;bottom:-8px;width:15px;height:15px;content:"";background:rgba(18,17,25,.99);border-right:1px solid rgba(255,255,255,.12);border-bottom:1px solid rgba(255,255,255,.12);transform:translateX(-50%) rotate(45deg)}
+.popIcon{display:grid;width:46px;height:46px;margin:0 auto 17px;place-items:center;border-radius:14px;background:rgba(255,255,255,.08)}
+.popIcon svg{width:24px;height:24px}.date .popIcon{color:#ff812a}.venue .popIcon{color:#b96cff}.age .popIcon{color:#20d6a3}
+.popover h3{margin:0;text-align:center;font-size:20px;line-height:1.28}.popover p{max-width:100%;margin:10px auto 0;color:rgba(255,255,255,.78);font-size:15px;line-height:1.55;text-align:center}
+.facts{display:grid;gap:0;margin-top:21px;border-top:1px solid rgba(255,255,255,.11)}
+.fact{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.09);font-size:15px}.fact:last-child{border-bottom:0}.fact span{color:rgba(255,255,255,.65);line-height:1.35}.fact strong{text-align:right;white-space:nowrap;font-size:15px}
+.actions{display:grid;grid-template-columns:1fr;gap:10px;margin-top:22px}
+.actions a{display:inline-flex;min-height:48px;align-items:center;justify-content:center;gap:9px;padding:11px 16px;border:1px solid rgba(255,255,255,.18);border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.085),rgba(255,255,255,.045));color:#fff;font-size:13px;font-weight:850;line-height:1.15;text-align:center;text-decoration:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.07);transition:transform .16s ease,border-color .18s ease,box-shadow .18s ease}
+.actions a svg{flex:0 0 auto;color:currentColor;transition:color .2s ease,transform .2s ease}
+.actions a span{background:linear-gradient(90deg,#fff 0%,#fff 38%,#ff812a 48%,#58a6ff 58%,#fff 68%,#fff 100%);background-size:260% 100%;background-position:100% 50%;-webkit-background-clip:text;background-clip:text;color:transparent;transition:background-position .2s ease}
+.actions a:hover,.actions a:focus-visible{outline:none;transform:translateY(-1px);border-color:rgba(255,255,255,.28);box-shadow:0 8px 24px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.1)}
+.actions a:hover span,.actions a:focus-visible span{animation:venueActionTextFlow 1.7s linear infinite}
+.actions a:hover svg,.actions a:focus-visible svg{animation:venueActionIconFlow 1.7s linear infinite;transform:scale(1.04)}
+.ageValue{display:block;margin-bottom:7px;color:#fff;font-size:36px;line-height:1;text-align:center}.agePopover h3{font-size:16px;text-transform:uppercase;letter-spacing:.03em}.agePopover p{margin-top:12px}.schedulePopover h3{font-size:20px}.venuePopover h3{font-size:21px}.venuePopover p{font-weight:650}
+@keyframes venueActionTextFlow{from{background-position:100% 50%}to{background-position:-160% 50%}}
+@keyframes venueActionIconFlow{0%,100%{color:#fff}35%{color:#ff812a}65%{color:#58a6ff}}
+@media(max-width:1180px) and (min-width:801px){.popover{left:7px;right:7px;padding:23px 17px}.popover h3{font-size:18px}.popover p,.fact{font-size:14px}.fact strong{font-size:14px}.actions a{font-size:12px;padding-inline:10px}}
+@media(max-width:800px){
+.strip{z-index:200;grid-template-columns:repeat(2,minmax(0,1fr));isolation:auto}
+.strip:has(.item.open){z-index:10000}
+.item{z-index:auto}
+.item.open{z-index:10001}
+.item:nth-child(2){border-right:0}
+.item:nth-child(-n+2){border-bottom:1px solid rgba(255,255,255,.1)}
+button.trigger{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.popover{position:absolute;z-index:10002;left:0;right:auto;bottom:calc(100% + 10px);width:calc(200% + 1px);max-width:none;padding:24px;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(18px) scale(.98);transform-origin:50% 100%;transition:opacity .2s ease,transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s linear .3s}
+.age .popover{left:auto;right:0}
+.popover:before{display:block;bottom:-18px;height:22px}
+.popover:after{display:block}
+.item:hover .popover{opacity:0;visibility:hidden;pointer-events:none;transform:translateY(18px) scale(.98)}
+.item.open .popover,.item:focus-within .popover{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1);transition-delay:0s}
+.actions{grid-template-columns:1fr 1fr}
+}
+@media(max-width:480px){.trigger{min-height:58px;padding:10px 8px;font-size:12px;gap:7px}.trigger svg{width:17px;height:17px}.popover{bottom:calc(100% + 9px);padding:22px}.popover h3{font-size:19px}.popover p{font-size:14px}.actions{grid-template-columns:1fr}.actions a{min-height:46px}.ageValue{font-size:32px}}
+@media(prefers-reduced-motion:reduce){.popover,.actions a,.actions a span,.actions a svg{transition:none;animation:none!important}}

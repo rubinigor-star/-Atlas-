@@ -77,4 +77,12 @@
     -webkit-box-decoration-break: clone;
     box-decoration-break: clone;
   }
+
+  .home-page .live-emotions-categories {
+    display: none;
+  }
+
+  .home-page .live-emotions-description {
+    margin-top: 22px;
+  }
 }
