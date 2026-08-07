@@ -21,6 +21,13 @@ function locale() {
   return value === "he" || value === "en" ? value : "ru";
 }
 
+function clearAvailability(link: HTMLAnchorElement) {
+  link.classList.remove(styles.availabilityLink, styles.soldOut, styles.lastTickets);
+  link.removeAttribute("data-atlas-availability-label");
+  link.removeAttribute("data-atlas-availability-state");
+  link.removeAttribute("data-atlas-availability-dir");
+}
+
 export function PublicSoldOutDecorator() {
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +35,8 @@ export function PublicSoldOutDecorator() {
 
     function decorate(soldOutSlugs: Set<string>, lastTicketsSlugs: Set<string>) {
       const links = document.querySelectorAll<HTMLAnchorElement>('a[href^="/events/"]');
+      const activeLocale = locale();
+
       links.forEach((link) => {
         const slug = link.getAttribute("href")?.split("/events/")[1]?.split(/[?#]/)[0] ?? "";
         const state: AvailabilityState | null = soldOutSlugs.has(slug)
@@ -35,30 +44,21 @@ export function PublicSoldOutDecorator() {
           : lastTicketsSlugs.has(slug)
             ? "lastTickets"
             : null;
-        if (!slug || !state) return;
 
-        const image = link.querySelector<HTMLImageElement>("img");
-        if (!image) return;
-
-        let frame = image.closest<HTMLElement>(`.${styles.mediaFrame}`);
-        if (!frame) {
-          frame = document.createElement("span");
-          frame.className = styles.mediaFrame;
-          image.parentNode?.insertBefore(frame, image);
-          frame.appendChild(image);
+        if (!slug || !state || !link.querySelector("img")) {
+          clearAvailability(link);
+          return;
         }
 
-        frame.classList.toggle(styles.soldOut, state === "soldOut");
-        frame.classList.toggle(styles.lastTickets, state === "lastTickets");
-
-        let label = frame.querySelector<HTMLElement>(`.${styles.label}`);
-        if (!label) {
-          label = document.createElement("span");
-          label.className = styles.label;
-          frame.prepend(label);
-        }
-        label.textContent = labels[locale()][state];
-        label.setAttribute("dir", state === "lastTickets" && locale() === "he" ? "rtl" : "ltr");
+        // Important: do not re-parent or insert nodes inside React-managed markup.
+        // Client-side navigation relies on the DOM tree matching React's virtual tree.
+        // Availability is therefore represented only by classes/data attributes and CSS.
+        link.classList.add(styles.availabilityLink);
+        link.classList.toggle(styles.soldOut, state === "soldOut");
+        link.classList.toggle(styles.lastTickets, state === "lastTickets");
+        link.setAttribute("data-atlas-availability-label", labels[activeLocale][state]);
+        link.setAttribute("data-atlas-availability-state", state);
+        link.setAttribute("data-atlas-availability-dir", state === "lastTickets" && activeLocale === "he" ? "rtl" : "ltr");
       });
     }
 
