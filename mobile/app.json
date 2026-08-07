@@ -2,7 +2,7 @@
   "expo": {
     "name": "Atlas Office",
     "slug": "atlas-office",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "portrait",
     "scheme": "atlasoffice",
     "userInterfaceStyle": "automatic",
@@ -30,8 +30,17 @@
     "experiments": {
       "typedRoutes": true
     },
+    "updates": {
+      "url": "https://u.expo.dev/b3d8cabf-2459-4509-ae6f-4b06b2bbdd88"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "extra": {
-      "apiBaseUrl": "https://www.atlas-one.co"
+      "apiBaseUrl": "https://www.atlas-one.co",
+      "eas": {
+        "projectId": "b3d8cabf-2459-4509-ae6f-4b06b2bbdd88"
+      }
     }
   }
 }
