@@ -8,6 +8,7 @@ import { createHypPaymentLink } from "@/lib/hyp-yaadpay";
 import { ensureMarketingRuntime, parseMarketingCookie, saveOrderAttribution } from "@/lib/marketing-runtime";
 import { getEffectiveEventTerms } from "@/lib/commercial-terms";
 import { calculateServiceFee } from "@/lib/service-fee";
+import { sendApprovalRequestReceivedEmail } from "@/lib/order-status-email";
 
 const CANONICAL_APP_URL="https://www.atlas-one.co";
 function normalizePhone(value:string){const digits=value.replace(/\D/g,"");if(!digits)return "";if(digits.startsWith("972"))return `+${digits}`;if(digits.startsWith("0"))return `+972${digits.slice(1)}`;return `+972${digits}`;}
@@ -54,6 +55,8 @@ export async function POST(req:Request){
       const paymentUrl=await createHypPaymentLink({amountIls:result.order.totalMinor/100,orderId:result.order.publicId,description:result.eventTitle,customerName:result.order.customerName,customerEmail:result.order.customerEmail,customerPhone:result.order.customerPhone,returnUrl:`${CANONICAL_APP_URL}/api/payments/hyp/order`,language:input.locale==="he"?"HEB":"ENG"});
       return NextResponse.json({orderId:result.order.publicId,status:result.order.status,paymentUrl:launchUrl(paymentUrl)},{status:201});
     }
-    return NextResponse.json({orderId:result.order.publicId,status:result.order.status},{status:201});
+    let emailSent=false;let emailError:string|undefined;
+    try{await sendApprovalRequestReceivedEmail(result.order.publicId,input.locale);emailSent=true;}catch(error){emailError=error instanceof Error?error.message:"Ошибка отправки email";console.error("[approval-request-email]",{publicId:result.order.publicId,message:emailError});}
+    return NextResponse.json({orderId:result.order.publicId,status:result.order.status,emailSent,emailError},{status:201});
   }catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Некорректный запрос"},{status:400});}
 }
