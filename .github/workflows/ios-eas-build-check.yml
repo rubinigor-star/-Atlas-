@@ -11,6 +11,7 @@ on:
 jobs:
   eas-ios-build:
     runs-on: ubuntu-latest
+    environment: Preview
     defaults:
       run:
         working-directory: mobile
@@ -32,7 +33,7 @@ jobs:
         shell: bash
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "EXPO_TOKEN GitHub secret is missing."
+            echo "EXPO_TOKEN is unavailable in the Preview environment."
             exit 2
           fi
           echo "EXPO_TOKEN is configured."
