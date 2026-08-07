@@ -18,6 +18,11 @@ function rgb(sample: Sample | null, fallback: [number, number, number]) {
   return `${clamp(sample.r / sample.weight)} ${clamp(sample.g / sample.weight)} ${clamp(sample.b / sample.weight)}`;
 }
 
+function paletteSource(posterUrl: string) {
+  if (!posterUrl.startsWith("/")) return posterUrl;
+  return `/_next/image?url=${encodeURIComponent(posterUrl)}&w=64&q=45`;
+}
+
 export function EventHeroPalette({ posterUrl, targetId }: Props) {
   useEffect(() => {
     const target = document.getElementById(targetId);
@@ -66,7 +71,7 @@ export function EventHeroPalette({ posterUrl, targetId }: Props) {
       }
     };
 
-    image.src = posterUrl;
+    image.src = paletteSource(posterUrl);
   }, [posterUrl, targetId]);
 
   return null;
