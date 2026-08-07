@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
+import { useLocalSearchParams } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { OfficePage } from "@/components/OfficePage";
@@ -22,13 +23,16 @@ function errorMessage(error: unknown) {
   const code = error instanceof Error ? error.message : "SCAN_FAILED";
   if (code === "UNAUTHORIZED") return "Сессия завершена. Вернитесь на главный экран и войдите снова.";
   if (code === "FORBIDDEN") return "У этого сотрудника нет права сканировать билеты.";
-  if (code === "EVENT_ACCESS_DENIED") return "Этот билет относится к мероприятию, к которому у вас нет доступа.";
+  if (code === "EVENT_ACCESS_DENIED") return "У этого сотрудника нет доступа к выбранному мероприятию.";
+  if (code === "WRONG_EVENT") return "Это билет другого мероприятия. Билет не использован.";
+  if (code === "CHECKIN_CLOSED") return "Сканирование для этого мероприятия сейчас закрыто.";
   if (code === "NETWORK_ERROR") return "Нет связи с Atlas. Проверьте интернет и повторите сканирование.";
   if (code === "INVALID_QR") return "QR-код имеет неправильный формат.";
   return "Не удалось проверить билет. Повторите сканирование.";
 }
 
 export default function ScannerScreen() {
+  const { eventId, eventTitle } = useLocalSearchParams<{ eventId?: string; eventTitle?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [torch, setTorch] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -44,13 +48,13 @@ export default function ScannerScreen() {
   }, []);
 
   const handleBarcode = useCallback(async ({ data }: BarcodeScanningResult) => {
-    if (busyRef.current || paused) return;
+    if (!eventId || busyRef.current || paused) return;
     busyRef.current = true;
     setPaused(true);
     setState({ kind: "checking" });
 
     try {
-      const payload = await validateTicket(data);
+      const payload = await validateTicket(eventId, data);
       setState({ kind: "result", payload });
     } catch (error) {
       const payload = (error as Error & { payload?: TicketValidationPayload }).payload;
@@ -59,11 +63,23 @@ export default function ScannerScreen() {
     }
 
     resumeTimerRef.current = setTimeout(resume, 2200);
-  }, [paused, resume]);
+  }, [eventId, paused, resume]);
+
+  if (!eventId) {
+    return (
+      <OfficePage title="Сканер" subtitle="Сканер запускается только из конкретного мероприятия.">
+        <View style={styles.permissionCard}>
+          <View style={styles.permissionIcon}><Ionicons name="calendar-outline" size={38} color="#15803D" /></View>
+          <Text style={styles.permissionTitle}>Сначала выберите мероприятие</Text>
+          <Text style={styles.permissionText}>Так Atlas гарантирует, что билет другого мероприятия нельзя случайно отметить как использованный.</Text>
+        </View>
+      </OfficePage>
+    );
+  }
 
   if (!permission) {
     return (
-      <OfficePage title="Сканер" subtitle="Подготовка камеры...">
+      <OfficePage title="Сканер" subtitle={eventTitle || "Подготовка камеры..."}>
         <View style={styles.centerCard}><ActivityIndicator size="large" color="#15803D" /></View>
       </OfficePage>
     );
@@ -71,7 +87,7 @@ export default function ScannerScreen() {
 
   if (!permission.granted) {
     return (
-      <OfficePage title="Сканер" subtitle="Для проверки билетов требуется камера.">
+      <OfficePage title="Сканер" subtitle={eventTitle || "Для проверки билетов требуется камера."}>
         <View style={styles.permissionCard}>
           <View style={styles.permissionIcon}><Ionicons name="camera-outline" size={38} color="#15803D" /></View>
           <Text style={styles.permissionTitle}>Разрешите доступ к камере</Text>
@@ -88,7 +104,7 @@ export default function ScannerScreen() {
   const success = state.kind === "result" && state.payload.result === "VALID";
 
   return (
-    <OfficePage title="Сканер" subtitle="Наведите камеру на QR-код билета.">
+    <OfficePage title="Сканер" subtitle={eventTitle ? `Вход: ${eventTitle}` : "Сканирование выбранного мероприятия"}>
       <View style={styles.cameraCard}>
         <CameraView
           style={styles.camera}
@@ -100,7 +116,7 @@ export default function ScannerScreen() {
         >
           <View style={styles.overlay}>
             <View style={styles.topBar}>
-              <View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveText}>СКАНЕР АКТИВЕН</Text></View>
+              <View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveText}>СКАНЕР СОБЫТИЯ</Text></View>
               <TouchableOpacity style={[styles.torchButton, torch && styles.torchButtonActive]} onPress={() => setTorch((value) => !value)} accessibilityRole="button" accessibilityLabel="Включить фонарик">
                 <Ionicons name={torch ? "flash" : "flash-outline"} size={22} color="#FFFFFF" />
               </TouchableOpacity>
@@ -113,7 +129,7 @@ export default function ScannerScreen() {
               <View style={[styles.corner, styles.cornerBottomRight]} />
             </View>
 
-            <Text style={styles.hint}>Поместите QR-код внутрь рамки</Text>
+            <Text style={styles.hint}>Только билеты этого мероприятия</Text>
           </View>
         </CameraView>
       </View>
@@ -123,13 +139,13 @@ export default function ScannerScreen() {
           <><Ionicons name="scan-outline" size={30} color="#15803D" /><View style={styles.statusCopy}><Text style={styles.statusTitle}>Готов к сканированию</Text><Text style={styles.statusText}>Камера остаётся открытой после каждого билета.</Text></View></>
         )}
         {state.kind === "checking" && (
-          <><ActivityIndicator size="small" color="#15803D" /><View style={styles.statusCopy}><Text style={styles.statusTitle}>Проверяем билет...</Text><Text style={styles.statusText}>Не убирайте QR-код до получения результата.</Text></View></>
+          <><ActivityIndicator size="small" color="#15803D" /><View style={styles.statusCopy}><Text style={styles.statusTitle}>Проверяем билет...</Text><Text style={styles.statusText}>Проверяем принадлежность к выбранному мероприятию.</Text></View></>
         )}
         {state.kind === "result" && resultCopy && (
           <><Ionicons name={resultCopy.icon} size={34} color={success ? "#15803D" : "#B91C1C"} /><View style={styles.statusCopy}><Text style={[styles.statusTitle, !success && styles.statusTitleError]}>{resultCopy.title}</Text><Text style={styles.statusText}>{state.payload.holderName ? `${state.payload.holderName} · ${state.payload.categoryName || "Билет"}` : resultCopy.message}</Text>{state.payload.event?.title ? <Text style={styles.eventName}>{state.payload.event.title}</Text> : null}</View></>
         )}
         {state.kind === "error" && (
-          <><Ionicons name="warning-outline" size={34} color="#B91C1C" /><View style={styles.statusCopy}><Text style={styles.statusTitleError}>Ошибка проверки</Text><Text style={styles.statusText}>{state.message}</Text></View></>
+          <><Ionicons name="warning-outline" size={34} color="#B91C1C" /><View style={styles.statusCopy}><Text style={styles.statusTitleError}>Вход не подтверждён</Text><Text style={styles.statusText}>{state.message}</Text></View></>
         )}
       </View>
 
