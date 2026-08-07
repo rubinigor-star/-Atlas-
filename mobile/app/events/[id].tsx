@@ -22,13 +22,13 @@ export default function EventDetailsScreen() {
   useEffect(() => { getDashboard().then(setData).finally(() => setLoading(false)); }, []);
 
   const event = data?.events.find((item) => item.id === id);
-  const percent = event?.capacity ? Math.min(100, Math.round((event.sold / event.capacity) * 100)) : 0;
+  const attendancePercent = event?.sold ? Math.min(100, Math.round((event.checkedIn / event.sold) * 100)) : 0;
   const actions = event ? [
-    { icon: "receipt-outline", title: "Заказы", subtitle: "Покупки и заявки", onPress: () => router.push({ pathname: "/orders", params: { eventId: event.id } }) },
-    { icon: "scan-outline", title: "Сканер", subtitle: "Контроль входа", onPress: () => router.push("/scanner") },
-    { icon: "stats-chart-outline", title: "Аналитика", subtitle: "Продажи и динамика", onPress: () => router.push("/analytics") },
-    { icon: "people-outline", title: "Клиенты", subtitle: "Посетители события", onPress: () => router.push({ pathname: "/orders", params: { eventId: event.id } }) },
-    { icon: "globe-outline", title: "Страница", subtitle: "Открыть на сайте", onPress: () => Linking.openURL(`https://www.atlas-one.co/events/${event.id}`) },
+    { icon: "receipt-outline", title: "Заказы", subtitle: "Покупки и заявки", disabled: false, onPress: () => router.push({ pathname: "/orders", params: { eventId: event.id } }) },
+    { icon: "scan-outline", title: "Сканер", subtitle: event.checkInOpen ? "Вход открыт" : `Доступен с ${eventDate(event.checkInOpensAt)}`, disabled: !event.checkInOpen, onPress: () => router.push({ pathname: "/scanner", params: { eventId: event.id, eventTitle: event.title } }) },
+    { icon: "stats-chart-outline", title: "Аналитика", subtitle: "Продажи и динамика", disabled: false, onPress: () => router.push("/analytics") },
+    { icon: "people-outline", title: "Клиенты", subtitle: "Посетители события", disabled: false, onPress: () => router.push({ pathname: "/orders", params: { eventId: event.id } }) },
+    { icon: "globe-outline", title: "Страница", subtitle: "Открыть на сайте", disabled: false, onPress: () => Linking.openURL(`https://www.atlas-one.co/events/${event.id}`) },
   ] as const : [];
 
   if (loading) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /></SafeAreaView>;
@@ -52,28 +52,28 @@ export default function EventDetailsScreen() {
 
         <View style={styles.sheet}>
           <View style={styles.statusRow}>
-            <View style={styles.status}><View style={styles.statusDot} /><Text style={styles.statusText}>{event.status === "PUBLISHED" ? "Активно" : event.status === "DRAFT" ? "Черновик" : "Завершено"}</Text></View>
+            <View style={styles.status}><View style={styles.statusDot} /><Text style={styles.statusText}>Активно</Text></View>
             <Text style={styles.dateText}>{eventDate(event.startsAt)}</Text>
           </View>
 
           <View style={styles.salesCard}>
-            <View style={styles.salesHeader}><Text style={styles.salesTitle}>Продажи билетов</Text><Text style={styles.percent}>{percent}%</Text></View>
-            <Text style={styles.salesValue}>{event.sold} <Text style={styles.salesCapacity}>/ {event.capacity || 0}</Text></Text>
-            <View style={styles.track}><View style={[styles.fill, { width: `${percent}%` }]} /></View>
+            <View style={styles.salesHeader}><Text style={styles.salesTitle}>Посетители на входе</Text><Text style={styles.percent}>{attendancePercent}%</Text></View>
+            <Text style={styles.salesValue}>{event.checkedIn} <Text style={styles.salesCapacity}>/ {event.sold}</Text></Text>
+            <View style={styles.track}><View style={[styles.fill, { width: `${attendancePercent}%` }]} /></View>
             <View style={styles.metrics}>
-              <View><Text style={styles.metricValue}>{event.sold}</Text><Text style={styles.metricLabel}>продано</Text></View>
-              <View><Text style={styles.metricValue}>{Math.max(0, event.capacity - event.sold)}</Text><Text style={styles.metricLabel}>осталось</Text></View>
-              <View><Text style={styles.metricValue}>{event.mapEnabled ? "Да" : "Нет"}</Text><Text style={styles.metricLabel}>схема зала</Text></View>
+              <View><Text style={styles.metricValue}>{event.checkedIn}</Text><Text style={styles.metricLabel}>пришли</Text></View>
+              <View><Text style={styles.metricValue}>{Math.max(0, event.sold - event.checkedIn)}</Text><Text style={styles.metricLabel}>ещё ожидаются</Text></View>
+              <View><Text style={styles.metricValue}>{event.sold}</Text><Text style={styles.metricLabel}>билетов продано</Text></View>
             </View>
           </View>
 
           <Text style={styles.sectionTitle}>Управление мероприятием</Text>
           <View style={styles.actionsList}>
             {actions.map((action) => (
-              <TouchableOpacity key={action.title} style={styles.actionRow} onPress={action.onPress} activeOpacity={0.76} accessibilityLabel={action.title}>
-                <View style={styles.actionIcon}><Ionicons name={action.icon} size={22} color="#6D45FF" /></View>
-                <View style={styles.actionCopy}><Text style={styles.actionTitle}>{action.title}</Text><Text style={styles.actionSubtitle}>{action.subtitle}</Text></View>
-                <Ionicons name="chevron-forward" size={20} color="#9AA1B0" />
+              <TouchableOpacity key={action.title} style={[styles.actionRow, action.disabled && styles.actionDisabled]} onPress={action.onPress} disabled={action.disabled} activeOpacity={0.76} accessibilityLabel={action.title}>
+                <View style={[styles.actionIcon, action.disabled && styles.actionIconDisabled]}><Ionicons name={action.icon} size={22} color={action.disabled ? "#9AA1B0" : "#6D45FF"} /></View>
+                <View style={styles.actionCopy}><Text style={[styles.actionTitle, action.disabled && styles.actionTitleDisabled]}>{action.title}</Text><Text style={styles.actionSubtitle}>{action.subtitle}</Text></View>
+                <Ionicons name={action.disabled ? "lock-closed-outline" : "chevron-forward"} size={20} color="#9AA1B0" />
               </TouchableOpacity>
             ))}
           </View>
@@ -82,7 +82,6 @@ export default function EventDetailsScreen() {
 
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem} onPress={() => router.replace("/")}><Ionicons name="calendar" size={23} color="#6D45FF" /><Text style={styles.navActive}>Мероприятия</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push("/scanner")}><Ionicons name="scan-outline" size={23} color="#737B8D" /><Text style={styles.navText}>Сканер</Text></TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push("/profile")}><Ionicons name="person-outline" size={23} color="#737B8D" /><Text style={styles.navText}>Профиль</Text></TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -126,12 +125,15 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 19, fontWeight: "900", color: "#17213C", marginTop: 24, marginBottom: 11 },
   actionsList: { backgroundColor: "#fff", borderRadius: 20, overflow: "hidden", borderWidth: 1, borderColor: "#E7E9F0" },
   actionRow: { minHeight: 70, flexDirection: "row", alignItems: "center", paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: "#EEF0F4" },
+  actionDisabled: { opacity: 0.58 },
   actionIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#F0EDFF", alignItems: "center", justifyContent: "center" },
+  actionIconDisabled: { backgroundColor: "#F0F1F4" },
   actionCopy: { flex: 1, marginLeft: 12 },
   actionTitle: { fontSize: 15, fontWeight: "800", color: "#17213C" },
+  actionTitleDisabled: { color: "#818898" },
   actionSubtitle: { fontSize: 12, color: "#858D9E", marginTop: 3 },
   bottomNav: { position: "absolute", left: 0, right: 0, bottom: 0, height: 82, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E6E8EF", flexDirection: "row", justifyContent: "space-around", paddingTop: 11 },
-  navItem: { alignItems: "center", minWidth: 90 },
+  navItem: { alignItems: "center", minWidth: 120 },
   navActive: { color: "#6D45FF", fontSize: 11.5, fontWeight: "800", marginTop: 4 },
   navText: { color: "#747D90", fontSize: 11.5, fontWeight: "600", marginTop: 4 },
   emptyTitle: { fontSize: 18, fontWeight: "800", color: "#17213C" },
