@@ -5,6 +5,7 @@ import { hypResultFromUrl, verifyHypCallback } from "@/lib/hyp-yaadpay";
 import { commitReservation, releaseReservation } from "@/lib/reservation";
 import { issueTicketsForOrder } from "@/lib/ticket-engine";
 import { sendOrderTicketEmail } from "@/lib/order-email";
+import { sendOrderTicketSms } from "@/lib/order-sms";
 import { ensureAbandonedCheckoutRuntime } from "@/lib/abandoned-checkout";
 
 export const dynamic = "force-dynamic";
@@ -158,6 +159,7 @@ async function finalizeCallback(url: URL): Promise<FinalizeResult> {
   if (finalized) {
     try { await attributeRecoveredCheckout(order); } catch (error) { console.error("[abandon-recovery-attribution]", publicId, error); }
     try { await sendOrderTicketEmail(publicId); } catch (error) { console.error("[hyp-ticket-email]", publicId, error); }
+    try { await sendOrderTicketSms(publicId, { automatic: true }); } catch (error) { console.error("[hyp-ticket-sms]", publicId, error); }
   }
   return { publicId, state: "success", alreadyPaid: !finalized };
 }
