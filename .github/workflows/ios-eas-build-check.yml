@@ -11,7 +11,7 @@ on:
 jobs:
   eas-ios-build:
     runs-on: ubuntu-latest
-    environment: Preview
+    environment: Production
     defaults:
       run:
         working-directory: mobile
@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "EXPO_TOKEN is unavailable in the Preview environment."
+            echo "EXPO_TOKEN is unavailable in the Production environment."
             exit 2
           fi
           echo "EXPO_TOKEN is configured."
