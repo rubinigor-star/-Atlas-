@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export async function GET() {
   const events = await db.event.findMany({
@@ -20,6 +20,6 @@ export async function GET() {
       soldOutSlugs: events.filter((event) => event.description.includes("<!--ATLAS_SOLD_OUT:true-->")).map((event) => event.slug),
       lastTicketsSlugs: events.filter((event) => event.description.includes("<!--ATLAS_LAST_TICKETS:true-->")).map((event) => event.slug),
     },
-    { headers: { "Cache-Control": "no-store" } },
+    { headers: { "Cache-Control": "public, max-age=15, s-maxage=30, stale-while-revalidate=300" } },
   );
 }
