@@ -1,0 +1,44 @@
+name: Atlas Office iOS EAS Build Check
+
+on:
+  push:
+    branches:
+      - temp/mobile-scanner-main-integration-20260807
+    paths:
+      - ".github/workflows/ios-eas-build-check.yml"
+  workflow_dispatch:
+
+jobs:
+  eas-ios-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify Expo token
+        shell: bash
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN GitHub secret is missing."
+            exit 2
+          fi
+          echo "EXPO_TOKEN is configured."
+
+      - name: Verify EAS project binding
+        run: npx eas-cli@latest project:info
+
+      - name: Start internal iOS build
+        run: npx eas-cli@latest build --platform ios --profile preview --non-interactive --no-wait
