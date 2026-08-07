@@ -99,16 +99,16 @@ async function finalizeAuthorization(url: URL) {
   if (!order) return { publicId, state: "unknown-order" as State };
   if (order.event.salesMode !== "APPROVAL_REQUIRED") return { publicId, state: "wrong-mode" as State };
 
-  const signatureValid = await verifyHypCallback(url).catch(() => false);
   const returnedMinor = Math.round(Number(result.amount || "0") * 100);
   const transId = result.transId.trim();
+  const signatureValid = result.success ? await verifyHypCallback(url).catch(() => false) : false;
 
   if (order.status === "PENDING_APPROVAL") {
     if (signatureValid && result.success && returnedMinor === order.totalMinor && transId) await saveAuthorization(order, result);
     return { publicId, state: "authorized" as State, alreadyAuthorized: true };
   }
 
-  if (!signatureValid || !result.success || returnedMinor !== order.totalMinor || !transId) {
+  if (!result.success || !signatureValid || returnedMinor !== order.totalMinor || !transId) {
     console.error("hyp.approval.authorization_rejected", { publicId, signatureValid, success: result.success, returnedMinor, expectedMinor: order.totalMinor, hasTransId: Boolean(transId), code: result.code });
     if (!result.success && order.status === "PENDING") {
       await db.$transaction(async (tx) => {
@@ -116,7 +116,8 @@ async function finalizeAuthorization(url: URL) {
         await tx.order.updateMany({ where: { id: order.id, status: "PENDING" }, data: { status: "CANCELLED" } });
       });
     }
-    return { publicId, state: !signatureValid ? "invalid-signature" as State : !transId ? "missing-transaction" as State : "failed" as State };
+    const state: State = !result.success ? "failed" : !signatureValid ? "invalid-signature" : !transId ? "missing-transaction" : "failed";
+    return { publicId, state };
   }
 
   await saveAuthorization(order, result);
