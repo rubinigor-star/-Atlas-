@@ -1,14 +1,14 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { hypResultFromUrl, verifyHypCallback } from "@/lib/hyp-yaadpay";
+import { hypApprovalResultFromUrl, verifyHypApprovalResponseMac } from "@/lib/hyp-creditguard";
 import { releaseReservation } from "@/lib/reservation";
 import { sendApprovalRequestReceivedEmail } from "@/lib/order-status-email";
 
 export const dynamic = "force-dynamic";
 
 type CallbackMode = "browser" | "server";
-type State = "authorized" | "failed" | "invalid-signature" | "missing-transaction" | "missing-order" | "unknown-order" | "wrong-mode";
+type State = "authorized" | "cancelled" | "failed" | "invalid-signature" | "missing-transaction" | "missing-order" | "unknown-order" | "wrong-mode";
 
 let paymentColumnsReady: Promise<void> | undefined;
 function ensurePaymentIdentifierColumns() {
@@ -54,7 +54,7 @@ async function requestToCallbackUrl(request: Request) {
   return url;
 }
 
-async function saveAuthorization(order: { id: string; totalMinor: number; currency: string }, result: ReturnType<typeof hypResultFromUrl>) {
+async function saveAuthorization(order: { id: string; totalMinor: number; currency: string }, result: ReturnType<typeof hypApprovalResultFromUrl>) {
   await ensurePaymentIdentifierColumns();
   const transId = result.transId.trim();
   const authorizationId = `auth_${randomUUID().replace(/-/g, "")}`;
@@ -91,34 +91,53 @@ async function saveAuthorization(order: { id: string; totalMinor: number; curren
   );
 }
 
+async function cancelPendingCheckout(order: { id: string; status: string }) {
+  if (order.status !== "PENDING") return;
+  await db.$transaction(async (tx) => {
+    await releaseReservation(order.id, tx);
+    await tx.order.updateMany({ where: { id: order.id, status: "PENDING" }, data: { status: "CANCELLED" } });
+  });
+}
+
 async function finalizeAuthorization(url: URL) {
-  const result = hypResultFromUrl(url);
+  const result = hypApprovalResultFromUrl(url);
   const publicId = result.orderId;
   if (!publicId) return { publicId: "", state: "missing-order" as State };
   const order = await db.order.findUnique({ where: { publicId }, include: { event: true } });
   if (!order) return { publicId, state: "unknown-order" as State };
   if (order.event.salesMode !== "APPROVAL_REQUIRED") return { publicId, state: "wrong-mode" as State };
 
-  const returnedMinor = Math.round(Number(result.amount || "0") * 100);
-  const transId = result.transId.trim();
-  const signatureValid = result.success ? await verifyHypCallback(url).catch(() => false) : false;
+  if (result.outcome === "cancel") {
+    await cancelPendingCheckout(order);
+    console.info("hyp.approval.authorization_cancelled_by_customer", { publicId, code: result.code });
+    return { publicId, state: "cancelled" as State };
+  }
+
+  if (!result.success) {
+    console.error("hyp.approval.authorization_failed", { publicId, outcome: result.outcome, code: result.code });
+    return { publicId, state: "failed" as State };
+  }
+
+  const signatureValid = verifyHypApprovalResponseMac(url);
+  const hasRequiredPaymentData = Boolean(result.txId && result.cgUid && result.cardToken && /^\d{4}$/.test(result.cardExp));
+  if (!signatureValid || !hasRequiredPaymentData) {
+    console.error("hyp.approval.authorization_rejected", {
+      publicId,
+      signatureValid,
+      hasTxId: Boolean(result.txId),
+      hasCgUid: Boolean(result.cgUid),
+      hasCardToken: Boolean(result.cardToken),
+      hasCardExp: /^\d{4}$/.test(result.cardExp),
+      code: result.code,
+    });
+    return { publicId, state: !signatureValid ? "invalid-signature" as State : "missing-transaction" as State };
+  }
 
   if (order.status === "PENDING_APPROVAL") {
-    if (signatureValid && result.success && returnedMinor === order.totalMinor && transId) await saveAuthorization(order, result);
+    await saveAuthorization(order, result);
     return { publicId, state: "authorized" as State, alreadyAuthorized: true };
   }
-
-  if (!result.success || !signatureValid || returnedMinor !== order.totalMinor || !transId) {
-    console.error("hyp.approval.authorization_rejected", { publicId, signatureValid, success: result.success, returnedMinor, expectedMinor: order.totalMinor, hasTransId: Boolean(transId), code: result.code });
-    if (!result.success && order.status === "PENDING") {
-      await db.$transaction(async (tx) => {
-        await releaseReservation(order.id, tx);
-        await tx.order.updateMany({ where: { id: order.id, status: "PENDING" }, data: { status: "CANCELLED" } });
-      });
-    }
-    const state: State = !result.success ? "failed" : !signatureValid ? "invalid-signature" : !transId ? "missing-transaction" : "failed";
-    return { publicId, state };
-  }
+  if (order.status !== "PENDING") return { publicId, state: "failed" as State };
 
   await saveAuthorization(order, result);
   const changed = await db.order.updateMany({ where: { id: order.id, status: "PENDING" }, data: { status: "PENDING_APPROVAL", reviewedAt: null, paymentDueAt: null } });
@@ -128,11 +147,9 @@ async function finalizeAuthorization(url: URL) {
   }
   console.info("hyp.approval.authorized", {
     publicId,
-    transId,
-    cgUid: result.cgUid || null,
+    txId: result.txId,
+    cgUid: result.cgUid,
     authorizationCode: result.authorizationCode || null,
-    hasCardToken: Boolean(result.cardToken),
-    hasCardExp: Boolean(result.cardExp),
     amountMinor: order.totalMinor,
   });
   return { publicId, state: "authorized" as State, alreadyAuthorized: changed.count === 0 };
