@@ -16,7 +16,7 @@ const copy: Record<"ru" | "he" | "en", AccountCopy> = {
 };
 
 function statusLabel(status: string, text: AccountCopy) {
-  if (status === "PENDING" || status === "PENDING_APPROVAL") return text.pending;
+  if (status === "PENDING_APPROVAL") return text.pending;
   if (status === "AWAITING_PAYMENT") return text.awaiting;
   if (status === "PAID") return text.paid;
   if (status === "REJECTED") return text.rejected;
@@ -35,10 +35,10 @@ export default async function CustomerAccountPage() {
     orderBy: { createdAt: "desc" },
   });
 
-  // A cancelled order with no ticket is only an unsuccessful checkout/payment attempt,
-  // not a completed purchase. Keep it in the financial database for audit, but do not
-  // present it to the customer as a purchase in "My orders and tickets".
-  const orders = allOrders.filter((order) => !(order.status === "CANCELLED" && order.tickets.length === 0));
+  // PENDING is an unfinished checkout/payment setup, not yet a customer order.
+  // A cancelled order with no ticket is likewise only an unsuccessful checkout attempt.
+  // Both stay in the financial database for audit but are hidden from the purchase history.
+  const orders = allOrders.filter((order) => order.status !== "PENDING" && !(order.status === "CANCELLED" && order.tickets.length === 0));
   const now = new Date();
   const upcoming = orders.filter((order) => order.event.startsAt >= now && !["CANCELLED", "REJECTED"].includes(order.status));
   const history = orders.filter((order) => !upcoming.some((item) => item.id === order.id));
