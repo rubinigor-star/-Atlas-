@@ -39,6 +39,11 @@ function safeProviderResponse(body: string) {
 function isApprovalAuthorizationCode(code: string) {
   return code === "0" || code === "000" || code === "700" || code === "800";
 }
+function splitCustomerName(value: string) {
+  const parts = safeText(value, 100).split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return { firstName: parts[0] || "Customer", lastName: "" };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
 
 async function callApiSign(what: "SIGN" | "VERIFY", paymentParams: URLSearchParams) {
   const requestParams = new URLSearchParams({
@@ -68,10 +73,11 @@ async function callApiSign(what: "SIGN" | "VERIFY", paymentParams: URLSearchPara
   return result;
 }
 
-export async function createHypApprovalPaymentPage(input: { amountMinor: number; orderId: string; callbackPath: string; language?: "HEB" | "ENG" }) {
+export async function createHypApprovalPaymentPage(input: { amountMinor: number; orderId: string; callbackPath: string; language?: "HEB" | "ENG"; customerName?: string; customerEmail?: string; customerPhone?: string }) {
   if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) throw new Error("Некорректная сумма HYP authorization");
   const orderId = safeText(input.orderId, 64);
   if (!orderId) throw new Error("HYP order ID is required");
+  const customer = splitCustomerName(input.customerName || "Customer");
   const paymentParams = new URLSearchParams({
     action: "pay",
     Masof: required("HYP_MASOF"),
@@ -79,8 +85,10 @@ export async function createHypApprovalPaymentPage(input: { amountMinor: number;
     Coin: "1",
     Info: safeText(`Atlas approval ${orderId}`, 120),
     Order: orderId,
-    ClientName: "Atlas",
-    ClientLName: "Customer",
+    ClientName: safeText(customer.firstName, 50),
+    ClientLName: safeText(customer.lastName, 50),
+    email: safeText(input.customerEmail || "", 120),
+    cell: safeText(input.customerPhone || "", 30),
     PageLang: input.language || "HEB",
     UTF8: "True",
     UTF8out: "True",
