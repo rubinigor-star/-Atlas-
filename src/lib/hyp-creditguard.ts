@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "crypto";
+import { createHash, randomUUID, timingSafeEqual } from "crypto";
 
 const RELAY_TIMEOUT_MS = 30_000;
 
@@ -36,8 +36,25 @@ function decodeXml(value: string) {
 function safeResponse(value: string) {
   return value.replace(/(<password>)[\s\S]*?(<\/password>)/gi, "$1[REDACTED]$2").slice(0, 20_000);
 }
+function paymentAttemptId(orderId: string) {
+  const suffix = randomUUID().replace(/-/g, "").slice(0, 12);
+  const maxOrderLength = Math.max(1, 64 - suffix.length - 1);
+  return `${orderId.slice(0, maxOrderLength)}.${suffix}`;
+}
+function orderIdFromAttemptId(attemptId: string) {
+  return attemptId.split(".", 1)[0] || "";
+}
+
+export function assertHypTwoPhaseConfigured() {
+  required("HYP_RELAY_URL");
+  required("HYP_API_USER");
+  required("HYP_API_PASSWORD");
+  required("HYP_MPI_MID");
+  terminalNumber();
+}
 
 async function relay(xml: string) {
+  assertHypTwoPhaseConfigured();
   const endpoint = required("HYP_RELAY_URL");
   if (!/^https:\/\//i.test(endpoint)) throw new Error("HYP_RELAY_URL must use HTTPS");
   const response = await fetch(endpoint, {
@@ -55,20 +72,21 @@ async function relay(xml: string) {
 
 export async function createHypApprovalPaymentPage(input: { amountMinor: number; orderId: string; callbackPath: string; language?: "HEB" | "ENG" }) {
   if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) throw new Error("Некорректная сумма HYP authorization");
-  const orderId = input.orderId.trim().slice(0, 64);
+  const orderId = input.orderId.trim();
   if (!orderId) throw new Error("HYP order ID is required");
+  const attemptId = paymentAttemptId(orderId);
   const successUrl = callbackUrl(input.callbackPath, "success");
   const errorUrl = callbackUrl(input.callbackPath, "error");
   const cancelUrl = callbackUrl(input.callbackPath, "cancel");
-  const xml = `<ashrait><request><version>2000</version><language>${input.language || "ENG"}</language><command>doDeal</command><doDeal><terminalNumber>${esc(terminalNumber())}</terminalNumber><cardNo>CGMPI</cardNo><total>${input.amountMinor}</total><transactionType>Debit</transactionType><creditType>RegularCredit</creditType><currency>ILS</currency><transactionCode>Internet</transactionCode><validation>TxnSetup</validation><mid>${esc(required("HYP_MPI_MID"))}</mid><uniqueid>${esc(orderId)}</uniqueid><mpiValidation>Verify</mpiValidation><successUrl>${esc(successUrl)}</successUrl><errorUrl>${esc(errorUrl)}</errorUrl><cancelUrl>${esc(cancelUrl)}</cancelUrl></doDeal></request></ashrait>`;
-  console.info("hyp.creditguard.authorization_page.request", { orderId, amountMinor: input.amountMinor });
+  const xml = `<ashrait><request><version>2000</version><language>${input.language || "ENG"}</language><command>doDeal</command><doDeal><terminalNumber>${esc(terminalNumber())}</terminalNumber><cardNo>CGMPI</cardNo><total>${input.amountMinor}</total><transactionType>Debit</transactionType><creditType>RegularCredit</creditType><currency>ILS</currency><transactionCode>Internet</transactionCode><validation>TxnSetup</validation><mid>${esc(required("HYP_MPI_MID"))}</mid><uniqueid>${esc(attemptId)}</uniqueid><mpiValidation>Verify</mpiValidation><successUrl>${esc(successUrl)}</successUrl><errorUrl>${esc(errorUrl)}</errorUrl><cancelUrl>${esc(cancelUrl)}</cancelUrl></doDeal></request></ashrait>`;
+  console.info("hyp.creditguard.authorization_page.request", { orderId, attemptId, amountMinor: input.amountMinor });
   const body = await relay(xml);
   const resultCode = xmlValue(body, "result");
   const message = xmlValue(body, "userMessage") || xmlValue(body, "message");
   if (resultCode !== "000") throw new Error(`HYP TxnSetup ${resultCode || "UNKNOWN"}: ${message || "request rejected"}`);
   const paymentUrl = decodeXml(xmlValue(body, "mpiHostedPageUrl"));
   if (!/^https:\/\//i.test(paymentUrl)) throw new Error("HYP TxnSetup did not return a valid payment page URL");
-  console.info("hyp.creditguard.authorization_page.created", { orderId, resultCode });
+  console.info("hyp.creditguard.authorization_page.created", { orderId, attemptId, resultCode });
   return paymentUrl;
 }
 
@@ -91,7 +109,7 @@ export type HypApprovalRedirect = {
 export function hypApprovalResultFromUrl(url: URL): HypApprovalRedirect {
   const outcome = url.searchParams.get("providerOutcome") || "";
   const code = url.searchParams.get("errorCode") || "";
-  const orderId = url.searchParams.get("uniqueID") || url.searchParams.get("uniqueId") || "";
+  const uniqueId = url.searchParams.get("uniqueID") || url.searchParams.get("uniqueId") || "";
   const txId = url.searchParams.get("txId") || "";
   const cgUid = url.searchParams.get("cgUid") || "";
   const cardToken = url.searchParams.get("cardToken") || "";
@@ -100,10 +118,10 @@ export function hypApprovalResultFromUrl(url: URL): HypApprovalRedirect {
     success: outcome === "success" && (!code || code === "000"),
     outcome,
     code: code || (outcome === "success" ? "000" : outcome || "UNKNOWN"),
-    orderId,
+    orderId: orderIdFromAttemptId(uniqueId),
     transId: cgUid || txId,
     txId,
-    uniqueId: orderId,
+    uniqueId,
     cgUid,
     authorizationCode: url.searchParams.get("authNumber") || "",
     cardToken,
@@ -114,7 +132,7 @@ export function hypApprovalResultFromUrl(url: URL): HypApprovalRedirect {
 }
 
 export function verifyHypApprovalResponseMac(url: URL) {
-  const responseMac = url.searchParams.get("responseMac") || "";
+  const responseMac = url.searchParams.get("responseMac") || url.searchParams.get("responseMAC") || "";
   const txId = url.searchParams.get("txId") || "";
   const uniqueId = url.searchParams.get("uniqueID") || url.searchParams.get("uniqueId") || "";
   if (!responseMac || !txId || !uniqueId) return false;
@@ -127,7 +145,7 @@ export function verifyHypApprovalResponseMac(url: URL) {
     url.searchParams.get("personalId") || "",
     uniqueId,
   ].join("");
-  const calculated = createHash("sha256").update(base).digest("hex");
+  const calculated = createHash("sha256").update(base).digest("hex").toLowerCase();
   const received = responseMac.trim().toLowerCase();
   if (!/^[a-f0-9]{64}$/.test(received)) return false;
   return timingSafeEqual(Buffer.from(calculated, "hex"), Buffer.from(received, "hex"));
