@@ -5,7 +5,7 @@ import { requireEventAccess } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { sendOrderRejectionEmail, sendOrderTicketEmail } from "@/lib/order-email";
 import { captureTestAuthorization, voidTestAuthorization } from "@/lib/payment-authorization";
-import { captureHypAuthorization, cancelHypAuthorization } from "@/lib/hyp-yaadpay";
+import { captureHypAuthorization, cancelHypAuthorization } from "@/lib/hyp-creditguard";
 import { commitReservation, releaseReservation } from "@/lib/reservation";
 import { cancelOrderTickets, issueTicketsForOrder } from "@/lib/ticket-engine";
 import { parseEventRejectionMessage } from "@/lib/event-approval-message";
@@ -90,6 +90,7 @@ async function captureProviderAuthorization(authorization: AuthorizationRow | nu
   if (authorization.provider !== "HYP") throw new Error(`Неподдерживаемый провайдер авторизации: ${authorization.provider}`);
   if (authorization.status === "CAPTURED") return;
   if (authorization.status !== "AUTHORIZED") throw new Error(`HYP-авторизация недоступна для списания: ${authorization.status}`);
+  if (!authorization.hypTransId) throw new Error("HYP TransId не сохранён для завершения J5");
 
   const claimed = await db.$executeRawUnsafe(
     `UPDATE "PaymentAuthorization" SET "status"='CAPTURING',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "status"='AUTHORIZED'`,
@@ -99,17 +100,15 @@ async function captureProviderAuthorization(authorization: AuthorizationRow | nu
 
   try {
     const result = await captureHypAuthorization({
-      cardToken: authorization.hypCardToken || "",
-      cardExp: authorization.hypCardExp || "",
-      cgUid: authorization.hypCgUid || "",
+      transactionId: authorization.hypTransId,
       amountMinor: authorization.amountMinor,
+      description: "Atlas organizer approval",
     });
     await db.$executeRawUnsafe(
       `UPDATE "PaymentAuthorization" SET
         "status"='CAPTURED',
         "hypAuthorizationTransId"=COALESCE("hypAuthorizationTransId","hypTransId"),
         "hypCaptureTransId"=NULLIF($2,''),
-        "hypTransId"=COALESCE(NULLIF($2,''),"hypTransId"),
         "providerReference"=COALESCE(NULLIF($2,''),"providerReference"),
         "hypCapturePayloadJson"=$3,
         "capturedAt"=CURRENT_TIMESTAMP,
@@ -135,6 +134,7 @@ async function cancelProviderAuthorization(authorization: AuthorizationRow | nul
   if (authorization.status === "VOIDED") return;
   if (authorization.status === "CAPTURED") throw new Error("Оплата уже списана. Используйте возврат, а не отклонение заявки");
   if (authorization.status !== "AUTHORIZED") throw new Error(`HYP-авторизация недоступна для отмены: ${authorization.status}`);
+  if (!authorization.hypTransId) throw new Error("HYP TransId не сохранён для отклонения J5");
 
   const claimed = await db.$executeRawUnsafe(
     `UPDATE "PaymentAuthorization" SET "status"='CANCELLING',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "status"='AUTHORIZED'`,
@@ -143,7 +143,7 @@ async function cancelProviderAuthorization(authorization: AuthorizationRow | nul
   if (claimed !== 1) throw new Error("Эта заявка уже обрабатывается");
 
   try {
-    const result = await cancelHypAuthorization({ cgUid: authorization.hypCgUid || "" });
+    const result = await cancelHypAuthorization({ transactionId: authorization.hypTransId });
     await db.$executeRawUnsafe(
       `UPDATE "PaymentAuthorization" SET
         "status"='VOIDED',
@@ -234,7 +234,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ public
       if (input.action === "reject") {
         if (hasReservation) await releaseReservation(current.id, tx);
         if (auth?.provider === "ATLAS_TEST") await voidTestAuthorization(current.id, tx);
-        if (auth?.provider === "HYP" && auth.status !== "VOIDED") throw new Error("HYP не подтвердил отмену предварительной авторизации");
+        if (auth?.provider === "HYP" && auth.status !== "VOIDED") throw new Error("HYP J5 не был закрыт без списания");
         await cancelOrderTickets(current.id, tx);
         const rejectionMessage = parseEventRejectionMessage(current.event.description);
         return tx.order.update({ where: { id: current.id }, data: { status: "REJECTED", reviewNote: input.note?.trim() || rejectionMessage, reviewedAt: new Date(), paymentDueAt: null } });
@@ -263,7 +263,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ public
     });
 
     await writeAudit(actor, {
-      action: input.action === "approve" ? (legacyDemoOrder ? "LEGACY_REQUEST_APPROVED" : "REQUEST_APPROVED_AND_CAPTURED") : "REQUEST_REJECTED_AND_VOIDED",
+      action: input.action === "approve" ? (legacyDemoOrder ? "LEGACY_REQUEST_APPROVED" : "REQUEST_APPROVED_AND_CAPTURED") : "REQUEST_REJECTED_WITHOUT_COMMIT",
       entityType: "Order",
       entityId: target.id,
       summary: `${input.action === "approve" ? "Одобрена" : "Отклонена"} заявка ${target.customerName}${legacyDemoOrder ? " (демо-заказ без оплаты)" : ""}`,
