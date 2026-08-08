@@ -4,7 +4,13 @@ import { db } from "@/lib/db";
 import { getMobileStaff } from "@/lib/mobile-auth";
 import { validateAndUseTicket } from "@/lib/ticket-engine";
 
-const schema = z.object({ code: z.string().min(6).max(500) });
+const schema = z.object({
+  eventId: z.string().min(1).max(200),
+  code: z.string().min(6).max(500),
+});
+
+const CHECKIN_OPENS_BEFORE_MS = 3 * 60 * 60 * 1000;
+const CHECKIN_CLOSES_AFTER_MS = 12 * 60 * 60 * 1000;
 
 function normalizeTicketCode(value: string) {
   const trimmed = value.trim();
@@ -20,6 +26,12 @@ function normalizeTicketCode(value: string) {
   }
 }
 
+function isCheckInOpen(startsAt: Date, now = new Date()) {
+  const starts = startsAt.getTime();
+  const current = now.getTime();
+  return current >= starts - CHECKIN_OPENS_BEFORE_MS && current <= starts + CHECKIN_CLOSES_AFTER_MS;
+}
+
 export async function POST(request: Request) {
   const user = await getMobileStaff(request);
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
@@ -28,34 +40,56 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { code: rawCode } = schema.parse(await request.json());
+    const { eventId, code: rawCode } = schema.parse(await request.json());
+    const selectedEvent = await db.event.findUnique({
+      where: { id: eventId },
+      select: { id: true, title: true, startsAt: true, organizationId: true, status: true },
+    });
+
+    if (!selectedEvent || selectedEvent.status !== "PUBLISHED") {
+      return NextResponse.json({ error: "EVENT_ACCESS_DENIED" }, { status: 403 });
+    }
+
+    if (user.role !== "ADMIN") {
+      const hasExplicitEventScope = user.eventAccess.length > 0;
+      const canAccessOrganization = Boolean(user.organizationId && selectedEvent.organizationId === user.organizationId);
+      const canAccessEvent = user.eventAccess.some((access) => access.eventId === selectedEvent.id);
+      if (!canAccessOrganization || (hasExplicitEventScope && !canAccessEvent)) {
+        return NextResponse.json({ error: "EVENT_ACCESS_DENIED" }, { status: 403 });
+      }
+    }
+
+    if (!isCheckInOpen(selectedEvent.startsAt)) {
+      return NextResponse.json({ error: "CHECKIN_CLOSED" }, { status: 409 });
+    }
+
     const code = normalizeTicketCode(rawCode);
     const ticket = await db.ticket.findUnique({
       where: { publicCode: code },
       select: {
         order: {
           select: {
-            event: { select: { id: true, title: true, organizationId: true } },
+            event: { select: { id: true, title: true } },
           },
         },
       },
     });
 
-    if (ticket && user.role !== "ADMIN") {
-      const event = ticket.order.event;
-      const hasExplicitEventScope = user.eventAccess.length > 0;
-      const canAccessOrganization = Boolean(user.organizationId && event.organizationId === user.organizationId);
-      const canAccessEvent = user.eventAccess.some((access) => access.eventId === event.id);
-      if (!canAccessOrganization || (hasExplicitEventScope && !canAccessEvent)) {
-        return NextResponse.json({ error: "EVENT_ACCESS_DENIED" }, { status: 403 });
-      }
+    if (ticket && ticket.order.event.id !== selectedEvent.id) {
+      return NextResponse.json(
+        {
+          error: "WRONG_EVENT",
+          scannedEvent: { id: ticket.order.event.id, title: ticket.order.event.title },
+          expectedEvent: { id: selectedEvent.id, title: selectedEvent.title },
+        },
+        { status: 409 },
+      );
     }
 
     const result = await validateAndUseTicket(code);
-    const event = ticket?.order.event;
     const status = result.result === "NOT_FOUND" ? 404 : result.result === "VALID" ? 200 : 409;
     return NextResponse.json(
-      { ...result, event: event ? { id: event.id, title: event.title } : null },
+      { ...result, event: { id: selectedEvent.id, title: selectedEvent.title } },
       { status },
     );
   } catch (error) {
