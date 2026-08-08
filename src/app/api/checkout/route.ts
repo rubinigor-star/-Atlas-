@@ -1,27 +1,36 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { checkoutSchema } from "@/lib/schemas";
-import { effectiveTicketPrice, initialOrderStatus, orderNumber } from "@/lib/ticketing";
+import { effectiveTicketPrice, orderNumber } from "@/lib/ticketing";
 import { guestFieldKeys, parseGuestFields } from "@/lib/event-guest-fields";
 import { assertInventoryAvailable, createReservation, type ReservationItemInput } from "@/lib/reservation";
 import { createHypPaymentLink } from "@/lib/hyp-yaadpay";
+import { createHypApprovalPaymentPage } from "@/lib/hyp-creditguard";
 import { ensureMarketingRuntime, parseMarketingCookie, saveOrderAttribution } from "@/lib/marketing-runtime";
 import { getEffectiveEventTerms } from "@/lib/commercial-terms";
 import { calculateServiceFee } from "@/lib/service-fee";
 
 const CANONICAL_APP_URL="https://www.atlas-one.co";
 function normalizePhone(value:string){const digits=value.replace(/\D/g,"");if(!digits)return "";if(digits.startsWith("972"))return `+${digits}`;if(digits.startsWith("0"))return `+972${digits.slice(1)}`;return `+972${digits}`;}
-function launchUrl(paymentUrl:string){return `${CANONICAL_APP_URL}/payments/hyp/launch?target=${encodeURIComponent(paymentUrl)}`;}
+function launchUrl(paymentUrl:string){return `/payments/hyp/launch?target=${encodeURIComponent(paymentUrl)}`;}
+
+async function createPaymentUrl(input:{salesMode:"INSTANT"|"APPROVAL_REQUIRED";totalMinor:number;publicId:string;eventTitle:string;customerName:string;customerEmail:string;customerPhone:string;language:"HEB"|"ENG"}){
+  if(input.salesMode==="APPROVAL_REQUIRED"){
+    return createHypApprovalPaymentPage({amountMinor:input.totalMinor,orderId:input.publicId,callbackPath:"/api/payments/hyp/approval",language:input.language});
+  }
+  return createHypPaymentLink({amountIls:input.totalMinor/100,orderId:input.publicId,description:input.eventTitle,customerName:input.customerName,customerEmail:input.customerEmail,customerPhone:input.customerPhone,returnUrl:`${CANONICAL_APP_URL}/api/payments/hyp/order`,language:input.language});
+}
 
 export async function POST(req:Request){
   try{
     await ensureMarketingRuntime();
     const attribution=parseMarketingCookie(req.headers.get("cookie"));
     const input=checkoutSchema.parse(await req.json());
+    const language=input.locale==="he"?"HEB" as const:"ENG" as const;
     const existing=await db.order.findUnique({where:{idempotencyKey:input.idempotencyKey},include:{event:true}});
     if(existing){
       if(existing.status==="PENDING"){
-        const paymentUrl=await createHypPaymentLink({amountIls:existing.totalMinor/100,orderId:existing.publicId,description:existing.event.title,customerName:existing.customerName,customerEmail:existing.customerEmail,customerPhone:existing.customerPhone,returnUrl:`${CANONICAL_APP_URL}/api/payments/hyp/order`,language:input.locale==="he"?"HEB":"ENG"});
+        const paymentUrl=await createPaymentUrl({salesMode:existing.event.salesMode,totalMinor:existing.totalMinor,publicId:existing.publicId,eventTitle:existing.event.title,customerName:existing.customerName,customerEmail:existing.customerEmail,customerPhone:existing.customerPhone,language});
         return NextResponse.json({orderId:existing.publicId,status:existing.status,paymentUrl:launchUrl(paymentUrl)});
       }
       return NextResponse.json({orderId:existing.publicId,status:existing.status});
@@ -42,18 +51,14 @@ export async function POST(req:Request){
       const terms=await getEffectiveEventTerms(event.id,event.organizationId);const pricing=calculateServiceFee(subtotal,{salesFeePercentBps:terms.organizer.salesFeePercentBps,salesFeeFixedMinor:terms.organizer.salesFeeFixedMinor,serviceFeePayer:terms.serviceFeePayer});
       const firstName=input.customer.firstName.trim()||"Гость";const lastName=input.customer.lastName.trim();const fullName=`${firstName} ${lastName}`.trim();const email=(input.customer.email||`guest-${crypto.randomUUID()}@guest.atlas.local`).toLowerCase();const rawPhone=input.customer.phone.trim();const phone=normalizePhone(rawPhone)||`guest-${crypto.randomUUID()}`;const birthDate=input.customer.birthDate?new Date(input.customer.birthDate):new Date("1900-01-01T00:00:00.000Z");
       const guest=await tx.guestProfile.upsert({where:{organizationId_phone:{organizationId:event.organizationId,phone}},create:{organizationId:event.organizationId,firstName,lastName,phone,email,birthDate,city:input.customer.city||"",facebook:input.customer.facebook||"",instagram:input.customer.instagram||""},update:{firstName,lastName,email,birthDate,city:input.customer.city||"",facebook:input.customer.facebook||"",instagram:input.customer.instagram||""}});
-      const status=event.salesMode==="INSTANT"?"PENDING":initialOrderStatus(event.salesMode);
-      const created=await tx.order.create({data:{publicId:orderNumber(),idempotencyKey:input.idempotencyKey,customerName:fullName,customerEmail:email,customerPhone:rawPhone?phone:"",customerFirstName:input.customer.firstName||null,customerLastName:lastName||null,customerBirthDate:input.customer.birthDate?birthDate:null,customerCity:input.customer.city||null,customerFacebook:input.customer.facebook||null,customerInstagram:input.customer.instagram||null,guestId:guest.id,eligibilityAnswer:input.eligibilityAnswer||null,totalMinor:pricing.buyerTotalMinor,status,eventId:input.eventId,referralId:legacyReferral?.id,promoterLinkId:promoterLink?.id,items:{create:seats.length?seats.map(seat=>({quantity:1,unitPriceMinor:promoterLink?.customPriceMinor??effectiveTicketPrice(seat.category!),categoryName:seat.category!.name,tableId:seat.tableId,seatId:seat.id})):[{quantity,unitPriceMinor:promoterLink?.customPriceMinor!==null&&promoterLink?.customPriceMinor!==undefined?(promoterLink.allocationType==="TABLE"?Math.round(promoterLink.customPriceMinor/quantity):promoterLink.customPriceMinor):table?.category?Math.round(effectiveTicketPrice(table.category)/quantity):categoryPrice,categoryName:table?.category?.name??category.name,tableId:table?.id}]}}});
+      const created=await tx.order.create({data:{publicId:orderNumber(),idempotencyKey:input.idempotencyKey,customerName:fullName,customerEmail:email,customerPhone:rawPhone?phone:"",customerFirstName:input.customer.firstName||null,customerLastName:lastName||null,customerBirthDate:input.customer.birthDate?birthDate:null,customerCity:input.customer.city||null,customerFacebook:input.customer.facebook||null,customerInstagram:input.customer.instagram||null,guestId:guest.id,eligibilityAnswer:input.eligibilityAnswer||null,totalMinor:pricing.buyerTotalMinor,status:"PENDING",eventId:input.eventId,referralId:legacyReferral?.id,promoterLinkId:promoterLink?.id,items:{create:seats.length?seats.map(seat=>({quantity:1,unitPriceMinor:promoterLink?.customPriceMinor??effectiveTicketPrice(seat.category!),categoryName:seat.category!.name,tableId:seat.tableId,seatId:seat.id})):[{quantity,unitPriceMinor:promoterLink?.customPriceMinor!==null&&promoterLink?.customPriceMinor!==undefined?(promoterLink.allocationType==="TABLE"?Math.round(promoterLink.customPriceMinor/quantity):promoterLink.customPriceMinor):table?.category?Math.round(effectiveTicketPrice(table.category)/quantity):categoryPrice,categoryName:table?.category?.name??category.name,tableId:table?.id}]}}});
       await tx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "OrderCommercialSnapshot" ("orderId" TEXT PRIMARY KEY,"subtotalMinor" INTEGER NOT NULL,"serviceFeeMinor" INTEGER NOT NULL,"buyerTotalMinor" INTEGER NOT NULL,"organizerNetMinor" INTEGER NOT NULL,"serviceFeePayer" TEXT NOT NULL,"salesFeePercentBps" INTEGER NOT NULL,"salesFeeFixedMinor" INTEGER NOT NULL,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
       await tx.$executeRawUnsafe(`INSERT INTO "OrderCommercialSnapshot" ("orderId","subtotalMinor","serviceFeeMinor","buyerTotalMinor","organizerNetMinor","serviceFeePayer","salesFeePercentBps","salesFeeFixedMinor") VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT ("orderId") DO NOTHING`,created.id,pricing.subtotalMinor,pricing.serviceFeeMinor,pricing.buyerTotalMinor,pricing.organizerNetMinor,terms.serviceFeePayer,terms.organizer.salesFeePercentBps,terms.organizer.salesFeeFixedMinor);
       await saveOrderAttribution(tx,created.id,attribution);
       await createReservation({orderId:created.id,items:reservationItems,ttlMinutes:event.salesMode==="INSTANT"?15:24*60,executor:tx});
       return {order:created,eventTitle:event.title,salesMode:event.salesMode};
     });
-    if(result.salesMode==="INSTANT"){
-      const paymentUrl=await createHypPaymentLink({amountIls:result.order.totalMinor/100,orderId:result.order.publicId,description:result.eventTitle,customerName:result.order.customerName,customerEmail:result.order.customerEmail,customerPhone:result.order.customerPhone,returnUrl:`${CANONICAL_APP_URL}/api/payments/hyp/order`,language:input.locale==="he"?"HEB":"ENG"});
-      return NextResponse.json({orderId:result.order.publicId,status:result.order.status,paymentUrl:launchUrl(paymentUrl)},{status:201});
-    }
-    return NextResponse.json({orderId:result.order.publicId,status:result.order.status},{status:201});
+    const paymentUrl=await createPaymentUrl({salesMode:result.salesMode,totalMinor:result.order.totalMinor,publicId:result.order.publicId,eventTitle:result.eventTitle,customerName:result.order.customerName,customerEmail:result.order.customerEmail,customerPhone:result.order.customerPhone,language});
+    return NextResponse.json({orderId:result.order.publicId,status:result.order.status,paymentUrl:launchUrl(paymentUrl)},{status:201});
   }catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Некорректный запрос"},{status:400});}
 }
