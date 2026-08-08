@@ -114,14 +114,17 @@ async function finalizeAuthorization(url: URL) {
   }
 
   if (!result.success) {
+    await cancelPendingCheckout(order);
     console.error("hyp.approval.authorization_failed", { publicId, outcome: result.outcome, code: result.code });
     return { publicId, state: "failed" as State };
   }
 
   const returnedMinor = Number.isFinite(Number(result.amount)) ? Math.round(Number(result.amount) * 100) : -1;
   const amountMatches = returnedMinor === order.totalMinor;
-  const signatureValid = await verifyHypApprovalResponseMac(url);
-  const hasRequiredPaymentData = Boolean(result.transId && result.authorizationCode);
+  const verificationUrl = new URL(url.toString());
+  verificationUrl.searchParams.delete("providerOutcome");
+  const signatureValid = await verifyHypApprovalResponseMac(verificationUrl);
+  const hasRequiredPaymentData = Boolean(result.transId);
   if (!signatureValid || !hasRequiredPaymentData || !amountMatches) {
     console.error("hyp.approval.authorization_rejected", {
       publicId,
@@ -131,8 +134,6 @@ async function finalizeAuthorization(url: URL) {
       expectedMinor: order.totalMinor,
       hasTransId: Boolean(result.transId),
       hasAuthorizationCode: Boolean(result.authorizationCode),
-      hasCardToken: Boolean(result.cardToken),
-      hasCardExp: Boolean(result.cardExp),
       code: result.code,
     });
     return { publicId, state: !signatureValid ? "invalid-signature" as State : !hasRequiredPaymentData ? "missing-transaction" as State : "failed" as State };
