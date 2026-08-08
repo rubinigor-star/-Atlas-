@@ -37,6 +37,7 @@ function safeProviderResponse(body: string) {
   return body.replace(/(PassP=)[^&\s]+/gi, "$1[REDACTED]").slice(0, 20_000);
 }
 function isApprovalAuthorizationCode(code: string) {
+  // 800 = YaadPay Postpone (our approval flow). 700 = legacy J5 success.
   return code === "0" || code === "000" || code === "700" || code === "800";
 }
 
@@ -100,7 +101,7 @@ export async function createHypApprovalPaymentPage(input: { amountMinor: number;
     sendemail: "False",
     SendHesh: "False",
     Postpone: "True",
-    J5: "True",
+    J5: "False",
     tmp: optional("HYP_TEMPLATE") || "1",
     ReturnUrl: callbackUrl(input.callbackPath, "success"),
     SuccessUrl: callbackUrl(input.callbackPath, "success"),
@@ -111,11 +112,10 @@ export async function createHypApprovalPaymentPage(input: { amountMinor: number;
   const signed = await callApiSign("SIGN", paymentParams);
   if (signed.get("action") !== "pay") throw new Error("HYP APISign response does not contain action=pay");
   if (!signed.get("signature")) throw new Error("HYP APISign response does not contain signature");
-  if (signed.get("J5") !== "True" || signed.get("Postpone") !== "True") {
-    throw new Error("HYP did not preserve J5/Postpone authorization parameters");
-  }
+  if (signed.get("Postpone") !== "True") throw new Error("HYP did not preserve Postpone=True");
+  if (signed.get("J5") === "True") throw new Error("HYP unexpectedly enabled J5 together with Postpone");
   const paymentUrl = `${HYP_ENDPOINT}?${signed.toString()}`;
-  console.info("hyp.approval.payment_page.created", { orderId, amountMinor: input.amountMinor, j5: true, postpone: true });
+  console.info("hyp.approval.payment_page.created", { orderId, amountMinor: input.amountMinor, mode: "POSTPONE" });
   return paymentUrl;
 }
 
@@ -178,7 +178,7 @@ export async function verifyHypApprovalResponseMac(url: URL) {
 export type HypCaptureResult = { resultCode: string; captureTranId: string; statusText: string; rawResponse: string };
 export async function captureHypAuthorization(input: { transactionId: string; amountMinor: number; description?: string }): Promise<HypCaptureResult> {
   const transactionId = input.transactionId.trim();
-  if (!/^\d+$/.test(transactionId)) throw new Error("HYP TransId не сохранён для завершения J5");
+  if (!/^\d+$/.test(transactionId)) throw new Error("HYP TransId не сохранён для завершения Postpone");
   if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) throw new Error("Некорректная сумма HYP commitTrans");
   const params = new URLSearchParams({
     action: "commitTrans",
@@ -193,9 +193,10 @@ export async function captureHypAuthorization(input: { transactionId: string; am
     heshDesc: safeText(input.description || "Atlas approved order", 120),
   });
   console.info("hyp.approval.commit.request", { transactionId, amountMinor: input.amountMinor, params: redact(params) });
-  const response = await fetch(`${HYP_ENDPOINT}?${params.toString()}`, {
-    method: "GET",
-    headers: { "User-Agent": "Atlas-One-HYP-Commit/1.0", Accept: "text/plain, application/x-www-form-urlencoded, application/json, */*" },
+  const response = await fetch(HYP_ENDPOINT, {
+    method: "POST",
+    headers: { "User-Agent": "Atlas-One-HYP-Commit/1.0", "content-type": "application/x-www-form-urlencoded", Accept: "text/plain, application/x-www-form-urlencoded, application/json, */*" },
+    body: params,
     cache: "no-store",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
@@ -215,10 +216,9 @@ export async function captureHypAuthorization(input: { transactionId: string; am
 export type HypCancelAuthorizationResult = { resultCode: string; cancelTranId: string; statusText: string; rawResponse: string };
 export async function cancelHypAuthorization(input: { transactionId: string }): Promise<HypCancelAuthorizationResult> {
   const transactionId = input.transactionId.trim();
-  if (!/^\d+$/.test(transactionId)) throw new Error("HYP TransId не сохранён для отклонения J5");
-  // YaadPay completes a postponed J5 only through an explicit commitTrans call.
-  // Rejecting an application must never issue that commit. Closing it locally prevents
-  // any later Atlas capture; the uncommitted authorization is released by the issuer.
+  if (!/^\d+$/.test(transactionId)) throw new Error("HYP TransId не сохранён для отклонения Postpone");
+  // Postpone is charged only by explicit commitTrans. Rejection never calls commitTrans.
+  // Atlas closes the authorization locally so a rejected request cannot later be captured.
   console.info("hyp.approval.not_committed", { transactionId });
-  return { resultCode: "NOT_COMMITTED", cancelTranId: transactionId, statusText: "J5 was not committed", rawResponse: JSON.stringify({ transactionId, action: "not-committed" }) };
+  return { resultCode: "NOT_COMMITTED", cancelTranId: transactionId, statusText: "Postponed transaction was not committed", rawResponse: JSON.stringify({ transactionId, action: "not-committed" }) };
 }
