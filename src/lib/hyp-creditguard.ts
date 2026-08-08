@@ -125,6 +125,7 @@ export type HypApprovalRedirect = {
   code: string;
   orderId: string;
   transId: string;
+  amount: string;
   txId: string;
   uniqueId: string;
   cgUid: string;
@@ -147,6 +148,7 @@ export function hypApprovalResultFromUrl(url: URL): HypApprovalRedirect {
     code: code || (outcome === "success" ? "0" : outcome || "UNKNOWN"),
     orderId,
     transId,
+    amount: url.searchParams.get("Amount") || url.searchParams.get("amount") || "",
     txId: transId,
     uniqueId: orderId,
     cgUid: url.searchParams.get("cgUid") || "",
@@ -214,9 +216,9 @@ export type HypCancelAuthorizationResult = { resultCode: string; cancelTranId: s
 export async function cancelHypAuthorization(input: { transactionId: string }): Promise<HypCancelAuthorizationResult> {
   const transactionId = input.transactionId.trim();
   if (!/^\d+$/.test(transactionId)) throw new Error("HYP TransId не сохранён для отклонения J5");
-  // YaadPay's documented/plugin flow commits a postponed J5 explicitly with commitTrans.
-  // Rejection is therefore fail-safe: never call commitTrans. Mark the authorization closed
-  // in Atlas so it cannot later be captured. The issuer releases the uncommitted hold.
+  // YaadPay completes a postponed J5 only through an explicit commitTrans call.
+  // Rejecting an application must never issue that commit. Closing it locally prevents
+  // any later Atlas capture; the uncommitted authorization is released by the issuer.
   console.info("hyp.approval.not_committed", { transactionId });
   return { resultCode: "NOT_COMMITTED", cancelTranId: transactionId, statusText: "J5 was not committed", rawResponse: JSON.stringify({ transactionId, action: "not-committed" }) };
 }
