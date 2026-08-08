@@ -13,14 +13,10 @@ try {
   execFileSync("unzip", ["-oq", zipPath, "-d", outDir]);
   const file = `${outDir}/yaad-sarig-payment-gateway-for-wc/classes/class-wc-gateway-yaadpay.php`;
   const lines = (await readFile(file, "utf8")).split(/\r?\n/);
-  const ranges = [[600,675],[900,1040],[1040,1180],[1180,1320]];
-  for (const [start,end] of ranges) {
-    const hits = lines.slice(start-1,end).map((line,i)=>({n:start+i,line:line.trim()})).filter(x => /(J5|Postpone|postpone|YAADPAY_POSTPONE_PAYMENT|TransId|ACode|PassP|Masof|Amount|pay|charge|token)/i.test(x.line));
-    if (hits.length) console.log(`[Atlas Yaad section ${start}-${end}]`, JSON.stringify(hits.slice(0,100)));
+  for (const [start,end] of [[2100,2165],[2325,2405],[2425,2505],[2650,2710]]) {
+    const block = lines.slice(start-1,end).map((line,i)=>`${start+i}: ${line.trim()}`).join("\n");
+    console.log(`[Atlas Yaad exact ${start}-${end}]\n${block}`);
   }
-  const occurrences = [];
-  for (let i=0;i<lines.length;i++) if (/(YAADPAY_POSTPONE_PAYMENT|yaad_postpone_payment|_yaad_postpone|postpone_payment|J5)/i.test(lines[i])) occurrences.push({n:i+1,line:lines[i].trim().slice(0,1000)});
-  console.log("[Atlas Yaad postpone occurrences]", JSON.stringify(occurrences.slice(0,120)));
 } catch (error) {
-  console.log("[Atlas Yaad sections] unavailable", error instanceof Error ? error.message : String(error));
+  console.log("[Atlas Yaad exact sections] unavailable", error instanceof Error ? error.message : String(error));
 }
