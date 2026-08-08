@@ -18,6 +18,15 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(icon, 308);
   }
 
+  if (pathname === "/api/payments/hyp/order") {
+    const code = request.nextUrl.searchParams.get("CCode") || request.nextUrl.searchParams.get("code") || "";
+    if (code === "800" || code === "700") {
+      const approval = request.nextUrl.clone();
+      approval.pathname = "/api/payments/hyp/approval";
+      return NextResponse.redirect(approval, 307);
+    }
+  }
+
   // Keep Preview deployments on their branch domains. Only the production
   // Vercel alias redirects public traffic to the canonical Atlas domain.
   if (isProductionDeployment && isVercelHost && isPublicGet) {
