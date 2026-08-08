@@ -1,20 +1,15 @@
-import { createHash, randomUUID, timingSafeEqual } from "crypto";
+const HYP_ENDPOINT = "https://pay.hyp.co.il/p/";
+const REQUEST_TIMEOUT_MS = 20_000;
 
-const RELAY_TIMEOUT_MS = 30_000;
+type RequiredEnv = "HYP_MASOF" | "HYP_API_KEY" | "HYP_PASSP";
 
-type RelayEnv = "HYP_RELAY_URL" | "HYP_API_USER" | "HYP_API_PASSWORD" | "HYP_MPI_MID";
-
-function required(name: RelayEnv) {
+function required(name: RequiredEnv) {
   const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} is not configured for HYP two-phase payments`);
+  if (!value) throw new Error(`${name} is not configured`);
   return value;
 }
 function optional(name: string) { return process.env[name]?.trim() || ""; }
-function terminalNumber() {
-  const value = optional("HYP_TERMINAL_NUMBER") || optional("HYP_MASOF");
-  if (!value) throw new Error("HYP_TERMINAL_NUMBER is not configured for HYP two-phase payments");
-  return value;
-}
+function safeText(value: string, max = 120) { return value.replace(/[<>\r\n]/g, " ").trim().slice(0, max); }
 function deploymentOrigin() {
   if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return (process.env.NEXT_PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, "");
@@ -24,69 +19,96 @@ function callbackUrl(path: string, outcome: "success" | "error" | "cancel") {
   url.searchParams.set("providerOutcome", outcome);
   return url.toString();
 }
-function esc(value: string) {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+function parseHypBody(body: string) {
+  const trimmed = body.trim();
+  try {
+    const json = JSON.parse(trimmed) as Record<string, unknown>;
+    return new URLSearchParams(Object.entries(json).map(([key, value]) => [key, value == null ? "" : String(value)]));
+  } catch {
+    return new URLSearchParams(trimmed.replace(/^\?/, ""));
+  }
 }
-function xmlValue(xml: string, tag: string) {
-  return xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"))?.[1]?.trim() || "";
+function redact(params: URLSearchParams) {
+  const safe = new URLSearchParams(params);
+  for (const key of ["KEY", "PassP", "signature"]) if (safe.has(key)) safe.set(key, "[REDACTED]");
+  return safe.toString();
 }
-function decodeXml(value: string) {
-  return value.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'");
-}
-function safeResponse(value: string) {
-  return value.replace(/(<password>)[\s\S]*?(<\/password>)/gi, "$1[REDACTED]$2").slice(0, 20_000);
-}
-function paymentAttemptId(orderId: string) {
-  const suffix = randomUUID().replace(/-/g, "").slice(0, 12);
-  const maxOrderLength = Math.max(1, 64 - suffix.length - 1);
-  return `${orderId.slice(0, maxOrderLength)}.${suffix}`;
-}
-function orderIdFromAttemptId(attemptId: string) {
-  return attemptId.split(".", 1)[0] || "";
+
+async function callApiSign(what: "SIGN" | "VERIFY", paymentParams: URLSearchParams) {
+  const requestParams = new URLSearchParams({
+    action: "APISign",
+    What: what,
+    KEY: required("HYP_API_KEY"),
+    PassP: required("HYP_PASSP"),
+    Masof: required("HYP_MASOF"),
+  });
+  for (const [key, value] of paymentParams.entries()) {
+    if (!["action", "What", "KEY", "PassP", "Masof"].includes(key)) requestParams.append(key, value);
+  }
+  console.info("hyp.approval.apisign.request", { what, params: redact(requestParams) });
+  const response = await fetch(`${HYP_ENDPOINT}?${requestParams.toString()}`, {
+    method: "GET",
+    headers: { "User-Agent": "Atlas-One-HYP-Approval/1.0", Accept: "text/plain, application/x-www-form-urlencoded, application/json, */*" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  const body = (await response.text()).trim();
+  if (!response.ok) throw new Error(`HYP APISign HTTP ${response.status}`);
+  if (!body) throw new Error("HYP APISign returned an empty response");
+  const result = parseHypBody(body);
+  const errorCode = result.get("CCode") || result.get("Error") || result.get("error") || "";
+  if (errorCode && errorCode !== "0" && errorCode !== "000") {
+    throw new Error(`HYP APISign ${errorCode}: ${result.get("ErrMsg") || result.get("Message") || "request rejected"}`);
+  }
+  return result;
 }
 
 export function assertHypTwoPhaseConfigured() {
-  required("HYP_RELAY_URL");
-  required("HYP_API_USER");
-  required("HYP_API_PASSWORD");
-  required("HYP_MPI_MID");
-  terminalNumber();
-}
-
-async function relay(xml: string) {
-  assertHypTwoPhaseConfigured();
-  const endpoint = required("HYP_RELAY_URL");
-  if (!/^https:\/\//i.test(endpoint)) throw new Error("HYP_RELAY_URL must use HTTPS");
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "Atlas-One-HYP-CreditGuard/1.0" },
-    body: new URLSearchParams({ user: required("HYP_API_USER"), password: required("HYP_API_PASSWORD"), int_in: xml }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
-  });
-  const body = (await response.text()).trim();
-  if (!response.ok) throw new Error(`HYP Relay HTTP ${response.status}`);
-  if (!body) throw new Error("HYP Relay returned an empty response");
-  return body;
+  required("HYP_MASOF");
+  required("HYP_API_KEY");
+  required("HYP_PASSP");
 }
 
 export async function createHypApprovalPaymentPage(input: { amountMinor: number; orderId: string; callbackPath: string; language?: "HEB" | "ENG" }) {
   if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) throw new Error("Некорректная сумма HYP authorization");
-  const orderId = input.orderId.trim();
+  const orderId = safeText(input.orderId, 64);
   if (!orderId) throw new Error("HYP order ID is required");
-  const attemptId = paymentAttemptId(orderId);
-  const successUrl = callbackUrl(input.callbackPath, "success");
-  const errorUrl = callbackUrl(input.callbackPath, "error");
-  const cancelUrl = callbackUrl(input.callbackPath, "cancel");
-  const xml = `<ashrait><request><version>2000</version><language>${input.language || "ENG"}</language><command>doDeal</command><doDeal><terminalNumber>${esc(terminalNumber())}</terminalNumber><cardNo>CGMPI</cardNo><total>${input.amountMinor}</total><transactionType>Debit</transactionType><creditType>RegularCredit</creditType><currency>ILS</currency><transactionCode>Internet</transactionCode><validation>TxnSetup</validation><mid>${esc(required("HYP_MPI_MID"))}</mid><uniqueid>${esc(attemptId)}</uniqueid><mpiValidation>Verify</mpiValidation><successUrl>${esc(successUrl)}</successUrl><errorUrl>${esc(errorUrl)}</errorUrl><cancelUrl>${esc(cancelUrl)}</cancelUrl></doDeal></request></ashrait>`;
-  console.info("hyp.creditguard.authorization_page.request", { orderId, attemptId, amountMinor: input.amountMinor });
-  const body = await relay(xml);
-  const resultCode = xmlValue(body, "result");
-  const message = xmlValue(body, "userMessage") || xmlValue(body, "message");
-  if (resultCode !== "000") throw new Error(`HYP TxnSetup ${resultCode || "UNKNOWN"}: ${message || "request rejected"}`);
-  const paymentUrl = decodeXml(xmlValue(body, "mpiHostedPageUrl"));
-  if (!/^https:\/\//i.test(paymentUrl)) throw new Error("HYP TxnSetup did not return a valid payment page URL");
-  console.info("hyp.creditguard.authorization_page.created", { orderId, attemptId, resultCode });
+
+  const paymentParams = new URLSearchParams({
+    action: "pay",
+    Masof: required("HYP_MASOF"),
+    Amount: (input.amountMinor / 100).toFixed(2),
+    Coin: "1",
+    Info: safeText(`Atlas approval ${orderId}`, 120),
+    Order: orderId,
+    ClientName: "Atlas",
+    ClientLName: "Customer",
+    PageLang: input.language || "HEB",
+    UTF8: "True",
+    UTF8out: "True",
+    MoreData: "True",
+    Sign: "True",
+    Tash: "1",
+    FixTash: "True",
+    sendemail: "False",
+    SendHesh: "False",
+    Postpone: "True",
+    J5: "True",
+    tmp: optional("HYP_TEMPLATE") || "1",
+    ReturnUrl: callbackUrl(input.callbackPath, "success"),
+    SuccessUrl: callbackUrl(input.callbackPath, "success"),
+    ErrorUrl: callbackUrl(input.callbackPath, "error"),
+    CancelUrl: callbackUrl(input.callbackPath, "cancel"),
+  });
+
+  const signed = await callApiSign("SIGN", paymentParams);
+  if (signed.get("action") !== "pay") throw new Error("HYP APISign response does not contain action=pay");
+  if (!signed.get("signature")) throw new Error("HYP APISign response does not contain signature");
+  if (signed.get("J5") !== "True" || signed.get("Postpone") !== "True") {
+    throw new Error("HYP did not preserve J5/Postpone authorization parameters");
+  }
+  const paymentUrl = `${HYP_ENDPOINT}?${signed.toString()}`;
+  console.info("hyp.approval.payment_page.created", { orderId, amountMinor: input.amountMinor, j5: true, postpone: true });
   return paymentUrl;
 }
 
@@ -108,80 +130,47 @@ export type HypApprovalRedirect = {
 
 export function hypApprovalResultFromUrl(url: URL): HypApprovalRedirect {
   const outcome = url.searchParams.get("providerOutcome") || "";
-  const code = url.searchParams.get("errorCode") || "";
-  const uniqueId = url.searchParams.get("uniqueID") || url.searchParams.get("uniqueId") || "";
-  const txId = url.searchParams.get("txId") || "";
-  const cgUid = url.searchParams.get("cgUid") || "";
-  const cardToken = url.searchParams.get("cardToken") || "";
-  const cardExp = url.searchParams.get("cardExp") || "";
+  const code = url.searchParams.get("CCode") || url.searchParams.get("code") || url.searchParams.get("Error") || "";
+  const transId = url.searchParams.get("TransId") || url.searchParams.get("Id") || url.searchParams.get("tranId") || "";
+  const orderId = url.searchParams.get("Order") || url.searchParams.get("order") || "";
   return {
-    success: outcome === "success" && (!code || code === "000"),
-    outcome,
-    code: code || (outcome === "success" ? "000" : outcome || "UNKNOWN"),
-    orderId: orderIdFromAttemptId(uniqueId),
-    transId: cgUid || txId,
-    txId,
-    uniqueId,
-    cgUid,
-    authorizationCode: url.searchParams.get("authNumber") || "",
-    cardToken,
-    cardExp,
-    cardMask: url.searchParams.get("cardMask") || "",
+    success: (code === "0" || code === "000") && outcome !== "error" && outcome !== "cancel",
+    outcome: outcome || ((code === "0" || code === "000") ? "success" : "error"),
+    code: code || ((outcome === "success") ? "0" : outcome || "UNKNOWN"),
+    orderId,
+    transId,
+    txId: transId,
+    uniqueId: orderId,
+    cgUid: url.searchParams.get("cgUid") || "",
+    authorizationCode: url.searchParams.get("ACode") || url.searchParams.get("authNumber") || "",
+    cardToken: url.searchParams.get("Token") || url.searchParams.get("token") || url.searchParams.get("cardToken") || url.searchParams.get("CardToken") || "",
+    cardExp: url.searchParams.get("Tokef") || url.searchParams.get("tokef") || url.searchParams.get("cardExp") || url.searchParams.get("CardExp") || "",
+    cardMask: url.searchParams.get("L4digit") || url.searchParams.get("cardMask") || "",
     raw: Object.fromEntries(url.searchParams.entries()),
   };
 }
 
-export function verifyHypApprovalResponseMac(url: URL) {
-  const responseMac = url.searchParams.get("responseMac") || url.searchParams.get("responseMAC") || "";
-  const txId = url.searchParams.get("txId") || "";
-  const uniqueId = url.searchParams.get("uniqueID") || url.searchParams.get("uniqueId") || "";
-  if (!responseMac || !txId || !uniqueId) return false;
-  const base = [
-    required("HYP_API_PASSWORD"),
-    txId,
-    url.searchParams.get("errorCode") || "000",
-    url.searchParams.get("cardToken") || "",
-    url.searchParams.get("cardExp") || "",
-    url.searchParams.get("personalId") || "",
-    uniqueId,
-  ].join("");
-  const calculated = createHash("sha256").update(base).digest("hex").toLowerCase();
-  const received = responseMac.trim().toLowerCase();
-  if (!/^[a-f0-9]{64}$/.test(received)) return false;
-  return timingSafeEqual(Buffer.from(calculated, "hex"), Buffer.from(received, "hex"));
+export async function verifyHypApprovalResponseMac(url: URL) {
+  const result = hypApprovalResultFromUrl(url);
+  if (!result.success || !result.orderId) return false;
+  try {
+    const verified = await callApiSign("VERIFY", new URLSearchParams(url.searchParams));
+    const code = verified.get("CCode") || verified.get("code") || verified.get("Error") || "";
+    const ok = code === "0" || code === "000";
+    console.info("hyp.approval.callback.verified", { orderId: result.orderId, code, verified: ok });
+    return ok;
+  } catch (error) {
+    console.error("hyp.approval.callback.verification_failed", { orderId: result.orderId, message: error instanceof Error ? error.message : "Unknown verification error" });
+    return false;
+  }
 }
 
 export type HypCaptureResult = { resultCode: string; captureTranId: string; statusText: string; rawResponse: string };
-export async function captureHypAuthorization(input: { cardToken: string; cardExp: string; cgUid: string; amountMinor: number }): Promise<HypCaptureResult> {
-  const cardToken = input.cardToken.trim();
-  const cardExp = input.cardExp.replace(/\D/g, "");
-  const cgUid = input.cgUid.trim();
-  if (!/^\d{8,32}$/.test(cardToken)) throw new Error("HYP cardToken не сохранён для предварительной авторизации");
-  if (!/^\d{4}$/.test(cardExp)) throw new Error("HYP cardExp не сохранён для предварительной авторизации");
-  if (!cgUid) throw new Error("HYP cgUid не сохранён для предварительной авторизации");
-  if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) throw new Error("Некорректная сумма списания HYP");
-  const xml = `<ashrait><request><version>2000</version><language>ENG</language><command>doDeal</command><doDeal><terminalNumber>${esc(terminalNumber())}</terminalNumber><cardId>${esc(cardToken)}</cardId><cardExpiration>${esc(cardExp)}</cardExpiration><total>${input.amountMinor}</total><transactionType>Debit</transactionType><creditType>RegularCredit</creditType><currency>ILS</currency><transactionCode>Phone</transactionCode><validation>AutoComm</validation><cgUid>${esc(cgUid)}</cgUid></doDeal></request></ashrait>`;
-  console.info("hyp.creditguard.capture.request", { cgUid, amountMinor: input.amountMinor });
-  const body = await relay(xml);
-  const resultCode = xmlValue(body, "result");
-  const statusText = xmlValue(body, "userMessage") || xmlValue(body, "message");
-  if (resultCode !== "000") throw new Error(`HYP capture ${resultCode || "UNKNOWN"}: ${statusText || "request rejected"}`);
-  const captureTranId = xmlValue(body, "tranId");
-  console.info("hyp.creditguard.capture.response", { cgUid, resultCode, captureTranId });
-  return { resultCode, captureTranId, statusText: statusText || "Capture approved", rawResponse: safeResponse(body) };
+export async function captureHypAuthorization(): Promise<HypCaptureResult> {
+  throw new Error("HYP J5 capture is not wired to the YaadPay APISign completion endpoint yet");
 }
 
 export type HypCancelAuthorizationResult = { resultCode: string; cancelTranId: string; statusText: string; rawResponse: string };
-export async function cancelHypAuthorization(input: { cgUid: string }): Promise<HypCancelAuthorizationResult> {
-  const cgUid = input.cgUid.trim();
-  if (!cgUid) throw new Error("HYP cgUid не сохранён для отмены предварительной авторизации");
-  const xml = `<ashrait><request><version>2000</version><language>ENG</language><command>cancelDeal</command><cancelDeal><terminalNumber>${esc(terminalNumber())}</terminalNumber><cgUid>${esc(cgUid)}</cgUid></cancelDeal></request></ashrait>`;
-  console.info("hyp.creditguard.authorization_cancel.request", { cgUid });
-  const body = await relay(xml);
-  const resultCode = xmlValue(body, "result");
-  const statusText = xmlValue(body, "userMessage") || xmlValue(body, "message");
-  if (resultCode !== "000" && resultCode !== "314") throw new Error(`HYP cancelDeal ${resultCode || "UNKNOWN"}: ${statusText || "request rejected"}`);
-  const cancelTranId = xmlValue(body, "tranId");
-  console.info("hyp.creditguard.authorization_cancel.response", { cgUid, resultCode, cancelTranId });
-  return { resultCode, cancelTranId, statusText: statusText || "Authorization cancelled", rawResponse: safeResponse(body) };
+export async function cancelHypAuthorization(): Promise<HypCancelAuthorizationResult> {
+  throw new Error("HYP J5 cancellation is not wired to the YaadPay APISign completion endpoint yet");
 }
