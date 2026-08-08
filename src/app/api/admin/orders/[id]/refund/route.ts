@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireEventAccess } from "@/lib/auth";
 import { refundHypDeal } from "@/lib/hyp-yaadpay";
+import { sendOrderCancellationEmail } from "@/lib/order-cancellation-email";
 
 type AuthorizationRow = {
   id: string;
@@ -162,12 +163,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         }
       });
 
+      let emailSent = false;
+      let emailError: string | null = null;
+      if (fullRefund) {
+        try {
+          await sendOrderCancellationEmail(order.publicId, amountMinor);
+          emailSent = true;
+        } catch (error) {
+          emailError = error instanceof Error ? error.message : "Не удалось отправить email об отмене";
+          console.error("[refund-cancellation-email]", { publicId: order.publicId, message: emailError });
+        }
+      }
+
       return NextResponse.json({
         ok: true,
         amountMinor,
         fullRefund,
         refundTranId: result.refundTranId,
         resultCode: result.resultCode,
+        emailSent,
+        emailError,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Возврат отклонён HYP";
