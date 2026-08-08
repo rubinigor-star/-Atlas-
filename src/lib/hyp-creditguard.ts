@@ -33,6 +33,12 @@ function redact(params: URLSearchParams) {
   for (const key of ["KEY", "PassP", "signature"]) if (safe.has(key)) safe.set(key, "[REDACTED]");
   return safe.toString();
 }
+function safeProviderResponse(body: string) {
+  return body.replace(/(PassP=)[^&\s]+/gi, "$1[REDACTED]").slice(0, 20_000);
+}
+function isApprovalAuthorizationCode(code: string) {
+  return code === "0" || code === "000" || code === "700" || code === "800";
+}
 
 async function callApiSign(what: "SIGN" | "VERIFY", paymentParams: URLSearchParams) {
   const requestParams = new URLSearchParams({
@@ -56,9 +62,10 @@ async function callApiSign(what: "SIGN" | "VERIFY", paymentParams: URLSearchPara
   if (!response.ok) throw new Error(`HYP APISign HTTP ${response.status}`);
   if (!body) throw new Error("HYP APISign returned an empty response");
   const result = parseHypBody(body);
-  const errorCode = result.get("CCode") || result.get("Error") || result.get("error") || "";
-  if (errorCode && errorCode !== "0" && errorCode !== "000") {
-    throw new Error(`HYP APISign ${errorCode}: ${result.get("ErrMsg") || result.get("Message") || "request rejected"}`);
+  const code = result.get("CCode") || result.get("Error") || result.get("error") || "";
+  const accepted = what === "VERIFY" ? (!code || isApprovalAuthorizationCode(code)) : (!code || code === "0" || code === "000");
+  if (!accepted) {
+    throw new Error(`HYP APISign ${code || "UNKNOWN"}: ${result.get("ErrMsg") || result.get("Message") || "request rejected"}`);
   }
   return result;
 }
@@ -133,10 +140,11 @@ export function hypApprovalResultFromUrl(url: URL): HypApprovalRedirect {
   const code = url.searchParams.get("CCode") || url.searchParams.get("code") || url.searchParams.get("Error") || "";
   const transId = url.searchParams.get("TransId") || url.searchParams.get("Id") || url.searchParams.get("tranId") || "";
   const orderId = url.searchParams.get("Order") || url.searchParams.get("order") || "";
+  const providerSuccess = isApprovalAuthorizationCode(code);
   return {
-    success: (code === "0" || code === "000") && outcome !== "error" && outcome !== "cancel",
-    outcome: outcome || ((code === "0" || code === "000") ? "success" : "error"),
-    code: code || ((outcome === "success") ? "0" : outcome || "UNKNOWN"),
+    success: providerSuccess && outcome !== "error" && outcome !== "cancel",
+    outcome: outcome || (providerSuccess ? "success" : "error"),
+    code: code || (outcome === "success" ? "0" : outcome || "UNKNOWN"),
     orderId,
     transId,
     txId: transId,
@@ -155,8 +163,8 @@ export async function verifyHypApprovalResponseMac(url: URL) {
   if (!result.success || !result.orderId) return false;
   try {
     const verified = await callApiSign("VERIFY", new URLSearchParams(url.searchParams));
-    const code = verified.get("CCode") || verified.get("code") || verified.get("Error") || "";
-    const ok = code === "0" || code === "000";
+    const code = verified.get("CCode") || verified.get("code") || verified.get("Error") || result.code;
+    const ok = isApprovalAuthorizationCode(code);
     console.info("hyp.approval.callback.verified", { orderId: result.orderId, code, verified: ok });
     return ok;
   } catch (error) {
@@ -166,11 +174,49 @@ export async function verifyHypApprovalResponseMac(url: URL) {
 }
 
 export type HypCaptureResult = { resultCode: string; captureTranId: string; statusText: string; rawResponse: string };
-export async function captureHypAuthorization(): Promise<HypCaptureResult> {
-  throw new Error("HYP J5 capture is not wired to the YaadPay APISign completion endpoint yet");
+export async function captureHypAuthorization(input: { transactionId: string; amountMinor: number; description?: string }): Promise<HypCaptureResult> {
+  const transactionId = input.transactionId.trim();
+  if (!/^\d+$/.test(transactionId)) throw new Error("HYP TransId не сохранён для завершения J5");
+  if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) throw new Error("Некорректная сумма HYP commitTrans");
+  const params = new URLSearchParams({
+    action: "commitTrans",
+    Masof: required("HYP_MASOF"),
+    PassP: required("HYP_PASSP"),
+    TransId: transactionId,
+    Amount: (input.amountMinor / 100).toFixed(2),
+    SendHesh: "True",
+    UTF8: "True",
+    UTF8out: "True",
+    sendHeshSMS: "True",
+    heshDesc: safeText(input.description || "Atlas approved order", 120),
+  });
+  console.info("hyp.approval.commit.request", { transactionId, amountMinor: input.amountMinor, params: redact(params) });
+  const response = await fetch(`${HYP_ENDPOINT}?${params.toString()}`, {
+    method: "GET",
+    headers: { "User-Agent": "Atlas-One-HYP-Commit/1.0", Accept: "text/plain, application/x-www-form-urlencoded, application/json, */*" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  const body = (await response.text()).trim();
+  if (!response.ok) throw new Error(`HYP commitTrans HTTP ${response.status}`);
+  if (!body) throw new Error("HYP commitTrans returned an empty response");
+  const result = parseHypBody(body);
+  const code = result.get("CCode") || result.get("Error") || result.get("error") || "";
+  if (code !== "0" && code !== "000") {
+    throw new Error(`HYP commitTrans ${code || "UNKNOWN"}: ${result.get("ErrMsg") || result.get("Message") || "request rejected"}`);
+  }
+  const captureTranId = result.get("Id") || result.get("TransId") || transactionId;
+  console.info("hyp.approval.commit.response", { transactionId, captureTranId, code });
+  return { resultCode: code || "0", captureTranId, statusText: result.get("ErrMsg") || result.get("Message") || "Captured", rawResponse: safeProviderResponse(body) };
 }
 
 export type HypCancelAuthorizationResult = { resultCode: string; cancelTranId: string; statusText: string; rawResponse: string };
-export async function cancelHypAuthorization(): Promise<HypCancelAuthorizationResult> {
-  throw new Error("HYP J5 cancellation is not wired to the YaadPay APISign completion endpoint yet");
+export async function cancelHypAuthorization(input: { transactionId: string }): Promise<HypCancelAuthorizationResult> {
+  const transactionId = input.transactionId.trim();
+  if (!/^\d+$/.test(transactionId)) throw new Error("HYP TransId не сохранён для отклонения J5");
+  // YaadPay's documented/plugin flow commits a postponed J5 explicitly with commitTrans.
+  // Rejection is therefore fail-safe: never call commitTrans. Mark the authorization closed
+  // in Atlas so it cannot later be captured. The issuer releases the uncommitted hold.
+  console.info("hyp.approval.not_committed", { transactionId });
+  return { resultCode: "NOT_COMMITTED", cancelTranId: transactionId, statusText: "J5 was not committed", rawResponse: JSON.stringify({ transactionId, action: "not-committed" }) };
 }
