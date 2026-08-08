@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/assert-public-react-dom-integrity.mjs && node scripts/fix-venue-map-drag.mjs && node scripts/fix-ticket-date-only-ui.mjs && next build",
-    "vercel-build": "node scripts/assert-database-environment.mjs && node scripts/probe-hyp-j5-postpone.mjs && node scripts/inspect-yaad-plugin-j5.mjs && node scripts/inspect-yaad-plugin-sections.mjs && node scripts/report-hyp-two-phase-config.mjs && node scripts/prepare-vercel-db.mjs && node scripts/assert-public-react-dom-integrity.mjs && node scripts/fix-venue-map-drag.mjs && node scripts/fix-ticket-date-only-ui.mjs && prisma generate && node scripts/ensure-payment-runtime-tables.mjs && next build",
+    "vercel-build": "node scripts/assert-database-environment.mjs && node scripts/prepare-vercel-db.mjs && node scripts/assert-public-react-dom-integrity.mjs && node scripts/fix-venue-map-drag.mjs && node scripts/fix-ticket-date-only-ui.mjs && prisma generate && node scripts/ensure-payment-runtime-tables.mjs && next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -27,7 +27,7 @@
     "@vercel/speed-insights": "2.0.0",
     "@zxing/browser": "0.1.5",
     "@zxing/library": "0.21.3",
-    "lucide-react": "0.468.0",
+    "lucide-react": "^0.468.0",
     "next": "16.2.11",
     "passkit-generator": "^3.5.5",
     "pdf-lib": "1.17.1",
