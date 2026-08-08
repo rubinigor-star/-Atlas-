@@ -5,7 +5,6 @@ import { CheckCircle2, Clock3, WalletCards, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
 import { TicketCard } from "@/components/ticket-card";
 import { DemoPaymentButton } from "@/components/demo-payment-button";
-import { ResendTicketButton } from "@/components/resend-ticket-button";
 import { parseTicketDesign } from "@/lib/ticket-template";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +43,6 @@ export default async function OrderPage({ params }: { params: Promise<{ publicId
 
         {paid && walletReady && <section aria-label="Apple Wallet" style={{ marginTop: 22, padding: "20px 22px", borderRadius: 18, background: "linear-gradient(135deg,#060606 0%,#1f2937 100%)", color: "white", textAlign: "left", boxShadow: "0 14px 35px rgba(17,24,39,.18)" }}><div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}><span style={{ width: 44, height: 44, borderRadius: 13, background: "rgba(255,255,255,.12)", display: "grid", placeItems: "center", flex: "0 0 auto" }}><WalletCards size={24} /></span><div><div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".12em", color: "#d1d5db", textTransform: "uppercase" }}>Быстрый вход</div><h2 style={{ margin: "5px 0 7px", color: "white", fontSize: 22 }}>Добавьте билеты в Apple Wallet</h2><p style={{ margin: 0, color: "#d1d5db", lineHeight: 1.55, fontSize: 14 }}>Сохраните билет на iPhone, чтобы QR-код всегда был под рукой.</p></div></div></section>}
 
-        {paid && <ResendTicketButton publicId={order.publicId} />}
         {order.tickets.map((ticket, index) => <TicketCard key={ticket.id} ticket={ticket} qr={qrs[index]} design={design} event={order.event} orderNumber={order.publicId} walletReady={walletReady} />)}
         <Link href="/" className="btn dark" style={{ marginTop: 20 }}>Вернуться к событиям</Link>
       </section>
