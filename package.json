@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/assert-public-react-dom-integrity.mjs && node scripts/fix-venue-map-drag.mjs && node scripts/fix-ticket-date-only-ui.mjs && next build",
-    "vercel-build": "node scripts/assert-database-environment.mjs && node scripts/report-hyp-two-phase-config.mjs && node scripts/prepare-vercel-db.mjs && node scripts/assert-public-react-dom-integrity.mjs && node scripts/fix-venue-map-drag.mjs && node scripts/fix-ticket-date-only-ui.mjs && prisma generate && node scripts/ensure-payment-runtime-tables.mjs && next build",
+    "vercel-build": "node scripts/assert-database-environment.mjs && node scripts/probe-hyp-j5-postpone.mjs && node scripts/report-hyp-two-phase-config.mjs && node scripts/prepare-vercel-db.mjs && node scripts/assert-public-react-dom-integrity.mjs && node scripts/fix-venue-map-drag.mjs && node scripts/fix-ticket-date-only-ui.mjs && prisma generate && node scripts/ensure-payment-runtime-tables.mjs && next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -33,7 +33,7 @@
     "pdf-lib": "1.17.1",
     "pngjs": "7.0.0",
     "puppeteer-core": "23.11.0",
-    "qrcode": "1.5.4",
+    "qrcode": "^1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "sharp": "0.34.3",
