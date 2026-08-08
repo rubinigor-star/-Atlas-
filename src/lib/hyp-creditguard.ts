@@ -165,9 +165,9 @@ export async function verifyHypApprovalResponseMac(url: URL) {
   if (!result.success || !result.orderId) return false;
   try {
     const verified = await callApiSign("VERIFY", new URLSearchParams(url.searchParams));
-    const code = verified.get("CCode") || verified.get("code") || verified.get("Error") || result.code;
-    const ok = isApprovalAuthorizationCode(code);
-    console.info("hyp.approval.callback.verified", { orderId: result.orderId, code, verified: ok });
+    const code = verified.get("CCode") || verified.get("code") || verified.get("Error") || "";
+    const ok = Boolean(code) && isApprovalAuthorizationCode(code);
+    console.info("hyp.approval.callback.verified", { orderId: result.orderId, code: code || null, verified: ok });
     return ok;
   } catch (error) {
     console.error("hyp.approval.callback.verification_failed", { orderId: result.orderId, message: error instanceof Error ? error.message : "Unknown verification error" });
