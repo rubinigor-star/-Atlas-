@@ -7,7 +7,7 @@ function required(name) {
 }
 
 if (process.env.VERCEL_ENV !== "preview") {
-  console.log("[Atlas HYP J5 probe] skipped outside preview");
+  console.log("[Atlas HYP Postpone probe] skipped outside preview");
   process.exit(0);
 }
 
@@ -20,7 +20,7 @@ const params = new URLSearchParams({
   Masof: required("HYP_MASOF"),
   Amount: "1.00",
   Coin: "1",
-  Info: "Atlas approval build probe",
+  Info: "Atlas approval Postpone probe",
   Order: `ATLAS-PROBE-${Date.now()}`,
   ClientName: "Atlas",
   ClientLName: "Probe",
@@ -34,12 +34,12 @@ const params = new URLSearchParams({
   sendemail: "False",
   SendHesh: "False",
   Postpone: "True",
-  J5: "True",
+  J5: "False",
   tmp: process.env.HYP_TEMPLATE?.trim() || "1",
-  ReturnUrl: `${origin}/api/payments/hyp/approval`,
-  SuccessUrl: `${origin}/api/payments/hyp/approval`,
-  ErrorUrl: `${origin}/api/payments/hyp/approval`,
-  CancelUrl: `${origin}/api/payments/hyp/approval`,
+  ReturnUrl: `${origin}/api/payments/hyp/approval?providerOutcome=success`,
+  SuccessUrl: `${origin}/api/payments/hyp/approval?providerOutcome=success`,
+  ErrorUrl: `${origin}/api/payments/hyp/approval?providerOutcome=error`,
+  CancelUrl: `${origin}/api/payments/hyp/approval?providerOutcome=cancel`,
 });
 
 try {
@@ -50,8 +50,8 @@ try {
   const body = (await response.text()).trim();
   const parsed = new URLSearchParams(body.replace(/^\?/, ""));
   const code = parsed.get("CCode") || parsed.get("Error") || parsed.get("error") || "";
-  const accepted = response.ok && (!code || code === "0" || code === "000") && Boolean(parsed.get("signature"));
-  console.log("[Atlas HYP J5 probe]", JSON.stringify({
+  const accepted = response.ok && (!code || code === "0" || code === "000") && Boolean(parsed.get("signature")) && parsed.get("Postpone") === "True" && parsed.get("J5") !== "True";
+  console.log("[Atlas HYP Postpone probe]", JSON.stringify({
     httpStatus: response.status,
     accepted,
     responseCode: code || null,
@@ -59,10 +59,9 @@ try {
     returnedJ5: parsed.get("J5") || null,
     returnedPostpone: parsed.get("Postpone") || null,
     hasSignature: Boolean(parsed.get("signature")),
-    keys: Array.from(parsed.keys()).filter((key) => !["KEY", "PassP", "signature"].includes(key)),
   }));
   if (!accepted) process.exitCode = 2;
 } catch (error) {
-  console.error("[Atlas HYP J5 probe] failed", error instanceof Error ? error.message : String(error));
+  console.error("[Atlas HYP Postpone probe] failed", error instanceof Error ? error.message : String(error));
   process.exitCode = 2;
 }
