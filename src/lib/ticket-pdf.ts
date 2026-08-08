@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import chromium from "@sparticuz/chromium";
 import puppeteer, { type Browser } from "puppeteer-core";
 import type { TicketDesign } from "@/lib/ticket-template";
@@ -19,13 +20,53 @@ export type TicketPdfInput = {
 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+let executablePathPromise: Promise<string> | null = null;
+
+async function waitForStableExecutable(executablePath: string) {
+  let previousSize = -1;
+  let stableChecks = 0;
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      const file = await stat(executablePath);
+      if (file.size > 0 && file.size === previousSize) {
+        stableChecks += 1;
+        if (stableChecks >= 3) return;
+      } else {
+        stableChecks = 0;
+        previousSize = file.size;
+      }
+    } catch {
+      stableChecks = 0;
+    }
+    await sleep(250);
+  }
+
+  throw new Error("Chromium executable did not become stable in time");
+}
+
+async function getExecutablePath() {
+  executablePathPromise ??= (async () => {
+    const executablePath = await chromium.executablePath();
+    await waitForStableExecutable(executablePath);
+    return executablePath;
+  })().catch(error => {
+    executablePathPromise = null;
+    throw error;
+  });
+
+  return executablePathPromise;
+}
 
 async function launchBrowser(): Promise<Browser> {
-  const executablePath = await chromium.executablePath();
   let lastError: unknown;
+  const retryDelays = [0, 1000, 2000, 4000];
 
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
+  for (let attempt = 0; attempt < retryDelays.length; attempt += 1) {
+    if (retryDelays[attempt] > 0) await sleep(retryDelays[attempt]);
+
     try {
+      const executablePath = await getExecutablePath();
       return await puppeteer.launch({
         args: chromium.args,
         defaultViewport: { width: 420, height: 680, deviceScaleFactor: 2 },
@@ -35,9 +76,12 @@ async function launchBrowser(): Promise<Browser> {
     } catch (error) {
       lastError = error;
       const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
-      if (code !== "ETXTBSY" || attempt === 3) throw error;
-      console.warn("[ticket-pdf] Chromium executable busy, retrying", { attempt });
-      await sleep(attempt * 250);
+      if (code !== "ETXTBSY" || attempt === retryDelays.length - 1) throw error;
+      console.warn("[ticket-pdf] Chromium executable busy after cold start, retrying", {
+        attempt: attempt + 1,
+        nextDelayMs: retryDelays[attempt + 1],
+      });
+      executablePathPromise = null;
     }
   }
 
