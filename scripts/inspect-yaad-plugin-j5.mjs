@@ -14,7 +14,7 @@ async function walk(dir) {
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) result.push(...await walk(full));
-    else if (/\.(php|js|txt)$/i.test(entry.name)) result.push(full);
+    else if (/\.php$/i.test(entry.name)) result.push(full);
   }
   return result;
 }
@@ -26,21 +26,21 @@ try {
   await mkdir(outDir, { recursive: true });
   execFileSync("unzip", ["-oq", zipPath, "-d", outDir]);
   const files = await walk(outDir);
-  const needles = /(J5|Postpone|TransId|ACode|PassP|Masof|api|defer|delay|charge)/i;
+  const needles = /(YAADPAY_POSTPONE_PAYMENT|YAAD_POSTPONE|YAAD_J5|\bJ5\b|Postpone|postpone|TransId|ACode|capture|deferred|חיוב דחוי)/i;
   const interesting = [];
   for (const file of files) {
     const text = await readFile(file, "utf8").catch(() => "");
     const lines = text.split(/\r?\n/);
     for (let i = 0; i < lines.length; i++) {
       if (!needles.test(lines[i])) continue;
-      const excerpt = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 3)).join(" ").replace(/\s+/g, " ").trim();
+      const excerpt = lines.slice(Math.max(0, i - 4), Math.min(lines.length, i + 7)).join(" ").replace(/\s+/g, " ").trim();
       if (!excerpt) continue;
-      interesting.push({ file: path.relative(outDir, file), line: i + 1, excerpt: excerpt.slice(0, 700) });
-      if (interesting.length >= 120) break;
+      interesting.push({ file: path.relative(outDir, file), line: i + 1, excerpt: excerpt.slice(0, 1400) });
+      if (interesting.length >= 60) break;
     }
-    if (interesting.length >= 120) break;
+    if (interesting.length >= 60) break;
   }
-  console.log("[Atlas Yaad plugin J5 source]", JSON.stringify(interesting));
+  console.log("[Atlas Yaad plugin J5 focused]", JSON.stringify(interesting));
 } catch (error) {
-  console.log("[Atlas Yaad plugin J5 source] unavailable", error instanceof Error ? error.message : String(error));
+  console.log("[Atlas Yaad plugin J5 focused] unavailable", error instanceof Error ? error.message : String(error));
 }
