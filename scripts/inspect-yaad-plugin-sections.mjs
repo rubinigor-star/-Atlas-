@@ -13,7 +13,7 @@ try {
   execFileSync("unzip", ["-oq", zipPath, "-d", outDir]);
   const file = `${outDir}/yaad-sarig-payment-gateway-for-wc/classes/class-wc-gateway-yaadpay.php`;
   const lines = (await readFile(file, "utf8")).split(/\r?\n/);
-  for (const [start,end] of [[2100,2165],[2325,2405],[2425,2505],[2650,2710]]) {
+  for (const [start,end] of [[1960,2025],[2100,2165],[2325,2360],[2475,2515]]) {
     const block = lines.slice(start-1,end).map((line,i)=>`${start+i}: ${line.trim()}`).join("\n");
     console.log(`[Atlas Yaad exact ${start}-${end}]\n${block}`);
   }
