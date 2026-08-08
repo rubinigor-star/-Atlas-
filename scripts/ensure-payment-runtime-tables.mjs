@@ -21,6 +21,12 @@ const statements = [
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypTransId" TEXT`,
+  `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypAuthorizationTransId" TEXT`,
+  `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypCaptureTransId" TEXT`,
+  `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypCancelTransId" TEXT`,
+  `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypCapturePayloadJson" TEXT`,
+  `ALTER TABLE "PaymentAuthorization" ADD COLUMN IF NOT EXISTS "hypCancelPayloadJson" TEXT`,
   `CREATE INDEX IF NOT EXISTS "PaymentAuthorization_status_expiresAt_idx"
     ON "PaymentAuthorization"("status", "expiresAt")`,
   `CREATE TABLE IF NOT EXISTS "Reservation" (
