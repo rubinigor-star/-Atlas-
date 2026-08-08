@@ -2,11 +2,11 @@
   "expo": {
     "name": "Atlas Office",
     "slug": "atlas-office",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "orientation": "portrait",
     "scheme": "atlasoffice",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "il.co.atlas.office"
