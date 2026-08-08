@@ -19,6 +19,15 @@ export default async function RequestsPage() {
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
   });
 
+  const recoveryRows = await db.$queryRaw<Array<{ orderId: string }>>`
+    SELECT "orderId"
+    FROM "PaymentAuthorization"
+    WHERE provider = 'HYP'
+      AND status = 'CAPTURED'
+      AND "hypCaptureTransId" IS NULL
+  `;
+  const recoveryIds = new Set(recoveryRows.map((row) => row.orderId));
+
   return (
     <AdminShell>
       <div className="office-page-heading">
@@ -33,6 +42,7 @@ export default async function RequestsPage() {
         initialRequests={requests.map((request) => {
           const previous = request.guest?.orders.filter((order) => order.id !== request.id) ?? [];
           const visits = previous.flatMap((order) => order.tickets).filter((ticket) => ticket.scans.length > 0).length;
+          const paymentRecovery = request.status === "PAID" && recoveryIds.has(request.id);
           return {
             id: request.id,
             publicId: request.publicId,
@@ -47,7 +57,8 @@ export default async function RequestsPage() {
             previousOrders: previous.length,
             previousVisits: visits,
             answer: request.eligibilityAnswer,
-            status: request.status,
+            status: paymentRecovery ? "PENDING_APPROVAL" : request.status,
+            paymentRecovery,
             eventTitle: request.event.title,
             eventDate: request.event.startsAt.toISOString(),
             createdAt: request.createdAt.toISOString(),
