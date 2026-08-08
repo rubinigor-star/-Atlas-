@@ -23,6 +23,7 @@ export type RequestRecord = {
   previousVisits: number;
   answer: string | null;
   status: string;
+  paymentRecovery?: boolean;
   eventTitle: string;
   eventDate: string;
   createdAt: string;
@@ -45,6 +46,9 @@ type Copy = {
   approveEmailError: string;
   rejectSuccess: string;
   rejectEmailError: string;
+  recoveryStatus: string;
+  recoveryAction: string;
+  recoverySuccess: string;
   dismissConfirm: string;
   dismissError: string;
   dismissed: string;
@@ -82,6 +86,7 @@ const copy: Record<Locale, Copy> = {
     approveNote:"Одобрено в Atlas Office", rejectNote:"Заявка отклонена организатором", processError:"Не удалось обработать заявку",
     approveSuccess:"Заявка одобрена, оплата завершена, билеты и email отправлены клиенту.", approveEmailError:"Заявка одобрена, но email не отправлен",
     rejectSuccess:"Заявка отклонена, уведомление отправлено клиенту.", rejectEmailError:"Заявка отклонена, но email не отправлен",
+    recoveryStatus:"Требуется завершить списание", recoveryAction:"Завершить списание", recoverySuccess:"Списание HYP завершено. Билет и email обработаны.",
     dismissConfirm:"Удалить эту неактивную заявку из очереди? Она останется в журнале действий, но больше не будет отображаться в списке.", dismissError:"Не удалось удалить заявку из очереди", dismissed:"Неактивная заявка удалена из очереди.",
     search:"Имя, телефон, город, мероприятие или статус", inactive:"Неактивна · срок истёк", expiredNotice:(date)=>`Срок резерва истёк ${date}. Места и авторизация оплаты освобождены. Заявку больше нельзя одобрить.`,
     years:"лет", cityMissing:"Город не указан", previous:(orders,visits)=>`Заказов ранее: ${orders} · посещений: ${visits}`, instagramMissing:"Instagram не указан", facebookMissing:"Facebook не указан", customerAnswer:"Ответ клиента", received:"Получена",
@@ -95,6 +100,7 @@ const copy: Record<Locale, Copy> = {
     approveNote:"הבקשה אושרה באזור המפיקים", rejectNote:"הבקשה לא אושרה על ידי המפיק", processError:"לא ניתן לעדכן את הבקשה",
     approveSuccess:"הבקשה אושרה, התשלום הושלם והכרטיסים נשלחו ללקוח במייל.", approveEmailError:"הבקשה אושרה, אך המייל לא נשלח",
     rejectSuccess:"הבקשה לא אושרה והודעה נשלחה ללקוח.", rejectEmailError:"הבקשה לא אושרה, אך המייל לא נשלח",
+    recoveryStatus:"נדרש להשלים את החיוב", recoveryAction:"השלמת החיוב", recoverySuccess:"החיוב ב-HYP הושלם והכרטיס טופל.",
     dismissConfirm:"להסיר את הבקשה הלא פעילה מהתור? היא תישאר ביומן הפעילות אך לא תופיע עוד ברשימה.", dismissError:"לא ניתן להסיר את הבקשה מהתור", dismissed:"הבקשה הלא פעילה הוסרה מהתור.",
     search:"שם, טלפון, עיר, אירוע או סטטוס", inactive:"לא פעילה · התוקף פג", expiredNotice:(date)=>`תוקף השריון פג ב־${date}. המקומות ואישור התשלום שוחררו, ולא ניתן עוד לאשר את הבקשה.`,
     years:"שנים", cityMissing:"העיר לא צוינה", previous:(orders,visits)=>`הזמנות קודמות: ${orders} · ביקורים: ${visits}`, instagramMissing:"לא צוין Instagram", facebookMissing:"לא צוין Facebook", customerAnswer:"תשובת הלקוח", received:"התקבלה",
@@ -108,6 +114,7 @@ const copy: Record<Locale, Copy> = {
     approveNote:"Approved in Atlas Office", rejectNote:"Request declined by the organizer", processError:"Could not update the request",
     approveSuccess:"Request approved, payment completed, and tickets emailed to the customer.", approveEmailError:"Request approved, but the email was not sent",
     rejectSuccess:"Request declined and the customer was notified.", rejectEmailError:"Request declined, but the email was not sent",
+    recoveryStatus:"Payment capture required", recoveryAction:"Complete payment capture", recoverySuccess:"HYP capture completed. Ticket and email were processed.",
     dismissConfirm:"Remove this inactive request from the queue? It will remain in the activity log but will no longer appear here.", dismissError:"Could not remove the request from the queue", dismissed:"Inactive request removed from the queue.",
     search:"Name, phone, city, event, or status", inactive:"Inactive · expired", expiredNotice:(date)=>`The reservation expired on ${date}. Seats and payment authorization were released, and the request can no longer be approved.`,
     years:"years old", cityMissing:"City not provided", previous:(orders,visits)=>`Previous orders: ${orders} · visits: ${visits}`, instagramMissing:"Instagram not provided", facebookMissing:"Facebook not provided", customerAnswer:"Customer response", received:"Received",
@@ -159,11 +166,14 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
     setBusy(item.id); setError(""); setNotice("");
     const response = await fetch(`/api/admin/orders/${item.publicId}`, { method:"PATCH", headers:{"content-type":"application/json"}, body:JSON.stringify({ action, note:action === "approve" ? text.approveNote : text.rejectNote }) });
     const data = await response.json();
-    if (data.status) setRequests((current) => current.map((record) => record.id === item.id ? { ...record, status:data.status, inactive:false } : record));
+    if (data.status) setRequests((current) => current.map((record) => record.id === item.id ? { ...record, status:data.status, paymentRecovery:false, inactive:false } : record));
     if (!response.ok) { setError(data.error || text.processError); setBusy(""); return; }
-    const suffix = data.emailError ? `: ${data.emailError}` : ".";
-    if (action === "approve") setNotice(data.emailSent ? text.approveSuccess : `${text.approveEmailError}${suffix}`);
-    else setNotice(data.emailSent ? text.rejectSuccess : `${text.rejectEmailError}${suffix}`);
+    if (item.paymentRecovery) setNotice(text.recoverySuccess);
+    else {
+      const suffix = data.emailError ? `: ${data.emailError}` : ".";
+      if (action === "approve") setNotice(data.emailSent ? text.approveSuccess : `${text.approveEmailError}${suffix}`);
+      else setNotice(data.emailSent ? text.rejectSuccess : `${text.rejectEmailError}${suffix}`);
+    }
     setBusy("");
   }
 
@@ -186,16 +196,22 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
     <div className="request-grid">
       {visible.map((item) => {
         const color = statusColors[item.status] || { background:"#e5e7eb", color:"#111827" };
-        const meta = item.inactive ? { label:text.inactive, background:"#f3f4f6", color:"#6b7280" } : { label:text.statuses[item.status] || item.status, ...color };
+        const meta = item.paymentRecovery
+          ? { label:text.recoveryStatus, background:"#fff4cc", color:"#8a5a00" }
+          : item.inactive
+            ? { label:text.inactive, background:"#f3f4f6", color:"#6b7280" }
+            : { label:text.statuses[item.status] || item.status, ...color };
         const customerAge = age(item.birthDate);
         return <article className="request-card" key={item.id} style={item.inactive ? {opacity:.78,borderStyle:"dashed"} : undefined}>
           <header><div className="request-avatar">{item.customerName.split(" ").map((part) => part[0]).slice(0,2).join("")}</div><div><strong>{item.customerName}</strong><a href={`tel:${item.customerPhone}`}>{item.customerPhone}</a></div><span className="request-status" style={{background:meta.background,color:meta.color}}>{meta.label}</span></header>
+          {item.paymentRecovery && <div className="toast" style={{background:"#fff8e8",color:"#8a5a00",marginBottom:12}}>Atlas пометил заказ оплаченным до подтверждения HYP. Билет не должен считаться завершённым, пока HYP не подтвердит списание.</div>}
           {item.inactive && <div className="toast" style={{background:"#f8fafc",color:"#475569",marginBottom:12}}>{text.expiredNotice(new Date(item.expiresAt).toLocaleString(dateLocale(locale)))}</div>}
           <div className="request-event"><small>{item.eventTitle}</small><strong>{item.items.map((ticket) => `${ticket.name} × ${ticket.quantity}`).join(", ")}</strong><span>{money(item.totalMinor)}</span></div>
           {!compact && <div className="panel" style={{background:"#f8fafc"}}><strong>{item.guestStatus || "REGULAR"}</strong><p className="muted">{customerAge !== null ? `${customerAge} ${text.years} · ` : ""}{item.city || text.cityMissing}</p><p className="muted">{text.previous(item.previousOrders,item.previousVisits)}</p><p className="muted">{item.instagram || text.instagramMissing} · {item.facebook || text.facebookMissing}</p></div>}
           {item.answer && <blockquote><small>{text.customerAnswer}</small>{item.answer}</blockquote>}
           <footer><small>{text.received} {new Date(item.createdAt).toLocaleString(dateLocale(locale))}</small><div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}><a className="btn secondary" style={{color:"#128C7E"}} target="_blank" rel="noreferrer" href={whatsapp(item.customerPhone,text.whatsappMessage(item.customerName,item.eventTitle))} aria-label={text.whatsappLabel(item.customerName)}><WhatsAppIcon size={18}/> WhatsApp</a><Link className="btn secondary" href={`/office/orders/${item.publicId}?returnTo=${encodeURIComponent("/office/requests")}`}>{text.details}</Link></div></footer>
-          {item.status === "PENDING_APPROVAL" && !item.inactive && <div className="request-actions"><select aria-label={text.changeStatus(item.customerName)} defaultValue="" disabled={busy === item.id} onChange={(event) => { const value = event.target.value; event.target.value = ""; if (value === "approve") void decide(item,"approve"); if (value === "reject") void decide(item,"reject"); }}><option value="" disabled>{busy === item.id ? text.processing : text.changeStatusPlaceholder}</option><option value="approve">{text.approveFull}</option><option value="reject">{text.reject}</option></select><button disabled={busy === item.id} className="approve" onClick={() => void decide(item,"approve")}><Check size={18}/>{busy === item.id ? text.processing : text.approve}</button><button disabled={busy === item.id} className="reject" onClick={() => void decide(item,"reject")}><X size={18}/>{text.reject}</button></div>}
+          {item.paymentRecovery && !item.inactive && <div className="request-actions"><button disabled={busy === item.id} className="approve" onClick={() => void decide(item,"approve")}><Check size={18}/>{busy === item.id ? text.processing : text.recoveryAction}</button></div>}
+          {item.status === "PENDING_APPROVAL" && !item.paymentRecovery && !item.inactive && <div className="request-actions"><select aria-label={text.changeStatus(item.customerName)} defaultValue="" disabled={busy === item.id} onChange={(event) => { const value = event.target.value; event.target.value = ""; if (value === "approve") void decide(item,"approve"); if (value === "reject") void decide(item,"reject"); }}><option value="" disabled>{busy === item.id ? text.processing : text.changeStatusPlaceholder}</option><option value="approve">{text.approveFull}</option><option value="reject">{text.reject}</option></select><button disabled={busy === item.id} className="approve" onClick={() => void decide(item,"approve")}><Check size={18}/>{busy === item.id ? text.processing : text.approve}</button><button disabled={busy === item.id} className="reject" onClick={() => void decide(item,"reject")}><X size={18}/>{text.reject}</button></div>}
           {(item.inactive || item.status === "CANCELLED" || item.status === "REJECTED") && !compact && <div className="request-actions"><button disabled={busy === item.id} className="reject" onClick={() => void dismiss(item)}><Trash2 size={18}/>{busy === item.id ? text.deleting : text.remove}</button></div>}
         </article>;
       })}
