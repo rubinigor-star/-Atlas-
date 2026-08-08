@@ -16,7 +16,7 @@ function launchUrl(paymentUrl:string){return `/payments/hyp/launch?target=${enco
 
 async function createPaymentUrl(input:{salesMode:"INSTANT"|"APPROVAL_REQUIRED";totalMinor:number;publicId:string;eventTitle:string;customerName:string;customerEmail:string;customerPhone:string;language:"HEB"|"ENG"}){
   if(input.salesMode==="APPROVAL_REQUIRED"){
-    return createHypApprovalPaymentPage({amountMinor:input.totalMinor,orderId:input.publicId,callbackPath:"/api/payments/hyp/approval",language:input.language});
+    return createHypApprovalPaymentPage({amountMinor:input.totalMinor,orderId:input.publicId,callbackPath:"/api/payments/hyp/approval",language:input.language,customerName:input.customerName,customerEmail:input.customerEmail,customerPhone:input.customerPhone});
   }
   return createHypPaymentLink({amountIls:input.totalMinor/100,orderId:input.publicId,description:input.eventTitle,customerName:input.customerName,customerEmail:input.customerEmail,customerPhone:input.customerPhone,returnUrl:`${CANONICAL_APP_URL}/api/payments/hyp/order`,language:input.language});
 }
