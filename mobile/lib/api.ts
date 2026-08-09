@@ -81,6 +81,14 @@ export type EventOperationsPayload = {
   orders: EventOperationOrder[];
 };
 
+export type OrderReviewResult = {
+  status: string;
+  emailSent: boolean;
+  emailError?: string;
+  legacyDemoOrder?: boolean;
+  recoveredCapture?: boolean;
+};
+
 export type TicketValidationPayload = {
   result: "VALID" | "USED" | "CANCELLED" | "NOT_FOUND";
   ticketId?: string;
@@ -147,6 +155,13 @@ export async function getDashboard() {
 
 export async function getEventOperations(eventId: string, group: OperationGroup = "pending") {
   return request<EventOperationsPayload>(`/api/mobile/events/${encodeURIComponent(eventId)}/operations?status=${group}`);
+}
+
+export async function reviewEventOrder(publicId: string, action: "approve" | "reject", note?: string) {
+  return request<OrderReviewResult>(`/api/mobile/orders/${encodeURIComponent(publicId)}/review`, {
+    method: "POST",
+    body: JSON.stringify({ action, note }),
+  });
 }
 
 export async function validateTicket(eventId: string, code: string) {
