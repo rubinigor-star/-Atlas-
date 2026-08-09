@@ -1,7 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 
 const TOKEN_KEY = "atlas-office-session";
-const API_BASE_URL = "https://www.atlas-one.co";
+const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || "https://www.atlas-one.co").replace(/\/$/, "");
 
 export type MobileUser = {
   id: string;
