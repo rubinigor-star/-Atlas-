@@ -1,10 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, FlatList, Linking, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SwipeOrderRow } from "@/components/swipe-order-row";
-import { getEventOperations, getOrderRefundAvailability, refundEventOrder, resendOrderTicket, reviewEventOrder, type EventOperationOrder, type EventOperationsPayload, type OperationGroup, type RefundAvailability } from "@/lib/api";
+import { getEventOperations, getOrderRefundAvailability, refundEventOrder, resendOrderTicket, reviewEventOrder, type EventOperationOrder, type EventOperationsPayload, type OperationGroup, type OperationSort, type RefundAvailability } from "@/lib/api";
 
 const GROUPS: Array<{ key: OperationGroup; label: string }> = [
   { key: "pending", label: "Ожидают" },
@@ -13,10 +13,7 @@ const GROUPS: Array<{ key: OperationGroup; label: string }> = [
   { key: "abandoned", label: "Брошенные" },
 ];
 
-type SortMode = "newest" | "oldest" | "amount_desc" | "amount_asc";
-type TicketFilter = "all" | "one" | "multiple";
-
-const SORT_OPTIONS: Array<{ key: SortMode; label: string }> = [
+const SORT_OPTIONS: Array<{ key: OperationSort; label: string }> = [
   { key: "newest", label: "Сначала новые" },
   { key: "oldest", label: "Сначала старые" },
   { key: "amount_desc", label: "Сумма: больше сначала" },
@@ -54,6 +51,7 @@ export default function EventOperationsScreen() {
   const [data, setData] = useState<EventOperationsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<EventOperationOrder | null>(null);
   const [busyAction, setBusyAction] = useState<"approve" | "reject" | "resend" | "refund" | null>(null);
@@ -62,47 +60,42 @@ export default function EventOperationsScreen() {
   const [refundReason, setRefundReason] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [ticketFilter, setTicketFilter] = useState<TicketFilter>("all");
-  const [sortMode, setSortMode] = useState<SortMode>("newest");
+  const [sortMode, setSortMode] = useState<OperationSort>("newest");
 
-  async function load(nextGroup = group, silent = false) {
+  async function load(nextGroup = group, silent = false, page = 1, append = false) {
     if (!id) return;
-    if (!silent) setLoading(true);
-    try { setData(await getEventOperations(id, nextGroup)); }
-    finally { setLoading(false); setRefreshing(false); }
+    if (!silent && page === 1) setLoading(true);
+    try {
+      const result = await getEventOperations(id, nextGroup, {
+        page,
+        limit: 50,
+        search,
+        category: categoryFilter,
+        sort: sortMode,
+      });
+      setData((current) => append && current
+        ? { ...result, orders: [...current.orders, ...result.orders] }
+        : result);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+      setLoadingMore(false);
+    }
   }
 
-  useEffect(() => { void load(group); }, [id, group]);
+  useEffect(() => {
+    const timer = setTimeout(() => { void load(group); }, 300);
+    return () => clearTimeout(timer);
+  }, [id, group, search, categoryFilter, sortMode]);
 
-  const categoryOptions = useMemo(() => {
-    const names = new Set<string>();
-    for (const order of data?.orders || []) for (const category of order.categories) if (category.name) names.add(category.name);
-    return Array.from(names).sort((a, b) => a.localeCompare(b, "ru"));
-  }, [data?.orders]);
-
-  const hasActiveFilters = categoryFilter !== "all" || ticketFilter !== "all" || sortMode !== "newest";
-
-  const orders = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const filtered = (data?.orders || []).filter((order) => {
-      if (query && !`${order.customerName} ${order.customerPhone} ${order.publicId} ${order.customerEmail}`.toLowerCase().includes(query)) return false;
-      if (categoryFilter !== "all" && !order.categories.some((category) => category.name === categoryFilter)) return false;
-      if (ticketFilter === "one" && order.ticketCount !== 1) return false;
-      if (ticketFilter === "multiple" && order.ticketCount < 2) return false;
-      return true;
-    });
-    return filtered.sort((a, b) => {
-      if (sortMode === "amount_desc") return b.totalMinor - a.totalMinor;
-      if (sortMode === "amount_asc") return a.totalMinor - b.totalMinor;
-      const aTime = new Date(a.createdAt).getTime();
-      const bTime = new Date(b.createdAt).getTime();
-      return sortMode === "oldest" ? aTime - bTime : bTime - aTime;
-    });
-  }, [data?.orders, search, categoryFilter, ticketFilter, sortMode]);
+  async function loadMore() {
+    if (!data?.pagination.hasMore || loadingMore || loading || refreshing) return;
+    setLoadingMore(true);
+    await load(group, true, data.pagination.page + 1, true);
+  }
 
   function resetFilters() {
     setCategoryFilter("all");
-    setTicketFilter("all");
     setSortMode("newest");
   }
 
@@ -211,8 +204,8 @@ export default function EventOperationsScreen() {
       const result = await refundEventOrder(selected.publicId, amountMinor, refundReason.trim());
       const wasFull = Boolean(result.fullRefund);
       resetOrderState();
-      await load(wasFull ? "cancelled" : group, true);
       if (wasFull) setGroup("cancelled");
+      else await load(group, true);
       Alert.alert("Возврат подтверждён HYP", `${money(result.amountMinor)} возвращено клиенту.${result.emailSent ? " Email об отмене отправлен." : ""}`);
     } catch (error) {
       Alert.alert("Возврат не выполнен", error instanceof Error ? error.message : "Неизвестная ошибка");
@@ -221,10 +214,37 @@ export default function EventOperationsScreen() {
     }
   }
 
+  function renderOrder({ item: order }: { item: EventOperationOrder }) {
+    const pending = group === "pending";
+    const approved = group === "approved";
+    return (
+      <SwipeOrderRow
+        enabled={(pending || approved) && !busyAction}
+        rightSwipe={pending
+          ? { label: "Подтвердить", icon: "checkmark-circle", backgroundColor: "#168044", onPress: () => confirmReview("approve", order) }
+          : { label: "WhatsApp", icon: "logo-whatsapp", backgroundColor: "#168044", onPress: () => void Linking.openURL(whatsappUrl(order.customerPhone)) }}
+        leftSwipe={pending
+          ? { label: "Отклонить", icon: "close-circle", backgroundColor: "#B42318", onPress: () => confirmReview("reject", order) }
+          : { label: "Билет", icon: "mail-unread", backgroundColor: "#17213C", onPress: () => confirmResend(order) }}
+      >
+        <TouchableOpacity style={styles.orderRow} activeOpacity={0.75} onPress={() => { setSelected(order); setRefundInfo(null); }}>
+          <View style={styles.avatar}><Text style={styles.avatarText}>{order.customerName.trim().slice(0, 1).toUpperCase()}</Text></View>
+          <View style={styles.orderMain}>
+            <Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text>
+            <Text style={styles.orderMeta} numberOfLines={1}>{order.ticketCount} бил. · {order.categories.map((c) => c.name).join(", ") || "Билет"}</Text>
+            <Text style={styles.phone}>{order.customerPhone}</Text>
+          </View>
+          <View style={styles.orderEnd}><Text style={styles.amount}>{money(order.totalMinor)}</Text><Text style={styles.age}>{timeAgo(order.createdAt)}</Text><Ionicons name="chevron-forward" size={17} color="#A0A7B5" /></View>
+        </TouchableOpacity>
+      </SwipeOrderRow>
+    );
+  }
+
   if (loading && !data) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /></SafeAreaView>;
   if (!data) return <SafeAreaView style={styles.center}><Text>Не удалось загрузить мероприятие</Text></SafeAreaView>;
 
   const totalOrders = Object.values(data.counts).reduce((sum, count) => sum + count, 0);
+  const hasActiveFilters = categoryFilter !== "all" || sortMode !== "newest";
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -248,52 +268,41 @@ export default function EventOperationsScreen() {
       </ScrollView>
 
       <View style={styles.searchRow}>
-        <View style={styles.searchBox}><Ionicons name="search" size={19} color="#7B8498" /><TextInput style={styles.searchInput} value={search} onChangeText={setSearch} placeholder="Имя, телефон или № заказа" /></View>
+        <View style={styles.searchBox}><Ionicons name="search" size={19} color="#7B8498" /><TextInput style={styles.searchInput} value={search} onChangeText={setSearch} placeholder="Имя, телефон, email или № заказа" /></View>
         <TouchableOpacity style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]} onPress={() => setFilterOpen(true)}>
           <Ionicons name="options-outline" size={20} color={hasActiveFilters ? "#fff" : "#17213C"} />
           {hasActiveFilters && <View style={styles.filterDot} />}
         </TouchableOpacity>
       </View>
-      {hasActiveFilters && <View style={styles.filterSummary}><Text style={styles.filterSummaryText}>Показано {orders.length} · фильтры активны</Text><TouchableOpacity onPress={resetFilters}><Text style={styles.clearFilters}>Сбросить</Text></TouchableOpacity></View>}
+      {(hasActiveFilters || search.trim()) && <View style={styles.filterSummary}><Text style={styles.filterSummaryText}>Найдено {data.pagination.total}</Text><TouchableOpacity onPress={() => { setSearch(""); resetFilters(); }}><Text style={styles.clearFilters}>Сбросить</Text></TouchableOpacity></View>}
 
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(group, true); }} />}>
-        {orders.map((order) => {
-          const pending = group === "pending";
-          const approved = group === "approved";
-          return (
-            <SwipeOrderRow
-              key={order.id}
-              enabled={(pending || approved) && !busyAction}
-              rightSwipe={pending
-                ? { label: "Подтвердить", icon: "checkmark-circle", backgroundColor: "#168044", onPress: () => confirmReview("approve", order) }
-                : { label: "WhatsApp", icon: "logo-whatsapp", backgroundColor: "#168044", onPress: () => void Linking.openURL(whatsappUrl(order.customerPhone)) }}
-              leftSwipe={pending
-                ? { label: "Отклонить", icon: "close-circle", backgroundColor: "#B42318", onPress: () => confirmReview("reject", order) }
-                : { label: "Билет", icon: "mail-unread", backgroundColor: "#17213C", onPress: () => confirmResend(order) }}
-            >
-              <TouchableOpacity style={styles.orderRow} activeOpacity={0.75} onPress={() => { setSelected(order); setRefundInfo(null); }}>
-                <View style={styles.avatar}><Text style={styles.avatarText}>{order.customerName.trim().slice(0, 1).toUpperCase()}</Text></View>
-                <View style={styles.orderMain}><Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text><Text style={styles.orderMeta} numberOfLines={1}>{order.ticketCount} бил. · {order.categories.map((c) => c.name).join(", ") || "Билет"}</Text><Text style={styles.phone}>{order.customerPhone}</Text></View>
-                <View style={styles.orderEnd}><Text style={styles.amount}>{money(order.totalMinor)}</Text><Text style={styles.age}>{timeAgo(order.createdAt)}</Text><Ionicons name="chevron-forward" size={17} color="#A0A7B5" /></View>
-              </TouchableOpacity>
-            </SwipeOrderRow>
-          );
-        })}
-        {!orders.length && <View style={styles.empty}><Text style={styles.emptyTitle}>Ничего не найдено</Text><Text style={styles.emptyText}>Попробуйте изменить поиск или фильтры.</Text></View>}
-      </ScrollView>
+      <FlatList
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        data={data.orders}
+        keyExtractor={(order) => order.id}
+        renderItem={renderOrder}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(group, true); }} />}
+        onEndReached={() => void loadMore()}
+        onEndReachedThreshold={0.35}
+        initialNumToRender={12}
+        maxToRenderPerBatch={16}
+        windowSize={7}
+        removeClippedSubviews
+        ListFooterComponent={loadingMore ? <View style={styles.listLoader}><ActivityIndicator /></View> : null}
+        ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>Ничего не найдено</Text><Text style={styles.emptyText}>Попробуйте изменить поиск или фильтры.</Text></View>}
+      />
 
       <TouchableOpacity style={styles.scannerButton} onPress={() => router.push({ pathname: "/scanner", params: { eventId: data.event.id, eventTitle: data.event.title } })}><Ionicons name="scan-outline" size={20} color="#fff" /><Text style={styles.scannerText}>Сканер</Text></TouchableOpacity>
 
       <Modal visible={filterOpen} transparent animationType="slide" onRequestClose={() => setFilterOpen(false)}>
         <View style={styles.modalRoot}><TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setFilterOpen(false)} /><View style={styles.filterSheet}>
           <View style={styles.handle} />
-          <View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>Фильтр заказов</Text><Text style={styles.sheetId}>Настройте список под текущую задачу</Text></View><TouchableOpacity onPress={() => setFilterOpen(false)}><Ionicons name="close" size={25} color="#17213C" /></TouchableOpacity></View>
+          <View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>Фильтр заказов</Text><Text style={styles.sheetId}>Фильтр применяется ко всем заказам мероприятия</Text></View><TouchableOpacity onPress={() => setFilterOpen(false)}><Ionicons name="close" size={25} color="#17213C" /></TouchableOpacity></View>
           <Text style={styles.filterSectionTitle}>Сортировка</Text>
           <View style={styles.chipWrap}>{SORT_OPTIONS.map((option) => <FilterChip key={option.key} label={option.label} active={sortMode === option.key} onPress={() => setSortMode(option.key)} />)}</View>
-          <Text style={styles.filterSectionTitle}>Количество билетов</Text>
-          <View style={styles.chipWrap}><FilterChip label="Все" active={ticketFilter === "all"} onPress={() => setTicketFilter("all")} /><FilterChip label="1 билет" active={ticketFilter === "one"} onPress={() => setTicketFilter("one")} /><FilterChip label="2+ билета" active={ticketFilter === "multiple"} onPress={() => setTicketFilter("multiple")} /></View>
-          {!!categoryOptions.length && <><Text style={styles.filterSectionTitle}>Категория билета</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalChips}><FilterChip label="Все" active={categoryFilter === "all"} onPress={() => setCategoryFilter("all")} />{categoryOptions.map((name) => <FilterChip key={name} label={name} active={categoryFilter === name} onPress={() => setCategoryFilter(name)} />)}</ScrollView></>}
-          <View style={styles.filterFooter}><TouchableOpacity style={styles.resetButton} onPress={resetFilters}><Text style={styles.resetButtonText}>Сбросить</Text></TouchableOpacity><TouchableOpacity style={styles.applyButton} onPress={() => setFilterOpen(false)}><Text style={styles.applyButtonText}>Показать {orders.length}</Text></TouchableOpacity></View>
+          {!!data.event.categoryOptions.length && <><Text style={styles.filterSectionTitle}>Категория билета</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalChips}><FilterChip label="Все" active={categoryFilter === "all"} onPress={() => setCategoryFilter("all")} />{data.event.categoryOptions.map((name) => <FilterChip key={name} label={name} active={categoryFilter === name} onPress={() => setCategoryFilter(name)} />)}</ScrollView></>}
+          <View style={styles.filterFooter}><TouchableOpacity style={styles.resetButton} onPress={resetFilters}><Text style={styles.resetButtonText}>Сбросить</Text></TouchableOpacity><TouchableOpacity style={styles.applyButton} onPress={() => setFilterOpen(false)}><Text style={styles.applyButtonText}>Показать {data.pagination.total}</Text></TouchableOpacity></View>
         </View></View>
       </Modal>
 
@@ -340,7 +349,7 @@ const styles = StyleSheet.create({
   summary: { flexDirection: "row", justifyContent: "space-around", backgroundColor: "#fff", paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#ECEEF3" }, summaryValue: { fontSize: 18, fontWeight: "900", color: "#17213C", textAlign: "center" }, summaryLabel: { fontSize: 10.5, color: "#8B93A3", marginTop: 3, textAlign: "center" },
   tabsScroll: { maxHeight: 66, backgroundColor: "#fff" }, tabs: { paddingHorizontal: 10, alignItems: "stretch" }, tab: { minWidth: 92, paddingHorizontal: 11, paddingVertical: 11, alignItems: "center", borderBottomWidth: 3, borderBottomColor: "transparent" }, tabActive: { borderBottomColor: "#6D45FF" }, tabText: { fontSize: 12, fontWeight: "700", color: "#737C90" }, tabTextActive: { color: "#6D45FF" }, tabCount: { fontSize: 11, color: "#9AA1B0", marginTop: 3 },
   searchRow: { flexDirection: "row", gap: 8, padding: 10, backgroundColor: "#F5F6FA", paddingBottom: 6 }, searchBox: { flex: 1, height: 46, borderRadius: 14, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E5EC", flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 13 }, searchInput: { flex: 1, fontSize: 14 }, filterButton: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E5EC", alignItems: "center", justifyContent: "center" }, filterButtonActive: { backgroundColor: "#6D45FF", borderColor: "#6D45FF" }, filterDot: { position: "absolute", top: 7, right: 7, width: 7, height: 7, borderRadius: 4, backgroundColor: "#fff" }, filterSummary: { minHeight: 30, paddingHorizontal: 12, paddingBottom: 7, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, filterSummaryText: { fontSize: 11, color: "#737C90" }, clearFilters: { fontSize: 11, fontWeight: "800", color: "#6D45FF" },
-  list: { flex: 1 }, listContent: { paddingHorizontal: 10, paddingBottom: 90 }, orderRow: { minHeight: 78, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#ECEEF3", paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center" }, avatar: { width: 42, height: 42, borderRadius: 13, backgroundColor: "#071536", alignItems: "center", justifyContent: "center", marginRight: 11 }, avatarText: { color: "#fff", fontSize: 17, fontWeight: "900" }, orderMain: { flex: 1 }, customerName: { fontSize: 14.5, fontWeight: "800", color: "#17213C" }, orderMeta: { fontSize: 11.5, color: "#737C90", marginTop: 3 }, phone: { fontSize: 11.5, color: "#60708A", marginTop: 2 }, orderEnd: { alignItems: "flex-end", minWidth: 72 }, amount: { fontSize: 13.5, fontWeight: "900", color: "#17213C" }, age: { fontSize: 10, color: "#9AA1B0", marginTop: 5, marginBottom: 2 }, empty: { padding: 42, alignItems: "center" }, emptyTitle: { fontSize: 17, fontWeight: "900", color: "#17213C" }, emptyText: { color: "#8A92A3", marginTop: 6, textAlign: "center" },
+  list: { flex: 1 }, listContent: { paddingHorizontal: 10, paddingBottom: 90 }, listLoader: { height: 54, alignItems: "center", justifyContent: "center" }, orderRow: { minHeight: 78, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#ECEEF3", paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center" }, avatar: { width: 42, height: 42, borderRadius: 13, backgroundColor: "#071536", alignItems: "center", justifyContent: "center", marginRight: 11 }, avatarText: { color: "#fff", fontSize: 17, fontWeight: "900" }, orderMain: { flex: 1 }, customerName: { fontSize: 14.5, fontWeight: "800", color: "#17213C" }, orderMeta: { fontSize: 11.5, color: "#737C90", marginTop: 3 }, phone: { fontSize: 11.5, color: "#60708A", marginTop: 2 }, orderEnd: { alignItems: "flex-end", minWidth: 72 }, amount: { fontSize: 13.5, fontWeight: "900", color: "#17213C" }, age: { fontSize: 10, color: "#9AA1B0", marginTop: 5, marginBottom: 2 }, empty: { padding: 42, alignItems: "center" }, emptyTitle: { fontSize: 17, fontWeight: "900", color: "#17213C" }, emptyText: { color: "#8A92A3", marginTop: 6, textAlign: "center" },
   scannerButton: { position: "absolute", bottom: 18, alignSelf: "center", height: 48, borderRadius: 24, paddingHorizontal: 22, backgroundColor: "#071536", flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" }, scannerText: { color: "#fff", fontWeight: "800" },
   modalRoot: { flex: 1, justifyContent: "flex-end" }, backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(5,12,32,.45)" }, sheet: { backgroundColor: "#fff", borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, paddingBottom: 34, maxHeight: "82%" }, filterSheet: { backgroundColor: "#fff", borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, paddingBottom: 28, maxHeight: "78%" }, handle: { width: 44, height: 5, borderRadius: 99, backgroundColor: "#D7DBE4", alignSelf: "center", marginBottom: 16 }, sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }, sheetTitle: { fontSize: 22, fontWeight: "900", color: "#17213C" }, sheetId: { fontSize: 11.5, color: "#8A92A3", marginTop: 3 }, contactRow: { flexDirection: "row", gap: 8, marginTop: 16 }, contactButton: { flex: 1, minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: "#E2E5EC", alignItems: "center", justifyContent: "center" }, contactText: { fontSize: 10.5, marginTop: 3, color: "#17213C", fontWeight: "700" }, detailCard: { marginTop: 16, borderTopWidth: 1, borderTopColor: "#ECEEF3" }, detailRow: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#F0F1F4" }, detailLabel: { fontSize: 12, color: "#8A92A3" }, detailValue: { maxWidth: "66%", fontSize: 12.5, fontWeight: "700", color: "#17213C" },
   filterSectionTitle: { marginTop: 18, marginBottom: 9, fontSize: 12, fontWeight: "900", color: "#17213C" }, chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 }, horizontalChips: { gap: 8, paddingRight: 18 }, filterChip: { minHeight: 38, paddingHorizontal: 13, borderRadius: 19, borderWidth: 1, borderColor: "#DDE1EA", backgroundColor: "#fff", alignItems: "center", justifyContent: "center" }, filterChipActive: { backgroundColor: "#F0ECFF", borderColor: "#6D45FF" }, filterChipText: { fontSize: 11.5, fontWeight: "700", color: "#616B7E" }, filterChipTextActive: { color: "#6D45FF", fontWeight: "900" }, filterFooter: { flexDirection: "row", gap: 10, marginTop: 24 }, resetButton: { flex: 0.38, height: 48, borderRadius: 14, borderWidth: 1, borderColor: "#DDE1EA", alignItems: "center", justifyContent: "center" }, resetButtonText: { fontWeight: "800", color: "#17213C" }, applyButton: { flex: 0.62, height: 48, borderRadius: 14, backgroundColor: "#6D45FF", alignItems: "center", justifyContent: "center" }, applyButtonText: { fontWeight: "900", color: "#fff" },
