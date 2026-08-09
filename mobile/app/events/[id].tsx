@@ -33,6 +33,10 @@ function timeAgo(value: string) {
   return `${Math.floor(hours / 24)} дн назад`;
 }
 
+function whatsappUrl(phone: string) {
+  return `https://wa.me/${phone.replace(/\D/g, "")}`;
+}
+
 export default function EventOperationsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -61,19 +65,15 @@ export default function EventOperationsScreen() {
     return (data?.orders || []).filter((order) => !query || `${order.customerName} ${order.customerPhone} ${order.publicId}`.toLowerCase().includes(query));
   }, [data?.orders, search]);
 
-  function closeOrder() {
-    if (busyAction) return;
+  function resetOrderState() {
     setSelected(null);
     setRefundInfo(null);
     setRefundAmount("");
     setRefundReason("");
   }
 
-  function closeOrderAfterAction() {
-    setSelected(null);
-    setRefundInfo(null);
-    setRefundAmount("");
-    setRefundReason("");
+  function closeOrder() {
+    if (!busyAction) resetOrderState();
   }
 
   function confirmReview(action: "approve" | "reject", order: EventOperationOrder | null = selected) {
@@ -95,12 +95,9 @@ export default function EventOperationsScreen() {
     setBusyAction(action);
     try {
       const result = await reviewEventOrder(order.publicId, action);
-      if (selected?.id === order.id) closeOrderAfterAction();
+      if (selected?.id === order.id) resetOrderState();
       await load(group, true);
-      Alert.alert(
-        action === "approve" ? "Заказ подтверждён" : "Заказ отклонён",
-        result.emailSent ? "Клиенту отправлено уведомление." : (result.emailError || "Статус заказа обновлён."),
-      );
+      Alert.alert(action === "approve" ? "Заказ подтверждён" : "Заказ отклонён", result.emailSent ? "Клиенту отправлено уведомление." : (result.emailError || "Статус заказа обновлён."));
     } catch (error) {
       Alert.alert("Не удалось выполнить действие", error instanceof Error ? error.message : "Неизвестная ошибка");
     } finally {
@@ -108,11 +105,23 @@ export default function EventOperationsScreen() {
     }
   }
 
-  async function resendTicket() {
-    if (!selected || busyAction) return;
+  function confirmResend(order: EventOperationOrder | null = selected) {
+    if (!order || busyAction) return;
+    Alert.alert(
+      "Отправить билет повторно?",
+      `Билет заказа #${order.publicId} будет повторно отправлен на ${order.customerEmail}.`,
+      [
+        { text: "Назад", style: "cancel" },
+        { text: "Отправить", onPress: () => void resendTicket(order) },
+      ],
+    );
+  }
+
+  async function resendTicket(order: EventOperationOrder) {
+    if (busyAction) return;
     setBusyAction("resend");
     try {
-      const result = await resendOrderTicket(selected.publicId, "email");
+      const result = await resendOrderTicket(order.publicId, "email");
       Alert.alert("Билет отправлен", `Email отправлен на ${result.recipient}.`);
     } catch (error) {
       Alert.alert("Не удалось отправить билет", error instanceof Error ? error.message : "Неизвестная ошибка");
@@ -143,28 +152,14 @@ export default function EventOperationsScreen() {
   function confirmRefund() {
     if (!selected || !refundInfo || busyAction) return;
     const amountMinor = Math.round(Number(refundAmount.replace(",", ".")) * 100);
-    if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
-      Alert.alert("Некорректная сумма", "Укажите сумму возврата больше нуля.");
-      return;
-    }
-    if (amountMinor > refundInfo.refundableMinor) {
-      Alert.alert("Сумма слишком большая", `Доступно к возврату ${money(refundInfo.refundableMinor)}.`);
-      return;
-    }
-    if (refundReason.trim().length < 3) {
-      Alert.alert("Укажите причину", "Для возврата через HYP нужна причина длиной не менее 3 символов.");
-      return;
-    }
+    if (!Number.isInteger(amountMinor) || amountMinor <= 0) return Alert.alert("Некорректная сумма", "Укажите сумму возврата больше нуля.");
+    if (amountMinor > refundInfo.refundableMinor) return Alert.alert("Сумма слишком большая", `Доступно к возврату ${money(refundInfo.refundableMinor)}.`);
+    if (refundReason.trim().length < 3) return Alert.alert("Укажите причину", "Для возврата через HYP нужна причина длиной не менее 3 символов.");
     const full = amountMinor === refundInfo.refundableMinor;
     Alert.alert(
       full ? "Полный возврат?" : "Частичный возврат?",
-      full
-        ? `Вернуть ${money(amountMinor)} клиенту? Все билеты заказа будут аннулированы, а места освобождены.`
-        : `Вернуть ${money(amountMinor)} клиенту? Билеты останутся действительными.`,
-      [
-        { text: "Назад", style: "cancel" },
-        { text: "Вернуть деньги", style: "destructive", onPress: () => void runRefund(amountMinor) },
-      ],
+      full ? `Вернуть ${money(amountMinor)} клиенту? Все билеты заказа будут аннулированы, а места освобождены.` : `Вернуть ${money(amountMinor)} клиенту? Билеты останутся действительными.`,
+      [{ text: "Назад", style: "cancel" }, { text: "Вернуть деньги", style: "destructive", onPress: () => void runRefund(amountMinor) }],
     );
   }
 
@@ -174,7 +169,7 @@ export default function EventOperationsScreen() {
     try {
       const result = await refundEventOrder(selected.publicId, amountMinor, refundReason.trim());
       const wasFull = Boolean(result.fullRefund);
-      closeOrderAfterAction();
+      resetOrderState();
       await load(wasFull ? "cancelled" : group, true);
       if (wasFull) setGroup("cancelled");
       Alert.alert("Возврат подтверждён HYP", `${money(result.amountMinor)} возвращено клиенту.${result.emailSent ? " Email об отмене отправлен." : ""}`);
@@ -214,15 +209,28 @@ export default function EventOperationsScreen() {
       <View style={styles.searchRow}><View style={styles.searchBox}><Ionicons name="search" size={19} color="#7B8498" /><TextInput style={styles.searchInput} value={search} onChangeText={setSearch} placeholder="Имя, телефон или № заказа" /></View><TouchableOpacity style={styles.filterButton}><Ionicons name="options-outline" size={20} color="#17213C" /></TouchableOpacity></View>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(group, true); }} />}>
-        {orders.map((order) => (
-          <SwipeOrderRow key={order.id} enabled={group === "pending" && !busyAction} onApprove={() => confirmReview("approve", order)} onReject={() => confirmReview("reject", order)}>
-            <TouchableOpacity style={styles.orderRow} activeOpacity={0.75} onPress={() => { setSelected(order); setRefundInfo(null); }}>
-              <View style={styles.avatar}><Text style={styles.avatarText}>{order.customerName.trim().slice(0, 1).toUpperCase()}</Text></View>
-              <View style={styles.orderMain}><Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text><Text style={styles.orderMeta} numberOfLines={1}>{order.ticketCount} бил. · {order.categories.map((c) => c.name).join(", ") || "Билет"}</Text><Text style={styles.phone}>{order.customerPhone}</Text></View>
-              <View style={styles.orderEnd}><Text style={styles.amount}>{money(order.totalMinor)}</Text><Text style={styles.age}>{timeAgo(order.createdAt)}</Text><Ionicons name="chevron-forward" size={17} color="#A0A7B5" /></View>
-            </TouchableOpacity>
-          </SwipeOrderRow>
-        ))}
+        {orders.map((order) => {
+          const pending = group === "pending";
+          const approved = group === "approved";
+          return (
+            <SwipeOrderRow
+              key={order.id}
+              enabled={(pending || approved) && !busyAction}
+              rightSwipe={pending
+                ? { label: "Подтвердить", icon: "checkmark-circle", backgroundColor: "#168044", onPress: () => confirmReview("approve", order) }
+                : { label: "WhatsApp", icon: "logo-whatsapp", backgroundColor: "#168044", onPress: () => void Linking.openURL(whatsappUrl(order.customerPhone)) }}
+              leftSwipe={pending
+                ? { label: "Отклонить", icon: "close-circle", backgroundColor: "#B42318", onPress: () => confirmReview("reject", order) }
+                : { label: "Билет", icon: "mail-unread", backgroundColor: "#17213C", onPress: () => confirmResend(order) }}
+            >
+              <TouchableOpacity style={styles.orderRow} activeOpacity={0.75} onPress={() => { setSelected(order); setRefundInfo(null); }}>
+                <View style={styles.avatar}><Text style={styles.avatarText}>{order.customerName.trim().slice(0, 1).toUpperCase()}</Text></View>
+                <View style={styles.orderMain}><Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text><Text style={styles.orderMeta} numberOfLines={1}>{order.ticketCount} бил. · {order.categories.map((c) => c.name).join(", ") || "Билет"}</Text><Text style={styles.phone}>{order.customerPhone}</Text></View>
+                <View style={styles.orderEnd}><Text style={styles.amount}>{money(order.totalMinor)}</Text><Text style={styles.age}>{timeAgo(order.createdAt)}</Text><Ionicons name="chevron-forward" size={17} color="#A0A7B5" /></View>
+              </TouchableOpacity>
+            </SwipeOrderRow>
+          );
+        })}
         {!orders.length && <View style={styles.empty}><Text style={styles.emptyTitle}>Список пуст</Text><Text style={styles.emptyText}>В этой категории сейчас нет заказов.</Text></View>}
       </ScrollView>
 
@@ -232,14 +240,14 @@ export default function EventOperationsScreen() {
         <View style={styles.modalRoot}><TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={closeOrder} /><View style={styles.sheet}>{selected && <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.handle} />
           <View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{selected.customerName}</Text><Text style={styles.sheetId}>#{selected.publicId}</Text></View><TouchableOpacity disabled={!!busyAction} onPress={closeOrder}><Ionicons name="close" size={25} color="#17213C" /></TouchableOpacity></View>
-          <View style={styles.contactRow}><TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`tel:${selected.customerPhone}`)}><Ionicons name="call-outline" size={20} color="#17213C" /><Text style={styles.contactText}>Позвонить</Text></TouchableOpacity><TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`https://wa.me/${selected.customerPhone.replace(/\D/g, "")}`)}><Ionicons name="logo-whatsapp" size={20} color="#168044" /><Text style={styles.contactText}>WhatsApp</Text></TouchableOpacity><TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`mailto:${selected.customerEmail}`)}><Ionicons name="mail-outline" size={20} color="#17213C" /><Text style={styles.contactText}>Email</Text></TouchableOpacity></View>
+          <View style={styles.contactRow}><TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`tel:${selected.customerPhone}`)}><Ionicons name="call-outline" size={20} color="#17213C" /><Text style={styles.contactText}>Позвонить</Text></TouchableOpacity><TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(whatsappUrl(selected.customerPhone))}><Ionicons name="logo-whatsapp" size={20} color="#168044" /><Text style={styles.contactText}>WhatsApp</Text></TouchableOpacity><TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`mailto:${selected.customerEmail}`)}><Ionicons name="mail-outline" size={20} color="#17213C" /><Text style={styles.contactText}>Email</Text></TouchableOpacity></View>
           <View style={styles.detailCard}><Detail label="Телефон" value={selected.customerPhone} /><Detail label="Email" value={selected.customerEmail} /><Detail label="Билеты" value={`${selected.ticketCount}`} /><Detail label="Сумма" value={money(selected.totalMinor)} /><Detail label="Статус" value={selected.status} /><Detail label="Создан" value={eventDate(selected.createdAt)} /></View>
           {group === "pending" && <View style={styles.reviewActions}>
             <TouchableOpacity disabled={!!busyAction} style={[styles.reviewButton, styles.rejectButton]} onPress={() => confirmReview("reject")}><Ionicons name="close-circle-outline" size={21} color="#B42318" /><Text style={styles.rejectText}>{busyAction === "reject" ? "Отклоняем..." : "Отклонить"}</Text></TouchableOpacity>
             <TouchableOpacity disabled={!!busyAction} style={[styles.reviewButton, styles.approveButton]} onPress={() => confirmReview("approve")}><Ionicons name="checkmark-circle-outline" size={21} color="#fff" /><Text style={styles.approveText}>{busyAction === "approve" ? "Подтверждаем..." : "Подтвердить"}</Text></TouchableOpacity>
           </View>}
           {group === "approved" && <>
-            <TouchableOpacity disabled={!!busyAction} style={styles.resendButton} onPress={() => void resendTicket()}><Ionicons name="mail-unread-outline" size={20} color="#17213C" /><Text style={styles.resendText}>{busyAction === "resend" ? "Отправляем..." : "Отправить билет повторно"}</Text></TouchableOpacity>
+            <TouchableOpacity disabled={!!busyAction} style={styles.resendButton} onPress={() => confirmResend()}><Ionicons name="mail-unread-outline" size={20} color="#17213C" /><Text style={styles.resendText}>{busyAction === "resend" ? "Отправляем..." : "Отправить билет повторно"}</Text></TouchableOpacity>
             {!refundInfo && <TouchableOpacity disabled={!!busyAction} style={styles.refundButton} onPress={() => void openRefund()}><Ionicons name="return-down-back-outline" size={20} color="#B42318" /><Text style={styles.refundText}>{busyAction === "refund" ? "Проверяем..." : "Вернуть деньги"}</Text></TouchableOpacity>}
             {refundInfo && <View style={styles.refundPanel}>
               <View style={styles.refundHeader}><View><Text style={styles.refundTitle}>Возврат через HYP</Text><Text style={styles.refundAvailable}>Доступно: {money(refundInfo.refundableMinor)}</Text></View><TouchableOpacity onPress={() => setRefundInfo(null)}><Ionicons name="close-circle" size={24} color="#7B8498" /></TouchableOpacity></View>
