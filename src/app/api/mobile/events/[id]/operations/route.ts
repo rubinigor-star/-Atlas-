@@ -10,10 +10,16 @@ const STATUS_GROUPS = {
 };
 
 type GroupKey = keyof typeof STATUS_GROUPS;
+type SortKey = "newest" | "oldest" | "amount_desc" | "amount_asc";
 
-function groupFromUrl(request: Request): GroupKey {
-  const value = new URL(request.url).searchParams.get("status");
+function groupFromUrl(url: URL): GroupKey {
+  const value = url.searchParams.get("status");
   return value && value in STATUS_GROUPS ? (value as GroupKey) : "pending";
+}
+
+function sortFromUrl(url: URL): SortKey {
+  const value = url.searchParams.get("sort");
+  return value === "oldest" || value === "amount_desc" || value === "amount_asc" ? value : "newest";
 }
 
 function canAccessEvent(user: Awaited<ReturnType<typeof getMobileStaff>>, event: { id: string; organizationId: string }) {
@@ -49,12 +55,42 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     return NextResponse.json({ error: "EVENT_ACCESS_DENIED" }, { status: 403 });
   }
 
-  const group = groupFromUrl(request);
-  const [orders, groupedCounts, revenue, usedTickets] = await Promise.all([
+  const url = new URL(request.url);
+  const group = groupFromUrl(url);
+  const sort = sortFromUrl(url);
+  const page = Math.max(1, Number.parseInt(url.searchParams.get("page") || "1", 10) || 1);
+  const limit = Math.min(100, Math.max(20, Number.parseInt(url.searchParams.get("limit") || "50", 10) || 50));
+  const query = (url.searchParams.get("q") || "").trim();
+  const category = (url.searchParams.get("category") || "").trim();
+
+  const orderWhere = {
+    eventId: id,
+    status: { in: [...STATUS_GROUPS[group]] },
+    ...(query ? {
+      OR: [
+        { customerName: { contains: query } },
+        { customerPhone: { contains: query } },
+        { customerEmail: { contains: query } },
+        { publicId: { contains: query } },
+      ],
+    } : {}),
+    ...(category ? { items: { some: { categoryName: category } } } : {}),
+  };
+
+  const orderBy = sort === "oldest"
+    ? { createdAt: "asc" as const }
+    : sort === "amount_desc"
+      ? { totalMinor: "desc" as const }
+      : sort === "amount_asc"
+        ? { totalMinor: "asc" as const }
+        : { createdAt: "desc" as const };
+
+  const [orders, filteredTotal, groupedCounts, revenue, usedTickets] = await Promise.all([
     db.order.findMany({
-      where: { eventId: id, status: { in: [...STATUS_GROUPS[group]] } },
-      orderBy: { createdAt: "desc" },
-      take: 100,
+      where: orderWhere,
+      orderBy,
+      skip: (page - 1) * limit,
+      take: limit,
       select: {
         id: true,
         publicId: true,
@@ -71,6 +107,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         tickets: { select: { id: true, status: true } },
       },
     }),
+    db.order.count({ where: orderWhere }),
     db.order.groupBy({ by: ["status"], where: { eventId: id }, _count: { _all: true } }),
     db.order.aggregate({ where: { eventId: id, status: "PAID" }, _sum: { totalMinor: true } }),
     db.ticket.count({ where: { status: "USED", order: { eventId: id, status: "PAID" } } }),
@@ -96,6 +133,12 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       abandoned: countGroup(STATUS_GROUPS.abandoned),
     },
     group,
+    pagination: {
+      page,
+      limit,
+      total: filteredTotal,
+      hasMore: page * limit < filteredTotal,
+    },
     orders: orders.map((order) => ({
       id: order.id,
       publicId: order.publicId,
