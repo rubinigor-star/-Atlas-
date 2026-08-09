@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { SwipeOrderRow } from "@/components/swipe-order-row";
 import { getEventOperations, getOrderRefundAvailability, refundEventOrder, resendOrderTicket, reviewEventOrder, type EventOperationOrder, type EventOperationsPayload, type OperationGroup, type RefundAvailability } from "@/lib/api";
 
 const GROUPS: Array<{ key: OperationGroup; label: string }> = [
@@ -68,27 +69,33 @@ export default function EventOperationsScreen() {
     setRefundReason("");
   }
 
-  function confirmReview(action: "approve" | "reject") {
-    if (!selected || busyAction) return;
+  function closeOrderAfterAction() {
+    setSelected(null);
+    setRefundInfo(null);
+    setRefundAmount("");
+    setRefundReason("");
+  }
+
+  function confirmReview(action: "approve" | "reject", order: EventOperationOrder | null = selected) {
+    if (!order || busyAction) return;
     const approving = action === "approve";
     Alert.alert(
       approving ? "Подтвердить заказ?" : "Отклонить заказ?",
       approving
-        ? `С клиента будет завершено списание оплаты и будут выпущены билеты для ${selected.customerName}.`
-        : `Заявка ${selected.customerName} будет отклонена. Предварительная авторизация оплаты будет отменена.`,
+        ? `С клиента будет завершено списание оплаты и будут выпущены билеты для ${order.customerName}.`
+        : `Заявка ${order.customerName} будет отклонена. Предварительная авторизация оплаты будет отменена.`,
       [
         { text: "Назад", style: "cancel" },
-        { text: approving ? "Подтвердить" : "Отклонить", style: approving ? "default" : "destructive", onPress: () => void runReview(action) },
+        { text: approving ? "Подтвердить" : "Отклонить", style: approving ? "default" : "destructive", onPress: () => void runReview(action, order) },
       ],
     );
   }
 
-  async function runReview(action: "approve" | "reject") {
-    if (!selected) return;
+  async function runReview(action: "approve" | "reject", order: EventOperationOrder) {
     setBusyAction(action);
     try {
-      const result = await reviewEventOrder(selected.publicId, action);
-      closeOrderAfterAction();
+      const result = await reviewEventOrder(order.publicId, action);
+      if (selected?.id === order.id) closeOrderAfterAction();
       await load(group, true);
       Alert.alert(
         action === "approve" ? "Заказ подтверждён" : "Заказ отклонён",
@@ -99,13 +106,6 @@ export default function EventOperationsScreen() {
     } finally {
       setBusyAction(null);
     }
-  }
-
-  function closeOrderAfterAction() {
-    setSelected(null);
-    setRefundInfo(null);
-    setRefundAmount("");
-    setRefundReason("");
   }
 
   async function resendTicket() {
@@ -215,11 +215,13 @@ export default function EventOperationsScreen() {
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(group, true); }} />}>
         {orders.map((order) => (
-          <TouchableOpacity key={order.id} style={styles.orderRow} activeOpacity={0.75} onPress={() => { setSelected(order); setRefundInfo(null); }}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>{order.customerName.trim().slice(0, 1).toUpperCase()}</Text></View>
-            <View style={styles.orderMain}><Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text><Text style={styles.orderMeta} numberOfLines={1}>{order.ticketCount} бил. · {order.categories.map((c) => c.name).join(", ") || "Билет"}</Text><Text style={styles.phone}>{order.customerPhone}</Text></View>
-            <View style={styles.orderEnd}><Text style={styles.amount}>{money(order.totalMinor)}</Text><Text style={styles.age}>{timeAgo(order.createdAt)}</Text><Ionicons name="chevron-forward" size={17} color="#A0A7B5" /></View>
-          </TouchableOpacity>
+          <SwipeOrderRow key={order.id} enabled={group === "pending" && !busyAction} onApprove={() => confirmReview("approve", order)} onReject={() => confirmReview("reject", order)}>
+            <TouchableOpacity style={styles.orderRow} activeOpacity={0.75} onPress={() => { setSelected(order); setRefundInfo(null); }}>
+              <View style={styles.avatar}><Text style={styles.avatarText}>{order.customerName.trim().slice(0, 1).toUpperCase()}</Text></View>
+              <View style={styles.orderMain}><Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text><Text style={styles.orderMeta} numberOfLines={1}>{order.ticketCount} бил. · {order.categories.map((c) => c.name).join(", ") || "Билет"}</Text><Text style={styles.phone}>{order.customerPhone}</Text></View>
+              <View style={styles.orderEnd}><Text style={styles.amount}>{money(order.totalMinor)}</Text><Text style={styles.age}>{timeAgo(order.createdAt)}</Text><Ionicons name="chevron-forward" size={17} color="#A0A7B5" /></View>
+            </TouchableOpacity>
+          </SwipeOrderRow>
         ))}
         {!orders.length && <View style={styles.empty}><Text style={styles.emptyTitle}>Список пуст</Text><Text style={styles.emptyText}>В этой категории сейчас нет заказов.</Text></View>}
       </ScrollView>
