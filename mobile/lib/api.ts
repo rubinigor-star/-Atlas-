@@ -48,6 +48,7 @@ export type DashboardPayload = {
 };
 
 export type OperationGroup = "pending" | "approved" | "cancelled" | "abandoned";
+export type OperationSort = "newest" | "oldest" | "amount_desc" | "amount_asc";
 
 export type EventOperationOrder = {
   id: string;
@@ -78,7 +79,16 @@ export type EventOperationsPayload = {
   };
   counts: Record<OperationGroup, number>;
   group: OperationGroup;
+  pagination: { page: number; limit: number; total: number; hasMore: boolean };
   orders: EventOperationOrder[];
+};
+
+export type EventOperationsQuery = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  category?: string;
+  sort?: OperationSort;
 };
 
 export type OrderReviewResult = {
@@ -183,8 +193,16 @@ export async function getDashboard() {
   return request<DashboardPayload>("/api/mobile/dashboard");
 }
 
-export async function getEventOperations(eventId: string, group: OperationGroup = "pending") {
-  return request<EventOperationsPayload>(`/api/mobile/events/${encodeURIComponent(eventId)}/operations?status=${group}`);
+export async function getEventOperations(eventId: string, group: OperationGroup = "pending", query: EventOperationsQuery = {}) {
+  const params = new URLSearchParams({
+    status: group,
+    page: String(query.page || 1),
+    limit: String(query.limit || 50),
+    sort: query.sort || "newest",
+  });
+  if (query.search?.trim()) params.set("q", query.search.trim());
+  if (query.category?.trim() && query.category !== "all") params.set("category", query.category.trim());
+  return request<EventOperationsPayload>(`/api/mobile/events/${encodeURIComponent(eventId)}/operations?${params.toString()}`);
 }
 
 export async function reviewEventOrder(publicId: string, action: "approve" | "reject", note?: string) {
