@@ -65,6 +65,13 @@ export type EventOperationOrder = {
   ticketCount: number;
   categories: Array<{ name: string; quantity: number; unitPriceMinor: number }>;
   usedTickets: number;
+  source: "ORDER" | "ABANDONED_CHECKOUT";
+  canApprove: boolean;
+  canReject: boolean;
+  reviewBlockedReason: string | null;
+  paymentProvider: string | null;
+  paymentAuthorizationStatus: string | null;
+  reservationStatus: string | null;
 };
 
 export type EventOperationsPayload = {
@@ -153,8 +160,7 @@ async function request<T>(path: string, options: RequestInit = {}) {
         ...(options.headers || {}),
       },
     });
-  } catch (error) {
-    console.error("[Atlas API] network failure", { url, error });
+  } catch {
     throw new Error("NETWORK_ERROR");
   }
 
@@ -163,11 +169,10 @@ async function request<T>(path: string, options: RequestInit = {}) {
   try {
     body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
   } catch {
-    console.error("[Atlas API] non-JSON response", { url, status: response.status, preview: raw.slice(0, 300) });
+    body = {};
   }
 
   if (!response.ok) {
-    console.error("[Atlas API] request failed", { url, status: response.status, body, preview: raw.slice(0, 300) });
     if (response.status === 401) await SecureStore.deleteItemAsync(TOKEN_KEY);
     const error = new Error(typeof body.error === "string" ? body.error : `HTTP_${response.status}`);
     Object.assign(error, { status: response.status, payload: body });
