@@ -47,6 +47,40 @@ export type DashboardPayload = {
   }>;
 };
 
+export type OperationGroup = "pending" | "approved" | "cancelled" | "abandoned";
+
+export type EventOperationOrder = {
+  id: string;
+  publicId: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  totalMinor: number;
+  currency: string;
+  status: string;
+  reviewNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+  ticketCount: number;
+  categories: Array<{ name: string; quantity: number; unitPriceMinor: number }>;
+  usedTickets: number;
+};
+
+export type EventOperationsPayload = {
+  event: {
+    id: string;
+    title: string;
+    startsAt: string;
+    posterUrl: string | null;
+    venue: { name: string; city: string };
+    revenueMinor: number;
+    checkedIn: number;
+  };
+  counts: Record<OperationGroup, number>;
+  group: OperationGroup;
+  orders: EventOperationOrder[];
+};
+
 export type TicketValidationPayload = {
   result: "VALID" | "USED" | "CANCELLED" | "NOT_FOUND";
   ticketId?: string;
@@ -80,20 +114,11 @@ async function request<T>(path: string, options: RequestInit = {}) {
   try {
     body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
   } catch {
-    console.error("[Atlas API] non-JSON response", {
-      url,
-      status: response.status,
-      preview: raw.slice(0, 300),
-    });
+    console.error("[Atlas API] non-JSON response", { url, status: response.status, preview: raw.slice(0, 300) });
   }
 
   if (!response.ok) {
-    console.error("[Atlas API] request failed", {
-      url,
-      status: response.status,
-      body,
-      preview: raw.slice(0, 300),
-    });
+    console.error("[Atlas API] request failed", { url, status: response.status, body, preview: raw.slice(0, 300) });
     if (response.status === 401) await SecureStore.deleteItemAsync(TOKEN_KEY);
     const error = new Error(typeof body.error === "string" ? body.error : `HTTP_${response.status}`);
     Object.assign(error, { status: response.status, payload: body });
@@ -108,9 +133,7 @@ export async function login(email: string, password: string) {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
-  await SecureStore.setItemAsync(TOKEN_KEY, result.token, {
-    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-  });
+  await SecureStore.setItemAsync(TOKEN_KEY, result.token, { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY });
   return result.user;
 }
 
@@ -120,6 +143,10 @@ export async function currentUser() {
 
 export async function getDashboard() {
   return request<DashboardPayload>("/api/mobile/dashboard");
+}
+
+export async function getEventOperations(eventId: string, group: OperationGroup = "pending") {
+  return request<EventOperationsPayload>(`/api/mobile/events/${encodeURIComponent(eventId)}/operations?status=${group}`);
 }
 
 export async function validateTicket(eventId: string, code: string) {
