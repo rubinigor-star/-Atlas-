@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getEventOperations, reviewEventOrder, type EventOperationOrder, type EventOperationsPayload, type OperationGroup } from "@/lib/api";
+import { getEventOperations, resendOrderTicket, reviewEventOrder, type EventOperationOrder, type EventOperationsPayload, type OperationGroup } from "@/lib/api";
 
 const GROUPS: Array<{ key: OperationGroup; label: string }> = [
   { key: "pending", label: "Ожидают" },
@@ -41,7 +41,7 @@ export default function EventOperationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<EventOperationOrder | null>(null);
-  const [busyAction, setBusyAction] = useState<"approve" | "reject" | null>(null);
+  const [busyAction, setBusyAction] = useState<"approve" | "reject" | "resend" | null>(null);
 
   async function load(nextGroup = group, silent = false) {
     if (!id) return;
@@ -67,11 +67,7 @@ export default function EventOperationsScreen() {
         : `Заявка ${selected.customerName} будет отклонена. Предварительная авторизация оплаты будет отменена.`,
       [
         { text: "Назад", style: "cancel" },
-        {
-          text: approving ? "Подтвердить" : "Отклонить",
-          style: approving ? "default" : "destructive",
-          onPress: () => void runReview(action),
-        },
+        { text: approving ? "Подтвердить" : "Отклонить", style: approving ? "default" : "destructive", onPress: () => void runReview(action) },
       ],
     );
   }
@@ -89,6 +85,19 @@ export default function EventOperationsScreen() {
       );
     } catch (error) {
       Alert.alert("Не удалось выполнить действие", error instanceof Error ? error.message : "Неизвестная ошибка");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function resendTicket() {
+    if (!selected || busyAction) return;
+    setBusyAction("resend");
+    try {
+      const result = await resendOrderTicket(selected.publicId, "email");
+      Alert.alert("Билет отправлен", `Email отправлен на ${result.recipient}.`);
+    } catch (error) {
+      Alert.alert("Не удалось отправить билет", error instanceof Error ? error.message : "Неизвестная ошибка");
     } finally {
       setBusyAction(null);
     }
@@ -145,7 +154,10 @@ export default function EventOperationsScreen() {
             <TouchableOpacity disabled={!!busyAction} style={[styles.reviewButton, styles.rejectButton]} onPress={() => confirmReview("reject")}><Ionicons name="close-circle-outline" size={21} color="#B42318" /><Text style={styles.rejectText}>{busyAction === "reject" ? "Отклоняем..." : "Отклонить"}</Text></TouchableOpacity>
             <TouchableOpacity disabled={!!busyAction} style={[styles.reviewButton, styles.approveButton]} onPress={() => confirmReview("approve")}><Ionicons name="checkmark-circle-outline" size={21} color="#fff" /><Text style={styles.approveText}>{busyAction === "approve" ? "Подтверждаем..." : "Подтвердить"}</Text></TouchableOpacity>
           </View>}
-          {group === "approved" && <TouchableOpacity style={styles.refundButton}><Ionicons name="return-down-back-outline" size={20} color="#B42318" /><Text style={styles.refundText}>Вернуть деньги</Text></TouchableOpacity>}
+          {group === "approved" && <>
+            <TouchableOpacity disabled={!!busyAction} style={styles.resendButton} onPress={() => void resendTicket()}><Ionicons name="mail-unread-outline" size={20} color="#17213C" /><Text style={styles.resendText}>{busyAction === "resend" ? "Отправляем..." : "Отправить билет повторно"}</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.refundButton}><Ionicons name="return-down-back-outline" size={20} color="#B42318" /><Text style={styles.refundText}>Вернуть деньги</Text></TouchableOpacity>
+          </>}
         </>}</View></View>
       </Modal>
     </SafeAreaView>
@@ -164,5 +176,5 @@ const styles = StyleSheet.create({
   searchRow: { flexDirection: "row", gap: 8, padding: 10, backgroundColor: "#F5F6FA" }, searchBox: { flex: 1, height: 46, borderRadius: 14, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E5EC", flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 13 }, searchInput: { flex: 1, fontSize: 14 }, filterButton: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E5EC", alignItems: "center", justifyContent: "center" },
   list: { flex: 1 }, listContent: { paddingHorizontal: 10, paddingBottom: 90 }, orderRow: { minHeight: 78, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#ECEEF3", paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center" }, avatar: { width: 42, height: 42, borderRadius: 13, backgroundColor: "#071536", alignItems: "center", justifyContent: "center", marginRight: 11 }, avatarText: { color: "#fff", fontSize: 17, fontWeight: "900" }, orderMain: { flex: 1 }, customerName: { fontSize: 14.5, fontWeight: "800", color: "#17213C" }, orderMeta: { fontSize: 11.5, color: "#737C90", marginTop: 3 }, phone: { fontSize: 11.5, color: "#60708A", marginTop: 2 }, orderEnd: { alignItems: "flex-end", minWidth: 72 }, amount: { fontSize: 13.5, fontWeight: "900", color: "#17213C" }, age: { fontSize: 10, color: "#9AA1B0", marginTop: 5, marginBottom: 2 }, empty: { padding: 42, alignItems: "center" }, emptyTitle: { fontSize: 17, fontWeight: "900", color: "#17213C" }, emptyText: { color: "#8A92A3", marginTop: 6 },
   scannerButton: { position: "absolute", bottom: 18, alignSelf: "center", height: 48, borderRadius: 24, paddingHorizontal: 22, backgroundColor: "#071536", flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" }, scannerText: { color: "#fff", fontWeight: "800" },
-  modalRoot: { flex: 1, justifyContent: "flex-end" }, backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(5,12,32,.45)" }, sheet: { backgroundColor: "#fff", borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, paddingBottom: 34, maxHeight: "78%" }, handle: { width: 44, height: 5, borderRadius: 99, backgroundColor: "#D7DBE4", alignSelf: "center", marginBottom: 16 }, sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }, sheetTitle: { fontSize: 22, fontWeight: "900", color: "#17213C" }, sheetId: { fontSize: 11.5, color: "#8A92A3", marginTop: 3 }, contactRow: { flexDirection: "row", gap: 8, marginTop: 16 }, contactButton: { flex: 1, minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: "#E2E5EC", alignItems: "center", justifyContent: "center" }, contactText: { fontSize: 10.5, marginTop: 3, color: "#17213C", fontWeight: "700" }, detailCard: { marginTop: 16, borderTopWidth: 1, borderTopColor: "#ECEEF3" }, detailRow: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#F0F1F4" }, detailLabel: { fontSize: 12, color: "#8A92A3" }, detailValue: { maxWidth: "66%", fontSize: 12.5, fontWeight: "700", color: "#17213C" }, reviewActions: { flexDirection: "row", gap: 10, marginTop: 16 }, reviewButton: { flex: 1, height: 52, borderRadius: 15, flexDirection: "row", gap: 7, alignItems: "center", justifyContent: "center" }, rejectButton: { borderWidth: 1, borderColor: "#F1B8B2", backgroundColor: "#FFF7F6" }, approveButton: { backgroundColor: "#168044" }, rejectText: { color: "#B42318", fontWeight: "900" }, approveText: { color: "#fff", fontWeight: "900" }, refundButton: { height: 52, borderRadius: 15, borderWidth: 1, borderColor: "#F1B8B2", backgroundColor: "#FFF7F6", marginTop: 16, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" }, refundText: { color: "#B42318", fontWeight: "900" },
+  modalRoot: { flex: 1, justifyContent: "flex-end" }, backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(5,12,32,.45)" }, sheet: { backgroundColor: "#fff", borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, paddingBottom: 34, maxHeight: "78%" }, handle: { width: 44, height: 5, borderRadius: 99, backgroundColor: "#D7DBE4", alignSelf: "center", marginBottom: 16 }, sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }, sheetTitle: { fontSize: 22, fontWeight: "900", color: "#17213C" }, sheetId: { fontSize: 11.5, color: "#8A92A3", marginTop: 3 }, contactRow: { flexDirection: "row", gap: 8, marginTop: 16 }, contactButton: { flex: 1, minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: "#E2E5EC", alignItems: "center", justifyContent: "center" }, contactText: { fontSize: 10.5, marginTop: 3, color: "#17213C", fontWeight: "700" }, detailCard: { marginTop: 16, borderTopWidth: 1, borderTopColor: "#ECEEF3" }, detailRow: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#F0F1F4" }, detailLabel: { fontSize: 12, color: "#8A92A3" }, detailValue: { maxWidth: "66%", fontSize: 12.5, fontWeight: "700", color: "#17213C" }, reviewActions: { flexDirection: "row", gap: 10, marginTop: 16 }, reviewButton: { flex: 1, height: 52, borderRadius: 15, flexDirection: "row", gap: 7, alignItems: "center", justifyContent: "center" }, rejectButton: { borderWidth: 1, borderColor: "#F1B8B2", backgroundColor: "#FFF7F6" }, approveButton: { backgroundColor: "#168044" }, rejectText: { color: "#B42318", fontWeight: "900" }, approveText: { color: "#fff", fontWeight: "900" }, resendButton: { height: 52, borderRadius: 15, borderWidth: 1, borderColor: "#DDE1EA", backgroundColor: "#fff", marginTop: 16, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" }, resendText: { color: "#17213C", fontWeight: "800" }, refundButton: { height: 52, borderRadius: 15, borderWidth: 1, borderColor: "#F1B8B2", backgroundColor: "#FFF7F6", marginTop: 10, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" }, refundText: { color: "#B42318", fontWeight: "900" },
 });
