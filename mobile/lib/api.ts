@@ -76,6 +76,7 @@ export type EventOperationsPayload = {
     venue: { name: string; city: string };
     revenueMinor: number;
     checkedIn: number;
+    categoryOptions: string[];
   };
   counts: Record<OperationGroup, number>;
   group: OperationGroup;
