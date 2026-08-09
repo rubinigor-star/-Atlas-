@@ -13,15 +13,29 @@ type SwipeAction = {
 
 type Props = PropsWithChildren<{
   enabled?: boolean;
-  rightSwipe: SwipeAction;
-  leftSwipe: SwipeAction;
+  onApprove?: () => void;
+  onReject?: () => void;
+  rightSwipe?: SwipeAction;
+  leftSwipe?: SwipeAction;
 }>;
 
 const ACTION_WIDTH = 104;
 const TRIGGER_DISTANCE = 76;
 
-export function SwipeOrderRow({ enabled = true, rightSwipe, leftSwipe, children }: Props) {
+export function SwipeOrderRow({ enabled = true, onApprove, onReject, rightSwipe, leftSwipe, children }: Props) {
   const translateX = useRef(new Animated.Value(0)).current;
+  const rightAction: SwipeAction = rightSwipe || {
+    label: "Подтвердить",
+    icon: "checkmark-circle",
+    backgroundColor: "#168044",
+    onPress: onApprove || (() => undefined),
+  };
+  const leftAction: SwipeAction = leftSwipe || {
+    label: "Отклонить",
+    icon: "close-circle",
+    backgroundColor: "#B42318",
+    onPress: onReject || (() => undefined),
+  };
 
   const reset = () => {
     Animated.spring(translateX, {
@@ -47,33 +61,33 @@ export function SwipeOrderRow({ enabled = true, rightSwipe, leftSwipe, children 
       if (gesture.dx >= TRIGGER_DISTANCE) {
         Animated.timing(translateX, { toValue: ACTION_WIDTH, duration: 110, useNativeDriver: true }).start(() => {
           reset();
-          rightSwipe.onPress();
+          rightAction.onPress();
         });
         return;
       }
       if (gesture.dx <= -TRIGGER_DISTANCE) {
         Animated.timing(translateX, { toValue: -ACTION_WIDTH, duration: 110, useNativeDriver: true }).start(() => {
           reset();
-          leftSwipe.onPress();
+          leftAction.onPress();
         });
         return;
       }
       reset();
     },
     onPanResponderTerminate: reset,
-  }), [enabled, leftSwipe, rightSwipe, translateX]);
+  }), [enabled, leftAction, rightAction, translateX]);
 
   if (!enabled) return <>{children}</>;
 
   return (
     <View style={styles.root}>
-      <View style={[styles.action, styles.rightAction, { backgroundColor: rightSwipe.backgroundColor }]}>
-        <Ionicons name={rightSwipe.icon} size={24} color="#fff" />
-        <Text style={styles.actionText}>{rightSwipe.label}</Text>
+      <View style={[styles.action, styles.rightAction, { backgroundColor: rightAction.backgroundColor }]}>
+        <Ionicons name={rightAction.icon} size={24} color="#fff" />
+        <Text style={styles.actionText}>{rightAction.label}</Text>
       </View>
-      <View style={[styles.action, styles.leftAction, { backgroundColor: leftSwipe.backgroundColor }]}>
-        <Ionicons name={leftSwipe.icon} size={24} color="#fff" />
-        <Text style={styles.actionText}>{leftSwipe.label}</Text>
+      <View style={[styles.action, styles.leftAction, { backgroundColor: leftAction.backgroundColor }]}>
+        <Ionicons name={leftAction.icon} size={24} color="#fff" />
+        <Text style={styles.actionText}>{leftAction.label}</Text>
       </View>
       <Animated.View {...panResponder.panHandlers} style={[styles.foreground, { transform: [{ translateX }] }]}>
         {children}
