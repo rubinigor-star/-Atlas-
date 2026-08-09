@@ -13,29 +13,15 @@ type SwipeAction = {
 
 type Props = PropsWithChildren<{
   enabled?: boolean;
-  onApprove?: () => void;
-  onReject?: () => void;
-  rightSwipe?: SwipeAction;
-  leftSwipe?: SwipeAction;
+  rightSwipe?: SwipeAction | null;
+  leftSwipe?: SwipeAction | null;
 }>;
 
 const ACTION_WIDTH = 104;
 const TRIGGER_DISTANCE = 76;
 
-export function SwipeOrderRow({ enabled = true, onApprove, onReject, rightSwipe, leftSwipe, children }: Props) {
+export function SwipeOrderRow({ enabled = true, rightSwipe = null, leftSwipe = null, children }: Props) {
   const translateX = useRef(new Animated.Value(0)).current;
-  const rightAction: SwipeAction = rightSwipe || {
-    label: "Подтвердить",
-    icon: "checkmark-circle",
-    backgroundColor: "#168044",
-    onPress: onApprove || (() => undefined),
-  };
-  const leftAction: SwipeAction = leftSwipe || {
-    label: "Отклонить",
-    icon: "close-circle",
-    backgroundColor: "#B42318",
-    onPress: onReject || (() => undefined),
-  };
 
   const reset = () => {
     Animated.spring(translateX, {
@@ -49,46 +35,49 @@ export function SwipeOrderRow({ enabled = true, onApprove, onReject, rightSwipe,
   const panResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_, gesture) => {
       if (!enabled) return false;
+      if (gesture.dx > 0 && !rightSwipe) return false;
+      if (gesture.dx < 0 && !leftSwipe) return false;
       const horizontal = Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.4;
       return horizontal && Math.abs(gesture.dx) > 7;
     },
     onPanResponderGrant: () => translateX.stopAnimation(),
     onPanResponderMove: (_, gesture) => {
-      const clamped = Math.max(-ACTION_WIDTH, Math.min(ACTION_WIDTH, gesture.dx));
-      translateX.setValue(clamped);
+      const min = leftSwipe ? -ACTION_WIDTH : 0;
+      const max = rightSwipe ? ACTION_WIDTH : 0;
+      translateX.setValue(Math.max(min, Math.min(max, gesture.dx)));
     },
     onPanResponderRelease: (_, gesture) => {
-      if (gesture.dx >= TRIGGER_DISTANCE) {
+      if (gesture.dx >= TRIGGER_DISTANCE && rightSwipe) {
         Animated.timing(translateX, { toValue: ACTION_WIDTH, duration: 110, useNativeDriver: true }).start(() => {
           reset();
-          rightAction.onPress();
+          rightSwipe.onPress();
         });
         return;
       }
-      if (gesture.dx <= -TRIGGER_DISTANCE) {
+      if (gesture.dx <= -TRIGGER_DISTANCE && leftSwipe) {
         Animated.timing(translateX, { toValue: -ACTION_WIDTH, duration: 110, useNativeDriver: true }).start(() => {
           reset();
-          leftAction.onPress();
+          leftSwipe.onPress();
         });
         return;
       }
       reset();
     },
     onPanResponderTerminate: reset,
-  }), [enabled, leftAction, rightAction, translateX]);
+  }), [enabled, leftSwipe, rightSwipe, translateX]);
 
-  if (!enabled) return <>{children}</>;
+  if (!enabled || (!rightSwipe && !leftSwipe)) return <>{children}</>;
 
   return (
     <View style={styles.root}>
-      <View style={[styles.action, styles.rightAction, { backgroundColor: rightAction.backgroundColor }]}>
-        <Ionicons name={rightAction.icon} size={24} color="#fff" />
-        <Text style={styles.actionText}>{rightAction.label}</Text>
-      </View>
-      <View style={[styles.action, styles.leftAction, { backgroundColor: leftAction.backgroundColor }]}>
-        <Ionicons name={leftAction.icon} size={24} color="#fff" />
-        <Text style={styles.actionText}>{leftAction.label}</Text>
-      </View>
+      {rightSwipe && <View style={[styles.action, styles.rightAction, { backgroundColor: rightSwipe.backgroundColor }]}>
+        <Ionicons name={rightSwipe.icon} size={24} color="#fff" />
+        <Text style={styles.actionText}>{rightSwipe.label}</Text>
+      </View>}
+      {leftSwipe && <View style={[styles.action, styles.leftAction, { backgroundColor: leftSwipe.backgroundColor }]}>
+        <Ionicons name={leftSwipe.icon} size={24} color="#fff" />
+        <Text style={styles.actionText}>{leftSwipe.label}</Text>
+      </View>}
       <Animated.View {...panResponder.panHandlers} style={[styles.foreground, { transform: [{ translateX }] }]}>
         {children}
       </Animated.View>
