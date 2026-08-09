@@ -14,24 +14,60 @@ function canAccessEvent(
   return !hasExplicitScope || user.eventAccess.some((access) => access.eventId === eventId);
 }
 
-export async function POST(request: Request, { params }: { params: Promise<{ publicId: string }> }) {
+async function authorizedOrder(request: Request, publicId: string) {
   const user = await getMobileStaff(request);
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!user) return { error: NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 }) } as const;
   if (user.role !== "ADMIN" && !user.permissionSet.has("ORDER_MANAGE")) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+    return { error: NextResponse.json({ error: "FORBIDDEN" }, { status: 403 }) } as const;
   }
+  const order = await db.order.findUnique({
+    where: { publicId },
+    select: { id: true, status: true, totalMinor: true, eventId: true, event: { select: { organizationId: true } } },
+  });
+  if (!order) return { error: NextResponse.json({ error: "Заказ не найден" }, { status: 404 }) } as const;
+  if (!canAccessEvent(user, order.eventId, order.event.organizationId)) {
+    return { error: NextResponse.json({ error: "EVENT_ACCESS_DENIED" }, { status: 403 }) } as const;
+  }
+  return { user, order } as const;
+}
 
+export async function GET(request: Request, { params }: { params: Promise<{ publicId: string }> }) {
   const { publicId } = await params;
-  try {
-    const order = await db.order.findUnique({
-      where: { publicId },
-      select: { eventId: true, event: { select: { organizationId: true } } },
-    });
-    if (!order) return NextResponse.json({ error: "Заказ не найден" }, { status: 404 });
-    if (!canAccessEvent(user, order.eventId, order.event.organizationId)) {
-      return NextResponse.json({ error: "EVENT_ACCESS_DENIED" }, { status: 403 });
-    }
+  const access = await authorizedOrder(request, publicId);
+  if ("error" in access) return access.error;
 
+  const authorization = (await db.$queryRawUnsafe<Array<{
+    provider: string;
+    amountMinor: number;
+    refundedMinor: number;
+    status: string;
+  }>>(
+    `SELECT "provider","amountMinor","refundedMinor","status" FROM "PaymentAuthorization" WHERE "orderId"=$1 LIMIT 1`,
+    access.order.id,
+  ))[0];
+
+  const refundedMinor = authorization?.refundedMinor ?? 0;
+  const refundableMinor = authorization?.provider === "HYP"
+    ? Math.max(0, authorization.amountMinor - refundedMinor)
+    : 0;
+
+  return NextResponse.json({
+    orderStatus: access.order.status,
+    orderTotalMinor: access.order.totalMinor,
+    provider: authorization?.provider ?? null,
+    paymentStatus: authorization?.status ?? null,
+    refundedMinor,
+    refundableMinor,
+    canRefund: access.order.status === "PAID" && authorization?.provider === "HYP" && refundableMinor > 0,
+  });
+}
+
+export async function POST(request: Request, { params }: { params: Promise<{ publicId: string }> }) {
+  const { publicId } = await params;
+  const access = await authorizedOrder(request, publicId);
+  if ("error" in access) return access.error;
+
+  try {
     const body = await request.json().catch(() => null) as OrderRefundInput | null;
     return NextResponse.json(await refundOrder(publicId, body || {}));
   } catch (error) {
