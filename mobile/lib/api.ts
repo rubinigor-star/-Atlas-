@@ -89,6 +89,15 @@ export type OrderReviewResult = {
   recoveredCapture?: boolean;
 };
 
+export type TicketResendResult = {
+  sent: boolean;
+  channel: "email" | "sms";
+  recipient: string;
+  priceMinor: number;
+  providerStatus?: string;
+  id?: string;
+};
+
 export type TicketValidationPayload = {
   result: "VALID" | "USED" | "CANCELLED" | "NOT_FOUND";
   ticketId?: string;
@@ -161,6 +170,13 @@ export async function reviewEventOrder(publicId: string, action: "approve" | "re
   return request<OrderReviewResult>(`/api/mobile/orders/${encodeURIComponent(publicId)}/review`, {
     method: "POST",
     body: JSON.stringify({ action, note }),
+  });
+}
+
+export async function resendOrderTicket(publicId: string, channel: "email" | "sms" = "email") {
+  return request<TicketResendResult>(`/api/mobile/orders/${encodeURIComponent(publicId)}/resend-ticket`, {
+    method: "POST",
+    body: JSON.stringify({ channel }),
   });
 }
 
