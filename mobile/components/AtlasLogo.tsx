@@ -1,4 +1,5 @@
 import { Image, type ImageStyle, type StyleProp } from "react-native";
+import { atlasLogoUri } from "@/lib/atlas-brand";
 
 type AtlasLogoProps = {
   width?: number;
@@ -8,12 +9,11 @@ type AtlasLogoProps = {
 };
 
 const ASPECT_RATIO = 904 / 257;
-const LOGO_URL = "https://www.atlas-one.co/atlas-one-logo-dark.png";
 
 export function AtlasLogo({ width = 166, style }: AtlasLogoProps) {
   return (
     <Image
-      source={{ uri: LOGO_URL }}
+      source={{ uri: atlasLogoUri }}
       style={[{ width, height: width / ASPECT_RATIO, resizeMode: "contain" }, style]}
       accessibilityRole="image"
       accessibilityLabel="Atlas One"
