@@ -68,25 +68,16 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         createdAt: true,
         reviewedAt: true,
         items: { select: { quantity: true, categoryName: true, unitPriceMinor: true } },
-        tickets: { select: { id: true, status: true, holderName: true } },
+        tickets: { select: { id: true, status: true } },
       },
     }),
-    db.order.groupBy({
-      by: ["status"],
-      where: { eventId: id },
-      _count: { _all: true },
-    }),
-    db.order.aggregate({
-      where: { eventId: id, status: "PAID" },
-      _sum: { totalMinor: true },
-    }),
-    db.ticket.count({
-      where: { status: "USED", order: { eventId: id, status: "PAID" } },
-    }),
+    db.order.groupBy({ by: ["status"], where: { eventId: id }, _count: { _all: true } }),
+    db.order.aggregate({ where: { eventId: id, status: "PAID" }, _sum: { totalMinor: true } }),
+    db.ticket.count({ where: { status: "USED", order: { eventId: id, status: "PAID" } } }),
   ]);
 
-  const rawCounts = new Map(groupedCounts.map((item) => [item.status, item._count._all]));
-  const countGroup = (statuses: readonly string[]) => statuses.reduce((sum, status) => sum + (rawCounts.get(status as never) ?? 0), 0);
+  const rawCounts = new Map<string, number>(groupedCounts.map((item) => [item.status, item._count._all]));
+  const countGroup = (statuses: readonly string[]) => statuses.reduce((sum, status) => sum + (rawCounts.get(status) ?? 0), 0);
 
   return NextResponse.json({
     event: {
