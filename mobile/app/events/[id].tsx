@@ -1,142 +1,127 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Linking, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getDashboard, type DashboardPayload } from "@/lib/api";
+import { getEventOperations, type EventOperationOrder, type EventOperationsPayload, type OperationGroup } from "@/lib/api";
 
-function eventDate(value: string) {
-  return new Intl.DateTimeFormat("ru-IL", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Jerusalem",
-  }).format(new Date(value));
+const GROUPS: Array<{ key: OperationGroup; label: string }> = [
+  { key: "pending", label: "Ожидают" },
+  { key: "approved", label: "Подтверждены" },
+  { key: "cancelled", label: "Отменены" },
+  { key: "abandoned", label: "Брошенные" },
+];
+
+function money(minor: number) {
+  return new Intl.NumberFormat("ru-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 }).format(minor / 100);
 }
 
-export default function EventDetailsScreen() {
+function eventDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Дата не указана";
+  return new Intl.DateTimeFormat("ru-IL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" }).format(date);
+}
+
+function timeAgo(value: string) {
+  const ms = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 60) return `${Math.max(1, minutes)} мин назад`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ч назад`;
+  return `${Math.floor(hours / 24)} дн назад`;
+}
+
+export default function EventOperationsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [data, setData] = useState<DashboardPayload | null>(null);
+  const [group, setGroup] = useState<OperationGroup>("pending");
+  const [data, setData] = useState<EventOperationsPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<EventOperationOrder | null>(null);
 
-  useEffect(() => { getDashboard().then(setData).finally(() => setLoading(false)); }, []);
+  async function load(nextGroup = group, silent = false) {
+    if (!id) return;
+    if (!silent) setLoading(true);
+    try { setData(await getEventOperations(id, nextGroup)); }
+    finally { setLoading(false); setRefreshing(false); }
+  }
 
-  const event = data?.events.find((item) => item.id === id);
-  const attendancePercent = event?.sold ? Math.min(100, Math.round((event.checkedIn / event.sold) * 100)) : 0;
-  const actions = event ? [
-    { icon: "receipt-outline", title: "Заказы", subtitle: "Покупки и заявки", disabled: false, onPress: () => router.push({ pathname: "/orders", params: { eventId: event.id } }) },
-    { icon: "scan-outline", title: "Сканер", subtitle: event.checkInOpen ? "Вход открыт" : `Доступен с ${eventDate(event.checkInOpensAt)}`, disabled: !event.checkInOpen, onPress: () => router.push({ pathname: "/scanner", params: { eventId: event.id, eventTitle: event.title } }) },
-    { icon: "stats-chart-outline", title: "Аналитика", subtitle: "Продажи и динамика", disabled: false, onPress: () => router.push("/analytics") },
-    { icon: "people-outline", title: "Клиенты", subtitle: "Посетители события", disabled: false, onPress: () => router.push({ pathname: "/orders", params: { eventId: event.id } }) },
-    { icon: "globe-outline", title: "Страница", subtitle: "Открыть на сайте", disabled: false, onPress: () => Linking.openURL(`https://www.atlas-one.co/events/${event.id}`) },
-  ] as const : [];
+  useEffect(() => { void load(group); }, [id, group]);
 
-  if (loading) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /></SafeAreaView>;
-  if (!event) return <SafeAreaView style={styles.center}><Text style={styles.emptyTitle}>Мероприятие не найдено</Text><TouchableOpacity style={styles.backButton} onPress={() => router.back()}><Text style={styles.backText}>Вернуться</Text></TouchableOpacity></SafeAreaView>;
+  const orders = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return (data?.orders || []).filter((order) => !query || `${order.customerName} ${order.customerPhone} ${order.publicId}`.toLowerCase().includes(query));
+  }, [data?.orders, search]);
+
+  if (loading && !data) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /></SafeAreaView>;
+  if (!data) return <SafeAreaView style={styles.center}><Text>Не удалось загрузить мероприятие</Text></SafeAreaView>;
+
+  const totalOrders = Object.values(data.counts).reduce((sum, count) => sum + count, 0);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
-          {event.posterUrl ? <Image source={{ uri: event.posterUrl }} style={styles.heroImage} resizeMode="cover" /> : <View style={styles.heroFallback}><Ionicons name="images-outline" size={48} color="#7B8498" /></View>}
-          <View style={styles.heroShade} />
-          <View style={styles.heroHeader}>
-            <TouchableOpacity style={styles.circleButton} onPress={() => router.back()} accessibilityLabel="Назад"><Ionicons name="chevron-back" size={25} color="#fff" /></TouchableOpacity>
-            <TouchableOpacity style={styles.circleButton} onPress={() => Linking.openURL(`https://www.atlas-one.co/events/${event.id}`)} accessibilityLabel="Открыть публичную страницу"><Ionicons name="ellipsis-horizontal" size={23} color="#fff" /></TouchableOpacity>
-          </View>
-          <View style={styles.heroCopy}>
-            <View style={styles.dateTile}><Text style={styles.dateDay}>{new Date(event.startsAt).getDate()}</Text><Text style={styles.dateMonth}>{new Intl.DateTimeFormat("ru", { month: "short", timeZone: "Asia/Jerusalem" }).format(new Date(event.startsAt)).toUpperCase()}</Text></View>
-            <View style={styles.heroText}><Text style={styles.heroTitle}>{event.title}</Text><Text style={styles.heroMeta}>{event.venue.name}, {event.venue.city}</Text></View>
-          </View>
-        </View>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.iconButton} onPress={() => router.back()}><Ionicons name="chevron-back" size={24} color="#17213C" /></TouchableOpacity>
+        <View style={styles.headerCopy}><Text style={styles.headerTitle} numberOfLines={2}>{data.event.title}</Text><Text style={styles.headerMeta}>{eventDate(data.event.startsAt)} · {data.event.venue.name}</Text></View>
+        <TouchableOpacity style={styles.iconButton} onPress={() => Linking.openURL(`https://www.atlas-one.co/events/${data.event.id}`)}><Ionicons name="ellipsis-horizontal" size={22} color="#17213C" /></TouchableOpacity>
+      </View>
 
-        <View style={styles.sheet}>
-          <View style={styles.statusRow}>
-            <View style={styles.status}><View style={styles.statusDot} /><Text style={styles.statusText}>Активно</Text></View>
-            <Text style={styles.dateText}>{eventDate(event.startsAt)}</Text>
-          </View>
+      <View style={styles.summary}>
+        <View><Text style={styles.summaryValue}>{totalOrders}</Text><Text style={styles.summaryLabel}>заказов</Text></View>
+        <View><Text style={styles.summaryValue}>{money(data.event.revenueMinor)}</Text><Text style={styles.summaryLabel}>выручка</Text></View>
+        <View><Text style={styles.summaryValue}>{data.event.checkedIn}</Text><Text style={styles.summaryLabel}>пришли</Text></View>
+      </View>
 
-          <View style={styles.salesCard}>
-            <View style={styles.salesHeader}><Text style={styles.salesTitle}>Посетители на входе</Text><Text style={styles.percent}>{attendancePercent}%</Text></View>
-            <Text style={styles.salesValue}>{event.checkedIn} <Text style={styles.salesCapacity}>/ {event.sold}</Text></Text>
-            <View style={styles.track}><View style={[styles.fill, { width: `${attendancePercent}%` }]} /></View>
-            <View style={styles.metrics}>
-              <View><Text style={styles.metricValue}>{event.checkedIn}</Text><Text style={styles.metricLabel}>пришли</Text></View>
-              <View><Text style={styles.metricValue}>{Math.max(0, event.sold - event.checkedIn)}</Text><Text style={styles.metricLabel}>ещё ожидаются</Text></View>
-              <View><Text style={styles.metricValue}>{event.sold}</Text><Text style={styles.metricLabel}>билетов продано</Text></View>
-            </View>
-          </View>
-
-          <Text style={styles.sectionTitle}>Управление мероприятием</Text>
-          <View style={styles.actionsList}>
-            {actions.map((action) => (
-              <TouchableOpacity key={action.title} style={[styles.actionRow, action.disabled && styles.actionDisabled]} onPress={action.onPress} disabled={action.disabled} activeOpacity={0.76} accessibilityLabel={action.title}>
-                <View style={[styles.actionIcon, action.disabled && styles.actionIconDisabled]}><Ionicons name={action.icon} size={22} color={action.disabled ? "#9AA1B0" : "#6D45FF"} /></View>
-                <View style={styles.actionCopy}><Text style={[styles.actionTitle, action.disabled && styles.actionTitleDisabled]}>{action.title}</Text><Text style={styles.actionSubtitle}>{action.subtitle}</Text></View>
-                <Ionicons name={action.disabled ? "lock-closed-outline" : "chevron-forward"} size={20} color="#9AA1B0" />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs}>
+        {GROUPS.map((item) => {
+          const active = group === item.key;
+          return <TouchableOpacity key={item.key} style={[styles.tab, active && styles.tabActive]} onPress={() => setGroup(item.key)}><Text style={[styles.tabText, active && styles.tabTextActive]}>{item.label}</Text><Text style={[styles.tabCount, active && styles.tabTextActive]}>{data.counts[item.key]}</Text></TouchableOpacity>;
+        })}
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.replace("/")}><Ionicons name="calendar" size={23} color="#6D45FF" /><Text style={styles.navActive}>Мероприятия</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push("/profile")}><Ionicons name="person-outline" size={23} color="#737B8D" /><Text style={styles.navText}>Профиль</Text></TouchableOpacity>
-      </View>
+      <View style={styles.searchRow}><View style={styles.searchBox}><Ionicons name="search" size={19} color="#7B8498" /><TextInput style={styles.searchInput} value={search} onChangeText={setSearch} placeholder="Имя, телефон или № заказа" /></View><TouchableOpacity style={styles.filterButton}><Ionicons name="options-outline" size={20} color="#17213C" /></TouchableOpacity></View>
+
+      <ScrollView style={styles.list} contentContainerStyle={styles.listContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(group, true); }} />}>
+        {orders.map((order) => (
+          <TouchableOpacity key={order.id} style={styles.orderRow} activeOpacity={0.75} onPress={() => setSelected(order)}>
+            <View style={styles.avatar}><Text style={styles.avatarText}>{order.customerName.trim().slice(0, 1).toUpperCase()}</Text></View>
+            <View style={styles.orderMain}><Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text><Text style={styles.orderMeta} numberOfLines={1}>{order.ticketCount} бил. · {order.categories.map((c) => c.name).join(", ") || "Билет"}</Text><Text style={styles.phone}>{order.customerPhone}</Text></View>
+            <View style={styles.orderEnd}><Text style={styles.amount}>{money(order.totalMinor)}</Text><Text style={styles.age}>{timeAgo(order.createdAt)}</Text><Ionicons name="chevron-forward" size={17} color="#A0A7B5" /></View>
+          </TouchableOpacity>
+        ))}
+        {!orders.length && <View style={styles.empty}><Text style={styles.emptyTitle}>Список пуст</Text><Text style={styles.emptyText}>В этой категории сейчас нет заказов.</Text></View>}
+      </ScrollView>
+
+      <TouchableOpacity style={styles.scannerButton} onPress={() => router.push({ pathname: "/scanner", params: { eventId: data.event.id, eventTitle: data.event.title } })}><Ionicons name="scan-outline" size={20} color="#fff" /><Text style={styles.scannerText}>Сканер</Text></TouchableOpacity>
+
+      <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
+        <View style={styles.modalRoot}><TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setSelected(null)} /><View style={styles.sheet}>{selected && <>
+          <View style={styles.handle} />
+          <View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{selected.customerName}</Text><Text style={styles.sheetId}>#{selected.publicId}</Text></View><TouchableOpacity onPress={() => setSelected(null)}><Ionicons name="close" size={25} color="#17213C" /></TouchableOpacity></View>
+          <View style={styles.contactRow}><TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`tel:${selected.customerPhone}`)}><Ionicons name="call-outline" size={20} color="#17213C" /><Text style={styles.contactText}>Позвонить</Text></TouchableOpacity><TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`https://wa.me/${selected.customerPhone.replace(/\D/g, "")}`)}><Ionicons name="logo-whatsapp" size={20} color="#168044" /><Text style={styles.contactText}>WhatsApp</Text></TouchableOpacity><TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`mailto:${selected.customerEmail}`)}><Ionicons name="mail-outline" size={20} color="#17213C" /><Text style={styles.contactText}>Email</Text></TouchableOpacity></View>
+          <View style={styles.detailCard}><Detail label="Телефон" value={selected.customerPhone} /><Detail label="Email" value={selected.customerEmail} /><Detail label="Билеты" value={`${selected.ticketCount}`} /><Detail label="Сумма" value={money(selected.totalMinor)} /><Detail label="Статус" value={selected.status} /><Detail label="Создан" value={eventDate(selected.createdAt)} /></View>
+          {group === "pending" && <View style={styles.actionNote}><Ionicons name="information-circle-outline" size={19} color="#6D45FF" /><Text style={styles.actionNoteText}>Подтверждение и отклонение будут подключены следующим серверным шагом, без имитации финансового действия.</Text></View>}
+          {group === "approved" && <TouchableOpacity style={styles.refundButton}><Ionicons name="return-down-back-outline" size={20} color="#B42318" /><Text style={styles.refundText}>Вернуть деньги</Text></TouchableOpacity>}
+        </>}</View></View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
+function Detail({ label, value }: { label: string; value: string }) {
+  return <View style={styles.detailRow}><Text style={styles.detailLabel}>{label}</Text><Text style={styles.detailValue} numberOfLines={1}>{value || "-"}</Text></View>;
+}
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F5F6FA" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#F5F6FA", gap: 16, padding: 20 },
-  content: { paddingBottom: 100 },
-  hero: { height: 330, backgroundColor: "#101936" },
-  heroImage: { width: "100%", height: "100%" },
-  heroFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
-  heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(4,10,28,0.34)" },
-  heroHeader: { position: "absolute", left: 16, right: 16, top: 14, flexDirection: "row", justifyContent: "space-between" },
-  circleButton: { width: 44, height: 44, borderRadius: 17, backgroundColor: "rgba(5,12,32,0.62)", alignItems: "center", justifyContent: "center" },
-  heroCopy: { position: "absolute", left: 18, right: 18, bottom: 24, flexDirection: "row", alignItems: "center" },
-  dateTile: { width: 64, height: 70, borderRadius: 18, backgroundColor: "#6D45FF", alignItems: "center", justifyContent: "center" },
-  dateDay: { color: "#fff", fontSize: 26, fontWeight: "900" },
-  dateMonth: { color: "#DDD5FF", fontSize: 11, fontWeight: "800", marginTop: 1 },
-  heroText: { flex: 1, marginLeft: 14 },
-  heroTitle: { color: "#fff", fontSize: 27, lineHeight: 32, fontWeight: "900" },
-  heroMeta: { color: "#D8DDE8", fontSize: 14, marginTop: 5 },
-  sheet: { marginTop: -14, backgroundColor: "#F5F6FA", borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 16 },
-  statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 13 },
-  status: { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "#EAF9EF", borderRadius: 99, paddingHorizontal: 11, paddingVertical: 7 },
-  statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#2CBF64" },
-  statusText: { color: "#198144", fontSize: 12, fontWeight: "800" },
-  dateText: { color: "#737C90", fontSize: 12.5 },
-  salesCard: { backgroundColor: "#fff", borderRadius: 20, padding: 18, borderWidth: 1, borderColor: "#E7E9F0" },
-  salesHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  salesTitle: { fontSize: 14, fontWeight: "700", color: "#737C90" },
-  percent: { fontSize: 14, fontWeight: "800", color: "#6D45FF" },
-  salesValue: { fontSize: 31, fontWeight: "900", color: "#17213C", marginTop: 7 },
-  salesCapacity: { fontSize: 19, color: "#8890A1", fontWeight: "600" },
-  track: { height: 7, borderRadius: 99, backgroundColor: "#ECE8FF", overflow: "hidden", marginTop: 13 },
-  fill: { height: "100%", borderRadius: 99, backgroundColor: "#6D45FF" },
-  metrics: { flexDirection: "row", justifyContent: "space-between", paddingTop: 17, marginTop: 17, borderTopWidth: 1, borderTopColor: "#EEF0F4" },
-  metricValue: { fontSize: 17, fontWeight: "800", color: "#17213C" },
-  metricLabel: { fontSize: 11, color: "#8B93A3", marginTop: 3 },
-  sectionTitle: { fontSize: 19, fontWeight: "900", color: "#17213C", marginTop: 24, marginBottom: 11 },
-  actionsList: { backgroundColor: "#fff", borderRadius: 20, overflow: "hidden", borderWidth: 1, borderColor: "#E7E9F0" },
-  actionRow: { minHeight: 70, flexDirection: "row", alignItems: "center", paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: "#EEF0F4" },
-  actionDisabled: { opacity: 0.58 },
-  actionIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#F0EDFF", alignItems: "center", justifyContent: "center" },
-  actionIconDisabled: { backgroundColor: "#F0F1F4" },
-  actionCopy: { flex: 1, marginLeft: 12 },
-  actionTitle: { fontSize: 15, fontWeight: "800", color: "#17213C" },
-  actionTitleDisabled: { color: "#818898" },
-  actionSubtitle: { fontSize: 12, color: "#858D9E", marginTop: 3 },
-  bottomNav: { position: "absolute", left: 0, right: 0, bottom: 0, height: 82, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E6E8EF", flexDirection: "row", justifyContent: "space-around", paddingTop: 11 },
-  navItem: { alignItems: "center", minWidth: 120 },
-  navActive: { color: "#6D45FF", fontSize: 11.5, fontWeight: "800", marginTop: 4 },
-  navText: { color: "#747D90", fontSize: 11.5, fontWeight: "600", marginTop: 4 },
-  emptyTitle: { fontSize: 18, fontWeight: "800", color: "#17213C" },
-  backButton: { backgroundColor: "#6D45FF", borderRadius: 14, paddingHorizontal: 20, paddingVertical: 13 },
-  backText: { color: "#fff", fontWeight: "800" },
+  safe: { flex: 1, backgroundColor: "#F5F6FA" }, center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  header: { minHeight: 76, backgroundColor: "#fff", flexDirection: "row", alignItems: "center", paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "#ECEEF3" }, iconButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center" }, headerCopy: { flex: 1, alignItems: "center", paddingHorizontal: 6 }, headerTitle: { fontSize: 17, lineHeight: 21, fontWeight: "900", color: "#17213C", textAlign: "center" }, headerMeta: { fontSize: 11.5, color: "#7B8498", marginTop: 4 },
+  summary: { flexDirection: "row", justifyContent: "space-around", backgroundColor: "#fff", paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#ECEEF3" }, summaryValue: { fontSize: 18, fontWeight: "900", color: "#17213C", textAlign: "center" }, summaryLabel: { fontSize: 10.5, color: "#8B93A3", marginTop: 3, textAlign: "center" },
+  tabsScroll: { maxHeight: 66, backgroundColor: "#fff" }, tabs: { paddingHorizontal: 10, alignItems: "stretch" }, tab: { minWidth: 92, paddingHorizontal: 11, paddingVertical: 11, alignItems: "center", borderBottomWidth: 3, borderBottomColor: "transparent" }, tabActive: { borderBottomColor: "#6D45FF" }, tabText: { fontSize: 12, fontWeight: "700", color: "#737C90" }, tabTextActive: { color: "#6D45FF" }, tabCount: { fontSize: 11, color: "#9AA1B0", marginTop: 3 },
+  searchRow: { flexDirection: "row", gap: 8, padding: 10, backgroundColor: "#F5F6FA" }, searchBox: { flex: 1, height: 46, borderRadius: 14, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E5EC", flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 13 }, searchInput: { flex: 1, fontSize: 14 }, filterButton: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E5EC", alignItems: "center", justifyContent: "center" },
+  list: { flex: 1 }, listContent: { paddingHorizontal: 10, paddingBottom: 90 }, orderRow: { minHeight: 78, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#ECEEF3", paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center" }, avatar: { width: 42, height: 42, borderRadius: 13, backgroundColor: "#071536", alignItems: "center", justifyContent: "center", marginRight: 11 }, avatarText: { color: "#fff", fontSize: 17, fontWeight: "900" }, orderMain: { flex: 1 }, customerName: { fontSize: 14.5, fontWeight: "850", color: "#17213C" }, orderMeta: { fontSize: 11.5, color: "#737C90", marginTop: 3 }, phone: { fontSize: 11.5, color: "#60708A", marginTop: 2 }, orderEnd: { alignItems: "flex-end", minWidth: 72 }, amount: { fontSize: 13.5, fontWeight: "900", color: "#17213C" }, age: { fontSize: 10, color: "#9AA1B0", marginTop: 5, marginBottom: 2 }, empty: { padding: 42, alignItems: "center" }, emptyTitle: { fontSize: 17, fontWeight: "900", color: "#17213C" }, emptyText: { color: "#8A92A3", marginTop: 6 },
+  scannerButton: { position: "absolute", bottom: 18, alignSelf: "center", height: 48, borderRadius: 24, paddingHorizontal: 22, backgroundColor: "#071536", flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" }, scannerText: { color: "#fff", fontWeight: "800" },
+  modalRoot: { flex: 1, justifyContent: "flex-end" }, backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(5,12,32,.45)" }, sheet: { backgroundColor: "#fff", borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, paddingBottom: 34, maxHeight: "78%" }, handle: { width: 44, height: 5, borderRadius: 99, backgroundColor: "#D7DBE4", alignSelf: "center", marginBottom: 16 }, sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }, sheetTitle: { fontSize: 22, fontWeight: "900", color: "#17213C" }, sheetId: { fontSize: 11.5, color: "#8A92A3", marginTop: 3 }, contactRow: { flexDirection: "row", gap: 8, marginTop: 16 }, contactButton: { flex: 1, minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: "#E2E5EC", alignItems: "center", justifyContent: "center" }, contactText: { fontSize: 10.5, marginTop: 3, color: "#17213C", fontWeight: "700" }, detailCard: { marginTop: 16, borderTopWidth: 1, borderTopColor: "#ECEEF3" }, detailRow: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#F0F1F4" }, detailLabel: { fontSize: 12, color: "#8A92A3" }, detailValue: { maxWidth: "66%", fontSize: 12.5, fontWeight: "700", color: "#17213C" }, actionNote: { flexDirection: "row", gap: 8, marginTop: 15, backgroundColor: "#F4F1FF", borderRadius: 14, padding: 12 }, actionNoteText: { flex: 1, fontSize: 11.5, lineHeight: 17, color: "#5D4AA8" }, refundButton: { height: 52, borderRadius: 15, borderWidth: 1, borderColor: "#F1B8B2", backgroundColor: "#FFF7F6", marginTop: 16, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" }, refundText: { color: "#B42318", fontWeight: "900" },
 });
