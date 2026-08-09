@@ -47,6 +47,33 @@ export type DashboardPayload = {
   }>;
 };
 
+export type EventEditorBasics = {
+  id: string;
+  title: string;
+  description: string;
+  posterUrl: string;
+  startsAt: string;
+  status: string;
+  salesMode: string;
+  mapEnabled: boolean;
+  venue: { name: string; city: string; address: string };
+};
+
+export type EventEditorPayload = {
+  event: EventEditorBasics;
+  permissions: string[];
+};
+
+export type EventEditorBasicsInput = {
+  title: string;
+  description: string;
+  posterUrl: string;
+  startsAt: string;
+  venueName: string;
+  city: string;
+  address: string;
+};
+
 export type OperationGroup = "pending" | "approved" | "cancelled" | "abandoned";
 export type OperationSort = "newest" | "oldest" | "amount_desc" | "amount_asc";
 
@@ -197,6 +224,21 @@ export async function currentUser() {
 
 export async function getDashboard() {
   return request<DashboardPayload>("/api/mobile/dashboard");
+}
+
+export async function createEventDraft() {
+  return request<{ id: string }>("/api/mobile/events/draft", { method: "POST" });
+}
+
+export async function getEventEditor(eventId: string) {
+  return request<EventEditorPayload>(`/api/mobile/events/${encodeURIComponent(eventId)}/editor`);
+}
+
+export async function updateEventEditorBasics(eventId: string, input: EventEditorBasicsInput) {
+  return request<{ event: EventEditorBasics }>(`/api/mobile/events/${encodeURIComponent(eventId)}/editor`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function getEventOperations(eventId: string, group: OperationGroup = "pending", query: EventOperationsQuery = {}) {
