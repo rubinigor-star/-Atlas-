@@ -98,6 +98,27 @@ export type TicketResendResult = {
   id?: string;
 };
 
+export type RefundAvailability = {
+  orderStatus: string;
+  orderTotalMinor: number;
+  provider: string | null;
+  paymentStatus: string | null;
+  refundedMinor: number;
+  refundableMinor: number;
+  canRefund: boolean;
+};
+
+export type RefundResult = {
+  ok: boolean;
+  amountMinor: number;
+  fullRefund?: boolean;
+  refundTranId?: string | null;
+  resultCode?: string;
+  emailSent?: boolean;
+  emailError?: string | null;
+  idempotent?: boolean;
+};
+
 export type TicketValidationPayload = {
   result: "VALID" | "USED" | "CANCELLED" | "NOT_FOUND";
   ticketId?: string;
@@ -177,6 +198,17 @@ export async function resendOrderTicket(publicId: string, channel: "email" | "sm
   return request<TicketResendResult>(`/api/mobile/orders/${encodeURIComponent(publicId)}/resend-ticket`, {
     method: "POST",
     body: JSON.stringify({ channel }),
+  });
+}
+
+export async function getOrderRefundAvailability(publicId: string) {
+  return request<RefundAvailability>(`/api/mobile/orders/${encodeURIComponent(publicId)}/refund`);
+}
+
+export async function refundEventOrder(publicId: string, amountMinor: number, reason: string) {
+  return request<RefundResult>(`/api/mobile/orders/${encodeURIComponent(publicId)}/refund`, {
+    method: "POST",
+    body: JSON.stringify({ amountMinor, reason }),
   });
 }
 
