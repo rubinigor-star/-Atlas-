@@ -48,6 +48,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       posterUrl: true,
       organizationId: true,
       venue: { select: { name: true, city: true } },
+      categories: { select: { name: true }, orderBy: { name: "asc" } },
     },
   });
 
@@ -125,6 +126,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       venue: event.venue,
       revenueMinor: revenue._sum.totalMinor ?? 0,
       checkedIn: usedTickets,
+      categoryOptions: event.categories.map((item) => item.name),
     },
     counts: {
       pending: countGroup(STATUS_GROUPS.pending),
