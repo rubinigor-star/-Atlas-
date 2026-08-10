@@ -6,6 +6,7 @@ import { isGuestListPromoter, verifyGuestManagementToken } from "@/lib/guest-lin
 import { orderNumber, ticketCode } from "@/lib/ticketing";
 import { guestFieldKeys, parseGuestFields } from "@/lib/event-guest-fields";
 import { sendOrderTicketEmail } from "@/lib/order-email";
+import { saveCustomerDemographics } from "@/lib/customer-demographics";
 
 const addSchema=z.object({action:z.literal("add"),token:z.string().min(10),customer:z.record(z.string(),z.string().max(250))});
 const removeSchema=z.object({action:z.literal("remove"),token:z.string().min(10),orderId:z.string().min(1)});
@@ -22,6 +23,7 @@ export async function POST(req:Request,{params}:{params:Promise<{code:string}>})
     if(body.action==="add"){
       const input=addSchema.parse(body);const fields=parseGuestFields(link.event.description);const customer=input.customer;
       for(const key of guestFieldKeys)if(fields[key].visible&&fields[key].required&&!String(customer[key]||"").trim())throw new Error(`Заполните обязательное поле: ${key}`);
+      const gender=z.enum(["MALE","FEMALE"]).parse(customer.gender);
       const email=String(customer.email||"").trim().toLowerCase();
       if(!z.string().email().safeParse(email).success)throw new Error("Укажите корректный email для отправки билета");
       const category=link.category??link.table?.category??link.event.categories.find(item=>!item.hidden&&item.sold<item.capacity)??null;
@@ -37,6 +39,7 @@ export async function POST(req:Request,{params}:{params:Promise<{code:string}>})
         const guest=await tx.guestProfile.upsert({where:{organizationId_phone:{organizationId:link.event.organizationId,phone}},create:{organizationId:link.event.organizationId,firstName,lastName,phone,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""},update:{firstName,lastName,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""}});
         return tx.order.create({data:{publicId:orderNumber(),idempotencyKey:randomUUID(),customerName:fullName,customerFirstName:firstName,customerLastName:lastName,customerPhone:phone,customerEmail:email,customerBirthDate:customer.birthDate?birthDate:null,customerCity:customer.city||null,customerFacebook:customer.facebook||null,customerInstagram:customer.instagram||null,guestId:guest.id,totalMinor:0,currency:category.currency,status:"PAID",eventId:link.eventId,promoterLinkId:link.id,items:{create:[{quantity:1,unitPriceMinor:0,categoryName:category.name,tableId:link.tableId}]},tickets:{create:[{publicCode:ticketCode(),holderName:fullName,categoryId:category.id}]}},include:{tickets:true}});
       });
+      await saveCustomerDemographics({orderId:order.id,guestId:order.guestId,gender,birthDate:customer.birthDate?birthDate:null});
       after(async()=>{
         try{
           const delivery=await sendOrderTicketEmail(order.publicId);
