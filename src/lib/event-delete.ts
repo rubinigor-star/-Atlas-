@@ -2,6 +2,31 @@ import { db } from "@/lib/db";
 import { ensureCommercialTermsTables } from "@/lib/commercial-terms";
 import { ensureEventArchiveRuntime, isEventArchived } from "@/lib/event-archive";
 
+export async function canDeleteDraftEvent(eventId: string) {
+  const event = await db.event.findUnique({
+    where: { id: eventId },
+    select: {
+      status: true,
+      categories: { select: { sold: true } },
+      _count: { select: { orders: true } },
+    },
+  });
+  if (!event || event.status !== "DRAFT") return false;
+  if (event._count.orders > 0 || event.categories.some((category) => category.sold > 0)) return false;
+
+  await ensureEventArchiveRuntime();
+  if (await isEventArchived(eventId)) return false;
+
+  const lifecycleHistory = await db.auditLog.count({
+    where: {
+      entityType: "Event",
+      entityId: eventId,
+      action: { in: ["EVENT_STATUS", "EVENT_ARCHIVE", "EVENT_RESTORE_FROM_ARCHIVE"] },
+    },
+  });
+  return lifecycleHistory === 0;
+}
+
 export async function deleteDraftEvent(eventId: string) {
   const event = await db.event.findUnique({
     where: { id: eventId },
@@ -26,21 +51,39 @@ export async function deleteDraftEvent(eventId: string) {
     throw new Error("Архивированное мероприятие нельзя удалить. Сначала восстановите его как черновик.");
   }
 
+  const lifecycleHistory = await db.auditLog.count({
+    where: {
+      entityType: "Event",
+      entityId: eventId,
+      action: { in: ["EVENT_STATUS", "EVENT_ARCHIVE", "EVENT_RESTORE_FROM_ARCHIVE"] },
+    },
+  });
+  if (lifecycleHistory > 0) {
+    throw new Error("Это мероприятие уже участвовало в публикации или архивировании и не может быть удалено. Используйте архив.");
+  }
+
   await ensureCommercialTermsTables();
 
+  const promoterLinks = await db.promoterLink.findMany({ where: { eventId }, select: { id: true } });
+  const categoryIds = event.categories.map((category) => category.id);
+  const zones = await db.zone.findMany({ where: { eventId }, select: { id: true } });
+  const zoneIds = zones.map((zone) => zone.id);
+  const tables = zoneIds.length ? await db.table.findMany({ where: { zoneId: { in: zoneIds } }, select: { id: true } }) : [];
+  const tableIds = tables.map((table) => table.id);
+
   await db.$transaction(async (tx) => {
-    await tx.promoterLinkVisit.deleteMany({ where: { link: { eventId } } });
+    if (promoterLinks.length) await tx.promoterLinkVisit.deleteMany({ where: { linkId: { in: promoterLinks.map((link) => link.id) } } });
     await tx.promoterLink.deleteMany({ where: { eventId } });
     await tx.promoCode.deleteMany({ where: { eventId } });
     await tx.referral.deleteMany({ where: { eventId } });
     await tx.eventStaffAccess.deleteMany({ where: { eventId } });
     await tx.ticketTemplate.deleteMany({ where: { eventId } });
 
-    await tx.seat.deleteMany({ where: { table: { zone: { eventId } } } });
-    await tx.table.deleteMany({ where: { zone: { eventId } } });
+    if (tableIds.length) await tx.seat.deleteMany({ where: { tableId: { in: tableIds } } });
+    if (zoneIds.length) await tx.table.deleteMany({ where: { zoneId: { in: zoneIds } } });
     await tx.zone.deleteMany({ where: { eventId } });
 
-    await tx.ticketPriceTier.deleteMany({ where: { category: { eventId } } });
+    if (categoryIds.length) await tx.ticketPriceTier.deleteMany({ where: { categoryId: { in: categoryIds } } });
     await tx.ticketCategory.deleteMany({ where: { eventId } });
 
     await tx.$executeRawUnsafe(`DELETE FROM "EventCommercialTerms" WHERE "eventId" = $1`, eventId);
