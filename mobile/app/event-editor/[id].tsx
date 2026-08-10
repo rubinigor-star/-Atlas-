@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { loadEventEditor, type EventEditorState } from "@/lib/event-editor-api";
 import { AboutTab } from "@/components/editor/AboutTab";
@@ -54,13 +54,13 @@ export default function EventEditorScreen() {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabs} contentContainerStyle={s.tabsContent} keyboardShouldPersistTaps="handled">
       {tabs.map((tab, index) => <TouchableOpacity key={tab.id} style={[s.tab, active === tab.id && s.tabOn]} onPress={() => setActive(tab.id)}><Text style={[s.tabIndex, active === tab.id && s.tabIndexOn]}>{String(index + 1).padStart(2, "0")}</Text><Text style={[s.tabLabel, active === tab.id && s.tabLabelOn]}>{tab.label}</Text></TouchableOpacity>)}
     </ScrollView>
-    <KeyboardAvoidingView style={s.body} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={0}>
+    <View style={s.body}>
       {active === "about" && <AboutTab eventId={eventId} state={state} onState={setState} />}
       {active === "tickets" && <TicketsTab eventId={eventId} state={state} onState={setState} />}
       {active === "map" && <MapTab eventId={eventId} state={state} onState={setState} />}
       {active === "checkout" && <CheckoutTab eventId={eventId} state={state} onState={setState} />}
       {active === "review" && <ReviewTab eventId={eventId} state={state} onState={setState} />}
-    </KeyboardAvoidingView>
+    </View>
   </SafeAreaView>;
 }
 
