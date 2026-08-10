@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getEventEditor, updateEventEditorBasics, type EventEditorBasics } from "@/lib/api";
@@ -14,6 +14,15 @@ const tabs = [
 ] as const;
 
 type TabId = (typeof tabs)[number]["id"];
+
+const DRAFT_DEFAULTS = {
+  title: "Новое мероприятие",
+  description: "Добавьте описание мероприятия",
+  posterUrl: "/assets/noa-live-tel-aviv.png",
+  venueName: "Новая площадка",
+  city: "Город",
+  address: "Адрес площадки",
+};
 
 function localDateTime(iso: string) {
   const date = new Date(iso);
@@ -31,6 +40,10 @@ function localDateTime(iso: string) {
   return { date: `${value.year}-${value.month}-${value.day}`, time: `${value.hour}:${value.minute}` };
 }
 
+function visibleDraftValue(value: string, technicalDefault: string, isDraft: boolean) {
+  return isDraft && value === technicalDefault ? "" : value;
+}
+
 export default function EventEditorScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
@@ -42,7 +55,6 @@ export default function EventEditorScreen() {
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [posterUrl, setPosterUrl] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [venueName, setVenueName] = useState("");
@@ -52,16 +64,16 @@ export default function EventEditorScreen() {
   const canManage = permissions.includes("EVENT_MANAGE");
 
   function fill(value: EventEditorBasics) {
+    const isDraft = value.status === "DRAFT";
     setEvent(value);
-    setTitle(value.title);
-    setDescription(value.description);
-    setPosterUrl(value.posterUrl);
+    setTitle(visibleDraftValue(value.title, DRAFT_DEFAULTS.title, isDraft));
+    setDescription(visibleDraftValue(value.description, DRAFT_DEFAULTS.description, isDraft));
     const local = localDateTime(value.startsAt);
     setDate(local.date);
     setTime(local.time);
-    setVenueName(value.venue.name);
-    setCity(value.venue.city);
-    setAddress(value.venue.address);
+    setVenueName(visibleDraftValue(value.venue.name, DRAFT_DEFAULTS.venueName, isDraft));
+    setCity(visibleDraftValue(value.venue.city, DRAFT_DEFAULTS.city, isDraft));
+    setAddress(visibleDraftValue(value.venue.address, DRAFT_DEFAULTS.address, isDraft));
   }
 
   useEffect(() => {
@@ -81,16 +93,30 @@ export default function EventEditorScreen() {
     return () => { mounted = false; };
   }, [eventId]);
 
-  const valid = useMemo(() => title.trim().length >= 3 && description.trim().length >= 20 && venueName.trim().length >= 2 && city.trim().length >= 2 && address.trim().length >= 3 && /^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{2}:\d{2}$/.test(time), [title, description, venueName, city, address, date, time]);
+  function validationMessage() {
+    if (title.trim().length < 3) return "Название должно содержать минимум 3 символа.";
+    if (description.trim().length < 20) return "Описание должно содержать минимум 20 символов.";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return "Дата должна быть в формате YYYY-MM-DD.";
+    if (!/^\d{2}:\d{2}$/.test(time)) return "Время должно быть в формате HH:MM.";
+    if (venueName.trim().length < 2) return "Укажите площадку.";
+    if (city.trim().length < 2) return "Укажите город.";
+    if (address.trim().length < 3) return "Укажите адрес площадки.";
+    return null;
+  }
 
   async function save() {
-    if (!canManage || !valid) {
-      Alert.alert("Проверьте поля", "Название, описание, дата, время и данные площадки обязательны.");
+    if (!canManage) {
+      Alert.alert("Нет доступа", "У вашей роли нет EVENT_MANAGE.");
+      return;
+    }
+    const validationError = validationMessage();
+    if (validationError) {
+      Alert.alert("Проверьте данные", validationError);
       return;
     }
     const startsAt = new Date(`${date}T${time}:00+03:00`);
     if (Number.isNaN(startsAt.getTime())) {
-      Alert.alert("Неверная дата", "Используйте формат YYYY-MM-DD и HH:MM.");
+      Alert.alert("Неверная дата", "Проверьте дату и время мероприятия.");
       return;
     }
     setSaving(true);
@@ -98,14 +124,14 @@ export default function EventEditorScreen() {
       const result = await updateEventEditorBasics(eventId, {
         title: title.trim(),
         description: description.trim(),
-        posterUrl: posterUrl.trim() || event?.posterUrl || "/assets/noa-live-tel-aviv.png",
+        posterUrl: event?.posterUrl || DRAFT_DEFAULTS.posterUrl,
         startsAt: startsAt.toISOString(),
         venueName: venueName.trim(),
         city: city.trim(),
         address: address.trim(),
       });
       fill(result.event);
-      Alert.alert("Сохранено", "Изменения сохранены в том же мероприятии Atlas.");
+      Alert.alert("Сохранено", "Данные сохранены в мероприятии Atlas и доступны в back office.");
     } catch (error) {
       Alert.alert("Не удалось сохранить", error instanceof Error ? error.message : "Ошибка");
     } finally {
@@ -120,7 +146,7 @@ export default function EventEditorScreen() {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}><Ionicons name="chevron-back" size={25} color="#17213C" /></TouchableOpacity>
-        <View style={styles.headerText}><Text style={styles.headerTitle} numberOfLines={1}>{event.title}</Text><Text style={styles.headerMeta}>{event.status}</Text></View>
+        <View style={styles.headerText}><Text style={styles.headerTitle} numberOfLines={1}>{title.trim() || "Новое мероприятие"}</Text><Text style={styles.headerMeta}>{event.status}</Text></View>
         <View style={styles.iconButton}><Ionicons name="ellipsis-horizontal" size={24} color="#17213C" /></View>
       </View>
 
@@ -132,24 +158,26 @@ export default function EventEditorScreen() {
         {active === "about" ? (
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.sectionTitle}>Основная информация</Text>
-            <Text style={styles.sectionHelp}>Это те же данные мероприятия, которые используются в web back office.</Text>
+            <Text style={styles.sectionHelp}>Эти данные сохраняются в том же мероприятии, которое открывается в web back office.</Text>
 
-            <Field label="Официальное название"><TextInput style={styles.input} value={title} onChangeText={setTitle} maxLength={50} editable={canManage} /></Field>
-            <Field label="Полное описание"><TextInput style={[styles.input, styles.multiline]} value={description} onChangeText={setDescription} multiline textAlignVertical="top" editable={canManage} /></Field>
-            <Field label="Афиша URL"><TextInput style={styles.input} value={posterUrl} onChangeText={setPosterUrl} autoCapitalize="none" editable={canManage} /></Field>
+            <Field label="Официальное название"><TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Например: REFLEX | Tel Aviv" maxLength={50} editable={canManage} /></Field>
+            <Field label="Полное описание"><TextInput style={[styles.input, styles.multiline]} value={description} onChangeText={setDescription} placeholder="Расскажите о мероприятии. Минимум 20 символов." multiline textAlignVertical="top" editable={canManage} /></Field>
+
+            <View style={styles.mediaNote}><Ionicons name="image-outline" size={22} color="#6D45FF" /><View style={styles.mediaNoteText}><Text style={styles.mediaNoteTitle}>Афиша</Text><Text style={styles.mediaNoteBody}>Загрузку изображения подключим к тому же media-механизму back office. Технический URL больше не редактируется вручную.</Text></View></View>
+
             <View style={styles.row}>
               <View style={styles.half}><Field label="Дата"><TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" editable={canManage} /></Field></View>
               <View style={styles.half}><Field label="Начало"><TextInput style={styles.input} value={time} onChangeText={setTime} placeholder="HH:MM" keyboardType="numbers-and-punctuation" editable={canManage} /></Field></View>
             </View>
-            <Field label="Площадка"><TextInput style={styles.input} value={venueName} onChangeText={setVenueName} editable={canManage} /></Field>
-            <Field label="Город"><TextInput style={styles.input} value={city} onChangeText={setCity} editable={canManage} /></Field>
-            <Field label="Адрес"><TextInput style={styles.input} value={address} onChangeText={setAddress} editable={canManage} /></Field>
+            <Field label="Площадка"><TextInput style={styles.input} value={venueName} onChangeText={setVenueName} placeholder="Название площадки" editable={canManage} /></Field>
+            <Field label="Город"><TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="Город" editable={canManage} /></Field>
+            <Field label="Адрес"><TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Адрес площадки" editable={canManage} /></Field>
 
             {!canManage && <Text style={styles.readOnly}>У вашей роли есть просмотр, но нет EVENT_MANAGE.</Text>}
-            {canManage && <TouchableOpacity style={[styles.saveButton, (!valid || saving) && styles.disabled]} disabled={!valid || saving} onPress={save}>{saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Сохранить изменения</Text>}</TouchableOpacity>}
+            {canManage && <TouchableOpacity style={[styles.saveButton, saving && styles.disabled]} disabled={saving} onPress={save}>{saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Сохранить изменения</Text>}</TouchableOpacity>}
           </ScrollView>
         ) : (
-          <View style={styles.pendingPanel}><Ionicons name="construct-outline" size={35} color="#6D45FF" /><Text style={styles.pendingTitle}>{tabs.find((tab) => tab.id === active)?.label}</Text><Text style={styles.pendingText}>Раздел уже закреплён за существующим back office. Подключаем его к тем же операциям без создания отдельной мобильной логики.</Text></View>
+          <View style={styles.pendingPanel}><Ionicons name="construct-outline" size={35} color="#6D45FF" /><Text style={styles.pendingTitle}>{tabs.find((tab) => tab.id === active)?.label}</Text><Text style={styles.pendingText}>Этот раздел будет подключён к существующему back office без отдельной мобильной бизнес-логики.</Text></View>
         )}
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -165,6 +193,7 @@ const styles = StyleSheet.create({
   header: { height: 70, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E6E8EF" }, iconButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center" }, headerText: { flex: 1, alignItems: "center" }, headerTitle: { fontSize: 18, fontWeight: "900", color: "#17213C", maxWidth: "90%" }, headerMeta: { fontSize: 11, color: "#7B8498", marginTop: 2 },
   tabs: { maxHeight: 76, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E6E8EF" }, tabsContent: { paddingHorizontal: 12, gap: 7, alignItems: "center" }, tab: { height: 54, minWidth: 115, borderRadius: 14, paddingHorizontal: 12, justifyContent: "center", backgroundColor: "#F4F5F8" }, tabActive: { backgroundColor: "#EEE9FF" }, tabIndex: { fontSize: 10, color: "#9AA2B1", fontWeight: "800" }, tabIndexActive: { color: "#6D45FF" }, tabLabel: { fontSize: 12, color: "#657086", fontWeight: "700", marginTop: 2 }, tabLabelActive: { color: "#4F2FE3" },
   content: { padding: 18, paddingBottom: 60 }, sectionTitle: { fontSize: 24, fontWeight: "900", color: "#17213C" }, sectionHelp: { color: "#7B8498", lineHeight: 19, marginTop: 5, marginBottom: 18 }, field: { marginBottom: 14 }, label: { fontSize: 12, fontWeight: "800", color: "#5C667B", marginBottom: 6 }, input: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: "#DDE1EA", backgroundColor: "#fff", paddingHorizontal: 14, fontSize: 15, color: "#17213C" }, multiline: { minHeight: 132, paddingTop: 13, paddingBottom: 13 }, row: { flexDirection: "row", gap: 10 }, half: { flex: 1 },
+  mediaNote: { flexDirection: "row", gap: 11, padding: 14, borderRadius: 14, backgroundColor: "#EEE9FF", marginBottom: 16 }, mediaNoteText: { flex: 1 }, mediaNoteTitle: { color: "#4F2FE3", fontWeight: "900", marginBottom: 2 }, mediaNoteBody: { color: "#687287", fontSize: 12, lineHeight: 17 },
   saveButton: { height: 55, borderRadius: 16, backgroundColor: "#6D45FF", alignItems: "center", justifyContent: "center", marginTop: 8 }, saveText: { color: "#fff", fontWeight: "900", fontSize: 16 }, disabled: { opacity: 0.45 }, readOnly: { color: "#A23A3A", marginVertical: 12 },
   pendingPanel: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 36 }, pendingTitle: { fontSize: 22, fontWeight: "900", color: "#17213C", marginTop: 12 }, pendingText: { textAlign: "center", color: "#737D91", lineHeight: 20, marginTop: 8 },
 });
