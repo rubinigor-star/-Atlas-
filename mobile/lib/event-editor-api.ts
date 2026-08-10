@@ -17,6 +17,7 @@ export type EditorLayoutObject = {
 export type GuestFieldKey = "firstName" | "lastName" | "phone" | "email" | "birthDate" | "city" | "facebook" | "instagram";
 export type GuestFields = Record<GuestFieldKey, { visible: boolean; required: boolean }>;
 export type BuyerQuestion = { id: string; label: string; type: "TEXT" | "TEXTAREA" | "SELECT" | "CHECKBOX" | "PHONE" | "EMAIL" | "DATE"; required: boolean; placeholder?: string; options?: string[] };
+export type VenueOption = { name: string; nameHe: string; city: string; cityHe: string; address: string; custom: boolean };
 export type EditorEvent = {
   id: string; title: string; description: string; posterUrl: string; startsAt: string; status: string; salesMode: string; mapEnabled: boolean;
   venue: { name: string; city: string; address: string };
@@ -37,13 +38,17 @@ export type EventEditorState = {
   review: { archived: boolean; status: "DRAFT" | "PUBLISHED"; slug: string; mapEnabled: boolean; categoryCount: number; sold: number; capacity: number };
 };
 
-async function request<T>(eventId: string, options?: RequestInit) {
+async function tokenHeaders() {
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
+  return { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) };
+}
+
+async function request<T>(eventId: string, options?: RequestInit) {
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}/api/mobile/events/${encodeURIComponent(eventId)}/editor`, {
       ...options,
-      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}), ...(options?.headers || {}) },
+      headers: { ...(await tokenHeaders()), ...(options?.headers || {}) },
     });
   } catch {
     throw new Error("NETWORK_ERROR");
@@ -58,4 +63,18 @@ async function request<T>(eventId: string, options?: RequestInit) {
 export function loadEventEditor(eventId: string) { return request<EventEditorState>(eventId); }
 export function patchEventEditor(eventId: string, action: Record<string, unknown>) {
   return request<EventEditorState>(eventId, { method: "PATCH", body: JSON.stringify(action) });
+}
+
+export async function loadVenueCatalog() {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/mobile/venues`, { headers: await tokenHeaders() });
+  } catch {
+    throw new Error("NETWORK_ERROR");
+  }
+  const text = await response.text();
+  let body: any = {};
+  try { body = text ? JSON.parse(text) : {}; } catch {}
+  if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : `HTTP_${response.status}`);
+  return (body.venues || []) as VenueOption[];
 }
