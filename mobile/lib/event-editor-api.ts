@@ -65,6 +65,23 @@ export function patchEventEditor(eventId: string, action: Record<string, unknown
   return request<EventEditorState>(eventId, { method: "PATCH", body: JSON.stringify(action) });
 }
 
+export async function deleteEventDraft(eventId: string) {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/mobile/events/${encodeURIComponent(eventId)}/delete`, {
+      method: "DELETE",
+      headers: await tokenHeaders(),
+    });
+  } catch {
+    throw new Error("NETWORK_ERROR");
+  }
+  const text = await response.text();
+  let body: any = {};
+  try { body = text ? JSON.parse(text) : {}; } catch {}
+  if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : `HTTP_${response.status}`);
+  return body as { ok: true; id: string };
+}
+
 export async function loadVenueCatalog() {
   let response: Response;
   try {
