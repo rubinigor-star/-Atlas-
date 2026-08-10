@@ -1,64 +1,84 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getEventEditor, updateEventEditorBasics, type EventEditorBasics } from "@/lib/api";
+import { loadEventEditor, type EventEditorState } from "@/lib/event-editor-api";
+import { AboutTab } from "@/components/editor/AboutTab";
+import { TicketsTab } from "@/components/editor/TicketsTab";
+import { MapTab } from "@/components/editor/MapTab";
+import { CheckoutTab } from "@/components/editor/CheckoutTab";
+import { ReviewTab } from "@/components/editor/ReviewTab";
 
-const tabs=[{id:"about",label:"О мероприятии"},{id:"tickets",label:"Билеты и цены"},{id:"map",label:"Места и карта"},{id:"checkout",label:"Покупатель"},{id:"review",label:"Проверка"}] as const;
-type TabId=(typeof tabs)[number]["id"];
-type Faq={question:string;answer:string};
-type ExtendedEvent=EventEditorBasics&{
- presentation:{shortDescription:string;ageRestriction:string;doorsOpenTime:string;runtimeMinutes:number;intermissionCount:number;galleryEnabled:boolean;galleryUrls:string[];faqEnabled:boolean;faq:Faq[]};
- media:Array<{type:"VIDEO"|"LINK";url:string;title?:string}>;
- eventTypes:string[];
- language:{primaryLanguage:string;catalogVisibility:string};
-};
-const DRAFT_DEFAULTS={title:"Новое мероприятие",description:"Добавьте описание мероприятия",posterUrl:"/assets/noa-live-tel-aviv.png",venueName:"Новая площадка",city:"Город",address:"Адрес площадки"};
-const AGE=["Без ограничений","Детское","3+","6+","12+","14+","16+","18+"];
-const LANG=[{id:"RU",label:"Русский"},{id:"HE",label:"Иврит"},{id:"EN",label:"Английский"},{id:"AR",label:"Арабский"},{id:"MULTILINGUAL",label:"Несколько языков"},{id:"NO_LANGUAGE_BARRIER",label:"Без языкового барьера"},{id:"OTHER",label:"Другой"}];
-const VIS=[{id:"PUBLIC",label:"Всем"},{id:"TARGETED",label:"По языку"},{id:"DIRECT_ONLY",label:"Только по ссылке"}];
-const TYPES=[{id:"SOLO_CONCERT",label:"Сольный концерт"},{id:"LIVE_MUSIC",label:"Живая музыка"},{id:"CLASSICAL_CONCERT",label:"Классический концерт"},{id:"FESTIVAL",label:"Фестиваль"},{id:"PARTY",label:"Вечеринка"},{id:"DJ_SET",label:"DJ-сет"},{id:"THEATRE",label:"Спектакль"},{id:"COMEDY",label:"Стендап"},{id:"CHILDREN_SHOW",label:"Детское"},{id:"SPORT",label:"Спорт"},{id:"LECTURE",label:"Лекция"},{id:"CONFERENCE",label:"Конференция"},{id:"EXHIBITION",label:"Выставка"},{id:"WORKSHOP",label:"Мастер-класс"},{id:"OTHER",label:"Другое"}];
-function localDateTime(iso:string){const d=new Date(iso);if(Number.isNaN(d.getTime()))return{date:"",time:""};const p=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Jerusalem",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(d);const v=Object.fromEntries(p.map(x=>[x.type,x.value]));return{date:`${v.year}-${v.month}-${v.day}`,time:`${v.hour}:${v.minute}`};}
-function visible(value:string,technical:string,isDraft:boolean){return isDraft&&value===technical?"":value;}
-function Chip({selected,label,onPress}:{selected:boolean;label:string;onPress:()=>void}){return <TouchableOpacity onPress={onPress} style={[styles.chip,selected&&styles.chipOn]}><Text style={[styles.chipText,selected&&styles.chipTextOn]}>{label}</Text></TouchableOpacity>}
-function Field({label,children}:{label:string;children:React.ReactNode}){return <View style={styles.field}><Text style={styles.label}>{label}</Text>{children}</View>}
+const tabs = [
+  { id: "about", label: "О мероприятии" },
+  { id: "tickets", label: "Билеты и цены" },
+  { id: "map", label: "Места и карта" },
+  { id: "checkout", label: "Покупатель" },
+  { id: "review", label: "Проверка" },
+] as const;
+type TabId = (typeof tabs)[number]["id"];
 
-export default function EventEditorScreen(){
- const router=useRouter();const params=useLocalSearchParams<{id:string}>();const eventId=String(params.id||"");
- const[event,setEvent]=useState<ExtendedEvent|null>(null);const[permissions,setPermissions]=useState<string[]>([]);const[active,setActive]=useState<TabId>("about");const[loading,setLoading]=useState(true);const[saving,setSaving]=useState(false);
- const[title,setTitle]=useState("");const[shortDescription,setShortDescription]=useState("");const[description,setDescription]=useState("");const[date,setDate]=useState("");const[time,setTime]=useState("");const[doors,setDoors]=useState("");const[venueName,setVenueName]=useState("");const[city,setCity]=useState("");const[address,setAddress]=useState("");
- const[age,setAge]=useState("Без ограничений");const[runtime,setRuntime]=useState("0");const[intermission,setIntermission]=useState("0");const[language,setLanguage]=useState("MULTILINGUAL");const[visibility,setVisibility]=useState("PUBLIC");const[eventTypes,setEventTypes]=useState<string[]>(["OTHER"]);
- const[videoUrl,setVideoUrl]=useState("");const[links,setLinks]=useState("");const[galleryUrls,setGalleryUrls]=useState("");const[faq,setFaq]=useState<Faq[]>([]);
- const canManage=permissions.includes("EVENT_MANAGE");
- function fill(raw:EventEditorBasics){const value=raw as ExtendedEvent;const isDraft=value.status==="DRAFT";setEvent(value);setTitle(visible(value.title,DRAFT_DEFAULTS.title,isDraft));setShortDescription(value.presentation?.shortDescription||"");setDescription(visible(value.description,DRAFT_DEFAULTS.description,isDraft));const local=localDateTime(value.startsAt);setDate(local.date);setTime(local.time);setDoors(value.presentation?.doorsOpenTime||"");setVenueName(visible(value.venue.name,DRAFT_DEFAULTS.venueName,isDraft));setCity(visible(value.venue.city,DRAFT_DEFAULTS.city,isDraft));setAddress(visible(value.venue.address,DRAFT_DEFAULTS.address,isDraft));setAge(value.presentation?.ageRestriction||"Без ограничений");setRuntime(String(value.presentation?.runtimeMinutes||0));setIntermission(String(value.presentation?.intermissionCount||0));setLanguage(value.language?.primaryLanguage||"MULTILINGUAL");setVisibility(value.language?.catalogVisibility||"PUBLIC");setEventTypes(value.eventTypes?.length?value.eventTypes:["OTHER"]);setVideoUrl(value.media?.find(x=>x.type==="VIDEO")?.url||"");setLinks((value.media||[]).filter(x=>x.type==="LINK").map(x=>x.url).join("\n"));setGalleryUrls(value.presentation?.galleryUrls?.join("\n")||"");setFaq(value.presentation?.faq||[]);}
- useEffect(()=>{let mounted=true;(async()=>{try{const payload=await getEventEditor(eventId);if(!mounted)return;fill(payload.event);setPermissions(payload.permissions);}catch(error){if(mounted)Alert.alert("Не удалось открыть мероприятие",error instanceof Error?error.message:"Ошибка");}finally{if(mounted)setLoading(false);}})();return()=>{mounted=false}},[eventId]);
- function validation(){if(title.trim().length<3)return"Название должно содержать минимум 3 символа.";if(shortDescription.length>100)return"Краткое описание максимум 100 символов.";if(description.trim().length<20)return"Полное описание должно содержать минимум 20 символов.";if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return"Проверьте дату YYYY-MM-DD.";if(!/^\d{2}:\d{2}$/.test(time))return"Проверьте время начала HH:MM.";if(doors&&!/^\d{2}:\d{2}$/.test(doors))return"Открытие дверей должно быть HH:MM.";if(venueName.trim().length<2)return"Укажите зал.";if(city.trim().length<2)return"Укажите город.";if(address.trim().length<3)return"Укажите адрес.";const r=Number(runtime),i=Number(intermission);if(!Number.isInteger(r)||r<0||r>720)return"Продолжительность должна быть 0-720 минут.";if(!Number.isInteger(i)||i<0||i>5)return"Количество антрактов должно быть 0-5.";return null;}
- async function save(){if(!canManage)return Alert.alert("Нет доступа","У вашей роли нет EVENT_MANAGE.");const err=validation();if(err)return Alert.alert("Проверьте данные",err);const startsAt=new Date(`${date}T${time}:00+03:00`);if(Number.isNaN(startsAt.getTime()))return Alert.alert("Неверная дата","Проверьте дату и время.");const linkItems=links.split(/\r?\n/).map(x=>x.trim()).filter(Boolean).map(url=>({type:"LINK" as const,url}));const media=[...(videoUrl.trim()?[{type:"VIDEO" as const,url:videoUrl.trim()}]:[]),...linkItems];const galleries=galleryUrls.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);setSaving(true);try{const result=await updateEventEditorBasics(eventId,{title:title.trim(),description:description.trim(),posterUrl:event?.posterUrl||DRAFT_DEFAULTS.posterUrl,startsAt:startsAt.toISOString(),venueName:venueName.trim(),city:city.trim(),address:address.trim(),presentation:{shortDescription:shortDescription.trim(),ageRestriction:age,doorsOpenTime:doors,runtimeMinutes:Number(runtime),intermissionCount:Number(intermission),galleryEnabled:galleries.length>0,galleryUrls:galleries,faqEnabled:faq.some(x=>x.question.trim()&&x.answer.trim()),faq:faq.filter(x=>x.question.trim()||x.answer.trim())},media,eventTypes,language:{primaryLanguage:language,catalogVisibility:visibility}} as any);fill(result.event);Alert.alert("Сохранено","Изменения сохранены в том же мероприятии Atlas и доступны в web back office.");}catch(error){Alert.alert("Не удалось сохранить",error instanceof Error?error.message:"Ошибка");}finally{setSaving(false)}}
- function toggleType(id:string){setEventTypes(current=>current.includes(id)?(current.length>1?current.filter(x=>x!==id):current):[...current.filter(x=>x!=="OTHER"),id]);}
- function addFaq(){if(faq.length<15)setFaq([...faq,{question:"",answer:""}]);}
- if(loading)return <SafeAreaView style={styles.center}><ActivityIndicator size="large"/></SafeAreaView>;if(!event)return <SafeAreaView style={styles.center}><Text>Мероприятие не найдено</Text></SafeAreaView>;
- return <SafeAreaView style={styles.safe} edges={["top"]}><View style={styles.header}><TouchableOpacity onPress={()=>router.back()} style={styles.iconButton}><Ionicons name="chevron-back" size={25} color="#17213C"/></TouchableOpacity><View style={styles.headerText}><Text style={styles.headerTitle} numberOfLines={1}>{title.trim()||"Новое мероприятие"}</Text><Text style={styles.headerMeta}>{event.status}</Text></View><View style={styles.iconButton}><Ionicons name="ellipsis-horizontal" size={24} color="#17213C"/></View></View>
- <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs} contentContainerStyle={styles.tabsContent}>{tabs.map((tab,index)=><TouchableOpacity key={tab.id} style={[styles.tab,active===tab.id&&styles.tabActive]} onPress={()=>setActive(tab.id)}><Text style={[styles.tabIndex,active===tab.id&&styles.tabIndexActive]}>{String(index+1).padStart(2,"0")}</Text><Text style={[styles.tabLabel,active===tab.id&&styles.tabLabelActive]}>{tab.label}</Text></TouchableOpacity>)}</ScrollView>
- <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS==="ios"?"padding":undefined}>{active==="about"?<ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
- <Text style={styles.sectionTitle}>О мероприятии</Text><Text style={styles.sectionHelp}>Поля соответствуют разделу «О мероприятии» web back office.</Text>
- <Field label="Официальное название"><TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Название мероприятия" maxLength={50}/></Field>
- <Field label="Краткое описание"><TextInput style={styles.input} value={shortDescription} onChangeText={setShortDescription} placeholder="До 100 символов" maxLength={100}/></Field>
- <View style={styles.row}><View style={styles.half}><Field label="Дата"><TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="YYYY-MM-DD"/></Field></View><View style={styles.half}><Field label="Начало"><TextInput style={styles.input} value={time} onChangeText={setTime} placeholder="HH:MM"/></Field></View></View>
- <Field label="Открытие дверей"><TextInput style={styles.input} value={doors} onChangeText={setDoors} placeholder="HH:MM"/></Field>
- <Field label="Зал"><TextInput style={styles.input} value={venueName} onChangeText={setVenueName} placeholder="Название зала"/></Field><Field label="Город"><TextInput style={styles.input} value={city} onChangeText={setCity}/></Field><Field label="Полный адрес"><TextInput style={styles.input} value={address} onChangeText={setAddress}/></Field>
- <Text style={styles.groupTitle}>Возрастное ограничение</Text><View style={styles.chips}>{AGE.map(x=><Chip key={x} label={x} selected={age===x} onPress={()=>setAge(x)}/>)}</View>
- <View style={styles.row}><View style={styles.half}><Field label="Продолжительность, мин"><TextInput style={styles.input} value={runtime} onChangeText={setRuntime} keyboardType="number-pad"/></Field></View><View style={styles.half}><Field label="Антрактов"><TextInput style={styles.input} value={intermission} onChangeText={setIntermission} keyboardType="number-pad"/></Field></View></View>
- <Text style={styles.groupTitle}>Язык мероприятия</Text><View style={styles.chips}>{LANG.map(x=><Chip key={x.id} label={x.label} selected={language===x.id} onPress={()=>setLanguage(x.id)}/>)}</View><Text style={styles.groupTitle}>Видимость в каталоге</Text><View style={styles.chips}>{VIS.map(x=><Chip key={x.id} label={x.label} selected={visibility===x.id} onPress={()=>setVisibility(x.id)}/>)}</View>
- <Text style={styles.groupTitle}>Тип мероприятия</Text><View style={styles.chips}>{TYPES.map(x=><Chip key={x.id} label={x.label} selected={eventTypes.includes(x.id)} onPress={()=>toggleType(x.id)}/>)}</View>
- <View style={styles.mediaNote}><Ionicons name="image-outline" size={22} color="#6D45FF"/><View style={{flex:1}}><Text style={styles.mediaNoteTitle}>Главная афиша</Text><Text style={styles.mediaNoteBody}>Текущая афиша сохраняется. Мобильную загрузку файла подключаем отдельным media-flow, без ручного URL.</Text></View></View>
- <Field label="Видео YouTube / Vimeo"><TextInput style={styles.input} value={videoUrl} onChangeText={setVideoUrl} autoCapitalize="none" placeholder="https://..."/></Field>
- <Field label="Галерея - ссылки, по одной в строке"><TextInput style={[styles.input,styles.smallMulti]} value={galleryUrls} onChangeText={setGalleryUrls} multiline autoCapitalize="none"/></Field>
- <Field label="Дополнительные ссылки, по одной в строке"><TextInput style={[styles.input,styles.smallMulti]} value={links} onChangeText={setLinks} multiline autoCapitalize="none"/></Field>
- <Field label="Полное описание"><TextInput style={[styles.input,styles.multiline]} value={description} onChangeText={setDescription} multiline textAlignVertical="top" placeholder="Минимум 20 символов"/></Field>
- <View style={styles.faqHead}><Text style={styles.groupTitle}>FAQ</Text><TouchableOpacity onPress={addFaq}><Text style={styles.addText}>+ Добавить вопрос</Text></TouchableOpacity></View>{faq.map((item,index)=><View key={index} style={styles.faqCard}><TextInput style={styles.input} value={item.question} onChangeText={v=>setFaq(faq.map((x,i)=>i===index?{...x,question:v}:x))} placeholder="Вопрос"/><TextInput style={[styles.input,styles.smallMulti]} value={item.answer} onChangeText={v=>setFaq(faq.map((x,i)=>i===index?{...x,answer:v}:x))} placeholder="Ответ" multiline/><TouchableOpacity onPress={()=>setFaq(faq.filter((_,i)=>i!==index))}><Text style={styles.deleteText}>Удалить</Text></TouchableOpacity></View>)}
- {!canManage&&<Text style={styles.readOnly}>У вашей роли нет EVENT_MANAGE.</Text>}{canManage&&<TouchableOpacity style={[styles.saveButton,saving&&styles.disabled]} disabled={saving} onPress={save}>{saving?<ActivityIndicator color="#fff"/>:<Text style={styles.saveText}>Сохранить все изменения</Text>}</TouchableOpacity>}
- </ScrollView>:<View style={styles.pendingPanel}><Ionicons name="construct-outline" size={35} color="#6D45FF"/><Text style={styles.pendingTitle}>{tabs.find(x=>x.id===active)?.label}</Text><Text style={styles.pendingText}>Подключаем этот раздел к существующим операциям back office без отдельной бизнес-логики.</Text></View>}</KeyboardAvoidingView></SafeAreaView>;
+export default function EventEditorScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ id: string }>();
+  const eventId = String(params.id || "");
+  const [active, setActive] = useState<TabId>("about");
+  const [state, setState] = useState<EventEditorState | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const payload = await loadEventEditor(eventId);
+        if (mounted) setState(payload);
+      } catch (error) {
+        if (mounted) Alert.alert("Не удалось открыть мероприятие", error instanceof Error ? error.message : "Ошибка");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [eventId]);
+
+  if (loading) return <SafeAreaView style={s.center}><ActivityIndicator size="large" /></SafeAreaView>;
+  if (!state) return <SafeAreaView style={s.center}><Text>Мероприятие не найдено</Text></SafeAreaView>;
+
+  return <SafeAreaView style={s.safe} edges={["top"]}>
+    <View style={s.header}>
+      <TouchableOpacity onPress={() => router.back()} style={s.icon}><Ionicons name="chevron-back" size={28} color="#17213C" /></TouchableOpacity>
+      <View style={s.headerCenter}><Text numberOfLines={1} style={s.headerTitle}>{state.event.title}</Text><Text style={s.headerMeta}>{state.review.archived ? "ARCHIVED" : state.event.status}</Text></View>
+      <View style={s.icon}><Ionicons name="ellipsis-horizontal" size={25} color="#17213C" /></View>
+    </View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabs} contentContainerStyle={s.tabsContent}>
+      {tabs.map((tab, index) => <TouchableOpacity key={tab.id} style={[s.tab, active === tab.id && s.tabOn]} onPress={() => setActive(tab.id)}><Text style={[s.tabIndex, active === tab.id && s.tabIndexOn]}>{String(index + 1).padStart(2, "0")}</Text><Text style={[s.tabLabel, active === tab.id && s.tabLabelOn]}>{tab.label}</Text></TouchableOpacity>)}
+    </ScrollView>
+    <View style={s.body}>
+      {active === "about" && <AboutTab eventId={eventId} state={state} onState={setState} />}
+      {active === "tickets" && <TicketsTab eventId={eventId} state={state} onState={setState} />}
+      {active === "map" && <MapTab eventId={eventId} state={state} onState={setState} />}
+      {active === "checkout" && <CheckoutTab eventId={eventId} state={state} onState={setState} />}
+      {active === "review" && <ReviewTab eventId={eventId} state={state} onState={setState} />}
+    </View>
+  </SafeAreaView>;
 }
 
-const styles=StyleSheet.create({flex:{flex:1},safe:{flex:1,backgroundColor:"#F5F6FA"},center:{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:"#F5F6FA"},header:{height:70,paddingHorizontal:14,flexDirection:"row",alignItems:"center",backgroundColor:"#fff",borderBottomWidth:1,borderBottomColor:"#E6E8EF"},iconButton:{width:42,height:42,alignItems:"center",justifyContent:"center"},headerText:{flex:1,alignItems:"center"},headerTitle:{fontSize:18,fontWeight:"900",color:"#17213C",maxWidth:"90%"},headerMeta:{fontSize:11,color:"#7B8498",marginTop:2},tabs:{maxHeight:76,backgroundColor:"#fff",borderBottomWidth:1,borderBottomColor:"#E6E8EF"},tabsContent:{paddingHorizontal:12,gap:7,alignItems:"center"},tab:{height:54,minWidth:115,borderRadius:14,paddingHorizontal:12,justifyContent:"center",backgroundColor:"#F4F5F8"},tabActive:{backgroundColor:"#EEE9FF"},tabIndex:{fontSize:10,color:"#9AA2B1",fontWeight:"800"},tabIndexActive:{color:"#6D45FF"},tabLabel:{fontSize:12,color:"#657086",fontWeight:"700",marginTop:2},tabLabelActive:{color:"#4F2FE3"},content:{padding:18,paddingBottom:70},sectionTitle:{fontSize:24,fontWeight:"900",color:"#17213C"},sectionHelp:{color:"#7B8498",lineHeight:19,marginTop:5,marginBottom:18},field:{marginBottom:14},label:{fontSize:12,fontWeight:"800",color:"#5C667B",marginBottom:6},input:{minHeight:50,borderRadius:14,borderWidth:1,borderColor:"#DDE1EA",backgroundColor:"#fff",paddingHorizontal:14,fontSize:15,color:"#17213C"},multiline:{minHeight:132,paddingTop:13,paddingBottom:13},smallMulti:{minHeight:84,paddingTop:12,paddingBottom:12},row:{flexDirection:"row",gap:10},half:{flex:1},groupTitle:{fontSize:14,fontWeight:"900",color:"#17213C",marginTop:4,marginBottom:8},chips:{flexDirection:"row",flexWrap:"wrap",gap:7,marginBottom:16},chip:{paddingHorizontal:11,paddingVertical:8,borderRadius:12,backgroundColor:"#ECEEF3"},chipOn:{backgroundColor:"#6D45FF"},chipText:{fontSize:12,color:"#59647A",fontWeight:"700"},chipTextOn:{color:"#fff"},mediaNote:{flexDirection:"row",gap:11,padding:14,borderRadius:14,backgroundColor:"#EEE9FF",marginBottom:16},mediaNoteTitle:{color:"#4F2FE3",fontWeight:"900",marginBottom:2},mediaNoteBody:{color:"#687287",fontSize:12,lineHeight:17},faqHead:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},addText:{color:"#6D45FF",fontWeight:"800"},faqCard:{gap:8,marginBottom:12,padding:12,borderRadius:14,backgroundColor:"#fff",borderWidth:1,borderColor:"#E1E4EB"},deleteText:{color:"#B42318",fontWeight:"700",textAlign:"right"},saveButton:{height:55,borderRadius:16,backgroundColor:"#6D45FF",alignItems:"center",justifyContent:"center",marginTop:8},saveText:{color:"#fff",fontWeight:"900",fontSize:16},disabled:{opacity:.45},readOnly:{color:"#A23A3A",marginVertical:12},pendingPanel:{flex:1,alignItems:"center",justifyContent:"center",paddingHorizontal:36},pendingTitle:{fontSize:22,fontWeight:"900",color:"#17213C",marginTop:12},pendingText:{textAlign:"center",color:"#737D91",lineHeight:20,marginTop:8}});
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: "#F5F6FA" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#F5F6FA" },
+  header: { height: 70, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E6E8EF", flexDirection: "row", alignItems: "center", paddingHorizontal: 12 },
+  icon: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  headerCenter: { flex: 1, alignItems: "center" },
+  headerTitle: { maxWidth: "90%", fontWeight: "900", color: "#17213C", fontSize: 19 },
+  headerMeta: { color: "#7D8596", fontSize: 11, marginTop: 2 },
+  tabs: { maxHeight: 84, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E6E8EF" },
+  tabsContent: { paddingHorizontal: 12, gap: 8, alignItems: "center" },
+  tab: { minWidth: 124, height: 58, borderRadius: 15, paddingHorizontal: 13, justifyContent: "center", backgroundColor: "#F2F3F7" },
+  tabOn: { backgroundColor: "#EEE9FF" },
+  tabIndex: { fontSize: 10, fontWeight: "900", color: "#9AA1B1" },
+  tabIndexOn: { color: "#6D45FF" },
+  tabLabel: { fontSize: 13, fontWeight: "800", color: "#647086", marginTop: 2 },
+  tabLabelOn: { color: "#5134DC" },
+  body: { flex: 1 },
+});
