@@ -29,7 +29,7 @@ const statusLabels: Record<string, string> = {
   ARCHIVED: "Архив",
 };
 
-const filterValues = ["all", "active", "DRAFT", "PUBLISHED", "past", "CANCELLED", "ARCHIVED"] as const;
+const filterValues = ["all", "active", "DRAFT", "PUBLISHED", "past", "CANCELLED"] as const;
 type FilterValue = (typeof filterValues)[number];
 
 const filterCopy: Record<"ru" | "he" | "en", {
@@ -47,7 +47,6 @@ const filterCopy: Record<"ru" | "he" | "en", {
       PUBLISHED: "Опубликованные",
       past: "Прошедшие",
       CANCELLED: "Выключенные",
-      ARCHIVED: "Архив",
     },
   },
   en: {
@@ -60,7 +59,6 @@ const filterCopy: Record<"ru" | "he" | "en", {
       PUBLISHED: "Published",
       past: "Past",
       CANCELLED: "Disabled",
-      ARCHIVED: "Archive",
     },
   },
   he: {
@@ -73,7 +71,6 @@ const filterCopy: Record<"ru" | "he" | "en", {
       PUBLISHED: "פורסמו",
       past: "אירועים שעברו",
       CANCELLED: "מושבתים",
-      ARCHIVED: "ארכיון",
     },
   },
 };
