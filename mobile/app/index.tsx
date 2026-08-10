@@ -75,10 +75,26 @@ export default function DashboardScreen() {
   async function createEvent() {
     if (!canManageEvents || creating) return;
     setCreating(true);
+    console.log("[Atlas Mobile] createEvent:start");
     try {
       const result = await createEventDraft();
-      router.push({ pathname: "/event-editor/[id]", params: { id: result.id } });
+      console.log("[Atlas Mobile] createEvent:draft-created", result.id);
+      Alert.alert(
+        "Черновик создан",
+        `DRAFT успешно создан в Atlas. ID: ${result.id}`,
+        [
+          { text: "Остаться", style: "cancel", onPress: () => { void load(true); } },
+          {
+            text: "Открыть редактор",
+            onPress: () => {
+              console.log("[Atlas Mobile] createEvent:open-editor", result.id);
+              router.push({ pathname: "/event-editor/[id]", params: { id: result.id } });
+            },
+          },
+        ],
+      );
     } catch (error) {
+      console.log("[Atlas Mobile] createEvent:error", error instanceof Error ? error.message : String(error));
       Alert.alert("Не удалось создать мероприятие", error instanceof Error ? error.message : "Ошибка");
     } finally {
       setCreating(false);
