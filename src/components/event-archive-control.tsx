@@ -25,7 +25,7 @@ export function EventArchiveControl({ eventId, eventTitle, status, archived }: P
       const response = await fetch(`/api/admin/events/${eventId}/delete`, { method: "DELETE" });
       const data = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(data.error || "Не удалось удалить черновик");
-      router.push("/admin/events");
+      router.push("/office/events?status=DRAFT");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Не удалось удалить черновик");
@@ -59,19 +59,32 @@ export function EventArchiveControl({ eventId, eventTitle, status, archived }: P
     }
   }
 
-  if (!archived && status === "DRAFT") {
+  if (status === "DRAFT") {
     return (
-      <section className="panel form" style={{ borderColor: "#fca5a5", background: "#fffafa" }}>
-        <span className="eyebrow">Удаление черновика</span>
-        <h2>Удалить мероприятие</h2>
-        <p className="muted">
-          Неопубликованный черновик без заказов и истории продаж можно удалить полностью. Это действие необратимо.
-        </p>
-        <button type="button" className="btn" style={{ background: "#b42318", color: "white" }} disabled={busy} onClick={deleteDraft}>
-          {busy ? "Удаляю..." : "Удалить черновик"}
-        </button>
-        {message && <div className="toast save-feedback" role="status">{message}</div>}
-      </section>
+      <div style={{ display: "grid", gap: 16 }}>
+        {archived && (
+          <section className="panel form" style={{ borderColor: "#94a3b8" }}>
+            <span className="eyebrow">Архив</span>
+            <h2>Черновик находится в архиве</h2>
+            <p className="muted">Можно восстановить его для дальнейшего редактирования или удалить прямо сейчас.</p>
+            <button type="button" className="btn secondary" disabled={busy} onClick={changeArchiveStatus}>
+              {busy ? "Сохраняю..." : "Восстановить как черновик"}
+            </button>
+          </section>
+        )}
+
+        <section className="panel form" style={{ borderColor: "#fca5a5", background: "#fffafa" }}>
+          <span className="eyebrow">Удаление черновика</span>
+          <h2>Удалить черновик</h2>
+          <p className="muted">
+            Неопубликованный черновик без заказов и истории продаж можно удалить полностью. Архивировать или восстанавливать его перед удалением не требуется.
+          </p>
+          <button type="button" className="btn" style={{ background: "#b42318", color: "white" }} disabled={busy} onClick={deleteDraft}>
+            {busy ? "Удаляю..." : "Удалить черновик"}
+          </button>
+          {message && <div className="toast save-feedback" role="status">{message}</div>}
+        </section>
+      </div>
     );
   }
 
