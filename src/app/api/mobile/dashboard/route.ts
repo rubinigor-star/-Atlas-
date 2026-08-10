@@ -70,7 +70,7 @@ export async function GET(request: Request) {
     const published = event.status === "PUBLISHED";
     const { opensAt, closesAt } = checkInWindow(event.startsAt);
     const isPast = now > closesAt;
-    const status = isPast ? "PAST" : published ? "PUBLISHED" : "DRAFT";
+    const status = event.status === "DRAFT" ? "DRAFT" : isPast ? "PAST" : "PUBLISHED";
 
     return {
       id: event.id,
@@ -111,7 +111,7 @@ export async function GET(request: Request) {
         pendingRequests,
         activeEvents: activeEvents.length,
       },
-      events: activeEvents,
+      events: visibleEvents,
       recentOrders: recentOrders.map((order) => ({
         id: order.id,
         publicId: order.publicId,
