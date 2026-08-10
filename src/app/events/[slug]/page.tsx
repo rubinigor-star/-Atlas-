@@ -14,6 +14,7 @@ import { EventAboutCard } from "@/components/event-about-card";
 import { EventFaq } from "@/components/event-faq";
 import { EventMetaStrip } from "@/components/event-meta-strip";
 import { EventFactsGrid } from "@/components/event-facts-grid";
+import { PromoterLinkTracker } from "@/components/promoter-link-tracker";
 import { parseEventMedia, stripEventMedia } from "@/lib/event-media";
 import { parseEventPresentation, stripEventPresentation } from "@/lib/event-presentation";
 import { stripEventRejectionMessage } from "@/lib/event-approval-message";
@@ -55,6 +56,7 @@ export default async function EventPage({params,searchParams}:{params:Promise<{s
  const shortDescription=presentation.shortDescription||publicDescription.replace(/\s+/g," ").slice(0,100); const text=i18n.messages.event; const local=copy[i18n.locale]; const eventUrl=`https://www.atlas-one.co/events/${event.slug}`; const lowestPrice=categories.length?Math.min(...categories.map(category=>category.priceMinor)):null; const ctaLabel=lowestPrice===null?local.buy:`${local.buyFrom} ${money(lowestPrice,"ILS",i18n.locale)}`; const locationLabel=/(?:israel|ישראל)/i.test(event.venue.city)?event.venue.city:`${event.venue.city}, Israel`; const pageStyle={"--event-hero-image":`url("${event.posterUrl}")`} as CSSProperties;
  const feeTerms={salesFeePercentBps:commercialTerms.organizer.salesFeePercentBps,salesFeeFixedMinor:commercialTerms.organizer.salesFeeFixedMinor,serviceFeePayer:commercialTerms.serviceFeePayer};
  return <main id="event-public-page" className={styles.page} style={pageStyle}>
+  {validPromoterLink&&<PromoterLinkTracker code={validPromoterLink.code} eventId={event.id}/>} 
   <EventHeroPalette posterUrl={event.posterUrl} targetId="event-public-page"/>
   <section className={`${styles.hero} ${mobile.hero} ${desktopLayout.hero} ${palette.heroPalette}`}>
    <div className={`shell ${styles.heroGrid} ${mobile.heroGrid} ${desktopLayout.wideShell} ${desktopLayout.heroGrid}`}>
