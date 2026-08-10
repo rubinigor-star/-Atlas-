@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { ensureCommercialTermsTables } from "@/lib/commercial-terms";
-import { ensureEventArchiveRuntime, isEventArchived } from "@/lib/event-archive";
+import { archiveDeleteSql, ensureEventArchiveRuntime, isEventArchived } from "@/lib/event-archive";
 
 export async function canDeleteDraftEvent(eventId: string) {
   const event = await db.event.findUnique({
@@ -14,17 +14,17 @@ export async function canDeleteDraftEvent(eventId: string) {
   if (!event || event.status !== "DRAFT") return false;
   if (event._count.orders > 0 || event.categories.some((category) => category.sold > 0)) return false;
 
-  await ensureEventArchiveRuntime();
-  if (await isEventArchived(eventId)) return false;
-
-  const lifecycleHistory = await db.auditLog.count({
+  // Archive/restore is only an organizational action. It must not turn a never-published
+  // draft into an undeletable event. Only an actual status transition is treated as
+  // publication lifecycle history.
+  const publicationHistory = await db.auditLog.count({
     where: {
       entityType: "Event",
       entityId: eventId,
-      action: { in: ["EVENT_STATUS", "EVENT_ARCHIVE", "EVENT_RESTORE_FROM_ARCHIVE"] },
+      action: "EVENT_STATUS",
     },
   });
-  return lifecycleHistory === 0;
+  return publicationHistory === 0;
 }
 
 export async function deleteDraftEvent(eventId: string) {
@@ -46,22 +46,19 @@ export async function deleteDraftEvent(eventId: string) {
     throw new Error("Этот черновик уже содержит историю продаж или заказов и не может быть удалён. Используйте архив.");
   }
 
-  await ensureEventArchiveRuntime();
-  if (await isEventArchived(eventId)) {
-    throw new Error("Архивированное мероприятие нельзя удалить. Сначала восстановите его как черновик.");
-  }
-
-  const lifecycleHistory = await db.auditLog.count({
+  const publicationHistory = await db.auditLog.count({
     where: {
       entityType: "Event",
       entityId: eventId,
-      action: { in: ["EVENT_STATUS", "EVENT_ARCHIVE", "EVENT_RESTORE_FROM_ARCHIVE"] },
+      action: "EVENT_STATUS",
     },
   });
-  if (lifecycleHistory > 0) {
-    throw new Error("Это мероприятие уже участвовало в публикации или архивировании и не может быть удалено. Используйте архив.");
+  if (publicationHistory > 0) {
+    throw new Error("Это мероприятие уже публиковалось и не может быть удалено. Используйте архив.");
   }
 
+  await ensureEventArchiveRuntime();
+  const archived = await isEventArchived(eventId);
   await ensureCommercialTermsTables();
 
   const promoterLinks = await db.promoterLink.findMany({ where: { eventId }, select: { id: true } });
@@ -87,6 +84,7 @@ export async function deleteDraftEvent(eventId: string) {
     await tx.ticketCategory.deleteMany({ where: { eventId } });
 
     await tx.$executeRawUnsafe(`DELETE FROM "EventCommercialTerms" WHERE "eventId" = $1`, eventId);
+    if (archived) await tx.$executeRawUnsafe(archiveDeleteSql(), eventId);
     await tx.event.delete({ where: { id: eventId } });
   });
 
