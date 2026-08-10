@@ -20,7 +20,7 @@ type EventsPageProps = {
 };
 
 const statusLabels: Record<string, string> = {
-  DRAFT: "Приостановлено",
+  DRAFT: "Черновик",
   REVIEW: "На модерации",
   PENDING_REVIEW: "На модерации",
   PUBLISHED: "Опубликовано",
@@ -29,7 +29,7 @@ const statusLabels: Record<string, string> = {
   ARCHIVED: "Архив",
 };
 
-const filterValues = ["all", "active", "DRAFT", "PUBLISHED", "past", "CANCELLED"] as const;
+const filterValues = ["all", "active", "DRAFT", "PUBLISHED", "past", "CANCELLED", "ARCHIVED"] as const;
 type FilterValue = (typeof filterValues)[number];
 
 const filterCopy: Record<"ru" | "he" | "en", {
@@ -43,10 +43,11 @@ const filterCopy: Record<"ru" | "he" | "en", {
     options: {
       all: "Все",
       active: "Активные",
-      DRAFT: "Приостановленные",
+      DRAFT: "Черновики",
       PUBLISHED: "Опубликованные",
       past: "Прошедшие",
       CANCELLED: "Выключенные",
+      ARCHIVED: "Архив",
     },
   },
   en: {
@@ -55,10 +56,11 @@ const filterCopy: Record<"ru" | "he" | "en", {
     options: {
       all: "All",
       active: "Active",
-      DRAFT: "Paused",
+      DRAFT: "Drafts",
       PUBLISHED: "Published",
       past: "Past",
       CANCELLED: "Disabled",
+      ARCHIVED: "Archive",
     },
   },
   he: {
@@ -67,10 +69,11 @@ const filterCopy: Record<"ru" | "he" | "en", {
     options: {
       all: "הכל",
       active: "פעילים",
-      DRAFT: "מושהים",
+      DRAFT: "טיוטות",
       PUBLISHED: "פורסמו",
       past: "אירועים שעברו",
       CANCELLED: "מושבתים",
+      ARCHIVED: "ארכיון",
     },
   },
 };
@@ -194,7 +197,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
       <div className="stats">
         <div className="stat"><span className="muted">Всего мероприятий</span><strong>{visibleEvents.length}</strong></div>
         <div className="stat"><span className="muted">Опубликовано</span><strong>{visibleEvents.filter((event) => event.status === "PUBLISHED").length}</strong></div>
-        <div className="stat"><span className="muted">Предстоящие</span><strong>{visibleEvents.filter((event) => event.startsAt >= now && !isInactiveStatus(String(event.status))).length}</strong></div>
+        <div className="stat"><span className="muted">Черновики</span><strong>{visibleEvents.filter((event) => event.status === "DRAFT").length}</strong></div>
       </div>
 
       {orderedEvents.length === 0 ? (
