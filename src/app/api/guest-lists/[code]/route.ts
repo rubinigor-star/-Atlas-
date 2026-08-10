@@ -26,11 +26,17 @@ export async function POST(req:Request,{params}:{params:Promise<{code:string}>})
       if(!z.string().email().safeParse(email).success)throw new Error("Укажите корректный email для отправки билета");
       const category=link.category??link.table?.category??link.event.categories.find(item=>!item.hidden&&item.sold<item.capacity)??null;
       if(!category)throw new Error("Для списка нет доступной категории билета");
-      const used=link.orders.flatMap(order=>order.items).reduce((sum,item)=>sum+item.quantity,0);const limit=link.guestLimit??link.table?.seats??category.capacity;if(used>=limit)throw new Error("Лимит гостей исчерпан");if(category.sold>=category.capacity)throw new Error("Бесплатные билеты закончились");
       const firstName=(customer.firstName||"").trim();const lastName=(customer.lastName||"").trim();const fullName=`${firstName} ${lastName}`.trim();const phone=normalizePhone(customer.phone||"");const birthDate=customer.birthDate?new Date(customer.birthDate):new Date("1900-01-01T00:00:00.000Z");
       const order=await db.$transaction(async tx=>{
+        const capacityClaim=await tx.ticketCategory.updateMany({where:{id:category.id,sold:{lt:category.capacity}},data:{sold:{increment:1}}});
+        if(capacityClaim.count!==1)throw new Error("Бесплатные билеты закончились");
+        const activeOrders=await tx.order.findMany({where:{promoterLinkId:link.id,status:{notIn:["CANCELLED","REJECTED"]}},select:{items:{select:{quantity:true}}}});
+        const used=activeOrders.flatMap(item=>item.items).reduce((sum,item)=>sum+item.quantity,0);
+        const limit=link.guestLimit??link.table?.seats??category.capacity;
+        if(used>=limit)throw new Error("Лимит гостей исчерпан");
         const guest=await tx.guestProfile.upsert({where:{organizationId_phone:{organizationId:link.event.organizationId,phone}},create:{organizationId:link.event.organizationId,firstName,lastName,phone,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""},update:{firstName,lastName,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""}});
-        const created=await tx.order.create({data:{publicId:orderNumber(),idempotencyKey:randomUUID(),customerName:fullName,customerFirstName:firstName,customerLastName:lastName,customerPhone:phone,customerEmail:email,customerBirthDate:customer.birthDate?birthDate:null,customerCity:customer.city||null,customerFacebook:customer.facebook||null,customerInstagram:customer.instagram||null,guestId:guest.id,totalMinor:0,currency:category.currency,status:"PAID",eventId:link.eventId,promoterLinkId:link.id,items:{create:[{quantity:1,unitPriceMinor:0,categoryName:category.name,tableId:link.tableId}]},tickets:{create:[{publicCode:ticketCode(),holderName:fullName,categoryId:category.id}]}},include:{tickets:true}});await tx.ticketCategory.update({where:{id:category.id},data:{sold:{increment:1}}});return created;});
+        return tx.order.create({data:{publicId:orderNumber(),idempotencyKey:randomUUID(),customerName:fullName,customerFirstName:firstName,customerLastName:lastName,customerPhone:phone,customerEmail:email,customerBirthDate:customer.birthDate?birthDate:null,customerCity:customer.city||null,customerFacebook:customer.facebook||null,customerInstagram:customer.instagram||null,guestId:guest.id,totalMinor:0,currency:category.currency,status:"PAID",eventId:link.eventId,promoterLinkId:link.id,items:{create:[{quantity:1,unitPriceMinor:0,categoryName:category.name,tableId:link.tableId}]},tickets:{create:[{publicCode:ticketCode(),holderName:fullName,categoryId:category.id}]}},include:{tickets:true}});
+      });
       after(async()=>{
         try{
           const delivery=await sendOrderTicketEmail(order.publicId);
@@ -42,7 +48,7 @@ export async function POST(req:Request,{params}:{params:Promise<{code:string}>})
       });
       return NextResponse.json({ok:true,orderId:order.id,publicId:order.publicId,emailQueued:true},{status:201});
     }
-    if(body.action==="remove"){const input=removeSchema.parse(body);const order=link.orders.find(item=>item.id===input.orderId);if(!order)throw new Error("Гость не найден");if(order.tickets.some(ticket=>ticket.status==="USED"))throw new Error("Нельзя удалить гостя после прохода");const quantity=order.items.reduce((sum,item)=>sum+item.quantity,0);const categoryId=order.tickets[0]?.categoryId;await db.$transaction(async tx=>{await tx.ticket.updateMany({where:{orderId:order.id},data:{status:"CANCELLED"}});await tx.order.update({where:{id:order.id},data:{status:"CANCELLED"}});if(categoryId)await tx.ticketCategory.update({where:{id:categoryId},data:{sold:{decrement:quantity}}});});return NextResponse.json({ok:true});}
+    if(body.action==="remove"){const input=removeSchema.parse(body);const order=link.orders.find(item=>item.id===input.orderId);if(!order)throw new Error("Гость не найден");if(order.tickets.some(ticket=>ticket.status==="USED"))throw new Error("Нельзя удалить гостя после прохода");const quantity=order.items.reduce((sum,item)=>sum+item.quantity,0);const categoryId=order.tickets[0]?.categoryId;await db.$transaction(async tx=>{await tx.ticket.updateMany({where:{orderId:order.id},data:{status:"CANCELLED"}});await tx.order.update({where:{id:order.id},data:{status:"CANCELLED"}});if(categoryId)await tx.ticketCategory.updateMany({where:{id:categoryId,sold:{gte:quantity}},data:{sold:{decrement:quantity}}});});return NextResponse.json({ok:true});}
     throw new Error("Неизвестное действие");
   }catch(error){const message=error instanceof Error?error.message:"Ошибка";console.error("[guest-list-api]",{message});return NextResponse.json({error:message},{status:400});}
 }
