@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Mars, Venus } from "lucide-react";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { eventDate, israelDateTime, money } from "@/lib/format";
@@ -8,6 +9,7 @@ import { ApprovalActions } from "@/components/approval-actions";
 import { ResendTicketButton } from "@/components/resend-ticket-button";
 import { OrderRefundManager } from "@/components/order-refund-manager";
 import { requireEventAccess } from "@/lib/auth";
+import { ageAt, getOrderDemographics } from "@/lib/customer-demographics";
 
 type AuthorizationRow={provider:string;providerReference:string;status:string;amountMinor:number;cardLast4:string|null;capturedAt:Date|null;voidedAt:Date|null;failureReason:string|null};
 
@@ -20,16 +22,21 @@ export default async function OrderAdmin({params,searchParams}:{params:Promise<{
   const order=await db.order.findUnique({where:{publicId},include:{event:true,items:true,tickets:{include:{category:true}}}});
   if(!order)notFound();
   const staff=await requireEventAccess("ORDER_VIEW",order.eventId);
-  const authorization=(await db.$queryRaw<AuthorizationRow[]>`SELECT provider,"providerReference",status,"amountMinor","cardLast4","capturedAt","voidedAt","failureReason" FROM "PaymentAuthorization" WHERE "orderId"=${order.id} LIMIT 1`)[0];
+  const [authorization,demographic]=await Promise.all([
+    db.$queryRaw<AuthorizationRow[]>`SELECT provider,"providerReference",status,"amountMinor","cardLast4","capturedAt","voidedAt","failureReason" FROM "PaymentAuthorization" WHERE "orderId"=${order.id} LIMIT 1`.then(rows=>rows[0]),
+    getOrderDemographics(order.id),
+  ]);
   const canRefund=staff.permissionSet.has("ORDER_MANAGE");
   const refunded=authorization?.status==="REFUNDED"||authorization?.status==="PARTIALLY_REFUNDED"||order.status==="CANCELLED";
+  const age=ageAt(demographic?.birthDate??order.customerBirthDate);
+  const genderLabel=demographic?.gender==="MALE"?"Мужчина":demographic?.gender==="FEMALE"?"Женщина":"Не указан";
 
   return <AdminShell>
     <Link className="btn secondary" href={returnTo}>← Вернуться</Link>
     <span className="eyebrow">{order.status==="PENDING_APPROVAL"?"Заявка на вход":"Order"}</span>
     <div className="row between"><h1>{order.publicId}</h1><span className="pill">{order.status}</span></div>
-    <div className="stats"><div className="stat"><span className="muted">Сумма</span><strong>{money(order.totalMinor)}</strong></div><div className="stat"><span className="muted">Мероприятие</span><strong>{order.event.title}</strong><small>{eventDate(order.event.startsAt)}</small></div><div className="stat"><span className="muted">Билеты</span><strong>{order.tickets.length}</strong></div></div>
-    <section className="panel form"><h2>Покупатель</h2><div className="form-grid two"><div><strong>{order.customerName}</strong><p>{order.customerEmail}<br/>{order.customerPhone}</p></div><div><strong>Данные заказа</strong><p>Создан: {israelDateTime(order.createdAt)}<br/>Статус: {order.status}</p></div></div></section>
+    <div className="stats"><div className="stat"><span className="muted">Сумма</span><strong>{money(order.totalMinor)}</strong></div><div className="stat"><span className="muted">Мероприятие</span><strong>{order.event.title}</strong><small>{eventDate(order.event.startsAt)}</small></div><div className="stat"><span className="muted">Билеты</span><strong>{order.tickets.length}</strong></div><div className="stat"><span className="muted">Возраст</span><strong>{age??"—"}</strong></div></div>
+    <section className="panel form"><h2>Покупатель</h2><div className="form-grid two"><div><strong style={{display:"inline-flex",alignItems:"center",gap:7}}>{demographic?.gender==="MALE"?<Mars size={19}/>:demographic?.gender==="FEMALE"?<Venus size={19}/>:null}{order.customerName}</strong><p>{genderLabel}{age!==null?` · ${age} лет`:""}<br/>{order.customerEmail}<br/>{order.customerPhone}</p></div><div><strong>Данные заказа</strong><p>Создан: {israelDateTime(order.createdAt)}<br/>Статус: {order.status}</p></div></div></section>
     {order.eligibilityAnswer&&<div className="panel" style={{background:"#fff8e8"}}><strong>Ответ клиента</strong><p>{order.eligibilityAnswer}</p></div>}
     <section className="panel"><h2>Состав заказа</h2><div className="table-wrap"><table><thead><tr><th>Категория</th><th>Количество</th><th>Цена</th></tr></thead><tbody>{order.items.map(item=><tr key={item.id}><td>{item.categoryName}</td><td>{item.quantity}</td><td>{money(item.unitPriceMinor*item.quantity)}</td></tr>)}</tbody></table></div></section>
     <section className="panel form"><h2>Платёж</h2>{authorization?<div className="form-grid two"><div><strong>{authorization.provider}</strong><p>Статус: {authorization.status}<br/>Транзакция: {authorization.providerReference}<br/>Карта: {authorization.cardLast4?`•••• ${authorization.cardLast4}`:"—"}</p></div><div><strong>{money(authorization.amountMinor)}</strong><p>{authorization.capturedAt?`Оплачено: ${israelDateTime(authorization.capturedAt)}`:""}{authorization.voidedAt?<><br/>Возврат: {israelDateTime(authorization.voidedAt)}</>:null}{authorization.failureReason?<><br/>Причина: {authorization.failureReason}</>:null}</p></div></div>:<div className="toast">Платёжная транзакция не найдена.</div>}</section>
