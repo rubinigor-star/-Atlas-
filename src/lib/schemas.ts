@@ -64,7 +64,6 @@ export const createEventSchema = z.object({
     lastName: fieldRule,
     phone: fieldRule,
     email: fieldRule,
-    gender: fieldRule,
     birthDate: fieldRule,
     city: fieldRule,
     facebook: fieldRule,
