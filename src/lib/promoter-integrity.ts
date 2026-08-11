@@ -3,10 +3,10 @@ import { db } from "@/lib/db";
 let ready: Promise<void> | null = null;
 
 /**
- * Promoters are business/financial records and must never disappear because an
- * Organization row is deleted or recreated. Older Atlas schemas used
- * ON DELETE CASCADE on Promoter.organizationId, which made a demo/reset seed
- * capable of silently destroying the complete promoter history.
+ * Promoters are business/financial records. They are archived, never physically
+ * deleted. The runtime guard therefore does two things:
+ * 1) prevents an Organization delete from cascading into Promoter;
+ * 2) blocks direct DELETE against Promoter from any branch, script or client.
  */
 export async function ensurePromoterIntegrityRuntime() {
   if (!ready) {
@@ -23,17 +23,34 @@ export async function ensurePromoterIntegrityRuntime() {
         LIMIT 1
       `);
       const existing = rows[0];
-      if (!existing || /ON DELETE RESTRICT|ON DELETE NO ACTION/i.test(existing.definition)) return;
+      if (existing && !/ON DELETE RESTRICT|ON DELETE NO ACTION/i.test(existing.definition)) {
+        const safeName = existing.name.replace(/"/g, '""');
+        await db.$executeRawUnsafe(`ALTER TABLE "Promoter" DROP CONSTRAINT "${safeName}"`);
+        await db.$executeRawUnsafe(`
+          ALTER TABLE "Promoter"
+          ADD CONSTRAINT "Promoter_organizationId_fkey"
+          FOREIGN KEY ("organizationId") REFERENCES "Organization"("id")
+          ON DELETE RESTRICT ON UPDATE CASCADE
+        `);
+        console.info('[promoter-integrity] Replaced Organization cascade delete with RESTRICT');
+      }
 
-      const safeName = existing.name.replace(/"/g, '""');
-      await db.$executeRawUnsafe(`ALTER TABLE "Promoter" DROP CONSTRAINT "${safeName}"`);
       await db.$executeRawUnsafe(`
-        ALTER TABLE "Promoter"
-        ADD CONSTRAINT "Promoter_organizationId_fkey"
-        FOREIGN KEY ("organizationId") REFERENCES "Organization"("id")
-        ON DELETE RESTRICT ON UPDATE CASCADE
+        CREATE OR REPLACE FUNCTION atlas_block_promoter_delete()
+        RETURNS trigger AS $$
+        BEGIN
+          RAISE EXCEPTION 'Physical deletion of Promoter is forbidden. Archive the promoter instead.'
+            USING ERRCODE = 'P0001';
+        END;
+        $$ LANGUAGE plpgsql
       `);
-      console.info('[promoter-integrity] Replaced Organization cascade delete with RESTRICT');
+      await db.$executeRawUnsafe(`DROP TRIGGER IF EXISTS atlas_block_promoter_delete_trigger ON "Promoter"`);
+      await db.$executeRawUnsafe(`
+        CREATE TRIGGER atlas_block_promoter_delete_trigger
+        BEFORE DELETE ON "Promoter"
+        FOR EACH ROW EXECUTE FUNCTION atlas_block_promoter_delete()
+      `);
+      console.info('[promoter-integrity] Physical Promoter DELETE is blocked at database level');
     })().catch(error => {
       ready = null;
       throw error;
