@@ -43,6 +43,7 @@ type MapObject = {
 
 type Allocation = { type: "EVENT" | "CATEGORY" | "TABLE"; categoryId: string | null; tableId: string | null; customPriceMinor: number | null };
 type OfferFilter = "ALL" | "BUY_ONE_GET_ONE";
+type SeatStyle = React.CSSProperties & { "--seat-color": string };
 
 const WORLD_WIDTH = 1400;
 const WORLD_HEIGHT = 900;
@@ -104,7 +105,8 @@ function validGroups(object: MapObject, quantity: number, seatAllowed: (seat: Ma
 
 function SeatDot({ seat, object, color, selected, eligible, disabled, onClick }: { seat: MapSeat; object: MapObject; color: string; selected: boolean; eligible: boolean; disabled: boolean; onClick: () => void }) {
   const style = object.objectType === "TABLE" ? tableSeatPosition(object, seat.position - 1) : object.objectType === "ROUND_TABLE" ? (() => { const angle=(seat.position-1)/Math.max(1,object.seats)*Math.PI*2-Math.PI/2; return {left:`${50+Math.cos(angle)*39}%`,top:`${50+Math.sin(angle)*39}%`}; })() : undefined;
-  return <button type="button" aria-label={seat.label} title={seat.label} className={`${styles.seat} ${selected?styles.selected:""} ${!eligible?styles.filtered:""}`} style={{...style,"--seat-color":color} as React.CSSProperties} disabled={disabled} onClick={(event)=>{event.stopPropagation();onClick();}}><span>{seat.position}</span></button>;
+  const seatStyle: SeatStyle = { ...style, "--seat-color": color };
+  return <button type="button" aria-label={seat.label} title={seat.label} className={`${styles.seat} ${selected?styles.selected:""} ${!eligible?styles.filtered:""}`} style={seatStyle} disabled={disabled} onClick={(event)=>{event.stopPropagation();onClick();}}><span>{seat.position}</span></button>;
 }
 
 export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName, categories, objects, feeTerms, referralCode, allocation, initialQty }: { eventId:string; slug:string; title:string; posterUrl:string; venueName:string; categories:Category[]; objects:MapObject[]; feeTerms:ServiceFeeTerms; referralCode?:string; allocation?:Allocation; initialQty:number }) {
@@ -145,7 +147,6 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   },[availableObjects,qty,allowedCategoryIds]);
   const eligibleSeatIds=useMemo(()=>new Set([...groupsByObject.values()].flat(2)),[groupsByObject]);
   const selectedSeats=objects.flatMap(item=>item.seatItems).filter(seat=>selectedSeatIds.includes(seat.id));
-  const selectedObject=objects.find(item=>item.seatItems.some(seat=>selectedSeatIds.includes(seat.id)));
   const wholeObject=objects.find(item=>item.id===wholeObjectId);
   const selectionComplete=Boolean(wholeObject)||selectedSeatIds.length===qty;
   const rawSubtotal=wholeObject?(allocation?.type==="TABLE"&&allocation.customPriceMinor!==null?allocation.customPriceMinor:(categories.find(item=>item.id===wholeObject.categoryId)?.priceMinor??wholeObject.priceMinor)):selectedSeats.reduce((sum,seat)=>sum+(categories.find(item=>item.id===seat.categoryId)?.priceMinor??0),0);
