@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { money } from "@/lib/format";
 import { useLocale } from "@/components/locale-provider";
+import { LiveViewerPressure } from "@/components/live-viewer-pressure";
 import { calculateServiceFee, type ServiceFeeTerms } from "@/lib/service-fee";
 import type { PricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 import type { TicketSalesStrategy } from "@/lib/ticket-sales-strategy";
@@ -176,6 +177,7 @@ export function EventPurchase({ eventId, categories, objects, referralCode, allo
         {hasSellingOut && <span style={{ padding: "7px 10px", borderRadius: 6, background: "#ffe4c7", color: "#b45309", fontSize: 13, fontWeight: 700 }}>🔥 {local.sellingOut}</span>}
         {hasOnePlusOne && <span style={{ padding: "7px 10px", borderRadius: 6, background: "#ede9fe", color: "#6d28d9", fontSize: 13, fontWeight: 700 }}>1 + 1</span>}
       </div>}
+      <LiveViewerPressure locale={locale} />
       <button type="button" className="btn" onClick={() => { clearMapSelection(); setMapOpen(true); }} style={{ width: "100%", minHeight: 52, fontSize: 17 }}>{local.pickSeats}</button>
     </div>;
   }
