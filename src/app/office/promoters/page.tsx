@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { money } from "@/lib/format";
 import { requirePermission } from "@/lib/auth";
 import { ensureAbandonedCheckoutRuntime } from "@/lib/abandoned-checkout";
+import { refreshAbandonedCheckoutStatuses } from "@/lib/abandoned-maintenance";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,9 @@ export default async function PromotersPage({searchParams}:{searchParams:Promise
     db.promoter.findMany({where:{organizationId,NOT:{name:{startsWith:TECHNICAL_PROMOTER_PREFIX}}},orderBy:[{active:"desc"},{name:"asc"}]}),
     db.promoterLink.findMany({where:{eventId:{in:selectedEventIds.length?selectedEventIds:["__none__"]},promoter:{NOT:{name:{startsWith:TECHNICAL_PROMOTER_PREFIX}}}},include:{promoter:true,event:true,visits:{where:createdAt?{createdAt}:undefined,select:{id:true}},orders:{where:{status:"PAID",...(createdAt?{createdAt}:{})},include:{items:true}}}}),
   ]);
-  await ensureAbandonedCheckoutRuntime();const abandonParams:unknown[]=[organizationId,selectedEventIds];let abandonRange="";if(range.from){abandonParams.push(range.from);abandonRange+=` AND c.\"createdAt\">=$${abandonParams.length}`;}if(range.to){abandonParams.push(range.to);abandonRange+=` AND c.\"createdAt\"<=$${abandonParams.length}`;}
+  await ensureAbandonedCheckoutRuntime();
+  await refreshAbandonedCheckoutStatuses();
+  const abandonParams:unknown[]=[organizationId,selectedEventIds];let abandonRange="";if(range.from){abandonParams.push(range.from);abandonRange+=` AND c.\"createdAt\">=$${abandonParams.length}`;}if(range.to){abandonParams.push(range.to);abandonRange+=` AND c.\"createdAt\"<=$${abandonParams.length}`;}
   const abandons=selectedEventIds.length?await db.$queryRawUnsafe<AbandonRow[]>(`SELECT c.\"token\",c.\"orderId\",c.\"metadataJson\",c.\"abandonedAt\",c.\"status\" FROM \"AbandonedCheckout\" c WHERE c.\"organizationId\"=$1 AND c.\"eventId\"=ANY($2::text[])${abandonRange}`,...abandonParams):[];
   const promoterByCode=new Map(links.map(link=>[link.code.toUpperCase(),link.promoterId]));const abandonByPromoter=new Map<string,{tokens:Set<string>;recovered:number;abandoned:number;recoveredOrderIds:Set<string>}>();
   for(const row of abandons){const code=referralCode(row.metadataJson);const promoterId=code?promoterByCode.get(code):undefined;if(!promoterId)continue;const stats=abandonByPromoter.get(promoterId)??{tokens:new Set<string>(),recovered:0,abandoned:0,recoveredOrderIds:new Set<string>()};stats.tokens.add(row.token);if(row.abandonedAt)stats.abandoned++;if(row.status==="RECOVERED"){stats.recovered++;if(row.orderId)stats.recoveredOrderIds.add(row.orderId);}abandonByPromoter.set(promoterId,stats);}
