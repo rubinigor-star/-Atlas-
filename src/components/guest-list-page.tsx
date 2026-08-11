@@ -8,10 +8,13 @@ type Guest={id:string;name:string;phone:string;ticketStatus:string};
 type ActionResponse={error?:string;emailQueued?:boolean;publicId?:string};
 const labels:Record<GuestFieldKey,string>={firstName:"Имя",lastName:"Фамилия",phone:"Телефон",email:"Email",birthDate:"Дата рождения",city:"Город проживания",facebook:"Facebook",instagram:"Instagram"};
 const types:Partial<Record<GuestFieldKey,string>>={email:"email",birthDate:"date",phone:"tel"};
+const SESSION_TTL_MS=30*60*1000;
+
+function sessionFor(key:string){const now=Date.now();try{const raw=localStorage.getItem(key);if(raw){const parsed=JSON.parse(raw) as {id?:unknown;lastSeen?:unknown};if(typeof parsed.id==="string"&&typeof parsed.lastSeen==="number"&&now-parsed.lastSeen<SESSION_TTL_MS){localStorage.setItem(key,JSON.stringify({id:parsed.id,lastSeen:now}));return parsed.id;}}}catch{}const id=crypto.randomUUID();localStorage.setItem(key,JSON.stringify({id,lastSeen:now}));return id;}
 
 export function GuestListPage({code,token,title,eventTitle,allocation,limit,guestCount,guests,canManage,fields}:{code:string;token:string;title:string;eventTitle:string;allocation:string;limit:number;guestCount:number;guests:Guest[];canManage:boolean;fields:GuestFieldConfig}){
   const router=useRouter();const[busy,setBusy]=useState(false);const[error,setError]=useState("");const[success,setSuccess]=useState("");
-  useEffect(()=>{const key=`atlas-guest-session-${code}`;let sessionId=localStorage.getItem(key);if(!sessionId){sessionId=crypto.randomUUID();localStorage.setItem(key,sessionId);}void fetch(`/api/guest-lists/${code}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"visit",sessionId})}).catch(()=>undefined);},[code]);
+  useEffect(()=>{const sessionId=sessionFor(`atlas-guest-session-${code}`);void fetch(`/api/guest-lists/${code}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"visit",sessionId})}).catch(()=>undefined);},[code]);
   async function send(body:Record<string,unknown>){
     setBusy(true);setError("");setSuccess("");
     try{
