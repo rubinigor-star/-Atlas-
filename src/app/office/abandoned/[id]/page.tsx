@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { money } from "@/lib/format";
 import { ensureAbandonedCheckoutRuntime } from "@/lib/abandoned-checkout";
+import { getAbandonedPromoterSources } from "@/lib/abandoned-order-attribution";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,9 @@ export default async function AbandonedDetail({ params }: { params: Promise<{ id
   const scoped = staff.eventAccess.map(access => access.eventId);
   if (scoped.length && !scoped.includes(item.eventId)) notFound();
   const actions = await db.$queryRawUnsafe<Action[]>(`SELECT a."id",s."position",s."templateKey",a."channel",a."status",a."scheduledAt",a."sentAt",a."providerId",a."error",a."createdAt" FROM "RecoveryAction" a JOIN "RecoveryScenarioStep" s ON s."id"=a."scenarioStepId" WHERE a."checkoutId"=$1 ORDER BY a."createdAt" ASC`, id);
+  const sources = await getAbandonedPromoterSources([id]);
+  const source = sources[0];
+  const sourceLabel = source ? `Промоутер · ${source.promoterName} · ${source.linkLabel}` : "Прямой / другой источник";
   const name = [item.customerFirstName, item.customerLastName].filter(Boolean).join(" ") || "Не представился";
   const format = (value: Date | null) => value ? new Intl.DateTimeFormat("ru-IL", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jerusalem" }).format(new Date(value)) : "-";
   const statusLabel = item.status === "RECOVERED" ? "Восстановлено" : item.status === "OPTED_OUT" ? "Клиент отказался" : item.status === "STOPPED" ? "Напоминания остановлены" : item.abandonedAt ? "Потерянная продажа" : "Сейчас оформляет";
@@ -43,9 +47,9 @@ export default async function AbandonedDetail({ params }: { params: Promise<{ id
     item.customerEmail || item.customerPhone ? { at:item.lastActivityAt, title:"Контакты сохранены", detail:item.customerEmail || item.customerPhone || "" } : null,
     item.abandonedAt ? { at:item.abandonedAt, title:"Покупка признана потерянной", detail:"Запущен сценарий восстановления" } : null,
     ...actions.map(action => ({ at:action.sentAt || action.scheduledAt || action.createdAt, title:actionLabel(action), detail:[action.channel,action.error,action.providerId].filter(Boolean).join(" · ") })),
-    item.status === "STOPPED" ? { at:item.lastActivityAt, title:"Напоминания остановлены вручную", detail:"Будущие действия отменены, история сохранена" } : null,
+    item.status === "STOPPED" ? { at:item.lastActivityAt, title:"Напоминания остановлены", detail:item.stopReason || "Сценарий остановлен" } : null,
     item.optOutAt ? { at:item.optOutAt, title:"Клиент отказался от напоминаний", detail:"Все будущие действия отменены" } : null,
-    item.recoveredAt ? { at:item.recoveredAt, title:"Покупка восстановлена", detail:"Сценарий остановлен после оплаты" } : null,
+    item.recoveredAt ? { at:item.recoveredAt, title:"Покупка восстановлена", detail:"Сценарий остановлен после возврата и оплаты" } : null,
   ].filter(Boolean) as Array<{at:Date;title:string;detail:string}>;
   timeline.sort((a,b)=>new Date(a.at).getTime()-new Date(b.at).getTime());
 
@@ -60,6 +64,7 @@ export default async function AbandonedDetail({ params }: { params: Promise<{ id
       <h2>Карточка клиента</h2>
       <div className="row between"><span>Email</span><strong>{item.customerEmail || "-"}</strong></div>
       <div className="row between"><span>Телефон</span><strong>{item.customerPhone || "-"}</strong></div>
+      <div className="row between"><span>Источник</span><strong>{sourceLabel}</strong></div>
       <div className="row between"><span>Этап</span><strong>{item.stage === "PAYMENT_STARTED" ? "Перешёл к оплате" : item.stage === "CONTACTS_ENTERED" ? "Оставил контакты" : "Открыл оформление"}</strong></div>
       <div className="row between"><span>Начал оформление</span><strong>{format(item.createdAt)}</strong></div>
       <div className="row between"><span>Покинул оформление</span><strong>{format(item.abandonedAt)}</strong></div>
