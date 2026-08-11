@@ -9,6 +9,7 @@ import { createHypApprovalPaymentPage } from "@/lib/hyp-creditguard";
 import { ensureMarketingRuntime, parseMarketingCookie, saveOrderAttribution } from "@/lib/marketing-runtime";
 import { getEffectiveEventTerms } from "@/lib/commercial-terms";
 import { calculateServiceFee } from "@/lib/service-fee";
+import { linkAbandonedCheckoutToOrder } from "@/lib/abandoned-order-attribution";
 
 const CANONICAL_APP_URL="https://www.atlas-one.co";
 function normalizePhone(value:string){const digits=value.replace(/\D/g,"");if(!digits)return "";if(digits.startsWith("972"))return `+${digits}`;if(digits.startsWith("0"))return `+972${digits.slice(1)}`;return `+972${digits}`;}
@@ -29,6 +30,7 @@ export async function POST(req:Request){
     const language=input.locale==="he"?"HEB" as const:"ENG" as const;
     const existing=await db.order.findUnique({where:{idempotencyKey:input.idempotencyKey},include:{event:true}});
     if(existing){
+      await linkAbandonedCheckoutToOrder(input.abandonToken, existing.id);
       if(existing.status==="PENDING"){
         const paymentUrl=await createPaymentUrl({salesMode:existing.event.salesMode,totalMinor:existing.totalMinor,publicId:existing.publicId,eventTitle:existing.event.title,customerName:existing.customerName,customerEmail:existing.customerEmail,customerPhone:existing.customerPhone,language});
         return NextResponse.json({orderId:existing.publicId,status:existing.status,paymentUrl:launchUrl(paymentUrl)});
@@ -58,6 +60,7 @@ export async function POST(req:Request){
       await createReservation({orderId:created.id,items:reservationItems,ttlMinutes:event.salesMode==="INSTANT"?15:24*60,executor:tx});
       return {order:created,eventTitle:event.title,salesMode:event.salesMode};
     });
+    await linkAbandonedCheckoutToOrder(input.abandonToken, result.order.id);
     const paymentUrl=await createPaymentUrl({salesMode:result.salesMode,totalMinor:result.order.totalMinor,publicId:result.order.publicId,eventTitle:result.eventTitle,customerName:result.order.customerName,customerEmail:result.order.customerEmail,customerPhone:result.order.customerPhone,language});
     return NextResponse.json({orderId:result.order.publicId,status:result.order.status,paymentUrl:launchUrl(paymentUrl)},{status:201});
   }catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Некорректный запрос"},{status:400});}

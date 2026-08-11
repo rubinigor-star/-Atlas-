@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { hypApprovalResultFromUrl, verifyHypApprovalResponseMac } from "@/lib/hyp-creditguard";
 import { sendApprovalRequestReceivedEmail } from "@/lib/order-status-email";
+import { completeAbandonedCheckoutWithoutSale } from "@/lib/abandoned-order-attribution";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ async function handle(request: Request) {
   if (order.status !== "PENDING" && order.status !== "PENDING_APPROVAL") {
     return NextResponse.redirect(new URL(`/orders/${encodeURIComponent(publicId)}?payment=failed`, url));
   }
+  await completeAbandonedCheckoutWithoutSale(order.id, "APPLICATION_SUBMITTED");
   if (changed.count === 1) {
     try { await sendApprovalRequestReceivedEmail(publicId); }
     catch (error) { console.error("approval-request-email.failed", { publicId, message: error instanceof Error ? error.message : "Unknown error" }); }

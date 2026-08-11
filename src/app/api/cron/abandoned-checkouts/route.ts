@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { completeRecoveryAction, getDueRecoveryActions, prepareRecoveryActions } from "@/lib/abandoned-checkout";
+import { recoveryCheckoutUrl } from "@/lib/abandoned-order-attribution";
 import { recoveryChannel } from "@/lib/recovery-channels";
 
 function authorized(request: Request) {
@@ -32,7 +33,8 @@ async function run(request: Request) {
       continue;
     }
     try {
-      const result = await adapter.send({ recipient: action.customerEmail, firstName: action.customerFirstName, eventTitle: action.eventTitle, checkoutUrl: action.checkoutUrl, optOutUrl: `${baseUrl(request)}/api/checkout/abandon/opt-out?token=${encodeURIComponent(action.token)}`, amountMinor: action.amountMinor, templateKey: action.templateKey });
+      const checkoutUrl = recoveryCheckoutUrl(action.checkoutUrl, action.token);
+      const result = await adapter.send({ recipient: action.customerEmail, firstName: action.customerFirstName, eventTitle: action.eventTitle, checkoutUrl, optOutUrl: `${baseUrl(request)}/api/checkout/abandon/opt-out?token=${encodeURIComponent(action.token)}`, amountMinor: action.amountMinor, templateKey: action.templateKey });
       await completeRecoveryAction(action.id, { status: "SENT", providerId: result.id });
       sent++;
     } catch (error) {

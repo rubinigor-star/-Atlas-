@@ -16,6 +16,7 @@ export const checkoutSchema = z.object({
     lastName: optionalText(80),
     email: optionalText(160),
     phone: optionalText(30),
+    gender: z.enum(["MALE","FEMALE"]),
     birthDate: optionalText(20),
     city: optionalText(120),
     facebook: optionalText(250),

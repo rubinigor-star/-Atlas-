@@ -6,7 +6,7 @@ import { commitReservation, releaseReservation } from "@/lib/reservation";
 import { issueTicketsForOrder } from "@/lib/ticket-engine";
 import { sendOrderTicketEmail } from "@/lib/order-email";
 import { sendOrderTicketSms } from "@/lib/order-sms";
-import { ensureAbandonedCheckoutRuntime } from "@/lib/abandoned-checkout";
+import { finalizeAbandonedCheckoutForOrder } from "@/lib/abandoned-order-attribution";
 
 export const dynamic = "force-dynamic";
 
@@ -46,21 +46,6 @@ function orderRedirect(requestUrl: URL, publicId: string, state: string) {
 }
 function resultRedirect(requestUrl: URL, state: string) {
   return NextResponse.redirect(`${publicOrigin(requestUrl)}/payments/hyp/result?payment=${encodeURIComponent(state)}`);
-}
-
-async function attributeRecoveredCheckout(order: { id: string; eventId: string; customerEmail: string }) {
-  await ensureAbandonedCheckoutRuntime();
-  const rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
-    `SELECT "id" FROM "AbandonedCheckout" WHERE "eventId"=$1 AND LOWER("customerEmail")=LOWER($2) AND "status"='ACTIVE' ORDER BY "lastActivityAt" DESC LIMIT 1`,
-    order.eventId,
-    order.customerEmail,
-  );
-  const checkoutId = rows[0]?.id;
-  if (!checkoutId) return;
-  await db.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(`UPDATE "AbandonedCheckout" SET "status"='RECOVERED',"orderId"=$2,"recoveredAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1`, checkoutId, order.id);
-    await tx.$executeRawUnsafe(`UPDATE "RecoveryAction" SET "status"='CANCELLED',"updatedAt"=CURRENT_TIMESTAMP WHERE "checkoutId"=$1 AND "status"='PENDING'`, checkoutId);
-  });
 }
 
 async function requestToCallbackUrl(request: Request) {
@@ -157,7 +142,7 @@ async function finalizeCallback(url: URL): Promise<FinalizeResult> {
   await upsertAuthorization(order, result);
   console.info("hyp.order.finalized", { publicId, transId, cgUid: result.cgUid || null, txId: result.txId || null, amountMinor: order.totalMinor, finalized });
   if (finalized) {
-    try { await attributeRecoveredCheckout(order); } catch (error) { console.error("[abandon-recovery-attribution]", publicId, error); }
+    try { await finalizeAbandonedCheckoutForOrder(order.id); } catch (error) { console.error("[abandon-recovery-attribution]", publicId, error); }
     try { await sendOrderTicketEmail(publicId); } catch (error) { console.error("[hyp-ticket-email]", publicId, error); }
     try { await sendOrderTicketSms(publicId, { automatic: true }); } catch (error) { console.error("[hyp-ticket-sms]", publicId, error); }
   }

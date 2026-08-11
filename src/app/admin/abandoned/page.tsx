@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { recoveryDashboard } from "@/lib/abandoned-checkout";
 import { refreshAbandonedCheckoutStatuses } from "@/lib/abandoned-maintenance";
+import { cleanupFalseRecoveredCheckouts, getAbandonedPromoterSources } from "@/lib/abandoned-order-attribution";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +30,11 @@ function statusInfo(status: string, abandonedAt: Date | null, action: string | n
 export default async function AbandonedSalesPage() {
   const staff = await requirePermission("ANALYTICS_VIEW");
   await refreshAbandonedCheckoutStatuses();
+  await cleanupFalseRecoveredCheckouts();
   const allowedEventIds = staff.eventAccess.map(item => item.eventId);
   const data = await recoveryDashboard(staff.organizationId!, allowedEventIds.length ? allowedEventIds : undefined);
+  const sources = await getAbandonedPromoterSources(data.recent.map(item => item.id));
+  const sourceByCheckout = new Map(sources.map(source => [source.checkoutId, source]));
   const active = number(data.totals.activeCount);
   const recovered = number(data.totals.recoveredCount);
   const live = number(data.totals.inProgressCount);
@@ -39,11 +43,13 @@ export default async function AbandonedSalesPage() {
   const formatter = new Intl.DateTimeFormat("ru-IL",{dateStyle:"short",timeStyle:"short",timeZone:"Asia/Jerusalem"});
   const items = data.recent.map(item => {
     const status = statusInfo(item.status,item.abandonedAt,item.actionStatus,item.stage);
+    const source = sourceByCheckout.get(item.id);
     return {
       id:item.id,
       customerName:[item.customerFirstName,item.customerLastName].filter(Boolean).join(" ")||"Не представился",
       customerContact:item.customerEmail||item.customerPhone||"Контакт не оставлен",
       eventTitle:item.eventTitle,
+      sourceLabel:source?`Промоутер · ${source.promoterName}`:"Прямой / другой источник",
       stageLabel:stageLabel(item.stage),
       amountLabel:money(item.amountMinor),
       activityLabel:formatter.format(new Date(item.lastActivityAt)),

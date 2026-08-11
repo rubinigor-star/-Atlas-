@@ -4,16 +4,16 @@ import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
-
-const GUEST_LIST_PREFIX = "__GUEST_LIST__:";
+const GUEST_LIST_PREFIXES = ["__GUEST_LIST__:", "__CHANNEL__:GUEST:"];
 
 export default async function GuestListsPage() {
   const staff = await requirePermission("EVENT_MANAGE");
   const organizationId = staff.organizationId!;
+  const allowed = staff.eventAccess.map(item => item.eventId);
   const lists = await db.promoterLink.findMany({
     where: {
-      event: { organizationId },
-      promoter: { name: { startsWith: GUEST_LIST_PREFIX } },
+      event: { organizationId, ...(allowed.length ? { id: { in: allowed } } : {}) },
+      promoter: { OR: GUEST_LIST_PREFIXES.map(prefix => ({ name: { startsWith: prefix } })) },
     },
     orderBy: { createdAt: "desc" },
     include: {
@@ -21,45 +21,45 @@ export default async function GuestListsPage() {
       category: true,
       table: true,
       visits: { select: { id: true } },
-      orders: {
-        where: { status: { notIn: ["CANCELLED", "REJECTED"] } },
-        include: { items: true, tickets: true },
-      },
+      orders: { where: { status: { notIn: ["CANCELLED", "REJECTED"] } }, include: { items: true, tickets: true } },
     },
   });
 
+  const totals = lists.reduce((sum, list) => {
+    const guests = list.orders.flatMap(order => order.items).reduce((n, item) => n + item.quantity, 0);
+    const checkins = list.orders.flatMap(order => order.tickets).filter(ticket => ticket.status === "USED").length;
+    return { lists: sum.lists + 1, active: sum.active + (list.active ? 1 : 0), guests: sum.guests + guests, checkins: sum.checkins + checkins, views: sum.views + list.visits.length };
+  }, { lists: 0, active: 0, guests: 0, checkins: 0, views: 0 });
+
   return <AdminShell>
-    <div className="office-page-heading">
-      <div>
-        <span className="eyebrow">Guest lists</span>
-        <h1>Гостевые списки</h1>
-        <p>Временные списки для именинников, столов, артистов и приглашённых гостей. Для них не создаются аккаунты промоутеров.</p>
-      </div>
+    <div className="office-page-heading"><div><span className="eyebrow">Guest lists</span><h1>Гостевые списки</h1><p className="muted">Каждый список живёт отдельно: мероприятие, лимит, гости, проходы, просмотры и ссылка управления.</p></div></div>
+    <div className="stats">
+      <div className="stat"><span className="muted">Списков</span><strong>{totals.lists}</strong></div>
+      <div className="stat"><span className="muted">Активных</span><strong>{totals.active}</strong></div>
+      <div className="stat"><span className="muted">Гостей</span><strong>{totals.guests}</strong></div>
+      <div className="stat"><span className="muted">Прошли</span><strong>{totals.checkins}</strong></div>
+      <div className="stat"><span className="muted">Уникальные открытия</span><strong>{totals.views}</strong></div>
     </div>
 
-    <div className="panel" style={{ marginBottom: 20 }}>
-      <strong>Как создать новый список</strong>
-      <p className="muted">Откройте нужное мероприятие и используйте блок «Гостевые списки». Там можно выбрать бесплатный билет или конкретный стол, задать лимит и получить ссылку управления.</p>
-      <Link className="btn dark" href="/office/events/new">Открыть мероприятия</Link>
-    </div>
+    <div className="panel" style={{ marginTop: 24, marginBottom: 20 }}><strong>Создание нового списка</strong><p className="muted">Новый список создаётся внутри нужного мероприятия, потому что там уже известны доступные билеты, категории и столы.</p><Link className="btn dark" href="/office/events">Открыть мероприятия</Link></div>
 
-    <div className="table-wrap"><table><thead><tr><th>Список</th><th>Мероприятие</th><th>Назначение</th><th>Гости</th><th>Проходы</th><th>Просмотры</th><th>Ссылка</th></tr></thead><tbody>
-      {lists.map((list) => {
-        const guests = list.orders.flatMap((order) => order.items).reduce((sum, item) => sum + item.quantity, 0);
-        const checkins = list.orders.flatMap((order) => order.tickets).filter((ticket) => ticket.status === "USED").length;
+    <div className="table-wrap"><table><thead><tr><th>Список</th><th>Мероприятие</th><th>Назначение</th><th>Заполнено</th><th>Прошли</th><th>Открытия</th><th>Статус</th></tr></thead><tbody>
+      {lists.map(list => {
+        const guests = list.orders.flatMap(order => order.items).reduce((sum, item) => sum + item.quantity, 0);
+        const checkins = list.orders.flatMap(order => order.tickets).filter(ticket => ticket.status === "USED").length;
         const limit = list.guestLimit ?? list.table?.seats ?? list.category?.capacity ?? 0;
         const allocation = list.table ? `Стол: ${list.table.label}` : list.category ? `Билет: ${list.category.name}` : "Мероприятие";
+        const fill = limit ? Math.round(guests / limit * 100) : null;
         return <tr key={list.id}>
-          <td><strong>{list.label}</strong><br /><small>{list.active ? "Активен" : "Отключён"}</small></td>
-          <td>{list.event.title}<br /><small>{new Date(list.event.startsAt).toLocaleString("ru-RU")}</small></td>
+          <td><Link href={`/office/guest-lists/${list.id}`}><strong>{list.label}</strong></Link><br/><small>{list.code}</small></td>
+          <td>{list.event.title}<br/><small>{new Date(list.event.startsAt).toLocaleString("ru-RU")}</small></td>
           <td>{allocation}</td>
-          <td><strong>{guests}</strong>{limit ? ` из ${limit}` : ""}</td>
-          <td>{checkins}</td>
-          <td>{list.visits.length}</td>
-          <td><Link href={`/g/${list.code}`} target="_blank">/g/{list.code}</Link><br /><Link href={`/office/events/${list.eventId}`}>Управлять в мероприятии</Link></td>
+          <td><strong>{guests}</strong>{limit ? ` / ${limit}` : ""}{fill !== null && <><br/><small>{fill}% заполнено</small></>}</td>
+          <td>{checkins}</td><td>{list.visits.length}</td>
+          <td><span className="pill" style={list.active ? { background: "#dcfae6", color: "#067647" } : {}}>{list.active ? "Активен" : "Отключён"}</span></td>
         </tr>;
       })}
-      {!lists.length && <tr><td colSpan={7}>Гостевых списков пока нет. Создайте бесплатный билет, затем откройте мероприятие и добавьте список.</td></tr>}
+      {!lists.length && <tr><td colSpan={7}>Гостевых списков пока нет.</td></tr>}
     </tbody></table></div>
   </AdminShell>;
 }
