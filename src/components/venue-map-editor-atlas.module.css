@@ -1,44 +1,61 @@
 .atlas {
-  --atlas-seat-neutral: #e3e7eb;
-  --atlas-seat-text: #536273;
-  --atlas-object-fill: #f5f7f9;
-  --atlas-object-border: #c8d0d9;
-  --atlas-structure: #9fa7b1;
+  --atlas-seat-neutral: #e4e8ec;
+  --atlas-seat-text: #5b6878;
+  --atlas-object-fill: #f7f8fa;
+  --atlas-object-border: #cbd2da;
+  --atlas-structure: #9ea5ad;
+  --atlas-seat-dot: 12px;
+  --atlas-seat-hit: 24px;
 }
 
 .atlas :global(.map-world) {
   background-color: #fff;
-  background-image: linear-gradient(#f2f4f7 1px, transparent 1px), linear-gradient(90deg, #f2f4f7 1px, transparent 1px);
+  background-image: linear-gradient(#f3f5f7 1px, transparent 1px), linear-gradient(90deg, #f3f5f7 1px, transparent 1px);
   background-size: 20px 20px;
   border-color: #d7dde4;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, .055);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, .045);
 }
 
+/* Visual seat is deliberately smaller than its click target. This keeps maps airy
+   while preserving comfortable mouse and touch selection. */
 .atlas :global(.ticket-seat) {
-  width: 18px !important;
-  height: 18px !important;
-  min-width: 18px !important;
-  flex: 0 0 18px !important;
+  width: var(--atlas-seat-hit) !important;
+  height: var(--atlas-seat-hit) !important;
+  min-width: var(--atlas-seat-hit) !important;
+  flex: 0 0 var(--atlas-seat-hit) !important;
   padding: 0 !important;
   border: 0 !important;
   border-radius: 50% !important;
-  background: var(--ticket-color, var(--atlas-seat-neutral)) !important;
+  background: transparent !important;
   color: var(--atlas-seat-text) !important;
   box-shadow: none !important;
   display: grid !important;
   place-items: center !important;
-  font-size: 6.5px !important;
+  font-size: 6px !important;
   font-weight: 800 !important;
   line-height: 1 !important;
+  position: relative;
+  isolation: isolate;
 }
 
-.atlas :global(.ticket-seat[style*="#FFFFFF"]),
-.atlas :global(.ticket-seat[style*="#ffffff"]) {
-  --ticket-color: var(--atlas-seat-neutral) !important;
+.atlas :global(.ticket-seat)::before {
+  content: "";
+  position: absolute;
+  width: var(--atlas-seat-dot);
+  height: var(--atlas-seat-dot);
+  border-radius: 50%;
+  background: var(--ticket-color, var(--atlas-seat-neutral));
+  z-index: -1;
+}
+
+.atlas :global(.ticket-seat[style*="#FFFFFF"])::before,
+.atlas :global(.ticket-seat[style*="#ffffff"])::before {
+  background: var(--atlas-seat-neutral) !important;
 }
 
 .atlas :global(.row-chairs) {
-  gap: 5px;
+  gap: 5px !important;
+  overflow: visible;
 }
 
 .atlas :global(.row-chair),
@@ -49,10 +66,17 @@
   box-shadow: none !important;
 }
 
+.atlas :global(.edge-chair),
+.atlas :global(.radial-chair) {
+  width: var(--atlas-seat-hit) !important;
+  height: var(--atlas-seat-hit) !important;
+}
+
 .atlas :global(.sofa-cushions) {
-  inset: auto 8px 8px;
-  min-height: 18px;
+  inset: auto 8px 6px;
+  min-height: var(--atlas-seat-hit);
   justify-content: center;
+  gap: 4px;
 }
 
 .atlas :global(.furniture-core) {
@@ -63,8 +87,9 @@
 }
 
 .atlas :global(.furniture-round_table .furniture-core) {
+  inset: 17px;
   border-radius: 50%;
-  background: #f3f5f7;
+  background: #f4f6f8;
 }
 
 .atlas :global(.furniture-sofa .furniture-core) {
@@ -75,7 +100,7 @@
 }
 
 .atlas :global(.furniture-core strong) {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
 }
 
@@ -89,16 +114,14 @@
   box-shadow: none;
 }
 
-.atlas :global(.shape-stage strong) {
-  font-weight: 800;
-}
+.atlas :global(.shape-stage strong) { font-weight: 800; }
 
 .atlas :global(.shape-zone) {
-  border: 1px solid #d5dbe2;
+  border: 1px solid #d9dee4;
   border-radius: 2px;
-  background: #f5f7f8;
+  background: #f6f7f8;
   color: #667383;
-  font-size: 19px;
+  font-size: 18px;
   letter-spacing: .02em;
 }
 
@@ -107,7 +130,7 @@
   border-radius: 2px;
   background: var(--atlas-structure);
   color: #fff;
-  font-size: 13px;
+  font-size: 12px;
   letter-spacing: .02em;
 }
 
@@ -116,9 +139,11 @@
   background: var(--atlas-object-fill);
 }
 
-.atlas :global(.ticket-seat.seat-selected) {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1769ff !important;
+.atlas :global(.ticket-seat.seat-selected)::before {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1769ff;
 }
+
+.atlas :global(.ticket-seat.seat-selected) { box-shadow: none !important; }
 
 .atlas :global(.ticket-legend i.unassigned) {
   background: var(--atlas-seat-neutral);
