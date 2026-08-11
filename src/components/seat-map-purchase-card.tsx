@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/locale-provider";
+import { LiveViewerPressure } from "@/components/live-viewer-pressure";
 import type { PricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 import type { TicketSalesStrategy } from "@/lib/ticket-sales-strategy";
 import styles from "./seat-map-purchase-card.module.css";
@@ -42,7 +43,7 @@ export function SeatMapPurchaseCard({ slug, categories, referralCode }: { slug: 
       <div className={styles.quantity}>
         <button type="button" aria-label={local.decrease} onClick={() => setQty((value) => Math.max(1, value - 1))}>−</button>
         <strong>{qty}</strong>
-        <button type="button" aria-label={local.increase} onClick={() => setQty((value) => Math.min(10, value + 1))}>+</button>
+        <button type="button" aria-label={local.increase} onClick={() => setQty((value) => Math.min(8, value + 1))}>+</button>
       </div>
     </div>
     {(hasEarly || hasSellingOut || hasOnePlusOne) && <div className={styles.offers}>
@@ -50,6 +51,7 @@ export function SeatMapPurchaseCard({ slug, categories, referralCode }: { slug: 
       {hasSellingOut && <span className={styles.selling}>🔥 {local.selling}</span>}
       {hasOnePlusOne && <span className={styles.onePlusOne}>{local.onePlusOne}</span>}
     </div>}
+    <LiveViewerPressure locale={locale} />
     <button type="button" className={styles.pick} onClick={openSeats}>{local.pick}</button>
   </div>;
 }
