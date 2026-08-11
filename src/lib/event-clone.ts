@@ -37,6 +37,14 @@ function newCode(base: string) {
   return `${safeBase}-${randomBytes(4).toString("hex")}`.toUpperCase();
 }
 
+function isGuestListPromoterName(name: string) {
+  return name.startsWith("__GUEST_LIST__:") || name.startsWith("__CHANNEL__:GUEST");
+}
+
+function isRealPromoterName(name: string) {
+  return !name.startsWith("__");
+}
+
 function replaceDoors(description: string, doorsOpenAt: string) {
   const marker = `<!--ATLAS_DOORS_OPEN:${doorsOpenAt}-->`;
   return description.match(/<!--ATLAS_DOORS_OPEN:[^>]+-->/)
@@ -132,11 +140,19 @@ export async function cloneEvent(actor: CloneActor, input: CloneEventInput) {
     if (input.copyReferralLinks) for (const referral of source.referrals) await tx.referral.create({ data: { eventId: event.id, label: referral.label, code: newCode(referral.label) } });
 
     for (const link of source.promoterLinks) {
-      const isGuest = link.promoter.name.startsWith("__GUEST_LIST__:");
-      if ((isGuest && !input.copyGuestLists) || (!isGuest && !input.copyPromoters)) continue;
+      const isGuest = isGuestListPromoterName(link.promoter.name);
+      const isPromoter = isRealPromoterName(link.promoter.name);
+      if (isGuest) {
+        if (!input.copyGuestLists) continue;
+      } else if (isPromoter) {
+        if (!input.copyPromoters) continue;
+      } else {
+        continue;
+      }
+
       let promoterId = link.promoterId;
       if (isGuest) {
-        const promoter = await tx.promoter.create({ data: { organizationId: actor.organizationId!, name: `__GUEST_LIST__:${link.label}:${randomBytes(4).toString("hex")}`, active: true, defaultCommissionBps: 0 } });
+        const promoter = await tx.promoter.create({ data: { organizationId: actor.organizationId!, name: `__CHANNEL__:GUEST:${link.label}:${randomBytes(4).toString("hex")}`, active: true, defaultCommissionBps: 0 } });
         promoterId = promoter.id;
       }
       await tx.promoterLink.create({
@@ -144,7 +160,13 @@ export async function cloneEvent(actor: CloneActor, input: CloneEventInput) {
       });
     }
 
-    return { id: event.id, categories: source.categories.length, zones: source.zones.length, promoterLinks: source.promoterLinks.filter((link) => { const isGuest = link.promoter.name.startsWith("__GUEST_LIST__:"); return isGuest ? input.copyGuestLists : input.copyPromoters; }).length, promoCodes: input.copyPromoCodes ? source.promoCodes.length : 0, referralLinks: input.copyReferralLinks ? source.referrals.length : 0 };
+    const copiedLinks = source.promoterLinks.filter((link) => {
+      const isGuest = isGuestListPromoterName(link.promoter.name);
+      if (isGuest) return input.copyGuestLists;
+      if (isRealPromoterName(link.promoter.name)) return input.copyPromoters;
+      return false;
+    }).length;
+    return { id: event.id, categories: source.categories.length, zones: source.zones.length, promoterLinks: copiedLinks, promoCodes: input.copyPromoCodes ? source.promoCodes.length : 0, referralLinks: input.copyReferralLinks ? source.referrals.length : 0 };
   });
 
   await writeAudit(actor as never, { action: "EVENT_CLONED", entityType: "Event", entityId: result.id, summary: `Скопировано мероприятие ${source.title} → ${input.title}`, metadata: result });
