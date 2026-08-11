@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function PromoterManager({ events, promoters }: { events: Array<{ id: string; title: string; categories: Array<{ id: string; name: string }>; tables: Array<{ id: string; label: string }> }>; promoters: Array<{ id: string; name: string; defaultCommissionBps: number }> }) {
+export function PromoterManager({ events, promoters, showLinkForm = true }: { events: Array<{ id: string; title: string; categories: Array<{ id: string; name: string }>; tables: Array<{ id: string; label: string }> }>; promoters: Array<{ id: string; name: string; defaultCommissionBps: number }>; showLinkForm?: boolean }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -29,11 +29,12 @@ export function PromoterManager({ events, promoters }: { events: Array<{ id: str
         <div className="field"><label>Email</label><input className="input" name="email" type="email" /></div>
         <div className="field"><label>Телефон</label><input className="input" name="phone" /></div>
         <div className="field"><label>Комиссия по умолчанию, %</label><input className="input" name="commission" type="number" min="0" max="100" step="0.01" defaultValue="0" /></div>
+        {error && <div className="toast">{error}</div>}
         <button className="btn" disabled={busy}>Добавить промоутера</button>
       </form>
     </div>
 
-    <div className="panel form">
+    {showLinkForm && <div className="panel form">
       <h2>Новая ссылка продаж</h2>
       <form onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); void send({ action: "link", eventId, promoterId: f.get("promoterId"), label: f.get("label"), code: String(f.get("code") || "").toUpperCase(), allocationType, categoryId: allocationType === "CATEGORY" ? f.get("categoryId") : null, tableId: allocationType === "TABLE" ? f.get("tableId") : null, guestLimit: f.get("guestLimit") ? Number(f.get("guestLimit")) : null, maxPerOrder: Number(f.get("maxPerOrder") || 10), customPriceMinor: f.get("price") ? Math.round(Number(f.get("price")) * 100) : null, commissionPercent: Number(f.get("commission") || 0), exclusive: f.get("exclusive") === "on" }); }}>
         <div className="field"><label>Мероприятие</label><select value={eventId} onChange={(e) => setEventId(e.target.value)}>{events.map((item) => <option value={item.id} key={item.id}>{item.title}</option>)}</select></div>
@@ -51,6 +52,6 @@ export function PromoterManager({ events, promoters }: { events: Array<{ id: str
         {error && <div className="toast">{error}</div>}
         <button className="btn" disabled={busy || !promoters.length || !events.length}>Создать ссылку</button>
       </form>
-    </div>
+    </div>}
   </div>;
 }
