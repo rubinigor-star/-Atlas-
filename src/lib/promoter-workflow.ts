@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
+import { getPublicOrigin } from "@/lib/public-origin";
 
-const PUBLIC_ORIGIN = (process.env.PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, "");
 let ready: Promise<void> | null = null;
 
 export async function ensurePromoterWorkflowRuntime() {
@@ -100,7 +100,7 @@ export async function sendPromoterLinkEmail(linkId: string, force = false) {
   const recipient = process.env.RESEND_TEST_TO || link.promoter.email;
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("Resend API key не настроен в Vercel");
-  const shareUrl = `${PUBLIC_ORIGIN}/events/${link.event.slug}?channel=${encodeURIComponent(link.code)}`;
+  const shareUrl = `${getPublicOrigin()}/events/${link.event.slug}?channel=${encodeURIComponent(link.code)}`;
   const commission = (link.commissionBps / 100).toFixed(2).replace(/\.00$/, "");
   await db.$executeRawUnsafe(
     `INSERT INTO "PromoterNotification" ("linkId","status","lastAttemptAt","error") VALUES ($1,'SENDING',CURRENT_TIMESTAMP,NULL)
