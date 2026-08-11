@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { money } from "@/lib/format";
 import { ensureAbandonedCheckoutRuntime } from "@/lib/abandoned-checkout";
+import { refreshAbandonedCheckoutStatuses } from "@/lib/abandoned-maintenance";
 import { getPromoterAutomation, getPromoterNotifications } from "@/lib/promoter-workflow";
 
 export const dynamic="force-dynamic";
@@ -30,6 +31,7 @@ export default async function PromoterDetailPage({params,searchParams}:{params:P
  const links=await db.promoterLink.findMany({where:{promoterId:promoter.id,eventId:{in:eventIds.length?eventIds:["__none__"]}},orderBy:{createdAt:"desc"},include:{event:true,category:true,table:true,visits:{where:from?{createdAt:{gte:from}}:undefined,select:{id:true}},orders:{where:{status:"PAID",...(from?{createdAt:{gte:from}}:{})},include:{items:true}}}});
  const [automation,notifications]=await Promise.all([getPromoterAutomation([promoter.id]),getPromoterNotifications(allPromoterLinks.map(link=>link.id))]);
  await ensureAbandonedCheckoutRuntime();
+ await refreshAbandonedCheckoutStatuses();
  const abandons=eventIds.length?await db.$queryRawUnsafe<AbandonRow[]>(`SELECT "metadataJson","token","abandonedAt","status","orderId" FROM "AbandonedCheckout" WHERE "organizationId"=$1 AND "eventId"=ANY($2::text[])${from?' AND "createdAt">=$3':''}`,organizationId,eventIds,...(from?[from]:[])):[];
  const codeToAbandons=new Map<string,AbandonRow[]>();for(const row of abandons){const code=refCode(row.metadataJson);if(!code)continue;const list=codeToAbandons.get(code)||[];list.push(row);codeToAbandons.set(code,list);}
  const linkRows=links.map(link=>{const rows=codeToAbandons.get(link.code.toUpperCase())||[];const paidOrders=new Map(link.orders.map(order=>[order.id,order]));const orders=paidOrders.size;const tickets=[...paidOrders.values()].reduce((sum,order)=>sum+order.items.reduce((x,item)=>x+item.quantity,0),0);const revenue=[...paidOrders.values()].reduce((sum,order)=>sum+order.totalMinor,0);const clicks=link.visits.length;const checkout=new Set(rows.map(row=>row.token)).size;const abandoned=rows.filter(row=>row.abandonedAt).length;const recovered=rows.filter(row=>row.status==="RECOVERED").length;return{link,clicks,checkout,abandoned,recovered,orders,tickets,revenue,conversion:clicks?orders/clicks*100:0};});
