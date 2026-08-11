@@ -49,15 +49,15 @@ function object(
 }
 
 function horizontalTableColumn(prefix: string, labels: number[], x: number, startY: number, step: number) {
-  return labels.map((label, index) => object(`${prefix}-${label}`, String(label), "TABLE", x, startY + index * step, 72, 44, 6));
+  return labels.map((label, index) => object(`${prefix}-${label}`, String(label), "TABLE", x, startY + index * step, 50, 30, 6));
 }
 
 function slimVerticalColumn(prefix: string, labels: number[], x: number, startY: number, step: number) {
-  return labels.map((label, index) => object(`${prefix}-${label}`, String(label), "TABLE", x, startY + index * step, 36, 58, 2));
+  return labels.map((label, index) => object(`${prefix}-${label}`, String(label), "TABLE", x, startY + index * step, 24, 40, 2));
 }
 
 function roundColumn(prefix: string, labels: number[], x: number, startY: number, step: number) {
-  return labels.map((label, index) => object(`${prefix}-${label}`, String(label), "ROUND_TABLE", x, startY + index * step, 64, 64, 6));
+  return labels.map((label, index) => object(`${prefix}-${label}`, String(label), "ROUND_TABLE", x, startY + index * step, 44, 44, 6));
 }
 
 export function isReadingVenue(venueName: string) {
@@ -67,31 +67,31 @@ export function isReadingVenue(venueName: string) {
 
 export function readingVenuePreset(): VenueMapPresetObject[] {
   return [
-    object("stage", "СЦЕНА", "STAGE", 50, 6, 255, 44),
-    object("dance-floor", "ТАНЦПОЛ", "ZONE", 50, 36, 405, 292),
+    object("stage", "СЦЕНА", "STAGE", 50, 6, 205, 34),
+    object("dance-floor", "ТАНЦПОЛ", "ZONE", 50, 35, 330, 238),
 
-    ...horizontalTableColumn("left-outer", [1, 2, 3, 4, 5, 6, 7, 8], 9, 15, 9.3),
-    ...slimVerticalColumn("left-inner", [10, 11, 12, 13, 14, 15, 16, 17, 18], 18, 14, 8.4),
-    ...roundColumn("left-round", [100, 101, 102, 103, 104, 105], 28, 15, 11.0),
+    ...horizontalTableColumn("left-outer", [1, 2, 3, 4, 5, 6, 7, 8], 10, 16, 9.0),
+    ...slimVerticalColumn("left-inner", [10, 11, 12, 13, 14, 15, 16, 17, 18], 19, 14, 8.3),
+    ...roundColumn("left-round", [100, 101, 102, 103, 104, 105], 29, 16, 10.6),
 
-    ...roundColumn("right-round", [110, 111, 112, 113, 114, 115], 72, 15, 11.0),
-    ...slimVerticalColumn("right-inner", [40, 41, 42, 43, 44, 45, 46, 47], 82, 15, 8.6),
-    ...horizontalTableColumn("right-outer", [50, 51, 52, 53, 54, 55, 56, 57, 58], 91, 12, 8.3),
+    ...roundColumn("right-round", [110, 111, 112, 113, 114, 115], 71, 16, 10.6),
+    ...slimVerticalColumn("right-inner", [40, 41, 42, 43, 44, 45, 46, 47], 81, 15, 8.5),
+    ...horizontalTableColumn("right-outer", [50, 51, 52, 53, 54, 55, 56, 57, 58], 90, 13, 8.0),
 
-    object("round-106", "106", "ROUND_TABLE", 36, 70, 64, 64, 6),
-    object("round-116", "116", "ROUND_TABLE", 64, 70, 64, 64, 6),
+    object("round-106", "106", "ROUND_TABLE", 38, 68, 44, 44, 6),
+    object("round-116", "116", "ROUND_TABLE", 62, 68, 44, 44, 6),
 
-    object("central-bar", "ЦЕНТРАЛЬНЫЙ БАР", "BAR", 50, 69, 150, 40),
-    object("central-bar-seats", "Места центрального бара", "ROW", 50, 75, 250, 24, 10),
+    object("central-bar", "ЦЕНТРАЛЬНЫЙ БАР", "BAR", 50, 68, 118, 30),
+    object("central-bar-seats", "Места центрального бара", "ROW", 50, 74, 205, 18, 10),
 
-    object("upper-bar-seats", "Места верхнего бара", "ROW", 50, 81, 390, 24, 20),
-    object("upper-bar", "ВЕРХНИЙ БАР", "BAR", 50, 85, 360, 32),
+    object("upper-bar-seats", "Места верхнего бара", "ROW", 50, 80, 315, 18, 20),
+    object("upper-bar", "ВЕРХНИЙ БАР", "BAR", 50, 84, 290, 24),
 
-    object("bottom-30", "30", "TABLE", 31, 92, 36, 66, 8),
-    object("bottom-31", "31", "TABLE", 39, 92, 36, 66, 8),
-    object("bottom-32", "32", "TABLE", 47, 92, 36, 66, 8),
-    object("bottom-33", "33", "TABLE", 55, 92, 36, 66, 8),
-    object("bottom-34", "34", "TABLE", 63, 92, 36, 66, 8),
-    object("bottom-35", "35", "TABLE", 71, 92, 36, 66, 8),
+    object("bottom-30", "30", "TABLE", 34, 90, 24, 48, 8),
+    object("bottom-31", "31", "TABLE", 40.5, 90, 24, 48, 8),
+    object("bottom-32", "32", "TABLE", 47, 90, 24, 48, 8),
+    object("bottom-33", "33", "TABLE", 53.5, 90, 24, 48, 8),
+    object("bottom-34", "34", "TABLE", 60, 90, 24, 48, 8),
+    object("bottom-35", "35", "TABLE", 66.5, 90, 24, 48, 8),
   ];
 }
