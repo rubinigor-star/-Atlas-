@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function PromoterManager() {
+type LegacyProps={events?:unknown;promoters?:unknown;showLinkForm?:boolean};
+
+export function PromoterManager(_props:LegacyProps) {
   const router=useRouter();
   const[error,setError]=useState("");
   const[busy,setBusy]=useState(false);
