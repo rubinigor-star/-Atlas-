@@ -36,6 +36,12 @@ const toggleSchema = z.object({
   active: z.boolean(),
 });
 
+const archivePromoterSchema = z.object({
+  action: z.literal("archivePromoter"),
+  promoterId: z.string().min(1),
+  active: z.boolean().default(false),
+});
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -60,8 +66,8 @@ export async function POST(req: Request) {
     if (body.action === "link") {
       const input = linkSchema.parse(body);
       const actor = await requireEventAccess("EVENT_MANAGE", input.eventId);
-      const promoter = await db.promoter.findFirst({ where: { id: input.promoterId, organizationId: actor.organizationId! } });
-      if (!promoter) throw new Error("Промоутер не найден");
+      const promoter = await db.promoter.findFirst({ where: { id: input.promoterId, organizationId: actor.organizationId!, active: true } });
+      if (!promoter) throw new Error("Промоутер не найден или архивирован");
 
       if (input.allocationType === "CATEGORY") {
         const category = await db.ticketCategory.findFirst({ where: { id: input.categoryId || "", eventId: input.eventId } });
@@ -102,6 +108,20 @@ export async function POST(req: Request) {
       const actor = await requireEventAccess("EVENT_MANAGE", existing.eventId);
       await db.promoterLink.update({ where: { id: input.linkId }, data: { active: input.active } });
       await writeAudit(actor, { action: input.active ? "PROMOTER_LINK_ENABLE" : "PROMOTER_LINK_DISABLE", entityType: "PromoterLink", entityId: input.linkId, summary: input.active ? "Ссылка включена" : "Ссылка отключена" });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (body.action === "archivePromoter") {
+      const input = archivePromoterSchema.parse(body);
+      const actor = await requirePermission("EVENT_MANAGE");
+      if (!actor.organizationId) throw new Error("FORBIDDEN");
+      const promoter = await db.promoter.findFirst({ where: { id: input.promoterId, organizationId: actor.organizationId, NOT: { name: { startsWith: "__" } } } });
+      if (!promoter) throw new Error("Промоутер не найден");
+      await db.$transaction([
+        db.promoter.update({ where: { id: promoter.id }, data: { active: input.active } }),
+        ...(input.active ? [] : [db.promoterLink.updateMany({ where: { promoterId: promoter.id, active: true }, data: { active: false } })]),
+      ]);
+      await writeAudit(actor, { action: input.active ? "PROMOTER_RESTORE" : "PROMOTER_ARCHIVE", entityType: "Promoter", entityId: promoter.id, summary: input.active ? `Восстановлен промоутер ${promoter.name}` : `Архивирован промоутер ${promoter.name}` });
       return NextResponse.json({ ok: true });
     }
 
