@@ -98,11 +98,19 @@ export async function captureAbandonedCheckout(input: CaptureInput) {
   await ensureDefaultScenario(event.organizationId);
 }
 
+// Legacy safeguard. The normal purchase path uses finalizeAbandonedCheckoutForOrder,
+// which additionally requires a genuine resume after abandonment. This function
+// must never turn a still-active uninterrupted checkout into a recovered sale.
 export async function markAbandonedCheckoutRecovered(token: string | undefined, orderId: string) {
   if (!token) return;
   await ensureAbandonedCheckoutRuntime();
-  await db.$executeRawUnsafe(`UPDATE "AbandonedCheckout" SET "status"='RECOVERED',"orderId"=$2,"recoveredAt"=CURRENT_TIMESTAMP,"stopReason"='PURCHASE_COMPLETED',"updatedAt"=CURRENT_TIMESTAMP WHERE "token"=$1 AND "status"<>'RECOVERED'`, token, orderId);
-  await db.$executeRawUnsafe(`UPDATE "RecoveryAction" SET "status"='CANCELLED',"error"='PURCHASE_COMPLETED',"updatedAt"=CURRENT_TIMESTAMP WHERE "checkoutId" IN (SELECT "id" FROM "AbandonedCheckout" WHERE "token"=$1) AND "status"='PENDING'`, token);
+  const rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
+    `UPDATE "AbandonedCheckout" SET "status"='RECOVERED',"orderId"=$2,"recoveredAt"=CURRENT_TIMESTAMP,"stopReason"='PURCHASE_COMPLETED',"updatedAt"=CURRENT_TIMESTAMP WHERE "token"=$1 AND "status"='ACTIVE' AND "abandonedAt" IS NOT NULL RETURNING "id"`,
+    token,
+    orderId,
+  );
+  if (!rows[0]) return;
+  await db.$executeRawUnsafe(`UPDATE "RecoveryAction" SET "status"='CANCELLED',"error"='PURCHASE_COMPLETED',"updatedAt"=CURRENT_TIMESTAMP WHERE "checkoutId"=$1 AND "status"='PENDING'`, rows[0].id);
 }
 
 export async function optOutAbandonedCheckout(token: string) {
@@ -114,7 +122,10 @@ export async function optOutAbandonedCheckout(token: string) {
 
 export async function prepareRecoveryActions() {
   await ensureAbandonedCheckoutRuntime();
-  await db.$executeRawUnsafe(`UPDATE "AbandonedCheckout" c SET "abandonedAt"=COALESCE(c."abandonedAt",c."lastActivityAt"),"updatedAt"=CURRENT_TIMESTAMP WHERE c."status"='ACTIVE' AND c."optOutAt" IS NULL AND c."customerEmail" IS NOT NULL AND EXISTS (SELECT 1 FROM "RecoveryScenario" s WHERE s."organizationId"=c."organizationId" AND s."eventId" IS NULL AND s."active"=TRUE AND c."lastActivityAt" <= CURRENT_TIMESTAMP - make_interval(mins => s."abandonAfterMinutes"))`);
+  // First synchronize the funnel state for every stale checkout. Contact data is
+  // intentionally NOT required here: abandonment and recoverability are different concepts.
+  await db.$executeRawUnsafe(`UPDATE "AbandonedCheckout" c SET "abandonedAt"=COALESCE(c."abandonedAt",c."lastActivityAt"),"updatedAt"=CURRENT_TIMESTAMP WHERE c."status"='ACTIVE' AND c."optOutAt" IS NULL AND EXISTS (SELECT 1 FROM "RecoveryScenario" s WHERE s."organizationId"=c."organizationId" AND (s."eventId"=c."eventId" OR s."eventId" IS NULL) AND s."active"=TRUE AND c."lastActivityAt" <= CURRENT_TIMESTAMP - make_interval(mins => s."abandonAfterMinutes"))`);
+  // Email recovery actions are created only when an email actually exists.
   const abandoned = await db.$queryRawUnsafe<Array<{ id: string; organizationId: string; eventId: string; abandonedAt: Date }>>(`SELECT "id","organizationId","eventId","abandonedAt" FROM "AbandonedCheckout" WHERE "status"='ACTIVE' AND "optOutAt" IS NULL AND "abandonedAt" IS NOT NULL AND "customerEmail" IS NOT NULL`);
   for (const checkout of abandoned) {
     const scenarios = await db.$queryRawUnsafe<Array<{ id: string }>>(`SELECT "id" FROM "RecoveryScenario" WHERE "active"=TRUE AND "organizationId"=$1 AND ("eventId"=$2 OR "eventId" IS NULL) ORDER BY CASE WHEN "eventId" IS NULL THEN 1 ELSE 0 END,"createdAt" ASC LIMIT 1`, checkout.organizationId, checkout.eventId);
@@ -141,8 +152,8 @@ export async function recoveryDashboard(organizationId: string, allowedEventIds?
   await ensureAbandonedCheckoutRuntime();
   const scope = allowedEventIds?.length ? ` AND c."eventId" = ANY($2::text[])` : "";
   const params: unknown[] = [organizationId]; if (allowedEventIds?.length) params.push(allowedEventIds);
-  const totals = await db.$queryRawUnsafe<Array<{ inProgressCount: bigint; activeCount: bigint; potentialMinor: bigint; recoveredCount: bigint; recoveredMinor: bigint }>>(`SELECT COUNT(*) FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NULL AND (c."customerEmail" IS NOT NULL OR c."customerPhone" IS NOT NULL)) AS "inProgressCount",COUNT(*) FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NOT NULL) AS "activeCount",COALESCE(SUM(c."amountMinor") FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NOT NULL),0) AS "potentialMinor",COUNT(*) FILTER (WHERE c."status"='RECOVERED') AS "recoveredCount",COALESCE(SUM(c."amountMinor") FILTER (WHERE c."status"='RECOVERED'),0) AS "recoveredMinor" FROM "AbandonedCheckout" c WHERE c."organizationId"=$1${scope}`, ...params);
+  const totals = await db.$queryRawUnsafe<Array<{ inProgressCount: bigint; activeCount: bigint; potentialMinor: bigint; recoveredCount: bigint; recoveredMinor: bigint }>>(`SELECT COUNT(*) FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NULL) AS "inProgressCount",COUNT(*) FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NOT NULL) AS "activeCount",COALESCE(SUM(c."amountMinor") FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NOT NULL),0) AS "potentialMinor",COUNT(*) FILTER (WHERE c."status"='RECOVERED') AS "recoveredCount",COALESCE(SUM(c."amountMinor") FILTER (WHERE c."status"='RECOVERED'),0) AS "recoveredMinor" FROM "AbandonedCheckout" c WHERE c."organizationId"=$1${scope}`, ...params);
   const events = await db.$queryRawUnsafe<Array<{ eventId: string; title: string; activeCount: bigint; potentialMinor: bigint; recoveredCount: bigint; recoveredMinor: bigint }>>(`SELECT c."eventId",e."title",COUNT(*) FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NOT NULL) AS "activeCount",COALESCE(SUM(c."amountMinor") FILTER (WHERE c."status"='ACTIVE' AND c."abandonedAt" IS NOT NULL),0) AS "potentialMinor",COUNT(*) FILTER (WHERE c."status"='RECOVERED') AS "recoveredCount",COALESCE(SUM(c."amountMinor") FILTER (WHERE c."status"='RECOVERED'),0) AS "recoveredMinor" FROM "AbandonedCheckout" c JOIN "Event" e ON e."id"=c."eventId" WHERE c."organizationId"=$1${scope} GROUP BY c."eventId",e."title" ORDER BY "potentialMinor" DESC`, ...params);
-  const recent = await db.$queryRawUnsafe<Array<CheckoutRow & { actionStatus: string | null }>>(`SELECT c.*,e."title" AS "eventTitle",(SELECT a."status" FROM "RecoveryAction" a WHERE a."checkoutId"=c."id" ORDER BY a."createdAt" DESC LIMIT 1) AS "actionStatus" FROM "AbandonedCheckout" c JOIN "Event" e ON e."id"=c."eventId" WHERE c."organizationId"=$1${scope} AND ((c."customerEmail" IS NOT NULL OR c."customerPhone" IS NOT NULL) OR c."status"='RECOVERED') ORDER BY COALESCE(c."recoveredAt",c."optOutAt",c."lastActivityAt") DESC LIMIT 100`, ...params);
+  const recent = await db.$queryRawUnsafe<Array<CheckoutRow & { actionStatus: string | null }>>(`SELECT c.*,e."title" AS "eventTitle",(SELECT a."status" FROM "RecoveryAction" a WHERE a."checkoutId"=c."id" ORDER BY a."createdAt" DESC LIMIT 1) AS "actionStatus" FROM "AbandonedCheckout" c JOIN "Event" e ON e."id"=c."eventId" WHERE c."organizationId"=$1${scope} ORDER BY COALESCE(c."recoveredAt",c."optOutAt",c."lastActivityAt") DESC LIMIT 100`, ...params);
   return { totals: totals[0] || { inProgressCount: BigInt(0), activeCount: BigInt(0), potentialMinor: BigInt(0), recoveredCount: BigInt(0), recoveredMinor: BigInt(0) }, events, recent };
 }
