@@ -43,8 +43,16 @@ export async function POST(req:Request){
   const body=await req.json();
   if(body.action==="promoter"){
    const input=promoterSchema.parse(body);const actor=await requirePermission("EVENT_MANAGE");if(!actor.organizationId)throw new Error("FORBIDDEN");
-   const existing=await db.promoter.findFirst({where:{organizationId:actor.organizationId,name:input.name,NOT:{name:{startsWith:"__"}}},select:{id:true,name:true}});
-   if(existing)return NextResponse.json({error:`Промоутер «${existing.name}» уже существует.`,existingId:existing.id},{status:409});
+   const existing=await db.promoter.findFirst({where:{organizationId:actor.organizationId,name:input.name,NOT:{name:{startsWith:"__"}}}});
+   if(existing){
+    if(!existing.active){
+     const restored=await db.promoter.update({where:{id:existing.id},data:{active:true,email:input.email,phone:input.phone||null,defaultCommissionBps:Math.round(input.commissionPercent*100)}});
+     await setPromoterAutomation(restored.id,input.autoAssignAllEvents);
+     await writeAudit(actor,{action:"PROMOTER_RESTORE",entityType:"Promoter",entityId:restored.id,summary:`Восстановлен промоутер ${restored.name}`});
+     return NextResponse.json({ok:true,id:restored.id,restored:true},{status:200});
+    }
+    return NextResponse.json({error:`Промоутер «${existing.name}» уже существует.`,existingId:existing.id},{status:409});
+   }
    const promoter=await db.promoter.create({data:{organizationId:actor.organizationId,name:input.name,email:input.email,phone:input.phone||null,defaultCommissionBps:Math.round(input.commissionPercent*100),active:true}});
    await setPromoterAutomation(promoter.id,input.autoAssignAllEvents);
    await writeAudit(actor,{action:"PROMOTER_CREATE",entityType:"Promoter",entityId:promoter.id,summary:`Создан промоутер ${promoter.name}`});
