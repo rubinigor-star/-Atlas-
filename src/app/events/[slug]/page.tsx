@@ -35,9 +35,9 @@ import ctaLayout from "./event-cta-layout.module.css";
 
 export const dynamic="force-dynamic";
 const copy={
- ru:{buyFrom:"Купить билеты от",buy:"Купить билеты",about:"О мероприятии",faq:"Часто задаваемые вопросы",readMore:"Читать далее",readLess:"Свернуть"},
- he:{buyFrom:"רכישת כרטיסים החל מ־",buy:"רכישת כרטיסים",about:"אודות האירוע",faq:"שאלות נפוצות",readMore:"לקריאה נוספת",readLess:"צמצום"},
- en:{buyFrom:"Get tickets from",buy:"Get tickets",about:"About the event",faq:"Frequently asked questions",readMore:"Read more",readLess:"Show less"},
+ ru:{buyFrom:"Купить билеты от",buy:"Купить билеты",from:"От",pick:"Выбрать места",about:"О мероприятии",faq:"Часто задаваемые вопросы",readMore:"Читать далее",readLess:"Свернуть"},
+ he:{buyFrom:"רכישת כרטיסים החל מ־",buy:"רכישת כרטיסים",from:"החל מ־",pick:"בחירת מקומות",about:"אודות האירוע",faq:"שאלות נפוצות",readMore:"לקריאה נוספת",readLess:"צמצום"},
+ en:{buyFrom:"Get tickets from",buy:"Get tickets",from:"From",pick:"Pick your seats",about:"About the event",faq:"Frequently asked questions",readMore:"Read more",readLess:"Show less"},
 } as const;
 
 export default async function EventPage({params,searchParams}:{params:Promise<{slug:string}>;searchParams:Promise<Record<string,string|undefined>>}){
@@ -53,7 +53,7 @@ export default async function EventPage({params,searchParams}:{params:Promise<{s
  const categories=event.categories.flatMap(category=>{if(category.hidden)return[];try{const standardPrice=effectiveTicketPrice(category,now);const channelPrice=validPromoterLink?.allocationType==="CATEGORY"&&validPromoterLink.categoryId===category.id&&validPromoterLink.customPriceMinor!==null?validPromoterLink.customPriceMinor:standardPrice;return[{...category,description:stripTicketSalesStrategy(stripPricingMarketingStrategy(category.description)),priceMinor:channelPrice,pricingPresentation:ticketPricePresentation(category,now),marketingStrategy:parsePricingMarketingStrategy(category.description),salesStrategy:parseTicketSalesStrategy(category.description)}]}catch{return[]}});
  const objects=zones.flatMap(zone=>zone.tables.map(table=>({...table,zone:{name:zone.name}}))); const media=parseEventMedia(event.description); const presentation=parseEventPresentation(event.description); const eventTypes=parseEventTypes(event.description); const publicCategoryLabels=eventTypes.map(type=>eventTypeLabels[i18n.locale][type]); const heroVideo=media.find(item=>item.type==="VIDEO")?.url; const links=media.filter(item=>item.type==="LINK");
  const publicDescription=stripEventPresentation(stripEventType(stripEventMarkers(stripBuyerQuestions(stripEventRejectionMessage(stripEventMedia(event.description)))))).trim();
- const shortDescription=presentation.shortDescription||publicDescription.replace(/\s+/g," ").slice(0,100); const text=i18n.messages.event; const local=copy[i18n.locale]; const eventUrl=`https://www.atlas-one.co/events/${event.slug}`; const lowestPrice=categories.length?Math.min(...categories.map(category=>category.priceMinor)):null; const ctaLabel=lowestPrice===null?local.buy:`${local.buyFrom} ${money(lowestPrice,"ILS",i18n.locale)}`; const locationLabel=/(?:israel|ישראל)/i.test(event.venue.city)?event.venue.city:`${event.venue.city}, Israel`; const pageStyle={"--event-hero-image":`url("${event.posterUrl}")`} as CSSProperties;
+ const shortDescription=presentation.shortDescription||publicDescription.replace(/\s+/g," ").slice(0,100); const text=i18n.messages.event; const local=copy[i18n.locale]; const eventUrl=`https://www.atlas-one.co/events/${event.slug}`; const positivePrices=categories.map(category=>category.priceMinor).filter(price=>price>0); const lowestPrice=positivePrices.length?Math.min(...positivePrices):(categories.length?Math.min(...categories.map(category=>category.priceMinor)):null); const ctaLabel=lowestPrice===null?local.buy:`${local.buyFrom} ${money(lowestPrice,"ILS",i18n.locale)}`; const mobilePriceLabel=lowestPrice===null?local.buy:`${local.from} ${money(lowestPrice,"ILS",i18n.locale)}`; const locationLabel=/(?:israel|ישראל)/i.test(event.venue.city)?event.venue.city:`${event.venue.city}, Israel`; const pageStyle={"--event-hero-image":`url("${event.posterUrl}")`} as CSSProperties; const seatHref=event.mapEnabled?`/events/${event.slug}/seats?qty=2${validPromoterLink?.code?`&ref=${encodeURIComponent(validPromoterLink.code)}`:""}`:undefined;
  const feeTerms={salesFeePercentBps:commercialTerms.organizer.salesFeePercentBps,salesFeeFixedMinor:commercialTerms.organizer.salesFeeFixedMinor,serviceFeePayer:commercialTerms.serviceFeePayer};
  return <main id="event-public-page" className={styles.page} style={pageStyle}>
   <EventHeroPalette posterUrl={event.posterUrl} targetId="event-public-page"/>
@@ -72,6 +72,6 @@ export default async function EventPage({params,searchParams}:{params:Promise<{s
    </article></div>
    <aside id="tickets" className={styles.ticketsColumn}>{validPromoterLink&&<div className={styles.promoterCard}><strong>{text.personalLink}: {validPromoterLink.label}</strong><p>{text.personalLinkInfo}</p></div>}{categories.length?<div className={styles.ticketCard}>{event.mapEnabled?<SeatMapPurchaseCard slug={event.slug} categories={categories} referralCode={validPromoterLink?.code}/>:<EventPurchase eventId={event.id} categories={categories} objects={objects} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocation={validPromoterLink?{type:validPromoterLink.allocationType,categoryId:validPromoterLink.categoryId,tableId:validPromoterLink.tableId,customPriceMinor:validPromoterLink.customPriceMinor}:undefined}/>}</div>:<div className={styles.closedCard}><strong>{text.salesClosed}</strong><p>{text.noTariffs}</p></div>}</aside>
   </div></section>
-  {categories.length>0&&<EventMobileStickyCta label={ctaLabel}/>} 
+  {categories.length>0&&<EventMobileStickyCta priceLabel={mobilePriceLabel} actionLabel={event.mapEnabled?local.pick:local.buy} locale={i18n.locale} actionHref={seatHref}/>} 
  </main>;
 }
