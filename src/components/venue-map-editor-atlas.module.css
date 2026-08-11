@@ -1,0 +1,133 @@
+.atlas {
+  --atlas-seat-neutral: #e3e7eb;
+  --atlas-seat-text: #536273;
+  --atlas-object-fill: #f5f7f9;
+  --atlas-object-border: #c8d0d9;
+  --atlas-structure: #9fa7b1;
+}
+
+.atlas :global(.map-world) {
+  background-color: #fff;
+  background-image: linear-gradient(#f2f4f7 1px, transparent 1px), linear-gradient(90deg, #f2f4f7 1px, transparent 1px);
+  background-size: 20px 20px;
+  border-color: #d7dde4;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, .055);
+}
+
+.atlas :global(.ticket-seat) {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  flex: 0 0 18px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: var(--ticket-color, var(--atlas-seat-neutral)) !important;
+  color: var(--atlas-seat-text) !important;
+  box-shadow: none !important;
+  display: grid !important;
+  place-items: center !important;
+  font-size: 6.5px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
+.atlas :global(.ticket-seat[style*="#FFFFFF"]),
+.atlas :global(.ticket-seat[style*="#ffffff"]) {
+  --ticket-color: var(--atlas-seat-neutral) !important;
+}
+
+.atlas :global(.row-chairs) {
+  gap: 5px;
+}
+
+.atlas :global(.row-chair),
+.atlas :global(.sofa-seat),
+.atlas :global(.edge-chair),
+.atlas :global(.radial-chair) {
+  border-radius: 50% !important;
+  box-shadow: none !important;
+}
+
+.atlas :global(.sofa-cushions) {
+  inset: auto 8px 8px;
+  min-height: 18px;
+  justify-content: center;
+}
+
+.atlas :global(.furniture-core) {
+  border: 1px solid var(--atlas-object-border);
+  background: var(--atlas-object-fill);
+  border-radius: 3px;
+  color: #4d5968;
+}
+
+.atlas :global(.furniture-round_table .furniture-core) {
+  border-radius: 50%;
+  background: #f3f5f7;
+}
+
+.atlas :global(.furniture-sofa .furniture-core) {
+  border: 1px solid var(--atlas-object-border);
+  border-radius: 8px;
+  background: #edf1f4;
+  box-shadow: none;
+}
+
+.atlas :global(.furniture-core strong) {
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.atlas :global(.shape-stage) {
+  border: 0;
+  border-radius: 2px;
+  background: var(--atlas-structure);
+  color: #fff;
+  font-size: 17px;
+  letter-spacing: .04em;
+  box-shadow: none;
+}
+
+.atlas :global(.shape-stage strong) {
+  font-weight: 800;
+}
+
+.atlas :global(.shape-zone) {
+  border: 1px solid #d5dbe2;
+  border-radius: 2px;
+  background: #f5f7f8;
+  color: #667383;
+  font-size: 19px;
+  letter-spacing: .02em;
+}
+
+.atlas :global(.shape-bar) {
+  border: 0;
+  border-radius: 2px;
+  background: var(--atlas-structure);
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: .02em;
+}
+
+.atlas :global(.map-world.tickets .furniture-core) {
+  border-color: var(--atlas-object-border);
+  background: var(--atlas-object-fill);
+}
+
+.atlas :global(.ticket-seat.seat-selected) {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1769ff !important;
+}
+
+.atlas :global(.ticket-legend i.unassigned) {
+  background: var(--atlas-seat-neutral);
+  border: 0;
+  border-radius: 50%;
+}
+
+.atlas :global(.editor-object.selected:after) {
+  border-width: 1.5px;
+  border-color: #1769ff;
+  box-shadow: 0 0 0 2px rgba(23, 105, 255, .08);
+}
