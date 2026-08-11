@@ -13,21 +13,52 @@ import styles from "./event-seat-selection.module.css";
 import polish from "./event-seat-selection-polish.module.css";
 
 type Category = {
-  id: string; name: string; priceMinor: number; colorHex: string; capacity: number; sold: number;
+  id: string;
+  name: string;
+  priceMinor: number;
+  colorHex: string;
+  capacity: number;
+  sold: number;
   pricingPresentation: { stageLabel: string };
   marketingStrategy: PricingMarketingStrategy;
   salesStrategy: TicketSalesStrategy;
 };
-type MapSeat = { id: string; label: string; position: number; status: "AVAILABLE" | "RESERVED" | "BLOCKED"; categoryId: string | null };
-type MapObject = {
-  id: string; label: string; seats: number; priceMinor: number; priceMode: "WHOLE_TABLE" | "PER_SEAT";
-  objectType: "TABLE" | "ROUND_TABLE" | "SOFA" | "ROW" | "ZONE" | "STAGE" | "BAR" | "TEXT";
-  x: number; y: number; rotation: number; width: number; height: number; reserved: boolean;
-  categoryId: string | null; seatItems: MapSeat[];
+
+type MapSeat = {
+  id: string;
+  label: string;
+  position: number;
+  status: "AVAILABLE" | "RESERVED" | "BLOCKED";
+  categoryId: string | null;
 };
-type Allocation = { type: "EVENT" | "CATEGORY" | "TABLE"; categoryId: string | null; tableId: string | null; customPriceMinor: number | null };
+
+type MapObject = {
+  id: string;
+  label: string;
+  seats: number;
+  priceMinor: number;
+  priceMode: "WHOLE_TABLE" | "PER_SEAT";
+  objectType: "TABLE" | "ROUND_TABLE" | "SOFA" | "ROW" | "ZONE" | "STAGE" | "BAR" | "TEXT";
+  x: number;
+  y: number;
+  rotation: number;
+  width: number;
+  height: number;
+  reserved: boolean;
+  categoryId: string | null;
+  seatItems: MapSeat[];
+};
+
+type Allocation = {
+  type: "EVENT" | "CATEGORY" | "TABLE";
+  categoryId: string | null;
+  tableId: string | null;
+  customPriceMinor: number | null;
+};
+
 type OfferFilter = "ALL" | "BUY_ONE_GET_ONE";
 type SeatStyle = React.CSSProperties & { "--seat-color": string };
+type HoveredSeat = { object: MapObject; seat: MapSeat; x: number; y: number } | null;
 
 const WORLD_WIDTH = 1400;
 const WORLD_HEIGHT = 900;
@@ -48,7 +79,9 @@ function readableEventTitle(value: string) {
 function tableSeatPosition(item: MapObject, index: number): React.CSSProperties {
   const position = index + 1;
   const horizontal = item.width >= item.height;
-  if (item.seats === 2) return horizontal ? { left: position === 1 ? "12%" : "88%", top: "50%" } : { left: "50%", top: position === 1 ? "12%" : "88%" };
+  if (item.seats === 2) return horizontal
+    ? { left: position === 1 ? "12%" : "88%", top: "50%" }
+    : { left: "50%", top: position === 1 ? "12%" : "88%" };
   if (item.seats === 6 && horizontal) {
     const top = index < 3;
     return { left: `${[18, 50, 82][index % 3]}%`, top: top ? "14%" : "86%" };
@@ -99,21 +132,51 @@ function validGroups(object: MapObject, quantity: number, seatAllowed: (seat: Ma
   return output;
 }
 
-function SeatDot({ seat, object, color, selected, eligible, disabled, onClick }: {
-  seat: MapSeat; object: MapObject; color: string; selected: boolean; eligible: boolean; disabled: boolean; onClick: () => void;
+function SeatDot({ seat, object, color, selected, eligible, disabled, onClick, onHover, onLeave }: {
+  seat: MapSeat;
+  object: MapObject;
+  color: string;
+  selected: boolean;
+  eligible: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  onHover: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onLeave: () => void;
 }) {
   const style = object.objectType === "TABLE"
     ? tableSeatPosition(object, seat.position - 1)
     : object.objectType === "ROUND_TABLE"
-      ? (() => { const angle = (seat.position - 1) / Math.max(1, object.seats) * Math.PI * 2 - Math.PI / 2; return { left: `${50 + Math.cos(angle) * 39}%`, top: `${50 + Math.sin(angle) * 39}%` }; })()
+      ? (() => {
+          const angle = (seat.position - 1) / Math.max(1, object.seats) * Math.PI * 2 - Math.PI / 2;
+          return { left: `${50 + Math.cos(angle) * 39}%`, top: `${50 + Math.sin(angle) * 39}%` };
+        })()
       : undefined;
   const seatStyle: SeatStyle = { ...style, "--seat-color": color };
-  return <button type="button" aria-label={seat.label} title={seat.label} className={`${styles.seat} ${selected ? styles.selected : ""} ${!eligible ? styles.filtered : ""}`} style={seatStyle} disabled={disabled} onClick={(event) => { event.stopPropagation(); onClick(); }}><span>{seat.position}</span></button>;
+  return <button
+    type="button"
+    aria-label={seat.label}
+    className={`${styles.seat} ${selected ? styles.selected : ""} ${!eligible ? styles.filtered : ""}`}
+    style={seatStyle}
+    disabled={disabled}
+    onMouseEnter={onHover}
+    onMouseMove={onHover}
+    onMouseLeave={onLeave}
+    onClick={(event) => { event.stopPropagation(); onClick(); }}
+  ><span>{seat.position}</span></button>;
 }
 
 export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName, categories, objects, feeTerms, referralCode, allocation, initialQty }: {
-  eventId: string; slug: string; title: string; posterUrl: string; venueName: string; categories: Category[]; objects: MapObject[];
-  feeTerms: ServiceFeeTerms; referralCode?: string; allocation?: Allocation; initialQty: number;
+  eventId: string;
+  slug: string;
+  title: string;
+  posterUrl: string;
+  venueName: string;
+  categories: Category[];
+  objects: MapObject[];
+  feeTerms: ServiceFeeTerms;
+  referralCode?: string;
+  allocation?: Allocation;
+  initialQty: number;
 }) {
   const router = useRouter();
   const { locale } = useLocale();
@@ -123,11 +186,27 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const [panning, setPanning] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [draftQty, setDraftQty] = useState(Math.max(1, Math.min(8, initialQty)));
+  const [hoveredSeat, setHoveredSeat] = useState<HoveredSeat>(null);
 
   const local = {
-    ru: { back: "Вернуться к мероприятию", offers: "Специальное предложение", all: "Все билеты", onePlusOne: "1 + 1", people: "Количество билетов", tickets: "билетов", confirm: "Подтвердить", selected: "Выбрано", continue: "Продолжить", price: "Цена", noSeats: "В выбранном диапазоне нет подходящих мест рядом", zoomReset: "Сбросить масштаб" },
-    en: { back: "Back to event", offers: "Special offer", all: "All tickets", onePlusOne: "1 + 1", people: "Ticket quantity", tickets: "tickets", confirm: "Confirm", selected: "Selected", continue: "Continue", price: "Price", noSeats: "No adjacent seats match this price range", zoomReset: "Reset zoom" },
-    he: { back: "חזרה לאירוע", offers: "הצעה מיוחדת", all: "כל הכרטיסים", onePlusOne: "1 + 1", people: "כמות כרטיסים", tickets: "כרטיסים", confirm: "אישור", selected: "נבחרו", continue: "המשך", price: "מחיר", noSeats: "אין מקומות צמודים בטווח המחירים שנבחר", zoomReset: "איפוס זום" },
+    ru: {
+      back: "Вернуться к мероприятию", offers: "Специальное предложение", all: "Все билеты", onePlusOne: "1 + 1",
+      people: "Количество гостей", peopleHint: "Покажем только места, где вся группа сможет сидеть рядом", tickets: "билетов",
+      confirm: "Подтвердить", selected: "Выбрано", continue: "Продолжить", price: "Цена", noSeats: "В выбранном диапазоне нет подходящих мест рядом",
+      zoomReset: "Сбросить масштаб", row: "Ряд", seat: "место", seats: "места", table: "Стол", zone: "Зона", section: "Категория"
+    },
+    en: {
+      back: "Back to event", offers: "Special offer", all: "All tickets", onePlusOne: "1 + 1",
+      people: "Guests", peopleHint: "We only show places where the whole group can sit together", tickets: "tickets",
+      confirm: "Confirm", selected: "Selected", continue: "Continue", price: "Price", noSeats: "No adjacent seats match this price range",
+      zoomReset: "Reset zoom", row: "Row", seat: "seat", seats: "seats", table: "Table", zone: "Zone", section: "Category"
+    },
+    he: {
+      back: "חזרה לאירוע", offers: "הצעה מיוחדת", all: "כל הכרטיסים", onePlusOne: "1 + 1",
+      people: "מספר אורחים", peopleHint: "נציג רק מקומות שבהם כל הקבוצה יכולה לשבת יחד", tickets: "כרטיסים",
+      confirm: "אישור", selected: "נבחרו", continue: "המשך", price: "מחיר", noSeats: "אין מקומות צמודים בטווח המחירים שנבחר",
+      zoomReset: "איפוס זום", row: "שורה", seat: "מקום", seats: "מקומות", table: "שולחן", zone: "אזור", section: "קטגוריה"
+    },
   }[locale];
 
   useEffect(() => {
@@ -192,23 +271,44 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const selectedSeats = objects.flatMap(item => item.seatItems).filter(seat => selectedSeatIds.includes(seat.id));
   const wholeObject = objects.find(item => item.id === wholeObjectId);
   const zoneObject = objects.find(item => item.id === zoneObjectId);
+  const selectedObject = wholeObject ?? zoneObject ?? objects.find(item => item.seatItems.some(seat => selectedSeatIds.includes(seat.id)));
   const selectionComplete = Boolean(wholeObject) || Boolean(zoneObject) || selectedSeatIds.length === qty;
+
   const rawSubtotal = zoneObject
     ? (categories.find(item => item.id === zoneObject.categoryId)?.priceMinor ?? zoneObject.priceMinor) * qty
     : wholeObject
-      ? (allocation?.type === "TABLE" && allocation.customPriceMinor !== null ? allocation.customPriceMinor : (categories.find(item => item.id === wholeObject.categoryId)?.priceMinor ?? wholeObject.priceMinor))
+      ? (allocation?.type === "TABLE" && allocation.customPriceMinor !== null
+          ? allocation.customPriceMinor
+          : (categories.find(item => item.id === wholeObject.categoryId)?.priceMinor ?? wholeObject.priceMinor))
       : selectedSeats.reduce((sum, seat) => sum + (categories.find(item => item.id === seat.categoryId)?.priceMinor ?? 0), 0);
-  const total = selectionComplete ? buyerPrice(rawSubtotal) : 0;
+  const currentTotal = buyerPrice(rawSubtotal);
   const scale = zoom / 100;
   const displayTitle = readableEventTitle(title);
 
-  function clearSelection() { if (allocation?.type === "TABLE") return; setSelectedSeatIds([]); setWholeObjectId(null); setZoneObjectId(null); }
-  function confirmPeople() { setQty(Math.max(1, Math.min(8, draftQty))); setPeopleOpen(false); clearSelection(); }
-  function chooseOffer(next: OfferFilter) { setOffer(next); setOfferOpen(false); if (next === "BUY_ONE_GET_ONE") setQty(value => value < 2 ? 2 : value % 2 === 0 ? value : Math.min(8, value + 1)); clearSelection(); }
+  function clearSelection() {
+    if (allocation?.type === "TABLE") return;
+    setSelectedSeatIds([]);
+    setWholeObjectId(null);
+    setZoneObjectId(null);
+  }
+
+  function confirmPeople() {
+    setQty(Math.max(1, Math.min(8, draftQty)));
+    setPeopleOpen(false);
+    clearSelection();
+  }
+
+  function chooseOffer(next: OfferFilter) {
+    setOffer(next);
+    setOfferOpen(false);
+    if (next === "BUY_ONE_GET_ONE") setQty(value => value < 2 ? 2 : value % 2 === 0 ? value : Math.min(8, value + 1));
+    clearSelection();
+  }
 
   function chooseSeat(object: MapObject, seat: MapSeat) {
     if (!eligibleSeatIds.has(seat.id) || seat.status !== "AVAILABLE") return;
-    setWholeObjectId(null); setZoneObjectId(null);
+    setWholeObjectId(null);
+    setZoneObjectId(null);
     setSelectedSeatIds(current => {
       if (current.includes(seat.id)) return current.filter(id => id !== seat.id);
       const sameObject = current.every(id => object.seatItems.some(item => item.id === id));
@@ -222,7 +322,9 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
 
   function chooseZone(object: MapObject) {
     if (object.objectType !== "ZONE" || !object.categoryId || !allowedCategoryIds.has(object.categoryId)) return;
-    setSelectedSeatIds([]); setWholeObjectId(null); setZoneObjectId(current => current === object.id ? null : object.id);
+    setSelectedSeatIds([]);
+    setWholeObjectId(null);
+    setZoneObjectId(current => current === object.id ? null : object.id);
   }
 
   function go() {
@@ -244,25 +346,54 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     const viewport = viewportRef.current;
     if (!viewport) return;
     panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
-    viewport.setPointerCapture(event.pointerId); setPanning(true); event.preventDefault();
+    viewport.setPointerCapture(event.pointerId);
+    setPanning(true);
+    event.preventDefault();
   }
+
   function movePan(event: React.PointerEvent<HTMLDivElement>) {
     if (!panning || panRef.current.pointerId !== event.pointerId) return;
-    const viewport = viewportRef.current; if (!viewport) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
     viewport.scrollLeft = panRef.current.left - (event.clientX - panRef.current.x);
     viewport.scrollTop = panRef.current.top - (event.clientY - panRef.current.y);
   }
+
   function endPan(event: React.PointerEvent<HTMLDivElement>) {
     if (panRef.current.pointerId !== event.pointerId) return;
     const viewport = viewportRef.current;
     if (viewport?.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
-    panRef.current.pointerId = -1; setPanning(false);
+    panRef.current.pointerId = -1;
+    setPanning(false);
+  }
+
+  function categoryFor(object: MapObject, seat?: MapSeat) {
+    const categoryId = seat?.categoryId ?? object.categoryId;
+    return categories.find(item => item.id === categoryId);
+  }
+
+  function objectDescription(object: MapObject, seats: MapSeat[]) {
+    const sorted = [...seats].sort((a, b) => a.position - b.position);
+    if (object.objectType === "ROW") {
+      if (sorted.length <= 1) return `${local.row} ${object.label}, ${local.seat} ${sorted[0]?.position ?? ""}`;
+      return `${local.row} ${object.label}, ${local.seats} ${sorted[0].position}-${sorted[sorted.length - 1].position}`;
+    }
+    if (object.objectType === "TABLE" || object.objectType === "ROUND_TABLE") {
+      if (!sorted.length) return `${local.table} ${object.label}`;
+      if (sorted.length === 1) return `${local.table} ${object.label}, ${local.seat} ${sorted[0].position}`;
+      return `${local.table} ${object.label}, ${local.seats} ${sorted[0].position}-${sorted[sorted.length - 1].position}`;
+    }
+    if (object.objectType === "ZONE") return `${local.zone}: ${object.label}`;
+    if (!sorted.length) return object.label;
+    return `${object.label}, ${local.seat} ${sorted[0].position}`;
   }
 
   const rangeDenominator = Math.max(1, sortedPrices.length - 1);
   const activeLeft = minIndex / rangeDenominator * 100;
   const activeWidth = (maxIndex - minIndex) / rangeDenominator * 100;
   const backHref = `/events/${slug}${referralCode ? `?ref=${encodeURIComponent(referralCode)}` : ""}`;
+  const selectionCategory = selectedObject ? categoryFor(selectedObject, selectedSeats[0]) : undefined;
+  const selectionDescription = selectedObject ? objectDescription(selectedObject, selectedSeats) : "";
 
   return <main className={styles.page}>
     <Link className={`${styles.headerBack} ${polish.headerBack}`} href={backHref}><ArrowLeft size={18}/><span>{local.back}</span></Link>
@@ -273,7 +404,10 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
             {sortedPrices.map((price, index) => {
               const category = availableCategories.find(item => (categoryPrice.get(item.id) ?? 0) === price);
               const active = index >= minIndex && index <= maxIndex;
-              return <button type="button" key={`${price}-${index}`} className={active ? styles.priceActive : ""} onClick={() => { if (index < minIndex) setMinIndex(index); else if (index > maxIndex) setMaxIndex(index); }}><b style={{ color: category?.colorHex ?? "#64748b" }}>{money(price, "ILS", locale)}</b></button>;
+              return <button type="button" key={`${price}-${index}`} className={active ? styles.priceActive : ""} onClick={() => {
+                if (index < minIndex) setMinIndex(index);
+                else if (index > maxIndex) setMaxIndex(index);
+              }}><b style={{ color: category?.colorHex ?? "#64748b" }}>{money(price, "ILS", locale)}</b></button>;
             })}
           </div>
           <div className={styles.rangeWrap}>
@@ -284,7 +418,11 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
         </div>
 
         <div ref={viewportRef} className={`${styles.mapViewport} ${spaceHeld ? styles.panReady : ""} ${panning ? styles.panning : ""}`} onPointerDown={startPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan}>
-          <div className={styles.zoom}><button type="button" onClick={() => setZoom(value => Math.min(125, value + 10))}><Plus size={20}/></button><button type="button" title={local.zoomReset} onClick={() => setZoom(DEFAULT_ZOOM)}><RotateCcw size={18}/></button><button type="button" onClick={() => setZoom(value => Math.max(35, value - 10))}><Minus size={20}/></button></div>
+          <div className={styles.zoom}>
+            <button type="button" onClick={() => setZoom(value => Math.min(125, value + 10))}><Plus size={20}/></button>
+            <button type="button" title={local.zoomReset} onClick={() => setZoom(DEFAULT_ZOOM)}><RotateCcw size={18}/></button>
+            <button type="button" onClick={() => setZoom(value => Math.max(35, value - 10))}><Minus size={20}/></button>
+          </div>
           <div className={styles.mapFrame} style={{ width: WORLD_WIDTH * scale, height: WORLD_HEIGHT * scale }}>
             <div className={styles.world} style={{ width: WORLD_WIDTH, height: WORLD_HEIGHT, transform: `scale(${scale})` }}>
               {availableObjects.map(object => {
@@ -299,11 +437,26 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
                 return <div key={object.id} className={`${styles.object} ${zone ? styles.zoneLayer : ""}`} style={{ left: `${object.x}%`, top: `${object.y}%`, width: object.width, height: object.height, transform: `translate(-50%,-50%) rotate(${object.rotation}deg)`, opacity: faded ? .12 : 1, pointerEvents: faded ? "none" : undefined }}>
                   {!seatObject
                     ? <div className={`${styles.decoration} ${styles[`decoration${object.objectType}`] ?? ""} ${selectedZone ? styles.zoneSelected : ""}`} style={zoneColor ? { background: zoneColor, borderColor: zoneColor, color: "#fff", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.18)" } : undefined} onClick={() => chooseZone(object)}><strong>{object.label}</strong></div>
-                    : <div className={`${styles.furniture} ${styles[`furniture${object.objectType}`] ?? ""}`} onClick={() => { if (object.priceMode !== "WHOLE_TABLE" || object.reserved || !wholeVisible) return; setSelectedSeatIds([]); setZoneObjectId(null); setWholeObjectId(selectedWhole ? null : object.id); }}>
+                    : <div className={`${styles.furniture} ${styles[`furniture${object.objectType}`] ?? ""}`} onClick={() => {
+                        if (object.priceMode !== "WHOLE_TABLE" || object.reserved || !wholeVisible) return;
+                        setSelectedSeatIds([]);
+                        setZoneObjectId(null);
+                        setWholeObjectId(selectedWhole ? null : object.id);
+                      }}>
                         <div className={`${styles.core} ${selectedWhole ? styles.coreSelected : ""}`}><strong>{object.label}</strong></div>
                         {object.objectType === "ROW"
-                          ? <div className={styles.rowSeats}>{object.seatItems.map(seat => { const categoryId = seat.categoryId ?? object.categoryId; const color = categories.find(item => item.id === categoryId)?.colorHex ?? "#e3e7eb"; const eligible = eligibleSeatIds.has(seat.id); return <SeatDot key={seat.id} seat={seat} object={object} color={seat.status === "AVAILABLE" ? color : "#e3e7eb"} selected={selectedSeatIds.includes(seat.id)} eligible={eligible} disabled={object.priceMode === "WHOLE_TABLE" || !eligible} onClick={() => chooseSeat(object, seat)}/>; })}</div>
-                          : object.seatItems.map(seat => { const categoryId = seat.categoryId ?? object.categoryId; const color = categories.find(item => item.id === categoryId)?.colorHex ?? "#e3e7eb"; const eligible = eligibleSeatIds.has(seat.id); return <SeatDot key={seat.id} seat={seat} object={object} color={seat.status === "AVAILABLE" ? color : "#e3e7eb"} selected={selectedSeatIds.includes(seat.id)} eligible={eligible} disabled={object.priceMode === "WHOLE_TABLE" || !eligible} onClick={() => chooseSeat(object, seat)}/>; })}
+                          ? <div className={styles.rowSeats}>{object.seatItems.map(seat => {
+                              const categoryId = seat.categoryId ?? object.categoryId;
+                              const color = categories.find(item => item.id === categoryId)?.colorHex ?? "#e3e7eb";
+                              const eligible = eligibleSeatIds.has(seat.id);
+                              return <SeatDot key={seat.id} seat={seat} object={object} color={seat.status === "AVAILABLE" ? color : "#e3e7eb"} selected={selectedSeatIds.includes(seat.id)} eligible={eligible} disabled={object.priceMode === "WHOLE_TABLE" || !eligible} onClick={() => chooseSeat(object, seat)} onHover={event => setHoveredSeat({ object, seat, x: event.clientX, y: event.clientY })} onLeave={() => setHoveredSeat(null)}/>;
+                            })}</div>
+                          : object.seatItems.map(seat => {
+                              const categoryId = seat.categoryId ?? object.categoryId;
+                              const color = categories.find(item => item.id === categoryId)?.colorHex ?? "#e3e7eb";
+                              const eligible = eligibleSeatIds.has(seat.id);
+                              return <SeatDot key={seat.id} seat={seat} object={object} color={seat.status === "AVAILABLE" ? color : "#e3e7eb"} selected={selectedSeatIds.includes(seat.id)} eligible={eligible} disabled={object.priceMode === "WHOLE_TABLE" || !eligible} onClick={() => chooseSeat(object, seat)} onHover={event => setHoveredSeat({ object, seat, x: event.clientX, y: event.clientY })} onLeave={() => setHoveredSeat(null)}/>;
+                            })}
                       </div>}
                 </div>;
               })}
@@ -330,15 +483,44 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           </div>
         </div>
 
+        {selectedObject && <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 18, display: "grid", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+            <div>
+              <strong style={{ display: "block", fontSize: 18, lineHeight: 1.2 }}>{selectionCategory?.name ?? selectedObject.label}</strong>
+              <span style={{ display: "block", marginTop: 7, fontSize: 14, lineHeight: 1.4, color: "#1f2937" }}>{selectionDescription}</span>
+            </div>
+            <strong style={{ fontSize: 18, whiteSpace: "nowrap" }}>{money(currentTotal, "ILS", locale)}</strong>
+          </div>
+          {!selectionComplete && <small style={{ color: "#64748b", lineHeight: 1.4 }}>{selectedSeatIds.length} / {qty}</small>}
+        </div>}
+
         <div className={styles.summary}><span>{local.selected}</span><strong>{zoneObject ? qty : wholeObject ? wholeObject.seats : selectedSeatIds.length} / {zoneObject ? qty : wholeObject ? wholeObject.seats : qty}</strong></div>
-        {selectionComplete && <div className={styles.total}><span>{local.price}</span><strong>{money(total, "ILS", locale)}</strong></div>}
+        {selectedObject && <div className={styles.total}><span>{local.price}</span><strong>{money(currentTotal, "ILS", locale)}</strong></div>}
         <button type="button" className={styles.continue} disabled={!selectionComplete} onClick={go}>{local.continue}</button>
       </aside>
     </div>
 
+    {hoveredSeat && (() => {
+      const hoverCategory = categoryFor(hoveredSeat.object, hoveredSeat.seat);
+      const hoverPrice = hoverCategory ? buyerPrice(hoverCategory.priceMinor) : 0;
+      const left = Math.min(window.innerWidth - 290, hoveredSeat.x + 16);
+      const top = Math.max(12, hoveredSeat.y - 82);
+      return <div style={{ position: "fixed", zIndex: 20000, left, top, width: 270, background: "#fff", border: "1px solid #d1d5db", borderRadius: 8, padding: "13px 15px", boxShadow: "0 10px 30px rgba(15,23,42,.16)", pointerEvents: "none", fontFamily: "inherit" }}>
+        <span style={{ display: "block", color: "#64748b", fontSize: 12, marginBottom: 5 }}>{hoverCategory?.name ?? venueName}</span>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "baseline" }}>
+          <strong style={{ fontSize: 14, lineHeight: 1.35 }}>{objectDescription(hoveredSeat.object, [hoveredSeat.seat])}</strong>
+          <strong style={{ fontSize: 14, whiteSpace: "nowrap" }}>{money(hoverPrice, "ILS", locale)}</strong>
+        </div>
+      </div>;
+    })()}
+
     {peopleOpen && <div className={polish.modalBackdrop} role="presentation" onMouseDown={() => setPeopleOpen(false)}>
       <div className={polish.quantityModal} role="dialog" aria-modal="true" aria-label={local.people} onMouseDown={event => event.stopPropagation()}>
-        <div className={polish.modalHeader}><h2>{local.people}</h2><button type="button" className={polish.closeButton} onClick={() => setPeopleOpen(false)} aria-label="Close"><X size={20}/></button></div>
+        <div className={polish.modalHeader}>
+          <h2>{local.people}</h2>
+          <button type="button" className={polish.closeButton} onClick={() => setPeopleOpen(false)} aria-label="Close"><X size={20}/></button>
+        </div>
+        <p style={{ margin: "-8px 36px 18px", textAlign: "center", color: "#6b7280", fontSize: 12.5, lineHeight: 1.45 }}>{local.peopleHint}</p>
         <div className={polish.quantityControl}>
           <button type="button" onClick={() => setDraftQty(value => Math.max(1, value - 1))} disabled={draftQty <= 1}><Minus size={22}/></button>
           <strong>{draftQty} {local.tickets}</strong>
