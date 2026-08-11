@@ -4,22 +4,18 @@
   --atlas-object-fill: #f7f8fa;
   --atlas-object-border: #cbd2da;
   --atlas-structure: #9ea5ad;
-  --atlas-seat-dot: 12px;
-  --atlas-seat-layout: 16px;
-  --atlas-seat-hit: 24px;
+  --atlas-seat-dot: 9px;
+  --atlas-seat-layout: 12px;
+  --atlas-seat-hit: 22px;
 }
 
 .atlas :global(.map-world) {
-  background-color: #fff;
-  background-image: linear-gradient(#f3f5f7 1px, transparent 1px), linear-gradient(90deg, #f3f5f7 1px, transparent 1px);
-  background-size: 20px 20px;
-  border-color: #d7dde4;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, .045);
+  background: #fff !important;
+  background-image: none !important;
+  border-color: #e3e7ec;
+  box-shadow: none;
 }
 
-/* The element participates in layout at 16px. The visible dot is 12px and the
-   invisible hit target is 24px. This prevents seats from pushing each other
-   apart while keeping mouse/touch selection comfortable. */
 .atlas :global(.ticket-seat) {
   width: var(--atlas-seat-layout) !important;
   height: var(--atlas-seat-layout) !important;
@@ -33,7 +29,7 @@
   box-shadow: none !important;
   display: grid !important;
   place-items: center !important;
-  font-size: 6px !important;
+  font-size: 5px !important;
   font-weight: 800 !important;
   line-height: 1 !important;
   position: relative;
@@ -69,7 +65,7 @@
 }
 
 .atlas :global(.row-chairs) {
-  gap: 4px !important;
+  gap: 3px !important;
   overflow: visible;
   justify-content: center !important;
 }
@@ -89,74 +85,73 @@
 }
 
 .atlas :global(.sofa-cushions) {
-  inset: auto 8px 6px;
+  inset: auto 6px 5px;
   min-height: var(--atlas-seat-layout);
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .atlas :global(.furniture-core) {
   border: 1px solid var(--atlas-object-border);
   background: var(--atlas-object-fill);
-  border-radius: 3px;
+  border-radius: 2px;
   color: #4d5968;
 }
 
-/* Rectangular tables keep a clear centre and their seats hug the perimeter. */
 .atlas :global(.furniture-table .furniture-core) {
-  inset: 12px 8px !important;
-  min-width: 18px;
-  min-height: 14px;
+  inset: 9px 6px !important;
+  min-width: 14px;
+  min-height: 10px;
   border-radius: 2px;
 }
 
 .atlas :global(.furniture-round_table .furniture-core) {
-  inset: 18px !important;
+  inset: 13px !important;
   border-radius: 50%;
   background: #f4f6f8;
 }
 
 .atlas :global(.furniture-sofa .furniture-core) {
   border: 1px solid var(--atlas-object-border);
-  border-radius: 8px;
+  border-radius: 6px;
   background: #edf1f4;
   box-shadow: none;
 }
 
 .atlas :global(.furniture-core strong) {
-  font-size: 9px;
+  font-size: 7px;
   font-weight: 800;
   white-space: nowrap;
 }
 
 .atlas :global(.shape-stage) {
   border: 0;
-  border-radius: 2px;
+  border-radius: 1px;
   background: var(--atlas-structure);
   color: #fff;
-  font-size: 17px;
-  letter-spacing: .04em;
+  font-size: 13px;
+  letter-spacing: .03em;
   box-shadow: none;
 }
 
 .atlas :global(.shape-stage strong) { font-weight: 800; }
 
 .atlas :global(.shape-zone) {
-  border: 1px solid #d9dee4;
-  border-radius: 2px;
-  background: #f6f7f8;
+  border: 1px solid #e0e4e8;
+  border-radius: 1px;
+  background: #f7f8f9;
   color: #667383;
-  font-size: 18px;
-  letter-spacing: .02em;
+  font-size: 14px;
+  letter-spacing: .01em;
 }
 
 .atlas :global(.shape-bar) {
   border: 0;
-  border-radius: 2px;
+  border-radius: 1px;
   background: var(--atlas-structure);
   color: #fff;
-  font-size: 12px;
-  letter-spacing: .02em;
+  font-size: 9px;
+  letter-spacing: .01em;
 }
 
 .atlas :global(.map-world.tickets .furniture-core) {
@@ -165,7 +160,7 @@
 }
 
 .atlas :global(.ticket-seat.seat-selected)::before {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1769ff;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #1769ff;
 }
 
 .atlas :global(.ticket-seat.seat-selected) { box-shadow: none !important; }
@@ -177,7 +172,7 @@
 }
 
 .atlas :global(.editor-object.selected:after) {
-  border-width: 1.5px;
+  border-width: 1px;
   border-color: #1769ff;
-  box-shadow: 0 0 0 2px rgba(23, 105, 255, .08);
+  box-shadow: 0 0 0 1px rgba(23, 105, 255, .08);
 }
