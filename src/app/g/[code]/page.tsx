@@ -14,9 +14,10 @@ export const metadata: Metadata = {
 export default async function GuestPage({params,searchParams}:{params:Promise<{code:string}>;searchParams:Promise<Record<string,string|undefined>>}){
   const {code}=await params;const query=await searchParams;
   const link=await db.promoterLink.findUnique({where:{code:code.toUpperCase()},include:{promoter:true,event:true,category:true,table:true,orders:{where:{status:{notIn:["CANCELLED","REJECTED"]}},orderBy:{createdAt:"asc"},include:{tickets:true}}}});
-  if(!link||!link.active||!isGuestListPromoter(link.promoter.name))notFound();
+  const now=new Date();
+  if(!link||!link.active||!isGuestListPromoter(link.promoter.name)||(link.startsAt&&link.startsAt>now)||(link.endsAt&&link.endsAt<now))notFound();
   const token=query.token||"";const canManage=verifyGuestManagementToken(link.id,token);const limit=link.guestLimit??link.table?.seats??link.category?.capacity??0;const allocation=link.table?`Стол ${link.table.label}`:link.category?`Билет: ${link.category.name}`:"Гостевой список";
-  const guestCount=link.orders.length;
+  const guestCount=link.orders.reduce((sum,order)=>sum+order.tickets.length,0);
   const guests=canManage?link.orders.map(order=>({id:order.id,name:order.customerName,phone:order.customerPhone,ticketStatus:order.tickets[0]?.status??"VALID"})):[];
   return <GuestListPage code={link.code} token={token} title={link.label} eventTitle={link.event.title} allocation={allocation} limit={limit} guestCount={guestCount} canManage={canManage} fields={parseGuestFields(link.event.description)} guests={guests}/>;
 }
