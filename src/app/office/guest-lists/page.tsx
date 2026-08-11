@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
-const GUEST_LIST_PREFIX = "__CHANNEL__:GUEST:";
+const GUEST_LIST_PREFIXES = ["__GUEST_LIST__:", "__CHANNEL__:GUEST:"];
 
 export default async function GuestListsPage() {
   const staff = await requirePermission("EVENT_MANAGE");
@@ -13,7 +13,7 @@ export default async function GuestListsPage() {
   const lists = await db.promoterLink.findMany({
     where: {
       event: { organizationId, ...(allowed.length ? { id: { in: allowed } } : {}) },
-      promoter: { name: { startsWith: GUEST_LIST_PREFIX } },
+      promoter: { OR: GUEST_LIST_PREFIXES.map(prefix => ({ name: { startsWith: prefix } })) },
     },
     orderBy: { createdAt: "desc" },
     include: {
