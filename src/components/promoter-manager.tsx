@@ -14,6 +14,7 @@ export function PromoterManager(_props:LegacyProps) {
     const f=new FormData(form);setBusy(true);setError("");
     const response=await fetch("/api/admin/promoters",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"promoter",name:f.get("name"),email:f.get("email"),phone:f.get("phone"),commissionPercent:Number(f.get("commission")||0),autoAssignAllEvents:f.get("autoAssignAllEvents")==="on"})});
     const data=await response.json();setBusy(false);
+    if(response.status===409&&data.existingId){router.push(`/office/promoters/${data.existingId}`);return;}
     if(!response.ok){setError(data.error||"Не удалось создать промоутера");return;}
     router.push(`/office/promoters/${data.id}`);
   }
