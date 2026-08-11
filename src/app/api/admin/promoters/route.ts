@@ -28,16 +28,8 @@ const linkFields = z.object({
   endsAt: z.string().datetime().optional().nullable(),
 });
 
-const linkSchema = linkFields.extend({
-  action: z.literal("link"),
-  code: z.string().regex(/^[A-Za-z0-9_-]{3,40}$/),
-});
-
-const editLinkSchema = linkFields.extend({
-  action: z.literal("editLink"),
-  linkId: z.string().min(1),
-});
-
+const linkSchema = linkFields.extend({ action: z.literal("link"), code: z.string().regex(/^[A-Za-z0-9_-]{3,40}$/) });
+const editLinkSchema = linkFields.extend({ action: z.literal("editLink"), linkId: z.string().min(1) });
 const toggleSchema = z.object({ action: z.literal("toggle"), linkId: z.string().min(1), active: z.boolean() });
 const archivePromoterSchema = z.object({ action: z.literal("archivePromoter"), promoterId: z.string().min(1), active: z.boolean().default(false) });
 
@@ -81,10 +73,11 @@ export async function POST(req: Request) {
       const input = editLinkSchema.parse(body);
       const existing = await db.promoterLink.findUnique({ where: { id: input.linkId }, include: { promoter: true } });
       if (!existing) throw new Error("Ссылка не найдена");
-      const actor = await requireEventAccess("EVENT_MANAGE", input.eventId);
+      const actor = await requireEventAccess("EVENT_MANAGE", existing.eventId);
       if (existing.promoter.organizationId !== actor.organizationId || existing.promoterId !== input.promoterId) throw new Error("FORBIDDEN");
+      if (existing.eventId !== input.eventId) throw new Error("Мероприятие существующей ссылки менять нельзя. Создайте новую ссылку для другого мероприятия.");
       await validateAllocation(input);
-      const link = await db.promoterLink.update({ where: { id: input.linkId }, data: { eventId: input.eventId, label: input.label, allocationType: input.allocationType, categoryId: input.allocationType === "CATEGORY" ? input.categoryId : null, tableId: input.allocationType === "TABLE" ? input.tableId : null, guestLimit: input.guestLimit ?? null, maxPerOrder: input.maxPerOrder, customPriceMinor: input.customPriceMinor ?? null, commissionBps: Math.round(input.commissionPercent * 100), exclusive: input.exclusive, startsAt: input.startsAt ? new Date(input.startsAt) : null, endsAt: input.endsAt ? new Date(input.endsAt) : null } });
+      const link = await db.promoterLink.update({ where: { id: input.linkId }, data: { label: input.label, allocationType: input.allocationType, categoryId: input.allocationType === "CATEGORY" ? input.categoryId : null, tableId: input.allocationType === "TABLE" ? input.tableId : null, guestLimit: input.guestLimit ?? null, maxPerOrder: input.maxPerOrder, customPriceMinor: input.customPriceMinor ?? null, commissionBps: Math.round(input.commissionPercent * 100), exclusive: input.exclusive, startsAt: input.startsAt ? new Date(input.startsAt) : null, endsAt: input.endsAt ? new Date(input.endsAt) : null } });
       await writeAudit(actor, { action: "PROMOTER_LINK_UPDATE", entityType: "PromoterLink", entityId: link.id, summary: `Обновлена ссылка ${link.label}` });
       return NextResponse.json({ ok: true, id: link.id });
     }
