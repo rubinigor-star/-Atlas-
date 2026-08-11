@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function PromoterManager({ events, promoters, showLinkForm = true }: { events: Array<{ id: string; title: string; categories: Array<{ id: string; name: string }>; tables: Array<{ id: string; label: string }> }>; promoters: Array<{ id: string; name: string; defaultCommissionBps: number }>; showLinkForm?: boolean }) {
+export function PromoterManager({ events, promoters, showLinkForm = false }: { events: Array<{ id: string; title: string; categories: Array<{ id: string; name: string }>; tables: Array<{ id: string; label: string }> }>; promoters: Array<{ id: string; name: string; defaultCommissionBps: number }> ; showLinkForm?: boolean }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
