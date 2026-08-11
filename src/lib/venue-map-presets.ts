@@ -48,12 +48,12 @@ function object(
   };
 }
 
-function tableColumn(prefix: string, labels: number[], x: number, startY: number, step: number, rotation = 0) {
-  return labels.map((label, index) => object(`${prefix}-${label}`, String(label), "TABLE", x, startY + index * step, 50, 30, 6, rotation));
+function tableColumn(prefix: string, labels: number[], x: number, startY: number, step: number, seatCount: number, rotation = 0, width = 72, height = 20) {
+  return labels.map((label, index) => object(`${prefix}-${label}`, String(label), "TABLE", x, startY + index * step, width, height, seatCount, rotation));
 }
 
 function roundColumn(prefix: string, labels: number[], x: number, startY: number, step: number) {
-  return labels.map((label, index) => object(`${prefix}-${label}`, String(label), "ROUND_TABLE", x, startY + index * step, 52, 52, 6));
+  return labels.map((label, index) => object(`${prefix}-${label}`, String(label), "ROUND_TABLE", x, startY + index * step, 58, 58, 6));
 }
 
 export function isReadingVenue(venueName: string) {
@@ -64,29 +64,32 @@ export function isReadingVenue(venueName: string) {
 export function readingVenuePreset(): VenueMapPresetObject[] {
   return [
     object("stage", "СЦЕНА", "STAGE", 50, 5, 260, 46),
-    object("dance-floor", "ТАНЦПОЛ", "ZONE", 50, 35, 410, 300),
+    object("dance-floor", "ТАНЦПОЛ", "ZONE", 50, 35, 405, 285),
 
-    ...tableColumn("left-outer", [1, 2, 3, 4, 5, 6, 7, 8], 8, 15, 8.2, 0),
-    ...tableColumn("left-inner", [10, 11, 12, 13, 14, 15, 16, 17, 18], 17, 14, 7.4, 90),
-    ...roundColumn("left-round", [100, 101, 102, 103, 104, 105], 27, 15, 10.4),
+    // Outer tables: 3 seats on each long side.
+    ...tableColumn("left-outer", [1, 2, 3, 4, 5, 6, 7, 8], 8, 14, 10.2, 6, 0, 78, 20),
+    // Slim side tables: one seat at each end in the source map.
+    ...tableColumn("left-inner", [10, 11, 12, 13, 14, 15, 16, 17, 18], 17, 12, 9.2, 2, 90, 46, 18),
+    ...roundColumn("left-round", [100, 101, 102, 103, 104, 105], 27, 14, 11.0),
 
-    ...roundColumn("right-round", [110, 111, 112, 113, 114, 115], 73, 15, 10.4),
-    ...tableColumn("right-inner", [40, 41, 42, 43, 44, 45, 46, 47], 83, 16, 7.5, 90),
-    ...tableColumn("right-outer", [50, 51, 52, 53, 54, 55, 56, 57, 58], 92, 14, 7.2, 0),
+    ...roundColumn("right-round", [110, 111, 112, 113, 114, 115], 73, 14, 11.0),
+    ...tableColumn("right-inner", [40, 41, 42, 43, 44, 45, 46, 47], 83, 14, 9.4, 2, 90, 46, 18),
+    ...tableColumn("right-outer", [50, 51, 52, 53, 54, 55, 56, 57, 58], 92, 10, 9.8, 6, 0, 78, 20),
 
-    object("round-106", "106", "ROUND_TABLE", 35, 69, 52, 52, 6),
-    object("round-116", "116", "ROUND_TABLE", 65, 69, 52, 52, 6),
-    object("central-bar", "ЦЕНТРАЛЬНЫЙ БАР", "BAR", 50, 68, 150, 46),
-    object("central-bar-seats", "Места центрального бара", "ROW", 50, 74, 250, 32, 10),
+    object("round-106", "106", "ROUND_TABLE", 35, 70, 58, 58, 6),
+    object("round-116", "116", "ROUND_TABLE", 65, 70, 58, 58, 6),
+    object("central-bar", "ЦЕНТРАЛЬНЫЙ БАР", "BAR", 50, 68, 150, 42),
+    object("central-bar-seats", "Места центрального бара", "ROW", 50, 75, 260, 28, 10),
 
-    object("upper-bar-seats", "Места верхнего бара", "ROW", 50, 80, 390, 32, 20),
-    object("upper-bar", "ВЕРХНИЙ БАР", "BAR", 50, 84, 360, 36),
+    object("upper-bar-seats", "Места верхнего бара", "ROW", 50, 81, 400, 28, 20),
+    object("upper-bar", "ВЕРХНИЙ БАР", "BAR", 50, 85, 365, 34),
 
-    object("bottom-30", "30", "TABLE", 31, 93, 50, 30, 8, 90),
-    object("bottom-31", "31", "TABLE", 39, 93, 50, 30, 8, 90),
-    object("bottom-32", "32", "TABLE", 47, 93, 50, 30, 8, 90),
-    object("bottom-33", "33", "TABLE", 55, 93, 50, 30, 8, 90),
-    object("bottom-34", "34", "TABLE", 63, 93, 50, 30, 8, 90),
-    object("bottom-35", "35", "TABLE", 71, 93, 50, 30, 8, 90),
+    // Bottom vertical tables: four seats on each side.
+    object("bottom-30", "30", "TABLE", 30, 94, 86, 20, 8, 90),
+    object("bottom-31", "31", "TABLE", 38, 94, 86, 20, 8, 90),
+    object("bottom-32", "32", "TABLE", 46, 94, 86, 20, 8, 90),
+    object("bottom-33", "33", "TABLE", 54, 94, 86, 20, 8, 90),
+    object("bottom-34", "34", "TABLE", 62, 94, 86, 20, 8, 90),
+    object("bottom-35", "35", "TABLE", 70, 94, 86, 20, 8, 90),
   ];
 }
