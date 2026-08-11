@@ -38,6 +38,21 @@ async function saveAuthorization(order: { id: string; totalMinor: number; curren
   );
 }
 
+async function alignApprovalReservation(orderId: string) {
+  // The organizer has up to 24 hours from successful HYP authorization to decide.
+  // Keep the inventory reservation and card authorization on the same clock so a
+  // valid pending request can never appear as expired only because checkout started earlier.
+  const changed = await db.$executeRawUnsafe(
+    `UPDATE "Reservation"
+     SET "expiresAt"=CURRENT_TIMESTAMP + INTERVAL '24 hours', "updatedAt"=CURRENT_TIMESTAMP
+     WHERE "orderId"=$1 AND "status"='ACTIVE'`,
+    orderId,
+  );
+  if (changed !== 1) {
+    throw new Error("ACTIVE_RESERVATION_MISSING_FOR_APPROVAL");
+  }
+}
+
 async function handle(request: Request) {
   const url = new URL(request.url);
   const result = hypApprovalResultFromUrl(url);
@@ -56,6 +71,7 @@ async function handle(request: Request) {
   }
 
   await saveAuthorization(order, result);
+  await alignApprovalReservation(order.id);
   const changed = await db.order.updateMany({ where: { id: order.id, status: "PENDING" }, data: { status: "PENDING_APPROVAL", reviewedAt: null, paymentDueAt: null } });
   if (order.status !== "PENDING" && order.status !== "PENDING_APPROVAL") {
     return NextResponse.redirect(new URL(`/orders/${encodeURIComponent(publicId)}?payment=failed`, url));
