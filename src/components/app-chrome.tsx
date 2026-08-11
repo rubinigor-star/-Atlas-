@@ -13,7 +13,8 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const home = pathname === "/";
   const eventPage = pathname.startsWith("/events/") && !seatSelectionPage;
   const immersiveHeader = home || eventPage;
-  const showPublicChrome = !office && !seatSelectionPage;
+  const showPublicHeader = !office;
+  const showPublicFooter = !office && !seatSelectionPage;
 
   useEffect(() => {
     const body = document.body;
@@ -34,11 +35,11 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   }, [eventPage, home, immersiveHeader]);
 
   return <>
-    {showPublicChrome && <SiteHeader/>}
-    {showPublicChrome && <GlobalSearch/>}
-    {showPublicChrome && <PublicSoldOutDecorator/>}
-    {showPublicChrome && !immersiveHeader && <div className="atlas-header-spacer" aria-hidden="true"/>}
+    {showPublicHeader && <SiteHeader/>}
+    {showPublicHeader && <GlobalSearch/>}
+    {showPublicHeader && <PublicSoldOutDecorator/>}
+    {showPublicHeader && !immersiveHeader && <div className="atlas-header-spacer" aria-hidden="true"/>}
     {children}
-    {showPublicChrome && <SiteFooter/>}
+    {showPublicFooter && <SiteFooter/>}
   </>;
 }
