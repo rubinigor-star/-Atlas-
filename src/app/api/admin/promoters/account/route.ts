@@ -3,11 +3,13 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { getPromoterAccount, invitePromoterAccount } from "@/lib/promoter-auth";
+import { ensurePromoterIntegrityRuntime, repairOrphanedPromoterAccount } from "@/lib/promoter-integrity";
 import { writeAudit } from "@/lib/audit";
 
 const schema=z.object({promoterId:z.string().min(1),force:z.boolean().default(false)});
 
 async function authorized(promoterId:string){
+ await ensurePromoterIntegrityRuntime();
  const actor=await requirePermission("EVENT_MANAGE");
  const promoter=await db.promoter.findUnique({where:{id:promoterId}});
  if(!promoter||promoter.name.startsWith("__"))throw new Error("PROMOTER_NOT_FOUND");
@@ -28,6 +30,7 @@ export async function POST(request:Request){
  try{
   const input=schema.parse(await request.json());
   const {actor,promoter}=await authorized(input.promoterId);
+  if(promoter.email)await repairOrphanedPromoterAccount(promoter.id,promoter.email);
   const result=await invitePromoterAccount(promoter.id,input.force);
   await writeAudit(actor,{action:"PROMOTER_ACCOUNT_INVITE",entityType:"Promoter",entityId:promoter.id,summary:`Отправлено приглашение в кабинет промоутера ${promoter.name}`});
   return NextResponse.json({ok:true,status:result.status});
