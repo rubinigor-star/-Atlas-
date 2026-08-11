@@ -2,14 +2,28 @@
 
 import { useEffect } from "react";
 
+const SESSION_TTL_MS = 30 * 60 * 1000;
+
+function sessionFor(key: string) {
+  const now = Date.now();
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { id?: unknown; lastSeen?: unknown };
+      if (typeof parsed.id === "string" && typeof parsed.lastSeen === "number" && now - parsed.lastSeen < SESSION_TTL_MS) {
+        localStorage.setItem(key, JSON.stringify({ id: parsed.id, lastSeen: now }));
+        return parsed.id;
+      }
+    }
+  } catch {}
+  const id = crypto.randomUUID();
+  localStorage.setItem(key, JSON.stringify({ id, lastSeen: now }));
+  return id;
+}
+
 export function PromoterLinkTracker({ code, eventId }: { code: string; eventId: string }) {
   useEffect(() => {
-    const key = `atlas-promoter-session-${code}`;
-    let sessionId = localStorage.getItem(key);
-    if (!sessionId) {
-      sessionId = crypto.randomUUID();
-      localStorage.setItem(key, sessionId);
-    }
+    const sessionId = sessionFor(`atlas-promoter-session-${code}`);
     const params = new URLSearchParams(window.location.search);
     const body = {
       sessionId,
