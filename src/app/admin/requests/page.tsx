@@ -60,16 +60,32 @@ export default async function RequestsPage() {
   // Current HYP approval flow persists a valid authorization before moving an order to PENDING_APPROVAL.
   // A pending approval without that authorization is therefore a legacy/incomplete record and must not
   // re-enter the live review queue. We keep the Order untouched so it remains available in Orders/history.
+  // Likewise, an old PAID HYP row marked CAPTURED without a capture transaction id predates the current
+  // capture flow. It is historical recovery data, not an actionable request, so keep it out of this queue.
   const liveRequests = requests.filter((request) => {
-    if (request.status !== "PENDING_APPROVAL") return true;
-    if (request.event.salesMode !== "APPROVAL_REQUIRED") return false;
     const authorization = authorizationByOrder.get(request.id);
-    return Boolean(
-      authorization
-      && authorization.provider === "HYP"
-      && authorization.status === "AUTHORIZED"
-      && authorization.hypTransId,
-    );
+
+    if (request.status === "PENDING_APPROVAL") {
+      if (request.event.salesMode !== "APPROVAL_REQUIRED") return false;
+      return Boolean(
+        authorization
+        && authorization.provider === "HYP"
+        && authorization.status === "AUTHORIZED"
+        && authorization.hypTransId,
+      );
+    }
+
+    if (
+      request.status === "PAID"
+      && request.event.salesMode === "APPROVAL_REQUIRED"
+      && authorization?.provider === "HYP"
+      && authorization.status === "CAPTURED"
+      && !authorization.hypCaptureTransId
+    ) {
+      return false;
+    }
+
+    return true;
   });
 
   return (
@@ -113,7 +129,7 @@ export default async function RequestsPage() {
             eventTitle: request.event.title,
             eventDate: request.event.startsAt.toISOString(),
             createdAt: request.createdAt.toISOString(),
-            expiresAt: (reservationExpiresAt ?? request.event.startsAt).toISOString(),
+            expiresAt: (reservationExpiresAt ?? request.createdAt).toISOString(),
             inactive,
             totalMinor: request.totalMinor,
             items: request.items.map((item) => ({ name: item.categoryName, quantity: item.quantity })),
