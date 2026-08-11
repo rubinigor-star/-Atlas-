@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { abandonStages, captureAbandonedCheckout } from "@/lib/abandoned-checkout";
+import { touchAbandonedCheckoutContext } from "@/lib/abandoned-order-attribution";
 
 const schema = z.object({
   token: z.string().uuid(),
@@ -23,6 +24,8 @@ export async function POST(request: Request) {
   try {
     const input = schema.parse(await request.json());
     await captureAbandonedCheckout(input);
+    const referralCode = typeof input.metadata?.referralCode === "string" ? input.metadata.referralCode : null;
+    await touchAbandonedCheckoutContext(input.token, input.eventId, referralCode);
     return NextResponse.json({ ok: true }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "INVALID_CAPTURE";
