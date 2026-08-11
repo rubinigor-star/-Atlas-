@@ -36,7 +36,7 @@ export async function GET() {
         { entityType: { contains: "Promoter" } },
         { action: { contains: "PROMOTER" } },
       ] },
-      select: { id: true, action: true, entityType: true, entityId: true, summary: true, organizationId: true, createdAt: true, actorUserId: true },
+      select: { id: true, action: true, entityType: true, entityId: true, summary: true, organizationId: true, createdAt: true, actorId: true, metadata: true },
       orderBy: { createdAt: "asc" },
       take: 200,
     }),
