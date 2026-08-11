@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Menu, Minus, Plus, RotateCcw } from "lucide-react";
+import { Menu, Minus, Plus, RotateCcw } from "lucide-react";
 import { money } from "@/lib/format";
 import { calculateServiceFee, type ServiceFeeTerms } from "@/lib/service-fee";
 import type { PricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
@@ -48,6 +47,10 @@ type SeatStyle = React.CSSProperties & { "--seat-color": string };
 const WORLD_WIDTH = 1400;
 const WORLD_HEIGHT = 900;
 const sellableTypes = new Set(["TABLE", "ROUND_TABLE", "SOFA", "ROW"]);
+
+function isInternalObject(object: MapObject) {
+  return object.label.startsWith("__ATLAS_") || object.label.startsWith("READING_V3_");
+}
 
 function tableSeatPosition(item: MapObject, index: number): React.CSSProperties {
   const position = index + 1;
@@ -112,14 +115,32 @@ function SeatDot({ seat, object, color, selected, eligible, disabled, onClick }:
 export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName, categories, objects, feeTerms, referralCode, allocation, initialQty }: { eventId:string; slug:string; title:string; posterUrl:string; venueName:string; categories:Category[]; objects:MapObject[]; feeTerms:ServiceFeeTerms; referralCode?:string; allocation?:Allocation; initialQty:number }) {
   const router=useRouter();
   const {locale}=useLocale();
+  const viewportRef=useRef<HTMLDivElement>(null);
+  const panRef=useRef({pointerId:-1,x:0,y:0,left:0,top:0});
+  const [spaceHeld,setSpaceHeld]=useState(false);
+  const [panning,setPanning]=useState(false);
   const local={
-    ru:{back:"К мероприятию",offers:"Специальные предложения",all:"Все билеты",onePlusOne:"1 + 1",quantity:"Количество билетов",selected:"Выбрано",continue:"Продолжить",price:"Цена",together:"Показываем только места, где выбранное количество гостей может сидеть рядом",noSeats:"В выбранном диапазоне нет подходящих мест рядом",stage:"СЦЕНА",zoomReset:"Сбросить масштаб"},
-    en:{back:"Back to event",offers:"Special offers",all:"All tickets",onePlusOne:"1 + 1",quantity:"Ticket quantity",selected:"Selected",continue:"Continue",price:"Price",together:"Only seats where the selected number of guests can sit together are shown",noSeats:"No adjacent seats match this price range",stage:"STAGE",zoomReset:"Reset zoom"},
-    he:{back:"חזרה לאירוע",offers:"הצעות מיוחדות",all:"כל הכרטיסים",onePlusOne:"1 + 1",quantity:"כמות כרטיסים",selected:"נבחרו",continue:"המשך",price:"מחיר",together:"מוצגים רק מקומות שבהם מספר האורחים שנבחר יכול לשבת יחד",noSeats:"אין מקומות צמודים בטווח המחירים שנבחר",stage:"במה",zoomReset:"איפוס זום"},
+    ru:{offers:"Специальные предложения",all:"Все билеты",onePlusOne:"1 + 1",quantity:"Количество билетов",selected:"Выбрано",continue:"Продолжить",price:"Цена",together:"Показываем только места, где выбранное количество гостей может сидеть рядом",noSeats:"В выбранном диапазоне нет подходящих мест рядом",zoomReset:"Сбросить масштаб"},
+    en:{offers:"Special offers",all:"All tickets",onePlusOne:"1 + 1",quantity:"Ticket quantity",selected:"Selected",continue:"Continue",price:"Price",together:"Only seats where the selected number of guests can sit together are shown",noSeats:"No adjacent seats match this price range",zoomReset:"Reset zoom"},
+    he:{offers:"הצעות מיוחדות",all:"כל הכרטיסים",onePlusOne:"1 + 1",quantity:"כמות כרטיסים",selected:"נבחרו",continue:"המשך",price:"מחיר",together:"מוצגים רק מקומות שבהם מספר האורחים שנבחר יכול לשבת יחד",noSeats:"אין מקומות צמודים בטווח המחירים שנבחר",zoomReset:"איפוס זום"},
   }[locale];
 
+  useEffect(()=>{
+    const down=(event:KeyboardEvent)=>{
+      if(event.code!=="Space")return;
+      const target=event.target as HTMLElement|null;
+      if(target?.closest("input,select,textarea,button,a"))return;
+      event.preventDefault();
+      setSpaceHeld(true);
+    };
+    const up=(event:KeyboardEvent)=>{if(event.code==="Space")setSpaceHeld(false);};
+    window.addEventListener("keydown",down,{passive:false});
+    window.addEventListener("keyup",up);
+    return()=>{window.removeEventListener("keydown",down);window.removeEventListener("keyup",up);};
+  },[]);
+
   const availableCategories=allocation?.type==="CATEGORY"?categories.filter(item=>item.id===allocation.categoryId):categories;
-  const availableObjects=allocation?.type==="TABLE"?objects.filter(item=>item.id===allocation.tableId||!sellableTypes.has(item.objectType)):objects;
+  const availableObjects=(allocation?.type==="TABLE"?objects.filter(item=>item.id===allocation.tableId||!sellableTypes.has(item.objectType)):objects).filter(item=>!isInternalObject(item));
   const buyerPrice=(minor:number)=>calculateServiceFee(minor,feeTerms).buyerTotalMinor;
   const categoryPrice=useMemo(()=>new Map(availableCategories.map(item=>[item.id,buyerPrice(item.priceMinor)])),[availableCategories,feeTerms]);
   const sortedPrices=useMemo(()=>[...new Set(availableCategories.map(item=>categoryPrice.get(item.id)??0))].sort((a,b)=>a-b),[availableCategories,categoryPrice]);
@@ -181,15 +202,38 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     router.push(`/checkout?${query}`);
   }
 
+  function startPan(event:React.PointerEvent<HTMLDivElement>){
+    if(event.button!==0)return;
+    const target=event.target as HTMLElement;
+    if(!spaceHeld&&target.closest("button,input,select,a"))return;
+    const viewport=viewportRef.current;
+    if(!viewport)return;
+    panRef.current={pointerId:event.pointerId,x:event.clientX,y:event.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};
+    viewport.setPointerCapture(event.pointerId);
+    setPanning(true);
+    event.preventDefault();
+  }
+  function movePan(event:React.PointerEvent<HTMLDivElement>){
+    if(!panning||panRef.current.pointerId!==event.pointerId)return;
+    const viewport=viewportRef.current;
+    if(!viewport)return;
+    viewport.scrollLeft=panRef.current.left-(event.clientX-panRef.current.x);
+    viewport.scrollTop=panRef.current.top-(event.clientY-panRef.current.y);
+  }
+  function endPan(event:React.PointerEvent<HTMLDivElement>){
+    if(panRef.current.pointerId!==event.pointerId)return;
+    const viewport=viewportRef.current;
+    if(viewport?.hasPointerCapture(event.pointerId))viewport.releasePointerCapture(event.pointerId);
+    panRef.current.pointerId=-1;
+    setPanning(false);
+  }
+
   const rangeDenominator=Math.max(1,sortedPrices.length-1);
   const activeLeft=minIndex/rangeDenominator*100;
   const activeWidth=(maxIndex-minIndex)/rangeDenominator*100;
+  const offerLabel=offer==="BUY_ONE_GET_ONE"?local.onePlusOne:local.offers;
 
   return <main className={styles.page}>
-    <header className={styles.topbar}>
-      <Link className={styles.brand} href="/">ATLAS<span>one</span></Link>
-      <Link className={styles.back} href={`/events/${slug}${referralCode?`?ref=${encodeURIComponent(referralCode)}`:""}`}><ChevronLeft size={18}/>{local.back}</Link>
-    </header>
     <div className={styles.layout}>
       <section className={styles.mapSide}>
         <div className={styles.priceRail}>
@@ -200,7 +244,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
             <input aria-label="maximum ticket price" className={`${styles.range} ${styles.rangeMax}`} type="range" min="0" max={Math.max(0,sortedPrices.length-1)} value={maxIndex} onChange={event=>{const next=Math.max(Number(event.target.value),minIndex);setMaxIndex(next);clearSelection();}}/>
           </div>
         </div>
-        <div className={styles.mapViewport}>
+        <div ref={viewportRef} className={`${styles.mapViewport} ${spaceHeld?styles.panReady:""} ${panning?styles.panning:""}`} onPointerDown={startPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan}>
           <div className={styles.zoom}><button type="button" onClick={()=>setZoom(value=>Math.min(125,value+10))}><Plus size={20}/></button><button type="button" title={local.zoomReset} onClick={()=>setZoom(55)}><RotateCcw size={18}/></button><button type="button" onClick={()=>setZoom(value=>Math.max(35,value-10))}><Minus size={20}/></button></div>
           <div className={styles.mapFrame} style={{width:WORLD_WIDTH*scale,height:WORLD_HEIGHT*scale}}><div className={styles.world} style={{width:WORLD_WIDTH,height:WORLD_HEIGHT,transform:`scale(${scale})`}}>
             {availableObjects.map(object=>{
@@ -220,10 +264,16 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
         </div>
       </section>
       <aside className={styles.sidebar}>
-        <div className={styles.eventInfo}><img src={posterUrl} alt=""/><div><h1>{title}</h1><p>{venueName}</p></div></div>
-        <div className={styles.controls}>
-          <div className={styles.quantityLine}><span>{local.quantity}</span><div className={styles.quantity}><button type="button" onClick={()=>changeQty(-1)}><Minus size={18}/></button><strong>{qty}</strong><button type="button" onClick={()=>changeQty(1)}><Plus size={18}/></button></div></div>
-          <div className={styles.offerWrap}><button type="button" className={styles.offerButton} onClick={()=>setOfferOpen(value=>!value)}><Menu size={18}/><span>{local.offers}</span></button>{offerOpen&&<div className={styles.offerMenu}><button type="button" className={offer==="ALL"?styles.offerSelected:""} onClick={()=>chooseOffer("ALL")}>{local.all}</button>{hasOnePlusOne&&<button type="button" className={offer==="BUY_ONE_GET_ONE"?styles.offerSelected:""} onClick={()=>chooseOffer("BUY_ONE_GET_ONE")}>{local.onePlusOne}</button>}</div>}</div>
+        <div className={styles.eventInfo}>
+          <img src={posterUrl} alt={title}/>
+          <div className={styles.eventDetails}>
+            <h1>{title}</h1>
+            <p>{venueName}</p>
+            <div className={styles.eventPills}>
+              <div className={styles.offerWrap}><button type="button" className={styles.offerButton} onClick={()=>setOfferOpen(value=>!value)}><Menu size={17}/><span>{offerLabel}</span></button>{offerOpen&&<div className={styles.offerMenu}><button type="button" className={offer==="ALL"?styles.offerSelected:""} onClick={()=>chooseOffer("ALL")}>{local.all}</button>{hasOnePlusOne&&<button type="button" className={offer==="BUY_ONE_GET_ONE"?styles.offerSelected:""} onClick={()=>chooseOffer("BUY_ONE_GET_ONE")}>{local.onePlusOne}</button>}</div>}</div>
+              <div className={styles.quantity} aria-label={local.quantity}><button type="button" onClick={()=>changeQty(-1)}><Minus size={16}/></button><strong>{qty}</strong><button type="button" onClick={()=>changeQty(1)}><Plus size={16}/></button></div>
+            </div>
+          </div>
         </div>
         <p className={styles.together}>{local.together}</p>
         <div className={styles.summary}><span>{local.selected}</span><strong>{wholeObject?wholeObject.seats:selectedSeatIds.length} / {wholeObject?wholeObject.seats:qty}</strong></div>
