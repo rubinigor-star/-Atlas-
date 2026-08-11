@@ -6,22 +6,23 @@ import { effectiveTicketPrice } from "@/lib/ticketing";
 import { parseGuestFields } from "@/lib/event-guest-fields";
 import { getEffectiveEventTerms } from "@/lib/commercial-terms";
 import { calculateServiceFee } from "@/lib/service-fee";
+import { promoterChannelValid, resolvePromoterChannel } from "@/lib/promoter-channel";
 
 export const dynamic="force-dynamic";
 export default async function Checkout({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){
   const query=await searchParams;const quantity=Math.max(1,Math.min(10,Number(query.quantity)||1));const seatIds=query.seatIds?.split(",").filter(Boolean).slice(0,10)??[];
-  const [event,category,table,seats,promoterLink]=await Promise.all([
+  const [event,category,table,seats,promoterChannel]=await Promise.all([
     db.event.findUnique({where:{id:query.eventId}}),
     db.ticketCategory.findUnique({where:{id:query.categoryId},include:{priceTiers:true}}),
     query.tableId?db.table.findUnique({where:{id:query.tableId},include:{category:{include:{priceTiers:true}},zone:true}}):null,
     seatIds.length?db.seat.findMany({where:{id:{in:seatIds}},include:{category:{include:{priceTiers:true}},table:{include:{zone:true}}}}):[],
-    query.ref?db.promoterLink.findUnique({where:{code:query.ref.toUpperCase()},include:{promoter:true}}):null
+    resolvePromoterChannel(query.ref||query.channel)
   ]);
   if(!event||!category||category.eventId!==event.id)notFound();
   if(seatIds.length&&(seats.length!==seatIds.length||seats.some(seat=>seat.table.zone.eventId!==event.id||!seat.category)))notFound();
   const now=new Date();
-  const validLink=promoterLink&&promoterLink.eventId===event.id&&promoterLink.active&&(!promoterLink.startsAt||promoterLink.startsAt<=now)&&(!promoterLink.endsAt||promoterLink.endsAt>=now)?promoterLink:null;
-  if(query.ref&&!validLink)notFound();
+  const validLink=promoterChannelValid(promoterChannel,event.id,now)?promoterChannel:null;
+  if((query.ref||query.channel)&&!validLink)notFound();
   if(validLink?.allocationType==="TABLE"&&table?.id!==validLink.tableId)notFound();
   if(validLink?.allocationType==="CATEGORY"&&category.id!==validLink.categoryId)notFound();
 
@@ -39,5 +40,5 @@ export default async function Checkout({searchParams}:{searchParams:Promise<Reco
     : regularTotal;
   const terms=await getEffectiveEventTerms(event.id,event.organizationId);
   const pricing=calculateServiceFee(subtotal,{salesFeePercentBps:terms.organizer.salesFeePercentBps,salesFeeFixedMinor:terms.organizer.salesFeeFixedMinor,serviceFeePayer:terms.serviceFeePayer});
-  return <main className="shell"><AbandonExitTracker eventId={event.id} categoryId={category.id} tableId={table?.id} seatIds={seatIds}/><CheckoutForm eventId={event.id} categoryId={category.id} quantity={quantity} tableId={table?.id} seatIds={seatIds} subtotal={pricing.subtotalMinor} serviceFee={pricing.serviceFeeMinor} total={pricing.buyerTotalMinor} serviceFeePayer={terms.serviceFeePayer} title={event.title} label={table?`${table.objectType==="SOFA"?"Диван":"Стол"} ${table.label}, ${table.seats} мест целиком`:seatObject?`${seatObject.objectType==="SOFA"?"Диван":"Стол"} ${seatObject.label}, места ${seats.map(seat=>seat.position).join(", ")}`:category.name} salesMode={event.salesMode} approvalInstructions={event.approvalInstructions} referralCode={validLink?.code} promoterLabel={validLink?`${validLink.promoter.name} · ${validLink.label}`:undefined} recoveryToken={query.recovery} guestFields={parseGuestFields(event.description)}/></main>;
+  return <main className="shell"><AbandonExitTracker eventId={event.id} categoryId={category.id} tableId={table?.id} seatIds={seatIds}/><CheckoutForm eventId={event.id} categoryId={category.id} quantity={quantity} tableId={table?.id} seatIds={seatIds} subtotal={pricing.subtotalMinor} serviceFee={pricing.serviceFeeMinor} total={pricing.buyerTotalMinor} serviceFeePayer={terms.serviceFeePayer} title={event.title} label={table?`${table.objectType==="SOFA"?"Диван":"Стол"} ${table.label}, ${table.seats} мест целиком`:seatObject?`${seatObject.objectType==="SOFA"?"Диван":"Стол"} ${seatObject.label}, места ${seats.map(seat=>seat.position).join(", ")}`:category.name} salesMode={event.salesMode} approvalInstructions={event.approvalInstructions} referralCode={validLink?.code} promoterLabel={validLink?`${validLink.promoterName} · ${validLink.label}`:undefined} recoveryToken={query.recovery} guestFields={parseGuestFields(event.description)}/></main>;
 }
