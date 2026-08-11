@@ -57,7 +57,7 @@ export default async function RequestsPage() {
             previousOrders: previous.length,
             previousVisits: visits,
             answer: request.eligibilityAnswer,
-            status: paymentRecovery ? "PENDING_APPROVAL" : request.status,
+            status: request.status,
             paymentRecovery,
             eventTitle: request.event.title,
             eventDate: request.event.startsAt.toISOString(),
