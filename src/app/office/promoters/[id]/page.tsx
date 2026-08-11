@@ -19,15 +19,18 @@ function refCode(json:string|null){if(!json)return null;try{const x=JSON.parse(j
 
 export default async function PromoterDetailPage({params,searchParams}:{params:Promise<{id:string}>;searchParams:Promise<Record<string,string|undefined>>}){
  const staff=await requirePermission("ANALYTICS_VIEW");const{id}=await params;const query=await searchParams;
- const promoter=await db.promoter.findFirst({where:{id,organizationId:staff.organizationId!,NOT:{name:{startsWith:"__"}}}});if(!promoter)notFound();
+ const promoter=await db.promoter.findUnique({where:{id}});
+ if(!promoter||promoter.name.startsWith("__"))notFound();
+ if(staff.role!=="ADMIN"&&(!staff.organizationId||promoter.organizationId!==staff.organizationId))notFound();
+ const organizationId=promoter.organizationId;
  const period=PERIODS.some(x=>x.value===query.period)?query.period as PeriodKey:"30d";const from=start(period);const allowed=staff.eventAccess.map(x=>x.eventId);
- const events=await db.event.findMany({where:{organizationId:staff.organizationId!,...(allowed.length?{id:{in:allowed}}:{})},orderBy:{startsAt:"desc"},include:{categories:true,zones:{include:{tables:true}}}});
+ const events=await db.event.findMany({where:{organizationId,...(staff.role!=="ADMIN"&&allowed.length?{id:{in:allowed}}:{})},orderBy:{startsAt:"desc"},include:{categories:true,zones:{include:{tables:true}}}});
  const eventId=query.event&&events.some(e=>e.id===query.event)?query.event:"all";const eventIds=eventId==="all"?events.map(e=>e.id):[eventId];
- const allPromoterLinks=await db.promoterLink.findMany({where:{promoterId:promoter.id},orderBy:{createdAt:"desc"},include:{event:true,category:true,table:true}});
+ const allPromoterLinks=await db.promoterLink.findMany({where:{promoterId:promoter.id,event:{organizationId}},orderBy:{createdAt:"desc"},include:{event:true,category:true,table:true}});
  const links=await db.promoterLink.findMany({where:{promoterId:promoter.id,eventId:{in:eventIds.length?eventIds:["__none__"]}},orderBy:{createdAt:"desc"},include:{event:true,category:true,table:true,visits:{where:from?{createdAt:{gte:from}}:undefined,select:{id:true}},orders:{where:{status:"PAID",...(from?{createdAt:{gte:from}}:{})},include:{items:true}}}});
  const [automation,notifications]=await Promise.all([getPromoterAutomation([promoter.id]),getPromoterNotifications(allPromoterLinks.map(link=>link.id))]);
  await ensureAbandonedCheckoutRuntime();
- const abandons=eventIds.length?await db.$queryRawUnsafe<AbandonRow[]>(`SELECT "metadataJson","token","abandonedAt","status","orderId" FROM "AbandonedCheckout" WHERE "organizationId"=$1 AND "eventId"=ANY($2::text[])${from?' AND "createdAt">=$3':''}`,staff.organizationId!,eventIds,...(from?[from]:[])):[];
+ const abandons=eventIds.length?await db.$queryRawUnsafe<AbandonRow[]>(`SELECT "metadataJson","token","abandonedAt","status","orderId" FROM "AbandonedCheckout" WHERE "organizationId"=$1 AND "eventId"=ANY($2::text[])${from?' AND "createdAt">=$3':''}`,organizationId,eventIds,...(from?[from]:[])):[];
  const codeToAbandons=new Map<string,AbandonRow[]>();for(const row of abandons){const code=refCode(row.metadataJson);if(!code)continue;const list=codeToAbandons.get(code)||[];list.push(row);codeToAbandons.set(code,list);}
  const linkRows=links.map(link=>{const rows=codeToAbandons.get(link.code.toUpperCase())||[];const paidOrders=new Map(link.orders.map(order=>[order.id,order]));const orders=paidOrders.size;const tickets=[...paidOrders.values()].reduce((sum,order)=>sum+order.items.reduce((x,item)=>x+item.quantity,0),0);const revenue=[...paidOrders.values()].reduce((sum,order)=>sum+order.totalMinor,0);const clicks=link.visits.length;const checkout=new Set(rows.map(row=>row.token)).size;const abandoned=rows.filter(row=>row.abandonedAt).length;const recovered=rows.filter(row=>row.status==="RECOVERED").length;return{link,clicks,checkout,abandoned,recovered,orders,tickets,revenue,conversion:clicks?orders/clicks*100:0};});
  const clicks=linkRows.reduce((s,x)=>s+x.clicks,0),checkout=linkRows.reduce((s,x)=>s+x.checkout,0),abandoned=linkRows.reduce((s,x)=>s+x.abandoned,0),recovered=linkRows.reduce((s,x)=>s+x.recovered,0),orders=linkRows.reduce((s,x)=>s+x.orders,0),tickets=linkRows.reduce((s,x)=>s+x.tickets,0),revenue=linkRows.reduce((s,x)=>s+x.revenue,0),conversion=clicks?orders/clicks*100:0;const label=PERIODS.find(x=>x.value===period)?.label||"30 дней";
