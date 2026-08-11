@@ -5,6 +5,7 @@
   --atlas-object-border: #cbd2da;
   --atlas-structure: #9ea5ad;
   --atlas-seat-dot: 12px;
+  --atlas-seat-layout: 16px;
   --atlas-seat-hit: 24px;
 }
 
@@ -16,13 +17,14 @@
   box-shadow: 0 10px 30px rgba(15, 23, 42, .045);
 }
 
-/* Visual seat is deliberately smaller than its click target. This keeps maps airy
-   while preserving comfortable mouse and touch selection. */
+/* The element participates in layout at 16px. The visible dot is 12px and the
+   invisible hit target is 24px. This prevents seats from pushing each other
+   apart while keeping mouse/touch selection comfortable. */
 .atlas :global(.ticket-seat) {
-  width: var(--atlas-seat-hit) !important;
-  height: var(--atlas-seat-hit) !important;
-  min-width: var(--atlas-seat-hit) !important;
-  flex: 0 0 var(--atlas-seat-hit) !important;
+  width: var(--atlas-seat-layout) !important;
+  height: var(--atlas-seat-layout) !important;
+  min-width: var(--atlas-seat-layout) !important;
+  flex: 0 0 var(--atlas-seat-layout) !important;
   padding: 0 !important;
   border: 0 !important;
   border-radius: 50% !important;
@@ -36,6 +38,7 @@
   line-height: 1 !important;
   position: relative;
   isolation: isolate;
+  overflow: visible !important;
 }
 
 .atlas :global(.ticket-seat)::before {
@@ -46,6 +49,18 @@
   border-radius: 50%;
   background: var(--ticket-color, var(--atlas-seat-neutral));
   z-index: -1;
+  pointer-events: none;
+}
+
+.atlas :global(.ticket-seat)::after {
+  content: "";
+  position: absolute;
+  width: var(--atlas-seat-hit);
+  height: var(--atlas-seat-hit);
+  border-radius: 50%;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .atlas :global(.ticket-seat[style*="#FFFFFF"])::before,
@@ -54,8 +69,9 @@
 }
 
 .atlas :global(.row-chairs) {
-  gap: 5px !important;
+  gap: 4px !important;
   overflow: visible;
+  justify-content: center !important;
 }
 
 .atlas :global(.row-chair),
@@ -68,13 +84,13 @@
 
 .atlas :global(.edge-chair),
 .atlas :global(.radial-chair) {
-  width: var(--atlas-seat-hit) !important;
-  height: var(--atlas-seat-hit) !important;
+  width: var(--atlas-seat-layout) !important;
+  height: var(--atlas-seat-layout) !important;
 }
 
 .atlas :global(.sofa-cushions) {
   inset: auto 8px 6px;
-  min-height: var(--atlas-seat-hit);
+  min-height: var(--atlas-seat-layout);
   justify-content: center;
   gap: 4px;
 }
@@ -86,8 +102,16 @@
   color: #4d5968;
 }
 
+/* Rectangular tables keep a clear centre and their seats hug the perimeter. */
+.atlas :global(.furniture-table .furniture-core) {
+  inset: 12px 8px !important;
+  min-width: 18px;
+  min-height: 14px;
+  border-radius: 2px;
+}
+
 .atlas :global(.furniture-round_table .furniture-core) {
-  inset: 17px;
+  inset: 18px !important;
   border-radius: 50%;
   background: #f4f6f8;
 }
@@ -102,6 +126,7 @@
 .atlas :global(.furniture-core strong) {
   font-size: 9px;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .atlas :global(.shape-stage) {
