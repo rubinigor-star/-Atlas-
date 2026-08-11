@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { eventDay, eventStartTime, money } from "@/lib/format";
 import { effectiveTicketPrice, ticketPricePresentation } from "@/lib/ticketing";
 import { EventPurchase } from "@/components/event-purchase";
+import { SeatMapPurchaseCard } from "@/components/seat-map-purchase-card";
 import { EventShareActions } from "@/components/event-share-actions";
 import { EventHeroGallery } from "@/components/event-hero-gallery";
 import { EventHeroPalette } from "@/components/event-hero-palette";
@@ -69,7 +70,7 @@ export default async function EventPage({params,searchParams}:{params:Promise<{s
     <EventFactsGrid locale={i18n.locale} runtimeMinutes={presentation.runtimeMinutes} intermissionCount={presentation.intermissionCount} venue={event.venue.name} address={event.venue.address} city={event.venue.city} categories={publicCategoryLabels} ageRestriction={presentation.ageRestriction} startDate={eventDay(event.startsAt,i18n.locale)}/>
     {presentation.faqEnabled&&presentation.faq.length>0&&<EventFaq title={local.faq} items={presentation.faq}/>} {links.length>0&&<div className={styles.links}>{links.map((item,index)=><a key={`${item.url}-${index}`} className={styles.externalLink} href={item.url} target="_blank" rel="noreferrer"><span>{item.title||new URL(item.url).hostname}</span><ExternalLink size={15}/></a>)}</div>}
    </article></div>
-   <aside id="tickets" className={styles.ticketsColumn}>{validPromoterLink&&<div className={styles.promoterCard}><strong>{text.personalLink}: {validPromoterLink.label}</strong><p>{text.personalLinkInfo}</p></div>}{categories.length?<div className={styles.ticketCard}><EventPurchase eventId={event.id} categories={categories} objects={objects} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocation={validPromoterLink?{type:validPromoterLink.allocationType,categoryId:validPromoterLink.categoryId,tableId:validPromoterLink.tableId,customPriceMinor:validPromoterLink.customPriceMinor}:undefined}/></div>:<div className={styles.closedCard}><strong>{text.salesClosed}</strong><p>{text.noTariffs}</p></div>}</aside>
+   <aside id="tickets" className={styles.ticketsColumn}>{validPromoterLink&&<div className={styles.promoterCard}><strong>{text.personalLink}: {validPromoterLink.label}</strong><p>{text.personalLinkInfo}</p></div>}{categories.length?<div className={styles.ticketCard}>{event.mapEnabled?<SeatMapPurchaseCard slug={event.slug} categories={categories} referralCode={validPromoterLink?.code}/>:<EventPurchase eventId={event.id} categories={categories} objects={objects} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocation={validPromoterLink?{type:validPromoterLink.allocationType,categoryId:validPromoterLink.categoryId,tableId:validPromoterLink.tableId,customPriceMinor:validPromoterLink.customPriceMinor}:undefined}/>}</div>:<div className={styles.closedCard}><strong>{text.salesClosed}</strong><p>{text.noTariffs}</p></div>}</aside>
   </div></section>
   {categories.length>0&&<EventMobileStickyCta label={ctaLabel}/>} 
  </main>;
