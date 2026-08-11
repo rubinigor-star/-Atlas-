@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requirePermission, requireEventAccess } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { assignPromoterToEvent, sendPromoterLinkEmail, setPromoterAutomation } from "@/lib/promoter-workflow";
+import { ensurePromoterIntegrityRuntime } from "@/lib/promoter-integrity";
 
 const promoterSchema = z.object({ action:z.literal("promoter"), name:z.string().trim().min(2).max(120), email:z.string().email(), phone:z.string().max(40).optional(), commissionPercent:z.number().min(0).max(100).default(0), autoAssignAllEvents:z.boolean().default(false) });
 const automationSchema=z.object({action:z.literal("automation"),promoterId:z.string().min(1),autoAssignAllEvents:z.boolean()});
@@ -40,6 +41,7 @@ function publicError(error:unknown){
 
 export async function POST(req:Request){
  try{
+  await ensurePromoterIntegrityRuntime();
   const body=await req.json();
   if(body.action==="promoter"){
    const input=promoterSchema.parse(body);const actor=await requirePermission("EVENT_MANAGE");if(!actor.organizationId)throw new Error("FORBIDDEN");
@@ -72,11 +74,12 @@ export async function POST(req:Request){
    const link=await assignPromoterToEvent(promoter.id,input.eventId);
    let emailStatus="WAITING_FOR_PUBLISH";if(event.status==="PUBLISHED"){try{await sendPromoterLinkEmail(link.id);emailStatus="SENT"}catch{emailStatus="ERROR"}}
    await writeAudit(actor,{action:"PROMOTER_EVENT_ASSIGN",entityType:"PromoterLink",entityId:link.id,summary:`${promoter.name} назначен на мероприятие`});
-   return NextResponse.json({ok:true,id:link.id,emailStatus},{status:201});
+   return NextResponse.json({ok:true,id:link.id,emailStatus,eventStatus:event.status},{status:201});
   }
   if(body.action==="resendEmail"){
    const input=resendSchema.parse(body);const link=await db.promoterLink.findUnique({where:{id:input.linkId},include:{promoter:true,event:true}});if(!link||link.promoter.name.startsWith("__"))throw new Error("Ссылка не найдена");
    const actor=await requirePermission("EVENT_MANAGE");await loadAuthorizedPromoter(link.promoterId,actor,{requireActive:true});if(link.promoter.organizationId!==link.event.organizationId)throw new Error("Некорректная связь промоутера и мероприятия");await requireEventAccess("EVENT_MANAGE",link.eventId);
+   if(link.event.status!=="PUBLISHED")throw new Error("Ссылка станет публичной после публикации мероприятия");
    await sendPromoterLinkEmail(link.id,true);await writeAudit(actor,{action:"PROMOTER_LINK_EMAIL_RESEND",entityType:"PromoterLink",entityId:link.id,summary:`Повторно отправлена ссылка ${link.label}`});return NextResponse.json({ok:true});
   }
   if(body.action==="editLink"){
