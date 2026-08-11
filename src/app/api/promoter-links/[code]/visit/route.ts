@@ -12,12 +12,15 @@ const schema = z.object({
 });
 
 export async function POST(req: Request, { params }: { params: Promise<{ code: string }> }) {
+  let code = "";
   try {
-    const { code } = await params;
+    ({ code } = await params);
     const input = schema.parse(await req.json());
-    const link = await db.promoterLink.findUnique({ where: { code: code.toUpperCase() } });
+    const normalizedCode = code.toUpperCase();
+    const link = await db.promoterLink.findUnique({ where: { code: normalizedCode } });
     const now = new Date();
     if (!link || !link.active || link.eventId !== input.eventId || (link.startsAt && link.startsAt > now) || (link.endsAt && link.endsAt < now)) {
+      console.warn("[promoter-visit] invalid link", { code: normalizedCode, eventId: input.eventId, found: Boolean(link), active: link?.active ?? null, linkEventId: link?.eventId ?? null });
       return NextResponse.json({ ok: false }, { status: 404 });
     }
     await db.promoterLinkVisit.upsert({
@@ -33,8 +36,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
         userAgent: req.headers.get("user-agent"),
       },
     });
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false }, { status: 400 });
+    return NextResponse.json({ ok: true }, { headers: { "cache-control": "no-store" } });
+  } catch (error) {
+    console.error("[promoter-visit] failed", { code: code.toUpperCase(), error });
+    return NextResponse.json({ ok: false }, { status: 400, headers: { "cache-control": "no-store" } });
   }
 }
