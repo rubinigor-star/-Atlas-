@@ -7,8 +7,6 @@ let ready: Promise<void> | null = null;
  * Organization row is deleted or recreated. Older Atlas schemas used
  * ON DELETE CASCADE on Promoter.organizationId, which made a demo/reset seed
  * capable of silently destroying the complete promoter history.
- *
- * Keep this runtime guard until the constraint has been migrated everywhere.
  */
 export async function ensurePromoterIntegrityRuntime() {
   if (!ready) {
@@ -42,4 +40,34 @@ export async function ensurePromoterIntegrityRuntime() {
     });
   }
   return ready;
+}
+
+/**
+ * Promoter auth tables were introduced as runtime tables and intentionally do
+ * not have a hard FK yet. If an old destructive reset removed Promoter while
+ * leaving PromoterAccount behind, the unique email index blocks a new invite.
+ * Rebind only when the previous promoter row is genuinely gone. Never steal an
+ * active account from another existing promoter.
+ */
+export async function repairOrphanedPromoterAccount(promoterId: string, email: string) {
+  const normalized = email.trim().toLowerCase();
+  const rows = await db.$queryRawUnsafe<Array<{ promoterId: string; promoterExists: boolean }>>(`
+    SELECT a."promoterId", (p."id" IS NOT NULL) AS "promoterExists"
+    FROM "PromoterAccount" a
+    LEFT JOIN "Promoter" p ON p."id" = a."promoterId"
+    WHERE LOWER(a."email") = LOWER($1)
+    LIMIT 1
+  `, normalized);
+  const existing = rows[0];
+  if (!existing || existing.promoterId === promoterId) return;
+  if (existing.promoterExists) {
+    throw new Error("Этот email уже используется другим промоутером Atlas");
+  }
+
+  await db.$transaction(async tx => {
+    await tx.$executeRawUnsafe(`UPDATE "PromoterAccount" SET "promoterId"=$2,"email"=$3,"status"='PENDING',"passwordHash"=NULL,"activatedAt"=NULL,"lastLoginAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "promoterId"=$1`, existing.promoterId, promoterId, normalized);
+    await tx.$executeRawUnsafe(`UPDATE "PromoterAuthToken" SET "promoterId"=$2,"usedAt"=CURRENT_TIMESTAMP WHERE "promoterId"=$1`, existing.promoterId, promoterId);
+    await tx.$executeRawUnsafe(`DELETE FROM "PromoterSession" WHERE "promoterId"=$1`, existing.promoterId);
+  });
+  console.info('[promoter-integrity] Rebound orphaned promoter account', { oldPromoterId: existing.promoterId, promoterId });
 }
