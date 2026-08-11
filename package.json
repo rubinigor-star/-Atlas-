@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:push": "prisma db push",
-    "db:seed": "node --import tsx prisma/seed.ts",
+    "db:seed": "node -e \"if(process.env.VERCEL||process.env.CI||process.env.ALLOW_DESTRUCTIVE_ATLAS_SEED!=='YES_I_UNDERSTAND'){throw new Error('Destructive Atlas seed blocked. Set ALLOW_DESTRUCTIVE_ATLAS_SEED=YES_I_UNDERSTAND only for an intentional local reset.')}\" && node --import tsx prisma/seed.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
