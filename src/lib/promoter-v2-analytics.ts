@@ -1,12 +1,12 @@
 import { db } from "@/lib/db";
 import { ensureAbandonedCheckoutRuntime } from "@/lib/abandoned-checkout";
 import { ensurePromoterV2Runtime } from "@/lib/promoter-v2";
-import { capturePromoterCheckoutV2 } from "@/lib/promoter-v2-checkout";
+import { ensurePromoterCheckoutV2Runtime } from "@/lib/promoter-v2-checkout";
 
 export type PromoterV2AnalyticsRow={id:string;name:string;active:boolean;assignments:number;clicks:number;checkouts:number;abandoned:number;recovered:number;orders:number;tickets:number;revenue:number};
 export type AssignmentV2AnalyticsRow={id:string;eventId:string;eventTitle:string;eventSlug:string;eventStatus:string;code:string;label:string;active:boolean;clicks:number;checkouts:number;abandoned:number;recovered:number;orders:number;tickets:number;revenue:number};
 
-async function ready(){await Promise.all([ensurePromoterV2Runtime(),ensureAbandonedCheckoutRuntime()]);void capturePromoterCheckoutV2;}
+async function ready(){await Promise.all([ensurePromoterV2Runtime(),ensureAbandonedCheckoutRuntime(),ensurePromoterCheckoutV2Runtime()]);}
 function rangeClause(column:string,from?:Date){return from?` AND ${column} >= $2`:""}
 
 export async function promoterV2Analytics(organizationId:string,from?:Date){
