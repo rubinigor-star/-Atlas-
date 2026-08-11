@@ -1,8 +1,24 @@
 import { PrismaClient, EventStatus, OrderStatus, PriceMode, Role, SeatingObjectType, StaffRole, TicketStatus } from "@prisma/client";
 import { orderNumber, ticketCode } from "../src/lib/ticketing";
 import { rolePermissions } from "../src/lib/permissions";
+
 const db = new PrismaClient();
+
+function assertDestructiveSeedAllowed() {
+  if (process.env.VERCEL || process.env.VERCEL_ENV) {
+    throw new Error(
+      "Refusing to run destructive Atlas seed on Vercel. This seed deletes organizations and cascades related data.",
+    );
+  }
+  if (process.env.ALLOW_DESTRUCTIVE_ATLAS_SEED !== "YES_I_UNDERSTAND") {
+    throw new Error(
+      "Refusing destructive Atlas seed. Set ALLOW_DESTRUCTIVE_ATLAS_SEED=YES_I_UNDERSTAND only for an isolated local database.",
+    );
+  }
+}
+
 async function main(){
+  assertDestructiveSeedAllowed();
   await db.auditLog.deleteMany(); await db.permissionGrant.deleteMany(); await db.eventStaffAccess.deleteMany(); await db.walletRegistration.deleteMany(); await db.walletDevice.deleteMany(); await db.scan.deleteMany(); await db.ticket.deleteMany(); await db.orderItem.deleteMany(); await db.order.deleteMany(); await db.promoCode.deleteMany(); await db.referral.deleteMany(); await db.seat.deleteMany(); await db.table.deleteMany(); await db.zone.deleteMany(); await db.ticketCategory.deleteMany(); await db.ticketTemplate.deleteMany(); await db.event.deleteMany(); await db.venue.deleteMany(); await db.user.deleteMany(); await db.organization.deleteMany();
   const org=await db.organization.create({data:{name:"Atlas Live Israel"}});
   const staff=[
