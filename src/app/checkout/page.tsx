@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { CheckoutForm } from "@/components/checkout-form";
 import { AbandonExitTracker } from "@/components/abandon-exit-tracker";
@@ -10,19 +11,20 @@ import { promoterChannelValid, resolvePromoterChannel } from "@/lib/promoter-cha
 
 export const dynamic="force-dynamic";
 export default async function Checkout({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){
-  const query=await searchParams;const quantity=Math.max(1,Math.min(10,Number(query.quantity)||1));const seatIds=query.seatIds?.split(",").filter(Boolean).slice(0,10)??[];
+  const query=await searchParams;const store=await cookies();const explicitCode=query.ref||query.channel;const rememberedCode=store.get("atlas_promoter_channel")?.value;const candidateCode=explicitCode||rememberedCode;
+  const quantity=Math.max(1,Math.min(10,Number(query.quantity)||1));const seatIds=query.seatIds?.split(",").filter(Boolean).slice(0,10)??[];
   const [event,category,table,seats,promoterChannel]=await Promise.all([
     db.event.findUnique({where:{id:query.eventId}}),
     db.ticketCategory.findUnique({where:{id:query.categoryId},include:{priceTiers:true}}),
     query.tableId?db.table.findUnique({where:{id:query.tableId},include:{category:{include:{priceTiers:true}},zone:true}}):null,
     seatIds.length?db.seat.findMany({where:{id:{in:seatIds}},include:{category:{include:{priceTiers:true}},table:{include:{zone:true}}}}):[],
-    resolvePromoterChannel(query.ref||query.channel)
+    resolvePromoterChannel(candidateCode)
   ]);
   if(!event||!category||category.eventId!==event.id)notFound();
   if(seatIds.length&&(seats.length!==seatIds.length||seats.some(seat=>seat.table.zone.eventId!==event.id||!seat.category)))notFound();
   const now=new Date();
   const validLink=promoterChannelValid(promoterChannel,event.id,now)?promoterChannel:null;
-  if((query.ref||query.channel)&&!validLink)notFound();
+  if(explicitCode&&!validLink)notFound();
   if(validLink?.allocationType==="TABLE"&&table?.id!==validLink.tableId)notFound();
   if(validLink?.allocationType==="CATEGORY"&&category.id!==validLink.categoryId)notFound();
 
