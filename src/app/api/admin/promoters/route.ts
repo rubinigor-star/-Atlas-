@@ -26,6 +26,8 @@ export async function POST(req:Request){
   const body=await req.json();
   if(body.action==="promoter"){
    const input=promoterSchema.parse(body);const actor=await requirePermission("EVENT_MANAGE");if(!actor.organizationId)throw new Error("FORBIDDEN");
+   const existing=await db.promoter.findFirst({where:{organizationId:actor.organizationId,name:input.name,NOT:{name:{startsWith:"__"}}},select:{id:true,name:true,active:true}});
+   if(existing)return NextResponse.json({error:`Промоутер «${existing.name}» уже существует. Открываю его карточку.`,existingId:existing.id},{status:409});
    const promoter=await db.promoter.create({data:{organizationId:actor.organizationId,name:input.name,email:input.email,phone:input.phone||null,defaultCommissionBps:Math.round(input.commissionPercent*100)}});
    await setPromoterAutomation(promoter.id,input.autoAssignAllEvents);
    await writeAudit(actor,{action:"PROMOTER_CREATE",entityType:"Promoter",entityId:promoter.id,summary:`Создан промоутер ${promoter.name}`});
