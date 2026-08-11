@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth";
 import { cloneEvent, cloneEventSchema } from "@/lib/event-clone";
 import { assignAutoPromotersToEvent } from "@/lib/promoter-workflow";
+import { assignAutoPromotersV2ToEvent, copyPromotersV2ToEvent } from "@/lib/promoter-v2-workflow";
 
 export async function POST(req: Request) {
   try {
@@ -10,6 +11,8 @@ export async function POST(req: Request) {
     const actor = await requirePermission("EVENT_MANAGE");
     const result = await cloneEvent(actor, input);
     await assignAutoPromotersToEvent(result.id);
+    if(input.copyPromoters) await copyPromotersV2ToEvent(input.sourceEventId,result.id);
+    await assignAutoPromotersV2ToEvent(result.id);
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
