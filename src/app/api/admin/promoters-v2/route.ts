@@ -9,7 +9,7 @@ const assignSchema=z.object({action:z.literal("assign"),promoterId:z.string().mi
 const archiveSchema=z.object({action:z.literal("setActive"),promoterId:z.string().min(1),active:z.boolean()});
 const automationSchema=z.object({action:z.literal("automation"),promoterId:z.string().min(1),value:z.boolean()});
 
-async function actor(){const user=await requirePermission("EVENT_MANAGE");if(!user.organizationId)throw new Error("FORBIDDEN");return user}
+async function actor(){const user=await requirePermission("EVENT_MANAGE");if(!user.organizationId)throw new Error("FORBIDDEN");return{...user,organizationId:user.organizationId}}
 async function ownPromoter(promoterId:string){const user=await actor();const promoter=await getPromoterV2(promoterId);if(!promoter||promoter.organizationId!==user.organizationId)throw new Error("PROMOTER_NOT_FOUND");return{user,promoter}}
 async function ensureOrderReferral(assignment:PromoterEventV2Row){await db.referral.upsert({where:{code:assignment.code},create:{code:assignment.code,label:assignment.label,eventId:assignment.eventId},update:{label:assignment.label,eventId:assignment.eventId}})}
 
@@ -23,7 +23,7 @@ export async function POST(req:Request){
   if(body.action==="create"){
    const input=createSchema.parse(body);const user=await actor();
    for(const eventId of input.eventIds)await requireEventAccess("EVENT_MANAGE",eventId);
-   const promoter=await createPromoterV2({organizationId:user.organizationId!,name:input.name,email:input.email,phone:input.phone,defaultCommissionBps:Math.round(input.commissionPercent*100),autoAssignAllEvents:input.autoAssignAllEvents});
+   const promoter=await createPromoterV2({organizationId:user.organizationId,name:input.name,email:input.email,phone:input.phone,defaultCommissionBps:Math.round(input.commissionPercent*100),autoAssignAllEvents:input.autoAssignAllEvents});
    const assignments=[];for(const eventId of input.eventIds){const assignment=await assignPromoterV2(promoter.id,eventId);await ensureOrderReferral(assignment);assignments.push(assignment);}
    return NextResponse.json({ok:true,promoter,assignments},{status:201});
   }
