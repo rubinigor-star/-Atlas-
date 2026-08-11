@@ -17,12 +17,13 @@ function sessionFor(key: string) {
     }
   } catch {}
   const id = crypto.randomUUID();
-  localStorage.setItem(key, JSON.stringify({ id, lastSeen: now }));
+  try { localStorage.setItem(key, JSON.stringify({ id, lastSeen: now })); } catch {}
   return id;
 }
 
 export function PromoterLinkTracker({ code, eventId }: { code: string; eventId: string }) {
   useEffect(() => {
+    let cancelled = false;
     const sessionId = sessionFor(`atlas-promoter-session-${code}`);
     const params = new URLSearchParams(window.location.search);
     const body = {
@@ -33,12 +34,26 @@ export function PromoterLinkTracker({ code, eventId }: { code: string; eventId: 
       utmMedium: params.get("utm_medium"),
       utmCampaign: params.get("utm_campaign"),
     };
-    void fetch(`/api/promoter-links/${encodeURIComponent(code)}/visit`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-      keepalive: true,
-    }).catch(() => undefined);
+
+    async function track() {
+      for (let attempt = 0; attempt < 2 && !cancelled; attempt += 1) {
+        try {
+          const response = await fetch(`/api/promoter-links/${encodeURIComponent(code)}/visit`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(body),
+            keepalive: true,
+            cache: "no-store",
+          });
+          if (response.ok) return;
+          if (response.status === 404) return;
+        } catch {}
+        if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    void track();
+    return () => { cancelled = true; };
   }, [code, eventId]);
 
   return null;
