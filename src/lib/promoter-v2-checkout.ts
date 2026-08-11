@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { findPromoterChannelV2 } from "@/lib/promoter-v2";
 
 let ready:Promise<void>|null=null;
-async function ensure(){if(!ready)ready=(async()=>{await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "PromoterCheckoutV2" (
+export async function ensurePromoterCheckoutV2Runtime(){if(!ready)ready=(async()=>{await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "PromoterCheckoutV2" (
  "token" TEXT PRIMARY KEY,
  "promoterEventId" TEXT NOT NULL,
  "eventId" TEXT NOT NULL,
@@ -15,6 +15,6 @@ async function ensure(){if(!ready)ready=(async()=>{await db.$executeRawUnsafe(`C
 )`);await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "PromoterCheckoutV2_assignment_created_idx" ON "PromoterCheckoutV2"("promoterEventId","createdAt")`);})().catch(e=>{ready=null;throw e});return ready}
 
 export async function capturePromoterCheckoutV2(input:{token:string;eventId:string;referralCode?:string|null;stage:string;amountMinor:number;quantity:number}){
- const code=input.referralCode?.trim();if(!code)return false;await ensure();const link=await findPromoterChannelV2(code);if(!link||!link.active||!link.promoterActive||link.eventId!==input.eventId)return false;
+ const code=input.referralCode?.trim();if(!code)return false;await ensurePromoterCheckoutV2Runtime();const link=await findPromoterChannelV2(code);if(!link||!link.active||!link.promoterActive||link.eventId!==input.eventId)return false;
  await db.$executeRawUnsafe(`INSERT INTO "PromoterCheckoutV2" ("token","promoterEventId","eventId","stage","amountMinor","quantity") VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT ("token") DO UPDATE SET "stage"=EXCLUDED."stage","amountMinor"=EXCLUDED."amountMinor","quantity"=EXCLUDED."quantity","updatedAt"=CURRENT_TIMESTAMP`,input.token,link.id,input.eventId,input.stage,input.amountMinor,input.quantity);return true;
 }
