@@ -31,10 +31,18 @@ type SeatStyle = React.CSSProperties & { "--seat-color": string };
 
 const WORLD_WIDTH = 1400;
 const WORLD_HEIGHT = 900;
+const DEFAULT_ZOOM = 75;
 const seatTypes = new Set(["TABLE", "ROUND_TABLE", "SOFA", "ROW"]);
 
 function isInternalObject(object: MapObject) {
   return object.label.startsWith("__ATLAS_") || object.label.startsWith("READING_V3_");
+}
+
+function readableEventTitle(value: string) {
+  return value.split(/\s+/).map((word) => {
+    if (word.length <= 2 || word !== word.toLocaleUpperCase()) return word;
+    return `${word.charAt(0).toLocaleUpperCase()}${word.slice(1).toLocaleLowerCase()}`;
+  }).join(" ");
 }
 
 function tableSeatPosition(item: MapObject, index: number): React.CSSProperties {
@@ -117,7 +125,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const [draftQty, setDraftQty] = useState(Math.max(1, Math.min(8, initialQty)));
 
   const local = {
-    ru: { back: "Вернуться в мероприятие", offers: "Специальное предложение", all: "Все билеты", onePlusOne: "1 + 1", people: "Количество билетов", tickets: "билетов", confirm: "Подтвердить", selected: "Выбрано", continue: "Продолжить", price: "Цена", noSeats: "В выбранном диапазоне нет подходящих мест рядом", zoomReset: "Сбросить масштаб" },
+    ru: { back: "Вернуться к мероприятию", offers: "Специальное предложение", all: "Все билеты", onePlusOne: "1 + 1", people: "Количество билетов", tickets: "билетов", confirm: "Подтвердить", selected: "Выбрано", continue: "Продолжить", price: "Цена", noSeats: "В выбранном диапазоне нет подходящих мест рядом", zoomReset: "Сбросить масштаб" },
     en: { back: "Back to event", offers: "Special offer", all: "All tickets", onePlusOne: "1 + 1", people: "Ticket quantity", tickets: "tickets", confirm: "Confirm", selected: "Selected", continue: "Continue", price: "Price", noSeats: "No adjacent seats match this price range", zoomReset: "Reset zoom" },
     he: { back: "חזרה לאירוע", offers: "הצעה מיוחדת", all: "כל הכרטיסים", onePlusOne: "1 + 1", people: "כמות כרטיסים", tickets: "כרטיסים", confirm: "אישור", selected: "נבחרו", continue: "המשך", price: "מחיר", noSeats: "אין מקומות צמודים בטווח המחירים שנבחר", zoomReset: "איפוס זום" },
   }[locale];
@@ -152,7 +160,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const [qty, setQty] = useState(Math.max(1, Math.min(8, initialQty)));
   const [offer, setOffer] = useState<OfferFilter>("ALL");
   const [offerOpen, setOfferOpen] = useState(false);
-  const [zoom, setZoom] = useState(55);
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([]);
   const [wholeObjectId, setWholeObjectId] = useState<string | null>(allocation?.type === "TABLE" ? allocation.tableId : null);
   const [zoneObjectId, setZoneObjectId] = useState<string | null>(null);
@@ -192,6 +200,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
       : selectedSeats.reduce((sum, seat) => sum + (categories.find(item => item.id === seat.categoryId)?.priceMinor ?? 0), 0);
   const total = selectionComplete ? buyerPrice(rawSubtotal) : 0;
   const scale = zoom / 100;
+  const displayTitle = readableEventTitle(title);
 
   function clearSelection() { if (allocation?.type === "TABLE") return; setSelectedSeatIds([]); setWholeObjectId(null); setZoneObjectId(null); }
   function confirmPeople() { setQty(Math.max(1, Math.min(8, draftQty))); setPeopleOpen(false); clearSelection(); }
@@ -275,7 +284,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
         </div>
 
         <div ref={viewportRef} className={`${styles.mapViewport} ${spaceHeld ? styles.panReady : ""} ${panning ? styles.panning : ""}`} onPointerDown={startPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan}>
-          <div className={styles.zoom}><button type="button" onClick={() => setZoom(value => Math.min(125, value + 10))}><Plus size={20}/></button><button type="button" title={local.zoomReset} onClick={() => setZoom(55)}><RotateCcw size={18}/></button><button type="button" onClick={() => setZoom(value => Math.max(35, value - 10))}><Minus size={20}/></button></div>
+          <div className={styles.zoom}><button type="button" onClick={() => setZoom(value => Math.min(125, value + 10))}><Plus size={20}/></button><button type="button" title={local.zoomReset} onClick={() => setZoom(DEFAULT_ZOOM)}><RotateCcw size={18}/></button><button type="button" onClick={() => setZoom(value => Math.max(35, value - 10))}><Minus size={20}/></button></div>
           <div className={styles.mapFrame} style={{ width: WORLD_WIDTH * scale, height: WORLD_HEIGHT * scale }}>
             <div className={styles.world} style={{ width: WORLD_WIDTH, height: WORLD_HEIGHT, transform: `scale(${scale})` }}>
               {availableObjects.map(object => {
@@ -308,7 +317,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
         <div className={`${styles.eventInfo} ${polish.eventInfo}`}>
           <img className={polish.poster} src={posterUrl} alt=""/>
           <div className={`${styles.eventDetails} ${polish.eventDetails}`}>
-            <h1 className={polish.title}>{title}</h1>
+            <h1 className={polish.title}>{displayTitle}</h1>
             <div className={`${styles.eventPills} ${polish.eventPills}`}>
               <div className={styles.offerWrap}>
                 <button type="button" className={`${styles.offerButton} ${polish.pill}`} onClick={() => { setOfferOpen(value => !value); setPeopleOpen(false); }}><Menu size={17}/><span>{offer === "ALL" ? local.offers : local.onePlusOne}</span><ChevronDown size={15}/></button>
