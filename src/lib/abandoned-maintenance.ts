@@ -1,6 +1,14 @@
 import { db } from "@/lib/db";
 import { ensureAbandonedCheckoutRuntime } from "@/lib/abandoned-checkout";
 
+/**
+ * Synchronize checkout state with the configured inactivity timer.
+ *
+ * Abandoned is a funnel state, not a communication state: a checkout that has
+ * been inactive past the configured threshold is abandoned even when the
+ * customer left before providing email/phone. Recovery actions can still be
+ * created only for customers for whom the configured channel is available.
+ */
 export async function refreshAbandonedCheckoutStatuses() {
   await ensureAbandonedCheckoutRuntime();
 
@@ -12,7 +20,6 @@ export async function refreshAbandonedCheckoutStatuses() {
     WHERE c."status" = 'ACTIVE'
       AND c."abandonedAt" IS NULL
       AND c."optOutAt" IS NULL
-      AND (c."customerEmail" IS NOT NULL OR c."customerPhone" IS NOT NULL)
       AND EXISTS (
         SELECT 1
         FROM "RecoveryScenario" s
