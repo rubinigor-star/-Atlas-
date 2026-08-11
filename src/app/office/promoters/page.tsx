@@ -34,10 +34,13 @@ export default async function PromotersPage({searchParams}:{searchParams:Promise
   const allowedEventIds=staff.eventAccess.map(item=>item.eventId);const eventScope=allowedEventIds.length?{id:{in:allowedEventIds}}:{};
   const events=await db.event.findMany({where:{organizationId,...eventScope},orderBy:{startsAt:"desc"},include:{categories:true,zones:{include:{tables:true}}}});
   const selectedEventId=query.event&&events.some(event=>event.id===query.event)?query.event:"all";const selectedEventIds=selectedEventId==="all"?events.map(event=>event.id):[selectedEventId];
-  const [promoters,links]=await Promise.all([
+  const [promoters,links,totalPromotersInDatabase,totalPromotersInOrganization]=await Promise.all([
     db.promoter.findMany({where:{organizationId,NOT:{name:{startsWith:TECHNICAL_PROMOTER_PREFIX}}},orderBy:[{active:"desc"},{name:"asc"}]}),
     db.promoterLink.findMany({where:{eventId:{in:selectedEventIds.length?selectedEventIds:["__none__"]},promoter:{NOT:{name:{startsWith:TECHNICAL_PROMOTER_PREFIX}}}},include:{promoter:true,event:true,visits:{where:createdAt?{createdAt}:undefined,select:{id:true}},orders:{where:{status:"PAID",...(createdAt?{createdAt}:{})},include:{items:true}}}}),
+    db.promoter.count({where:{NOT:{name:{startsWith:TECHNICAL_PROMOTER_PREFIX}}}}),
+    db.promoter.count({where:{organizationId,NOT:{name:{startsWith:TECHNICAL_PROMOTER_PREFIX}}}}),
   ]);
+  console.info("[promoter-directory-diagnostic]",{userId:staff.id,userEmail:staff.email,organizationId,organizationName:staff.organization?.name??null,eventCount:events.length,totalPromotersInDatabase,totalPromotersInOrganization,visiblePromoters:promoters.length});
   await ensureAbandonedCheckoutRuntime();
   await refreshAbandonedCheckoutStatuses();
   const abandonParams:unknown[]=[organizationId,selectedEventIds];let abandonRange="";if(range.from){abandonParams.push(range.from);abandonRange+=` AND c.\"createdAt\">=$${abandonParams.length}`;}if(range.to){abandonParams.push(range.to);abandonRange+=` AND c.\"createdAt\"<=$${abandonParams.length}`;}
