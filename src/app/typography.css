@@ -164,6 +164,10 @@ body :where(.brand, .atlas-logo-word, .atlas-logo-one) {
   font-family: var(--atlas-heading-font) !important;
 }
 
+/* Public event page typography contract.
+   Headings use Roboto Flex. All descriptive/interface text uses Inter.
+   Hebrew falls back to Noto Sans Hebrew because the Latin/Cyrillic display font
+   does not contain Hebrew glyphs. */
 #event-public-page,
 #event-public-page a,
 #event-public-page button,
@@ -175,7 +179,10 @@ body :where(.brand, .atlas-logo-word, .atlas-logo-one) {
 #event-public-page small,
 #event-public-page label,
 #event-public-page strong,
-#event-public-page b {
+#event-public-page b,
+#event-public-page li,
+#event-public-page summary,
+#event-public-page details {
   font-family: var(--atlas-body-font) !important;
   font-optical-sizing: auto;
   font-synthesis: none;
@@ -190,9 +197,36 @@ body :where(.brand, .atlas-logo-word, .atlas-logo-one) {
   font-family: var(--atlas-heading-font) !important;
   font-style: normal;
   font-stretch: normal;
+  font-weight: 700 !important;
   font-variation-settings: "wght" 700, "wdth" 100;
   font-optical-sizing: auto;
   font-synthesis: none;
+  text-transform: uppercase;
+}
+
+/* Event hero title is the same display tier as the large Atlas headings. */
+#event-public-page h1 {
+  font-size: clamp(48px, 4.7vw, 65px) !important;
+  line-height: .98 !important;
+  letter-spacing: -.02em !important;
+  margin: 0 !important;
+}
+
+/* Event section headings. */
+#event-public-page h2 {
+  font-size: 27px !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0 !important;
+}
+
+/* Event copy and UI scale. */
+#event-public-page p {
+  font-size: 16px;
+}
+
+#event-public-page button,
+#event-public-page a {
+  font-kerning: normal;
 }
 
 [dir="rtl"] body :where(
@@ -204,6 +238,16 @@ body :where(.brand, .atlas-logo-word, .atlas-logo-one) {
 }
 
 [dir="rtl"] body :where(h1, h2, h3, h4, h5, h6, .section-title) {
+  font-family: "Noto Sans Hebrew", "Roboto Flex", Arial, Helvetica, sans-serif !important;
+  font-variation-settings: normal;
+}
+
+[dir="rtl"] #event-public-page h1,
+[dir="rtl"] #event-public-page h2,
+[dir="rtl"] #event-public-page h3,
+[dir="rtl"] #event-public-page h4,
+[dir="rtl"] #event-public-page h5,
+[dir="rtl"] #event-public-page h6 {
   font-family: "Noto Sans Hebrew", "Roboto Flex", Arial, Helvetica, sans-serif !important;
   font-variation-settings: normal;
 }
@@ -266,5 +310,15 @@ body :where(.brand, .atlas-logo-word, .atlas-logo-one) {
     font-size: 34px !important;
     line-height: 40px !important;
     font-variation-settings: "wght" 700, "wdth" 100, "opsz" 42;
+  }
+
+  #event-public-page h1 {
+    font-size: clamp(34px, 10vw, 42px) !important;
+    line-height: 1.02 !important;
+    letter-spacing: -.01em !important;
+  }
+
+  #event-public-page h2 {
+    font-size: 24px !important;
   }
 }
