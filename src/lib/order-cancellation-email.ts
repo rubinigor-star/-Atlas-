@@ -5,7 +5,7 @@ function baseUrl() {
 }
 
 function escapeHtml(value: string) {
-  return value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char] || char);
+  return value.replace(/[&<>'\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '\"': "&quot;" })[char] || char);
 }
 
 function resendFromAddress() {
@@ -41,7 +41,7 @@ export async function sendOrderCancellationEmail(publicId: string, refundedMinor
       from: resendFromAddress(),
       to: [recipient],
       subject: cancellationPublicId ? `Возврат выполнен - ${cancellationPublicId}` : `Заказ отменён - ${order.event.title}`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111827"><div style="background:#081426;color:white;padding:26px"><h1 style="margin:0">Билеты отменены, возврат оформлен</h1></div><div style="padding:26px"><p>Здравствуйте, ${escapeHtml(order.customerName)}.</p>${requestLine}<p>Ваш заказ <strong>${escapeHtml(order.publicId)}</strong> на мероприятие <strong>${escapeHtml(order.event.title)}</strong> отменён.</p><p>HYP подтвердил возврат на сумму <strong>${escapeHtml(amount)}</strong>. Срок фактического зачисления средств на карту зависит от банка и платёжной системы.</p><p><strong>Все билеты и QR-коды по этому заказу больше недействительны.</strong></p><p><a href="${orderUrl}">Открыть заказ</a></p></div></div>`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111827"><div style="background:#081426;color:white;padding:26px"><h1 style="margin:0">Билеты отменены, возврат оформлен</h1></div><div style="padding:26px"><p>Здравствуйте, ${escapeHtml(order.customerName)}.</p>${requestLine}<p>Ваш заказ <strong>${escapeHtml(order.publicId)}</strong> на мероприятие <strong>${escapeHtml(order.event.title)}</strong> отменён.</p><p>Организатор подтвердил возврат на сумму <strong>${escapeHtml(amount)}</strong>. Возврат уже оформлен на исходный способ оплаты. Срок фактического зачисления средств зависит от банка и платёжной системы.</p><p><strong>Все билеты и QR-коды по этому заказу больше недействительны.</strong></p><p><a href="${orderUrl}">Посмотреть отменённый заказ</a></p></div></div>`,
     }),
   });
 
