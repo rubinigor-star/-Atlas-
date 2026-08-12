@@ -25,6 +25,14 @@ function ensureColumns() {
   return columnsReady;
 }
 
+async function getOrderSalesFlow(orderId: string) {
+  const rows = await db.$queryRawUnsafe<Array<{ salesFlow: string }>>(
+    `SELECT "salesFlow" FROM "Order" WHERE "id"=$1 LIMIT 1`,
+    orderId,
+  );
+  return rows[0]?.salesFlow ?? null;
+}
+
 async function saveAuthorization(order: { id: string; totalMinor: number; currency: string }, result: ReturnType<typeof hypApprovalResultFromUrl>) {
   await ensureColumns();
   const transId = result.transId.trim();
@@ -43,9 +51,14 @@ async function handle(request: Request) {
   const result = hypApprovalResultFromUrl(url);
   const publicId = result.orderId;
   if (!publicId) return NextResponse.redirect(new URL("/payments/hyp/result?payment=missing-order", url));
-  const order = await db.order.findUnique({ where: { publicId }, include: { event: true } });
+  const order = await db.order.findUnique({ where: { publicId } });
   if (!order) return NextResponse.redirect(new URL(`/payments/hyp/result?payment=unknown-order`, url));
-  if (order.event.salesMode !== "APPROVAL_REQUIRED") return NextResponse.redirect(new URL(`/orders/${encodeURIComponent(publicId)}?payment=failed`, url));
+
+  const salesFlow = await getOrderSalesFlow(order.id);
+  if (salesFlow !== "APPROVAL") {
+    console.error("hyp.approval.wrong_order_flow", { publicId, salesFlow });
+    return NextResponse.redirect(new URL(`/orders/${encodeURIComponent(publicId)}?payment=failed`, url));
+  }
 
   const returnedMinor = Math.round(Number(result.amount || "0") * 100);
   const signatureValid = await verifyHypApprovalResponseMac(url);
