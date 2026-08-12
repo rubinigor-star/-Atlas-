@@ -19,6 +19,7 @@ type Category = {
   salesStrategy?: TicketSalesStrategy;
 };
 
+type MapSeat = { id: string; position: number; categoryId: string | null };
 type MapObject = {
   id: string;
   label: string;
@@ -29,36 +30,79 @@ type MapObject = {
   width: number;
   height: number;
   categoryId: string | null;
-  seatItems?: Array<{ id: string; position: number; categoryId: string | null }>;
+  seatItems?: MapSeat[];
 };
 
+const WORLD_WIDTH = 1400;
+const WORLD_HEIGHT = 900;
 const seatTypes = new Set(["TABLE", "ROUND_TABLE", "SOFA", "ROW"]);
 
 function isInternalObject(object: MapObject) {
   return object.label.startsWith("__ATLAS_") || object.label.startsWith("READING_V3_");
 }
 
+function tableSeatPosition(object: MapObject, index: number): React.CSSProperties {
+  const position = index + 1;
+  const seats = object.seatItems?.length ?? 0;
+  const horizontal = object.width >= object.height;
+  if (seats === 2) return horizontal
+    ? { left: position === 1 ? "12%" : "88%", top: "50%" }
+    : { left: "50%", top: position === 1 ? "12%" : "88%" };
+  if (seats === 6 && horizontal) {
+    const top = index < 3;
+    return { left: `${[18, 50, 82][index % 3]}%`, top: top ? "14%" : "86%" };
+  }
+  if (seats === 8 && !horizontal) {
+    const left = index < 4;
+    return { left: left ? "15%" : "85%", top: `${[14, 38, 62, 86][index % 4]}%` };
+  }
+  const half = Math.ceil(seats / 2);
+  const first = index < half;
+  const slot = first ? index : index - half;
+  const count = first ? half : Math.floor(seats / 2);
+  const offset = `${((slot + 1) / (count + 1)) * 100}%`;
+  return horizontal ? { left: offset, top: first ? "14%" : "86%" } : { left: first ? "15%" : "85%", top: offset };
+}
+
+function seatPosition(object: MapObject, seat: MapSeat, index: number): React.CSSProperties {
+  if (object.objectType === "ROUND_TABLE") {
+    const total = Math.max(1, object.seatItems?.length ?? 1);
+    const angle = index / total * Math.PI * 2 - Math.PI / 2;
+    return { left: `${50 + Math.cos(angle) * 39}%`, top: `${50 + Math.sin(angle) * 39}%` };
+  }
+  if (object.objectType === "ROW") {
+    const total = Math.max(1, object.seatItems?.length ?? 1);
+    return { left: `${((index + .5) / total) * 100}%`, top: "50%" };
+  }
+  return tableSeatPosition(object, index);
+}
+
 function SeatMapPreview({ objects, categories }: { objects: MapObject[]; categories: Category[] }) {
   const visibleObjects = objects.filter((item) => !isInternalObject(item));
   return <div className={styles.mapPreview} aria-hidden="true">
-    <div className={styles.mapWorld}>
-      {visibleObjects.map((object) => {
-        const category = categories.find((item) => item.id === object.categoryId);
-        const isSeatObject = seatTypes.has(object.objectType);
-        const style = {
-          left: `${object.x}%`,
-          top: `${object.y}%`,
-          width: `${Math.max(18, object.width * .72)}px`,
-          height: `${Math.max(10, object.height * .72)}px`,
-          transform: `translate(-50%,-50%) rotate(${object.rotation}deg)`,
-          background: object.objectType === "ZONE" ? (category?.colorHex ?? "#1c63f3") : undefined,
-          borderColor: isSeatObject ? (category?.colorHex ?? "#cbd5e1") : undefined,
-        } as React.CSSProperties;
-        return <div key={object.id} className={`${styles.mapObject} ${styles[`map${object.objectType}`] ?? ""}`} style={style}>
-          <span>{object.label}</span>
-          {isSeatObject && (object.seatItems ?? []).slice(0, 10).map((seat, index) => <i key={seat.id} style={{ "--seat-index": index } as React.CSSProperties}/>) }
-        </div>;
-      })}
+    <div className={styles.mapViewportFit}>
+      <div className={styles.mapWorld}>
+        {visibleObjects.map((object) => {
+          const category = categories.find((item) => item.id === object.categoryId);
+          const isSeatObject = seatTypes.has(object.objectType);
+          const style = {
+            left: `${object.x}%`,
+            top: `${object.y}%`,
+            width: `${object.width}px`,
+            height: `${object.height}px`,
+            transform: `translate(-50%,-50%) rotate(${object.rotation}deg)`,
+            background: object.objectType === "ZONE" ? (category?.colorHex ?? "#145dff") : undefined,
+            borderColor: isSeatObject ? (category?.colorHex ?? "#cfd6df") : undefined,
+          } as React.CSSProperties;
+          return <div key={object.id} className={`${styles.mapObject} ${styles[`map${object.objectType}`] ?? ""}`} style={style}>
+            <span>{object.label}</span>
+            {isSeatObject && (object.seatItems ?? []).map((seat, index) => {
+              const seatCategory = categories.find((item) => item.id === (seat.categoryId ?? object.categoryId));
+              return <i key={seat.id} style={{ ...seatPosition(object, seat, index), background: seatCategory?.colorHex ?? "#eef2f7" }}/>;
+            })}
+          </div>;
+        })}
+      </div>
     </div>
   </div>;
 }
