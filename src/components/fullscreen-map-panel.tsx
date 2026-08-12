@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 export function FullscreenMapPanel({children}:{children:ReactNode}){
  const[open,setOpen]=useState(false);
+ const rootRef=useRef<HTMLDivElement|null>(null);
+
  useEffect(()=>{
   if(!open)return;
   const previous=document.body.style.overflow;
@@ -14,17 +16,36 @@ export function FullscreenMapPanel({children}:{children:ReactNode}){
  },[open]);
 
  useEffect(()=>{
-  const mapScroll=document.querySelector<HTMLElement>(".venue-builder .map-scroll");
+  const root=rootRef.current;
+  const mapScroll=root?.querySelector<HTMLElement>(".venue-builder .map-scroll");
   if(!mapScroll)return;
 
   let spaceHeld=false;
   let panning=false;
-  let pointerId=-1;
-  let startX=0;
-  let startY=0;
-  let startLeft=0;
-  let startTop=0;
+  let panPointerId=-1;
+  let panStartX=0;
+  let panStartY=0;
+  let startPanX=0;
+  let startPanY=0;
+  let panX=Number(mapScroll.dataset.panX||0);
+  let panY=Number(mapScroll.dataset.panY||0);
   let zoomLocked=false;
+
+  let marqueePointerId=-1;
+  let marqueeStartX=0;
+  let marqueeStartY=0;
+  let marqueeMoved=false;
+  let suppressNextClick=false;
+
+  const frame=()=>mapScroll.querySelector<HTMLElement>(".map-world-frame");
+  const applyPan=()=>{
+   const current=frame();
+   if(!current)return;
+   current.style.transform=`translate(${panX}px, ${panY}px)`;
+   mapScroll.dataset.panX=String(panX);
+   mapScroll.dataset.panY=String(panY);
+  };
+  applyPan();
 
   const setCursor=()=>{
    mapScroll.style.cursor=spaceHeld?(panning?"grabbing":"grab"):"";
@@ -41,49 +62,88 @@ export function FullscreenMapPanel({children}:{children:ReactNode}){
   const keyUp=(event:KeyboardEvent)=>{
    if(event.code!=="Space")return;
    spaceHeld=false;
-   panning=false;
-   pointerId=-1;
+   if(panning){
+    panning=false;
+    panPointerId=-1;
+   }
    setCursor();
   };
   const blur=()=>{
    spaceHeld=false;
    panning=false;
-   pointerId=-1;
+   panPointerId=-1;
+   marqueePointerId=-1;
    setCursor();
   };
 
   const pointerDown=(event:PointerEvent)=>{
-   if(!spaceHeld||event.button!==0)return;
-   event.preventDefault();
-   event.stopPropagation();
-   panning=true;
-   pointerId=event.pointerId;
-   startX=event.clientX;
-   startY=event.clientY;
-   startLeft=mapScroll.scrollLeft;
-   startTop=mapScroll.scrollTop;
-   try{mapScroll.setPointerCapture(event.pointerId)}catch{}
-   setCursor();
+   if(event.button!==0)return;
+
+   if(spaceHeld){
+    event.preventDefault();
+    event.stopPropagation();
+    panning=true;
+    panPointerId=event.pointerId;
+    panStartX=event.clientX;
+    panStartY=event.clientY;
+    startPanX=panX;
+    startPanY=panY;
+    try{mapScroll.setPointerCapture(event.pointerId)}catch{}
+    setCursor();
+    return;
+   }
+
+   const target=event.target as HTMLElement|null;
+   if(target?.classList.contains("map-world")&&target.classList.contains("tickets")){
+    marqueePointerId=event.pointerId;
+    marqueeStartX=event.clientX;
+    marqueeStartY=event.clientY;
+    marqueeMoved=false;
+   }
   };
+
   const pointerMove=(event:PointerEvent)=>{
-   if(!panning||event.pointerId!==pointerId)return;
-   event.preventDefault();
-   event.stopPropagation();
-   mapScroll.scrollLeft=startLeft-(event.clientX-startX);
-   mapScroll.scrollTop=startTop-(event.clientY-startY);
+   if(panning&&event.pointerId===panPointerId){
+    event.preventDefault();
+    event.stopPropagation();
+    panX=startPanX+(event.clientX-panStartX);
+    panY=startPanY+(event.clientY-panStartY);
+    applyPan();
+    return;
+   }
+
+   if(event.pointerId===marqueePointerId){
+    if(Math.abs(event.clientX-marqueeStartX)>4||Math.abs(event.clientY-marqueeStartY)>4)marqueeMoved=true;
+   }
   };
-  const endPan=(event:PointerEvent)=>{
-   if(event.pointerId!==pointerId)return;
-   if(panning){event.preventDefault();event.stopPropagation();}
-   try{if(mapScroll.hasPointerCapture(event.pointerId))mapScroll.releasePointerCapture(event.pointerId)}catch{}
-   panning=false;
-   pointerId=-1;
-   setCursor();
+
+  const pointerEnd=(event:PointerEvent)=>{
+   if(event.pointerId===panPointerId){
+    if(panning){
+     event.preventDefault();
+     event.stopPropagation();
+     suppressNextClick=true;
+    }
+    try{if(mapScroll.hasPointerCapture(event.pointerId))mapScroll.releasePointerCapture(event.pointerId)}catch{}
+    panning=false;
+    panPointerId=-1;
+    setCursor();
+    return;
+   }
+
+   if(event.pointerId===marqueePointerId){
+    if(marqueeMoved)suppressNextClick=true;
+    marqueePointerId=-1;
+    marqueeMoved=false;
+   }
   };
+
   const suppressClick=(event:MouseEvent)=>{
-   if(!spaceHeld)return;
-   event.preventDefault();
-   event.stopPropagation();
+   if(spaceHeld||suppressNextClick){
+    suppressNextClick=false;
+    event.preventDefault();
+    event.stopPropagation();
+   }
   };
 
   const wheel=(event:WheelEvent)=>{
@@ -92,34 +152,32 @@ export function FullscreenMapPanel({children}:{children:ReactNode}){
    event.stopPropagation();
    if(zoomLocked)return;
 
-   const frame=mapScroll.querySelector<HTMLElement>(".map-world-frame");
+   const oldFrame=frame();
    const tools=mapScroll.parentElement?.querySelector<HTMLElement>(".floating-tools");
-   if(!frame||!tools)return;
+   if(!oldFrame||!tools)return;
    const buttons=[...tools.querySelectorAll<HTMLButtonElement>("button")];
    const zoomOut=buttons.find(button=>button.textContent?.trim()==="−");
    const zoomIn=buttons.find(button=>button.textContent?.trim()==="＋"||button.textContent?.trim()==="+");
    const button=event.deltaY<0?zoomIn:zoomOut;
    if(!button||button.disabled)return;
 
-   const oldWidth=frame.getBoundingClientRect().width;
-   const oldHeight=frame.getBoundingClientRect().height;
-   if(!oldWidth||!oldHeight)return;
-   const bounds=mapScroll.getBoundingClientRect();
-   const cursorX=event.clientX-bounds.left;
-   const cursorY=event.clientY-bounds.top;
-   const oldLeft=mapScroll.scrollLeft;
-   const oldTop=mapScroll.scrollTop;
+   const oldRect=oldFrame.getBoundingClientRect();
+   if(!oldRect.width||!oldRect.height)return;
+   const fx=(event.clientX-oldRect.left)/oldRect.width;
+   const fy=(event.clientY-oldRect.top)/oldRect.height;
 
    zoomLocked=true;
    button.click();
    requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    const nextFrame=mapScroll.querySelector<HTMLElement>(".map-world-frame");
+    const nextFrame=frame();
     if(nextFrame){
-     const newWidth=nextFrame.getBoundingClientRect().width;
-     const newHeight=nextFrame.getBoundingClientRect().height;
-     if(newWidth&&newHeight){
-      mapScroll.scrollLeft=(oldLeft+cursorX)*(newWidth/oldWidth)-cursorX;
-      mapScroll.scrollTop=(oldTop+cursorY)*(newHeight/oldHeight)-cursorY;
+     const nextRect=nextFrame.getBoundingClientRect();
+     if(nextRect.width&&nextRect.height){
+      const pointX=nextRect.left+fx*nextRect.width;
+      const pointY=nextRect.top+fy*nextRect.height;
+      panX+=event.clientX-pointX;
+      panY+=event.clientY-pointY;
+      applyPan();
      }
     }
     zoomLocked=false;
@@ -131,8 +189,8 @@ export function FullscreenMapPanel({children}:{children:ReactNode}){
   window.addEventListener("blur",blur);
   mapScroll.addEventListener("pointerdown",pointerDown,true);
   mapScroll.addEventListener("pointermove",pointerMove,true);
-  mapScroll.addEventListener("pointerup",endPan,true);
-  mapScroll.addEventListener("pointercancel",endPan,true);
+  mapScroll.addEventListener("pointerup",pointerEnd,true);
+  mapScroll.addEventListener("pointercancel",pointerEnd,true);
   mapScroll.addEventListener("click",suppressClick,true);
   mapScroll.addEventListener("wheel",wheel,{passive:false,capture:true});
 
@@ -142,15 +200,15 @@ export function FullscreenMapPanel({children}:{children:ReactNode}){
    window.removeEventListener("blur",blur);
    mapScroll.removeEventListener("pointerdown",pointerDown,true);
    mapScroll.removeEventListener("pointermove",pointerMove,true);
-   mapScroll.removeEventListener("pointerup",endPan,true);
-   mapScroll.removeEventListener("pointercancel",endPan,true);
+   mapScroll.removeEventListener("pointerup",pointerEnd,true);
+   mapScroll.removeEventListener("pointercancel",pointerEnd,true);
    mapScroll.removeEventListener("click",suppressClick,true);
    mapScroll.removeEventListener("wheel",wheel,true);
    mapScroll.style.cursor="";
   };
  },[open]);
 
- return <div className={open?"map-overlay":"panel"} style={open?{position:"fixed",inset:0,zIndex:10000,background:"#fff",overflow:"auto",padding:16}:{background:"var(--surface, #fff)",overflow:"auto"}}>
+ return <div ref={rootRef} className={open?"map-overlay":"panel"} style={open?{position:"fixed",inset:0,zIndex:10000,background:"#fff",overflow:"auto",padding:16}:{background:"var(--surface, #fff)",overflow:"auto"}}>
   <div className="row between"><div><span className="eyebrow">Места и карта</span><h2>Схема зала и назначение билетов</h2></div><button type="button" className="btn secondary" onClick={()=>setOpen(value=>!value)}>{open?"Закрыть полноэкранный режим":"Открыть карту на весь экран"}</button></div>
   {children}
  </div>;
