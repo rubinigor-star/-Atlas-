@@ -13,17 +13,17 @@ export type ReservationItemInput = {
 };
 
 async function releaseClaims(reservationId: string, executor: SqlExecutor) {
-  await executor.$executeRaw`DELETE FROM ReservationClaim WHERE reservationId = ${reservationId}`;
+  await executor.$executeRaw`DELETE FROM "ReservationClaim" WHERE "reservationId" = ${reservationId}`;
 }
 
 export async function expireReservations(executor: SqlExecutor = db) {
   const expired = await executor.$queryRaw<Array<{ id: string; orderId: string }>>`
-    SELECT id, orderId FROM Reservation WHERE status = 'ACTIVE' AND expiresAt <= CURRENT_TIMESTAMP
+    SELECT "id", "orderId" FROM "Reservation" WHERE "status" = 'ACTIVE' AND "expiresAt" <= CURRENT_TIMESTAMP
   `;
   for (const reservation of expired) {
     const changed = await executor.$executeRaw`
-      UPDATE Reservation SET status = 'EXPIRED', updatedAt = CURRENT_TIMESTAMP
-      WHERE id = ${reservation.id} AND status = 'ACTIVE'
+      UPDATE "Reservation" SET "status" = 'EXPIRED', "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${reservation.id} AND "status" = 'ACTIVE'
     `;
     if (changed === 1) await releaseClaims(reservation.id, executor);
   }
@@ -44,14 +44,14 @@ export async function assertInventoryAvailable(params: {
     const category = params.capacities.get(categoryId);
     if (!category) throw new Error("Категория билета не найдена");
     await executor.$executeRaw`
-      INSERT INTO ReservationInventoryLock (categoryId, updatedAt)
+      INSERT INTO "ReservationInventoryLock" ("categoryId", "updatedAt")
       VALUES (${categoryId}, CURRENT_TIMESTAMP)
-      ON CONFLICT (categoryId) DO UPDATE SET updatedAt = CURRENT_TIMESTAMP
+      ON CONFLICT ("categoryId") DO UPDATE SET "updatedAt" = CURRENT_TIMESTAMP
     `;
     const reservedRows = await executor.$queryRaw<Array<{ quantity: number | bigint | null }>>`
-      SELECT COALESCE(SUM(ri.quantity), 0) AS quantity
-      FROM ReservationItem ri JOIN Reservation r ON r.id = ri.reservationId
-      WHERE ri.categoryId = ${categoryId} AND r.status = 'ACTIVE'
+      SELECT COALESCE(SUM(ri."quantity"), 0) AS quantity
+      FROM "ReservationItem" ri JOIN "Reservation" r ON r."id" = ri."reservationId"
+      WHERE ri."categoryId" = ${categoryId} AND r."status" = 'ACTIVE'
     `;
     const reserved = Number(reservedRows[0]?.quantity ?? 0);
     if (category.sold + reserved + requestedQuantity > category.capacity) throw new Error(`Недостаточно доступных билетов ${category.name}`);
@@ -59,11 +59,11 @@ export async function assertInventoryAvailable(params: {
 
   for (const item of params.items) {
     if (item.tableId) {
-      const conflicts = await executor.$queryRaw<Array<{ count: number | bigint }>>`SELECT COUNT(*) AS count FROM ReservationClaim WHERE tableId = ${item.tableId}`;
+      const conflicts = await executor.$queryRaw<Array<{ count: number | bigint }>>`SELECT COUNT(*) AS count FROM "ReservationClaim" WHERE "tableId" = ${item.tableId}`;
       if (Number(conflicts[0]?.count ?? 0) > 0) throw new Error("Этот стол уже временно забронирован");
     }
     if (item.seatId) {
-      const conflicts = await executor.$queryRaw<Array<{ count: number | bigint }>>`SELECT COUNT(*) AS count FROM ReservationClaim WHERE seatId = ${item.seatId}`;
+      const conflicts = await executor.$queryRaw<Array<{ count: number | bigint }>>`SELECT COUNT(*) AS count FROM "ReservationClaim" WHERE "seatId" = ${item.seatId}`;
       if (Number(conflicts[0]?.count ?? 0) > 0) throw new Error("Это место уже временно забронировано");
     }
   }
@@ -77,14 +77,14 @@ export async function createReservation(params: {
 }) {
   const executor = params.executor ?? db;
   const existing = await executor.$queryRaw<Array<{ id: string; status: ReservationStatus; expiresAt: Date }>>`
-    SELECT id, status, expiresAt FROM Reservation WHERE orderId = ${params.orderId} LIMIT 1
+    SELECT "id", "status", "expiresAt" FROM "Reservation" WHERE "orderId" = ${params.orderId} LIMIT 1
   `;
   if (existing[0]) return existing[0];
 
   const id = `res_${randomUUID().replace(/-/g, "")}`;
   const expiresAt = new Date(Date.now() + (params.ttlMinutes ?? 30) * 60 * 1000);
   await executor.$executeRaw`
-    INSERT INTO Reservation (id, orderId, status, expiresAt, createdAt, updatedAt)
+    INSERT INTO "Reservation" ("id", "orderId", "status", "expiresAt", "createdAt", "updatedAt")
     VALUES (${id}, ${params.orderId}, 'ACTIVE', ${expiresAt}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `;
 
@@ -92,13 +92,13 @@ export async function createReservation(params: {
     for (const item of params.items) {
       const itemId = `resi_${randomUUID().replace(/-/g, "")}`;
       await executor.$executeRaw`
-        INSERT INTO ReservationItem (id, reservationId, categoryId, quantity, tableId, seatId, createdAt)
+        INSERT INTO "ReservationItem" ("id", "reservationId", "categoryId", "quantity", "tableId", "seatId", "createdAt")
         VALUES (${itemId}, ${id}, ${item.categoryId}, ${item.quantity}, ${item.tableId ?? null}, ${item.seatId ?? null}, CURRENT_TIMESTAMP)
       `;
       if (item.tableId || item.seatId) {
         const claimId = `resc_${randomUUID().replace(/-/g, "")}`;
         await executor.$executeRaw`
-          INSERT INTO ReservationClaim (id, reservationId, tableId, seatId, createdAt)
+          INSERT INTO "ReservationClaim" ("id", "reservationId", "tableId", "seatId", "createdAt")
           VALUES (${claimId}, ${id}, ${item.tableId ?? null}, ${item.seatId ?? null}, CURRENT_TIMESTAMP)
         `;
       }
@@ -114,13 +114,13 @@ export async function createReservation(params: {
 
 export async function commitReservation(orderId: string, executor: SqlExecutor = db) {
   const rows = await executor.$queryRaw<Array<{ id: string }>>`
-    SELECT id FROM Reservation WHERE orderId = ${orderId} AND status = 'ACTIVE' LIMIT 1
+    SELECT "id" FROM "Reservation" WHERE "orderId" = ${orderId} AND "status" = 'ACTIVE' LIMIT 1
   `;
   const reservation = rows[0];
   if (!reservation) return;
   const updated = await executor.$executeRaw`
-    UPDATE Reservation SET status = 'COMMITTED', committedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
-    WHERE id = ${reservation.id} AND status = 'ACTIVE'
+    UPDATE "Reservation" SET "status" = 'COMMITTED', "committedAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "id" = ${reservation.id} AND "status" = 'ACTIVE'
   `;
   if (updated !== 1) throw new Error("Резерв был изменён другой операцией");
   await releaseClaims(reservation.id, executor);
@@ -128,13 +128,13 @@ export async function commitReservation(orderId: string, executor: SqlExecutor =
 
 export async function releaseReservation(orderId: string, executor: SqlExecutor = db) {
   const rows = await executor.$queryRaw<Array<{ id: string }>>`
-    SELECT id FROM Reservation WHERE orderId = ${orderId} AND status = 'ACTIVE' LIMIT 1
+    SELECT "id" FROM "Reservation" WHERE "orderId" = ${orderId} AND "status" = 'ACTIVE' LIMIT 1
   `;
   const reservation = rows[0];
   if (!reservation) return;
   const updated = await executor.$executeRaw`
-    UPDATE Reservation SET status = 'RELEASED', releasedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
-    WHERE id = ${reservation.id} AND status = 'ACTIVE'
+    UPDATE "Reservation" SET "status" = 'RELEASED', "releasedAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "id" = ${reservation.id} AND "status" = 'ACTIVE'
   `;
   if (updated === 1) await releaseClaims(reservation.id, executor);
 }
