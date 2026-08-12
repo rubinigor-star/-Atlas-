@@ -49,7 +49,21 @@ export async function claimNotification(input: {
     input.channel, input.type, input.recipient, input.priceMinor ?? 0,
     input.metadata === undefined ? null : JSON.stringify(input.metadata),
   );
-  return rows[0] ? { claimed: true, id: rows[0].id } : { claimed: false, id: null };
+  if (rows[0]) return { claimed: true, id: rows[0].id };
+
+  if (input.dedupeKey) {
+    const retry = await db.$queryRawUnsafe<Array<{ id: string }>>(
+      `UPDATE "NotificationDelivery"
+       SET "status"='PENDING',"providerStatus"=NULL,"providerMessage"=NULL,"priceMinor"=$2,"updatedAt"=CURRENT_TIMESTAMP
+       WHERE "dedupeKey"=$1 AND "status"='FAILED'
+       RETURNING "id"`,
+      input.dedupeKey,
+      input.priceMinor ?? 0,
+    );
+    if (retry[0]) return { claimed: true, id: retry[0].id };
+  }
+
+  return { claimed: false, id: null };
 }
 
 export async function completeNotification(id: string, input: { providerStatus?: unknown; providerMessage?: string | null }) {
