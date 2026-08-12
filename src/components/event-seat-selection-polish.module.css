@@ -18,27 +18,28 @@
   pointer-events:auto!important;
 }
 .headerBack:hover{color:#ff6f00!important}
-.sidebar{padding:20px 18px 18px!important}
-.eventInfo{grid-template-columns:64px minmax(0,1fr)!important;gap:10px!important;align-items:start!important}
+.sidebar{padding:20px 18px 18px!important;box-sizing:border-box!important;overflow:hidden!important}
+.eventInfo{grid-template-columns:64px minmax(0,1fr)!important;gap:10px!important;align-items:start!important;width:100%!important;min-width:0!important}
 .poster{width:64px!important;height:64px!important;aspect-ratio:1/1!important;border-radius:5px!important;object-fit:cover!important;box-shadow:none!important}
-.eventDetails{min-width:0!important;overflow:visible!important}
+.eventDetails{min-width:0!important;width:100%!important;max-width:100%!important;overflow:hidden!important}
 .title{margin:0 0 8px!important;font-family:inherit!important;font-size:15px!important;line-height:1.15!important;font-weight:750!important;letter-spacing:-.012em!important;text-transform:none!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;word-break:normal!important;color:#071226!important}
-.eventPills{display:flex!important;gap:7px!important;align-items:center!important;flex-wrap:nowrap!important;visibility:visible!important;opacity:1!important;overflow:visible!important;min-height:36px!important}
-.pill{height:34px!important;min-width:0!important;width:auto!important;border-radius:999px!important;padding:0 10px!important;border:1px solid #d5dae1!important;font-size:11.5px!important;font-weight:700!important;background:#fff!important;display:inline-flex!important;align-items:center!important;gap:6px!important;color:#111827!important;visibility:visible!important;opacity:1!important}
+.eventPills{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:7px!important;align-items:center!important;width:100%!important;max-width:100%!important;min-width:0!important;visibility:visible!important;opacity:1!important;overflow:hidden!important;min-height:36px!important}
+.pill{height:34px!important;min-width:0!important;width:100%!important;max-width:100%!important;border-radius:999px!important;padding:0 10px!important;border:1px solid #d5dae1!important;font-size:11.5px!important;font-weight:700!important;background:#fff!important;display:inline-flex!important;align-items:center!important;gap:6px!important;color:#111827!important;visibility:visible!important;opacity:1!important;overflow:hidden!important;box-sizing:border-box!important}
+.pill span{display:block!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
 .pill svg{display:block!important;flex:0 0 auto!important}
-.peopleButton{height:34px!important;min-width:64px!important;border-radius:999px!important;padding:0 9px!important;border:1px solid #d5dae1!important;background:#fff!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;color:#111827!important;visibility:visible!important;opacity:1!important}
+.peopleButton{height:34px!important;min-width:64px!important;max-width:72px!important;border-radius:999px!important;padding:0 9px!important;border:1px solid #d5dae1!important;background:#fff!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:5px!important;color:#111827!important;visibility:visible!important;opacity:1!important;box-sizing:border-box!important}
 .peopleButton svg{display:block!important;flex:0 0 auto!important}
-.peopleButton strong{display:inline-block!important;color:#111827!important;opacity:1!important;visibility:visible!important}
+.peopleButton strong{display:inline-block!important;color:#111827!important;opacity:1!important;visibility:visible!important;min-width:10px!important;text-align:center!important}
 .modalBackdrop{position:fixed;inset:0;z-index:5000;background:rgba(19,24,31,.42);display:grid;place-items:center;padding:24px;backdrop-filter:blur(1px)}
-.quantityModal{width:min(386px,calc(100vw - 32px));background:#fff;border-radius:18px;box-shadow:0 22px 60px rgba(0,0,0,.28);padding:18px 24px 24px;color:#0b1220;font-family:inherit}
+.quantityModal{width:min(386px,calc(100vw - 32px));background:#fff;border-radius:18px;box-shadow:0 22px 60px rgba(0,0,0,.28);padding:18px 24px 24px;color:#0b1220;font-family:inherit;display:flex!important;flex-direction:column!important;box-sizing:border-box!important}
 .modalHeader{position:relative;display:grid;place-items:center;min-height:48px;margin-bottom:4px;padding:0 38px;text-align:center}
 .modalHeader h2{margin:0;width:100%;font-size:20px;line-height:1.2;font-weight:800;letter-spacing:-.02em;text-align:center;color:#0b1220}
 .closeButton{position:absolute;top:0;right:0;width:30px;height:30px;border:0;border-radius:50%;background:#f3f4f6;display:grid;place-items:center;cursor:pointer;color:#4b5563}
-.quantityControl{display:grid;grid-template-columns:44px minmax(120px,1fr) 44px;align-items:center;gap:14px;max-width:270px;margin:0 auto 18px}
+.quantityControl{display:grid;grid-template-columns:44px minmax(120px,1fr) 44px;align-items:center;gap:14px;max-width:270px;width:100%;margin:0 auto 18px}
 .quantityControl>button{width:44px;height:44px;border:1px solid #d8dde5;border-radius:50%;background:#fff;display:grid;place-items:center;cursor:pointer;color:#111827}
 .quantityControl>button:disabled{opacity:.35;cursor:default}
 .quantityControl strong{text-align:center;font-size:16px;font-weight:700;white-space:nowrap}
-.confirmButton{width:100%;min-height:44px;border:0;border-radius:999px;background:linear-gradient(90deg,#ff0b55,#ff0a9a);color:#fff;font:inherit;font-size:16px;font-weight:800;cursor:pointer}
+.confirmButton{display:block!important;visibility:visible!important;opacity:1!important;width:100%!important;min-height:44px!important;margin:0!important;border:0!important;border-radius:999px!important;background:linear-gradient(90deg,#ff0b55,#ff0a9a)!important;color:#fff!important;font-family:Inter,Arial,sans-serif!important;font-size:16px!important;line-height:1!important;font-weight:800!important;cursor:pointer!important;box-sizing:border-box!important}
 :global(body.atlas-seat-selection-active) :global(.mapViewport){padding:14px 24px 28px!important}
 :global(body.atlas-seat-selection-active) :global(.mapFrame){margin:0 auto!important}
 
@@ -95,7 +96,7 @@
   .poster{width:56px!important;height:56px!important}
   .title{font-size:14.5px!important}
   .pill{padding-inline:9px!important}
-  .peopleButton{min-width:60px!important;padding-inline:8px!important}
+  .peopleButton{min-width:60px!important;max-width:66px!important;padding-inline:7px!important}
 }
 @media(max-width:900px){
   .headerBack{right:14px!important;height:68px!important;font-size:12px!important}
@@ -106,7 +107,9 @@
   .eventPills{min-height:32px!important;gap:5px!important}
   .pill,.peopleButton{height:32px!important}
   .pill{font-size:11px!important;padding-inline:8px!important}
-  .peopleButton{min-width:58px!important}
+  .peopleButton{min-width:58px!important;max-width:64px!important;padding-inline:6px!important}
   .modalHeader h2{font-size:18px}
+  .quantityModal{padding:16px 20px 20px!important}
+  .confirmButton{min-height:42px!important;font-size:15px!important}
   :global(.atlas-selected-head){column-gap:9px!important;row-gap:3px!important}
 }
