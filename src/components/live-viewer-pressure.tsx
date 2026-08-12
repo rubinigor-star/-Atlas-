@@ -7,6 +7,23 @@ type Locale = "ru" | "en" | "he";
 const INTERVALS = [5000, 3000, 9000, 4000];
 const MIN_VIEWERS = 12;
 const MAX_VIEWERS = 48;
+const INITIAL_VIEWERS = 30;
+
+type ViewerStore = {
+  viewers: number;
+  intervalIndex: number;
+  listeners: Set<(value: number) => void>;
+  timer: number | null;
+  started: boolean;
+};
+
+const store: ViewerStore = {
+  viewers: INITIAL_VIEWERS,
+  intervalIndex: 0,
+  listeners: new Set(),
+  timer: null,
+  started: false,
+};
 
 function randomInitial() {
   return Math.floor(Math.random() * (MAX_VIEWERS - MIN_VIEWERS + 1)) + MIN_VIEWERS;
@@ -21,17 +38,39 @@ function nextViewerCount(current: number) {
   return next;
 }
 
+function publish(value: number) {
+  store.viewers = value;
+  store.listeners.forEach((listener) => listener(value));
+}
+
+function scheduleNext() {
+  if (typeof window === "undefined") return;
+  if (store.timer !== null) window.clearTimeout(store.timer);
+  store.timer = window.setTimeout(() => {
+    publish(nextViewerCount(store.viewers));
+    store.intervalIndex = (store.intervalIndex + 1) % INTERVALS.length;
+    scheduleNext();
+  }, INTERVALS[store.intervalIndex]);
+}
+
+function startStore() {
+  if (store.started || typeof window === "undefined") return;
+  store.started = true;
+  publish(randomInitial());
+  scheduleNext();
+}
+
 export function LiveViewerPressure({ locale }: { locale: Locale }) {
-  const [viewers, setViewers] = useState(randomInitial);
-  const [intervalIndex, setIntervalIndex] = useState(0);
+  const [viewers, setViewers] = useState(INITIAL_VIEWERS);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setViewers((current) => nextViewerCount(current));
-      setIntervalIndex((current) => (current + 1) % INTERVALS.length);
-    }, INTERVALS[intervalIndex]);
-    return () => window.clearTimeout(timer);
-  }, [intervalIndex]);
+    store.listeners.add(setViewers);
+    setViewers(store.viewers);
+    startStore();
+    return () => {
+      store.listeners.delete(setViewers);
+    };
+  }, []);
 
   const copy = {
     ru: { before: "Сейчас это мероприятие просматривают ", after: " человек" },
