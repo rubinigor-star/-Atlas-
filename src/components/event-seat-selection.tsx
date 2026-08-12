@@ -190,21 +190,21 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
 
   const local = {
     ru: {
-      back: "Вернуться к мероприятию", offers: "Специальное предложение", all: "Все билеты", onePlusOne: "1 + 1",
+      back: "Вернуться к мероприятию", offers: "Предложения", all: "Все билеты", onePlusOne: "1 + 1",
       people: "Количество гостей", peopleHint: "Покажем только места, где вся группа сможет сидеть рядом", tickets: "билетов",
-      confirm: "Подтвердить", selected: "Выбрано", continue: "Продолжить", price: "Цена", noSeats: "В выбранном диапазоне нет подходящих мест рядом",
+      confirm: "Подтвердить", selected: "Выбрано", continue: "Перейти к оплате", emptyCheckout: "Выберите билет", price: "Цена", feeIncluded: "включая сервисный сбор", noSeats: "В выбранном диапазоне нет подходящих мест рядом",
       zoomReset: "Сбросить масштаб", row: "Ряд", seat: "место", seats: "места", table: "Стол", zone: "Зона", section: "Категория"
     },
     en: {
-      back: "Back to event", offers: "Special offer", all: "All tickets", onePlusOne: "1 + 1",
+      back: "Back to event", offers: "Offers", all: "All tickets", onePlusOne: "1 + 1",
       people: "Guests", peopleHint: "We only show places where the whole group can sit together", tickets: "tickets",
-      confirm: "Confirm", selected: "Selected", continue: "Continue", price: "Price", noSeats: "No adjacent seats match this price range",
+      confirm: "Confirm", selected: "Selected", continue: "Go to checkout", emptyCheckout: "Select a ticket", price: "Price", feeIncluded: "incl. service fee", noSeats: "No adjacent seats match this price range",
       zoomReset: "Reset zoom", row: "Row", seat: "seat", seats: "seats", table: "Table", zone: "Zone", section: "Category"
     },
     he: {
-      back: "חזרה לאירוע", offers: "הצעה מיוחדת", all: "כל הכרטיסים", onePlusOne: "1 + 1",
+      back: "חזרה לאירוע", offers: "הצעות", all: "כל הכרטיסים", onePlusOne: "1 + 1",
       people: "מספר אורחים", peopleHint: "נציג רק מקומות שבהם כל הקבוצה יכולה לשבת יחד", tickets: "כרטיסים",
-      confirm: "אישור", selected: "נבחרו", continue: "המשך", price: "מחיר", noSeats: "אין מקומות צמודים בטווח המחירים שנבחר",
+      confirm: "אישור", selected: "נבחרו", continue: "המשך לתשלום", emptyCheckout: "בחרו כרטיס", price: "מחיר", feeIncluded: "כולל דמי שירות", noSeats: "אין מקומות צמודים בטווח המחירים שנבחר",
       zoomReset: "איפוס זום", row: "שורה", seat: "מקום", seats: "מקומות", table: "שולחן", zone: "אזור", section: "קטגוריה"
     },
   }[locale];
@@ -281,12 +281,20 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           ? allocation.customPriceMinor
           : (categories.find(item => item.id === wholeObject.categoryId)?.priceMinor ?? wholeObject.priceMinor))
       : selectedSeats.reduce((sum, seat) => sum + (categories.find(item => item.id === seat.categoryId)?.priceMinor ?? 0), 0);
-  const currentTotal = buyerPrice(rawSubtotal);
+  const feeBreakdown = calculateServiceFee(rawSubtotal, feeTerms);
+  const currentTotal = feeBreakdown.buyerTotalMinor;
+  const includedBuyerFee = feeTerms.serviceFeePayer === "BUYER" ? feeBreakdown.serviceFeeMinor : 0;
   const scale = zoom / 100;
   const displayTitle = readableEventTitle(title);
 
   function clearSelection() {
     if (allocation?.type === "TABLE") return;
+    setSelectedSeatIds([]);
+    setWholeObjectId(null);
+    setZoneObjectId(null);
+  }
+
+  function removeSelection() {
     setSelectedSeatIds([]);
     setWholeObjectId(null);
     setZoneObjectId(null);
@@ -394,8 +402,121 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const backHref = `/events/${slug}${referralCode ? `?ref=${encodeURIComponent(referralCode)}` : ""}`;
   const selectionCategory = selectedObject ? categoryFor(selectedObject, selectedSeats[0]) : undefined;
   const selectionDescription = selectedObject ? objectDescription(selectedObject, selectedSeats) : "";
+  const selectionQuantity = zoneObject ? qty : wholeObject ? wholeObject.seats : selectedSeatIds.length;
+  const selectionTitle = selectedObject ? `${selectionCategory?.name ?? selectedObject.label}${selectionQuantity > 1 ? ` × ${selectionQuantity}` : ""}` : "";
 
   return <main className={styles.page}>
+    <style jsx>{`
+      @keyframes atlasCheckoutFlow {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+      .atlas-selected-ticket {
+        position: relative;
+        padding: 18px 2px 20px;
+        border-top: 1px solid #e5e7eb;
+      }
+      .atlas-selected-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        align-items: start;
+        gap: 12px;
+      }
+      .atlas-selected-title {
+        margin: 0;
+        color: #0b1220;
+        font-family: "Roboto Flex", Inter, Arial, sans-serif;
+        font-size: 21px;
+        line-height: 1.08;
+        font-weight: 760;
+        letter-spacing: -0.02em;
+      }
+      .atlas-selected-desc {
+        display: block;
+        margin-top: 9px;
+        color: #26384d;
+        font-family: Inter, Arial, sans-serif;
+        font-size: 14px;
+        line-height: 1.35;
+        font-weight: 500;
+      }
+      .atlas-selected-price {
+        text-align: right;
+        white-space: nowrap;
+        color: #0b1220;
+        font-family: Inter, Arial, sans-serif;
+        font-size: 18px;
+        line-height: 1.1;
+        font-weight: 800;
+      }
+      .atlas-selected-fee {
+        display: block;
+        margin-top: 4px;
+        color: #8a94a3;
+        font-family: Inter, Arial, sans-serif;
+        font-size: 11px;
+        line-height: 1.25;
+        font-weight: 450;
+      }
+      .atlas-remove-ticket {
+        width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        border: 1px solid #d8dde5;
+        border-radius: 50%;
+        background: #fff;
+        color: #6b7280;
+        cursor: pointer;
+        transition: background .15s ease, color .15s ease, border-color .15s ease, transform .15s ease;
+      }
+      .atlas-remove-ticket:hover {
+        background: #f7f8fa;
+        border-color: #c8ced7;
+        color: #111827;
+        transform: scale(1.04);
+      }
+      .atlas-checkout-button {
+        width: 100%;
+        min-height: 52px;
+        margin-top: auto;
+        border: 0;
+        border-radius: 999px;
+        background: linear-gradient(105deg, #ff7818 0%, #ff315f 34%, #ff087e 60%, #a72de5 100%);
+        background-size: 220% 220%;
+        animation: atlasCheckoutFlow 7s ease-in-out infinite;
+        color: #fff;
+        font-family: Inter, Arial, sans-serif;
+        font-size: 16px;
+        line-height: 1;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        cursor: pointer;
+        box-shadow: 0 10px 26px rgba(255, 38, 112, .18);
+        transition: transform .16s ease, box-shadow .16s ease, opacity .16s ease;
+      }
+      .atlas-checkout-button:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 13px 30px rgba(255, 38, 112, .25);
+      }
+      .atlas-checkout-button:disabled {
+        animation: none;
+        background: #d7dce2;
+        color: #8993a0;
+        box-shadow: none;
+        cursor: not-allowed;
+      }
+      @media (max-width: 900px) {
+        .atlas-selected-ticket { padding: 10px 0 12px; }
+        .atlas-selected-title { font-size: 17px; }
+        .atlas-selected-desc { margin-top: 5px; font-size: 12.5px; }
+        .atlas-selected-price { font-size: 16px; }
+        .atlas-selected-fee { font-size: 10px; }
+        .atlas-remove-ticket { width: 25px; height: 25px; }
+        .atlas-checkout-button { min-height: 44px; font-size: 14px; }
+      }
+    `}</style>
     <Link className={`${styles.headerBack} ${polish.headerBack}`} href={backHref}><ArrowLeft size={18}/><span>{local.back}</span></Link>
     <div className={styles.layout}>
       <section className={styles.mapSide}>
@@ -484,20 +605,24 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           </div>
         </div>
 
-        {selectedObject && <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 18, display: "grid", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+        {selectedObject && <div className="atlas-selected-ticket">
+          <div className="atlas-selected-head">
             <div>
-              <strong style={{ display: "block", fontSize: 18, lineHeight: 1.2 }}>{selectionCategory?.name ?? selectedObject.label}</strong>
-              <span style={{ display: "block", marginTop: 7, fontSize: 14, lineHeight: 1.4, color: "#1f2937" }}>{selectionDescription}</span>
+              <h2 className="atlas-selected-title">{selectionTitle}</h2>
+              <span className="atlas-selected-desc">{selectionDescription}</span>
             </div>
-            <strong style={{ fontSize: 18, whiteSpace: "nowrap" }}>{money(currentTotal, "ILS", locale)}</strong>
+            <div className="atlas-selected-price">
+              {money(currentTotal, "ILS", locale)}
+              {includedBuyerFee > 0 && <span className="atlas-selected-fee">{local.feeIncluded} {money(includedBuyerFee, "ILS", locale)}</span>}
+            </div>
+            <button type="button" className="atlas-remove-ticket" aria-label="Remove selected ticket" onClick={removeSelection}><X size={15}/></button>
           </div>
-          {!selectionComplete && <small style={{ color: "#64748b", lineHeight: 1.4 }}>{selectedSeatIds.length} / {qty}</small>}
+          {!selectionComplete && <small style={{ display: "block", marginTop: 9, color: "#64748b", lineHeight: 1.4 }}>{selectedSeatIds.length} / {qty}</small>}
         </div>}
 
-        <div className={styles.summary}><span>{local.selected}</span><strong>{zoneObject ? qty : wholeObject ? wholeObject.seats : selectedSeatIds.length} / {zoneObject ? qty : wholeObject ? wholeObject.seats : qty}</strong></div>
-        {selectedObject && <div className={styles.total}><span>{local.price}</span><strong>{money(currentTotal, "ILS", locale)}</strong></div>}
-        <button type="button" className={styles.continue} disabled={!selectionComplete} onClick={go}>{local.continue}</button>
+        <button type="button" className="atlas-checkout-button" disabled={!selectionComplete} onClick={go}>
+          {selectionComplete ? <>{local.continue} <span aria-hidden="true">→</span> {money(currentTotal, "ILS", locale)}</> : local.emptyCheckout}
+        </button>
       </aside>
     </div>
 
