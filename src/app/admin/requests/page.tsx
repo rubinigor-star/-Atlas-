@@ -60,12 +60,12 @@ export default async function RequestsPage() {
   const now = new Date();
 
   const liveRequests = requests.filter((request) => {
-    if (dismissedIds.has(request.id)) return false;
+    const dismissed = dismissedIds.has(request.id);
     const authorization = authorizationByOrder.get(request.id);
     const reservation = reservationByOrder.get(request.id);
 
     if (request.status === "PENDING_APPROVAL") {
-      if (request.event.salesMode !== "APPROVAL_REQUIRED") return false;
+      const validSalesMode = request.event.salesMode === "APPROVAL_REQUIRED";
       const validAuthorization = Boolean(
         authorization
         && authorization.provider === "HYP"
@@ -77,8 +77,23 @@ export default async function RequestsPage() {
         && reservation.status === "ACTIVE"
         && new Date(reservation.expiresAt) > now,
       );
-      return validAuthorization && validReservation;
+      const visible = !dismissed && validSalesMode && validAuthorization && validReservation;
+      console.info("requests.pending_visibility", {
+        publicId: request.publicId,
+        visible,
+        dismissed,
+        salesMode: request.event.salesMode,
+        authorizationProvider: authorization?.provider ?? null,
+        authorizationStatus: authorization?.status ?? null,
+        hasHypTransId: Boolean(authorization?.hypTransId),
+        reservationStatus: reservation?.status ?? null,
+        reservationExpiresAt: reservation?.expiresAt ?? null,
+        now,
+      });
+      return visible;
     }
+
+    if (dismissed) return false;
 
     if (
       request.status === "PAID"
