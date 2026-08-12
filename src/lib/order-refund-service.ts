@@ -8,6 +8,7 @@ export type OrderRefundInput = {
   reason?: string;
   requestId?: string;
   idempotencyKey?: string;
+  cancelOrderAfterRefund?: boolean;
 };
 
 type AuthorizationRow = {
@@ -67,6 +68,7 @@ export async function refundOrder(publicId: string, body: OrderRefundInput) {
   }
 
   const fullRefund = amountMinor === refundableMinor;
+  const cancelOrderAfterRefund = Boolean(body.cancelOrderAfterRefund);
   const idempotencyKey = body.idempotencyKey?.trim()
     || `refund:${order.id}:${amountMinor}:${body.requestId || randomUUID()}`;
   const attemptId = `ref_${randomUUID().replace(/-/g, "")}`;
@@ -140,7 +142,10 @@ export async function refundOrder(publicId: string, body: OrderRefundInput) {
         );
       }
 
-      if (newRefunded === authorization.amountMinor) {
+      // A statutory cancellation may refund less than the captured amount because
+      // a cancellation fee is retained. Financially that is a partial refund,
+      // but commercially the whole ticket order is cancelled and inventory must return.
+      if (newRefunded === authorization.amountMinor || cancelOrderAfterRefund) {
         await tx.order.update({ where: { id: order.id }, data: { status: "CANCELLED" } });
         await tx.ticket.updateMany({ where: { orderId: order.id }, data: { status: "CANCELLED" } });
 
@@ -161,7 +166,7 @@ export async function refundOrder(publicId: string, body: OrderRefundInput) {
 
     let emailSent = false;
     let emailError: string | null = null;
-    if (fullRefund) {
+    if (fullRefund || cancelOrderAfterRefund) {
       try {
         await sendOrderCancellationEmail(order.publicId, amountMinor);
         emailSent = true;
@@ -175,6 +180,7 @@ export async function refundOrder(publicId: string, body: OrderRefundInput) {
       ok: true,
       amountMinor,
       fullRefund,
+      orderCancelled: fullRefund || cancelOrderAfterRefund,
       refundTranId: result.refundTranId,
       resultCode: result.resultCode,
       emailSent,
