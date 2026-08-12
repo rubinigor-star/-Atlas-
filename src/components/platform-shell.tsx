@@ -13,6 +13,7 @@ export async function PlatformShell({children}:{children:React.ReactNode}){
       <div className="platform-role-card"><span>PLATFORM ADMIN</span><strong>{admin.name}</strong><small>Суперадминистратор Atlas</small></div>
       <nav className="platform-nav">
         <Link href="/platform">Обзор платформы</Link>
+        <Link href="/platform/finance">Финансы</Link>
         <Link href="/platform/organizers">Организаторы</Link>
         <Link href="/platform/events">Все мероприятия</Link>
         <Link href="/platform/homepage">Главная страница</Link>
