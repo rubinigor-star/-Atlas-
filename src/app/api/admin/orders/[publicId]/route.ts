@@ -8,6 +8,14 @@ import { reviewOrder } from "@/lib/order-review-service";
 const DISMISSED_EXPIRED_NOTE = "__DISMISSED_EXPIRED__";
 const reviewSchema = z.object({ action: z.enum(["approve", "reject"]), note: z.string().max(500).optional() });
 
+async function assertApprovalOrder(orderId: string) {
+  const rows = await db.$queryRawUnsafe<Array<{ salesFlow: string }>>(
+    `SELECT "salesFlow" FROM "Order" WHERE "id"=$1 LIMIT 1`,
+    orderId,
+  );
+  if (rows[0]?.salesFlow !== "APPROVAL") throw new Error("Этот заказ не относится к заявкам");
+}
+
 export async function DELETE(_: Request, { params }: { params: Promise<{ publicId: string }> }) {
   const { publicId } = await params;
   try {
@@ -16,6 +24,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ publicI
       select: { id: true, eventId: true, customerName: true, status: true, _count: { select: { tickets: true } } },
     });
     if (!target) throw new Error("Заявка не найдена");
+    await assertApprovalOrder(target.id);
     const actor = await requireEventAccess("REQUEST_REVIEW", target.eventId);
     if (target.status !== "CANCELLED" && target.status !== "REJECTED") {
       throw new Error("Удалить из очереди можно только отменённую или отклонённую заявку");
@@ -45,8 +54,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ public
   const { publicId } = await params;
   try {
     const input = reviewSchema.parse(await req.json());
-    const target = await db.order.findUnique({ where: { publicId }, select: { eventId: true } });
+    const target = await db.order.findUnique({ where: { publicId }, select: { id: true, eventId: true } });
     if (!target) throw new Error("Заявка не найдена");
+    await assertApprovalOrder(target.id);
     const actor = await requireEventAccess("REQUEST_REVIEW", target.eventId);
     return NextResponse.json(await reviewOrder(publicId, input, actor));
   } catch (error) {
