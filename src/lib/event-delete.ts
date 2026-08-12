@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { ensureCommercialTermsTables } from "@/lib/commercial-terms";
 import { archiveDeleteSql, ensureEventArchiveRuntime, isEventArchived } from "@/lib/event-archive";
+import { ensurePromoterV2Runtime } from "@/lib/promoter-v2";
 
 export async function canDeleteDraftEvent(eventId: string) {
   const event = await db.event.findUnique({
@@ -60,6 +61,7 @@ export async function deleteDraftEvent(eventId: string) {
   await ensureEventArchiveRuntime();
   const archived = await isEventArchived(eventId);
   await ensureCommercialTermsTables();
+  await ensurePromoterV2Runtime();
 
   const promoterLinks = await db.promoterLink.findMany({ where: { eventId }, select: { id: true } });
   const categoryIds = event.categories.map((category) => category.id);
@@ -71,6 +73,16 @@ export async function deleteDraftEvent(eventId: string) {
   await db.$transaction(async (tx) => {
     if (promoterLinks.length) await tx.promoterLinkVisit.deleteMany({ where: { linkId: { in: promoterLinks.map((link) => link.id) } } });
     await tx.promoterLink.deleteMany({ where: { eventId } });
+
+    // Promoter V2 tables are runtime-managed rather than Prisma models. Their foreign keys
+    // intentionally use RESTRICT, so a draft event must explicitly clear visits and assignments
+    // before deleting the Event row.
+    await tx.$executeRawUnsafe(
+      `DELETE FROM "PromoterVisitV2" WHERE "promoterEventId" IN (SELECT "id" FROM "PromoterEventV2" WHERE "eventId" = $1)`,
+      eventId,
+    );
+    await tx.$executeRawUnsafe(`DELETE FROM "PromoterEventV2" WHERE "eventId" = $1`, eventId);
+
     await tx.promoCode.deleteMany({ where: { eventId } });
     await tx.referral.deleteMany({ where: { eventId } });
     await tx.eventStaffAccess.deleteMany({ where: { eventId } });
