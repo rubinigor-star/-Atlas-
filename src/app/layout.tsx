@@ -11,6 +11,7 @@ import "./platform.css";
 import "./event-experience.css";
 import "./event-detail-sticky.css";
 import "./seat-map-assignment-visibility.css";
+import "./seat-map-public-match-admin.css";
 import "./logo.css";
 import "./logo-variants.css";
 import "./site-header.css";
