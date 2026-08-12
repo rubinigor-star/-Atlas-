@@ -31,5 +31,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   target.searchParams.set("ref", link.code);
   const response = NextResponse.redirect(target);
   if (!existing) response.cookies.set(cookieName, sessionId, { httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 30, path: "/" });
+  response.cookies.set("atlas_promoter_channel", link.code, { httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 30, path: "/" });
   return response;
 }
