@@ -143,6 +143,9 @@ export function VenueMapEditor({ eventId, categories, initialObjects, venueName 
   const [mode, setMode] = useState<"design" | "tickets">("design");
   const [selectedId, setSelectedId] = useState("");
   const [selectedPositions, setSelectedPositions] = useState<Set<number>>(new Set());
+  const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
+  const [multiSeatKeys, setMultiSeatKeys] = useState<Set<string>>(new Set());
+  const [marquee, setMarquee] = useState<{ left:number; top:number; width:number; height:number } | null>(null);
   const [assignmentCategory, setAssignmentCategory] = useState(categories[0]?.id ?? "");
   const [zoom, setZoom] = useState(() => isReadingVenue(venueName ?? "") ? 55 : 75);
   const [inspector, setInspector] = useState(false);
@@ -151,18 +154,29 @@ export function VenueMapEditor({ eventId, categories, initialObjects, venueName 
   const [history, setHistory] = useState<MapObject[][]>([]);
   const [future, setFuture] = useState<MapObject[][]>([]);
   const drag = useRef<{ id: string; before: MapObject[] } | null>(null);
+  const marqueeDrag = useRef<{ pointerId:number; startX:number; startY:number; shift:boolean } | null>(null);
   const selected = useMemo(() => objects.find((item) => item.id === selectedId), [objects, selectedId]);
   const scale = zoom / 100;
   const capacity = objects.filter((item) => seatBased.has(item.objectType)).reduce((sum, item) => sum + item.seats, 0);
 
   function commit(next: MapObject[]) { setHistory((current) => [...current.slice(-29), objects]); setFuture([]); setObjects(next); }
   function patch(value: Partial<MapObject>) { commit(objects.map((item) => item.id === selectedId ? { ...item, ...value } : item)); }
-  function choose(id: string) {
+  function clearTicketSelection() { setMultiSelectedIds(new Set()); setMultiSeatKeys(new Set()); setSelectedPositions(new Set()); }
+  function choose(id: string, additive = false) {
     setSelectedId(id);
     setInspector(true);
     setSelectedPositions(new Set());
     const item = objects.find((value) => value.id === id);
     if (item?.categoryId) setAssignmentCategory(item.categoryId);
+    if (mode === "tickets") {
+      setMultiSelectedIds((current) => {
+        if (!additive) return new Set([id]);
+        const next = new Set(current);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+      });
+      if (!additive) setMultiSeatKeys(new Set());
+    }
   }
   function add(type: ObjectType, labelOverride?: string) {
     const number = objects.filter((item) => item.objectType === type && !isPresetMarker(item)).length + 1;
@@ -171,17 +185,86 @@ export function VenueMapEditor({ eventId, categories, initialObjects, venueName 
     const item: MapObject = { id:`new-${crypto.randomUUID()}`, label:labelOverride ?? `${names[type]}${seatBased.has(type) ? ` ${number}` : ""}`, objectType:type, ...base, priceMinor:0, x:50, y:50, categoryId:null, reserved:false, seatAssignments:assignments(base.seats, []) };
     commit([...objects, item]); choose(item.id);
   }
-  function selectSeat(position: number, shift: boolean) {
-    setSelectedPositions((current) => { const next = new Set(current); if (shift && current.size) { const anchor = [...current].at(-1) ?? position; const [from, to] = [anchor, position].sort((a, b) => a - b); for (let value = from; value <= to; value += 1) next.add(value); } else if (next.has(position)) next.delete(position); else next.add(position); return next; });
+  function selectSeat(objectId: string, position: number, shift: boolean) {
+    const key = `${objectId}:${position}`;
+    setSelectedId(objectId);
+    setInspector(true);
+    if (!shift) {
+      setMultiSelectedIds(new Set());
+      setMultiSeatKeys(new Set([key]));
+      setSelectedPositions(new Set([position]));
+      return;
+    }
+    setMultiSeatKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      setSelectedPositions(new Set([...next].filter((value) => value.startsWith(`${objectId}:`)).map((value) => Number(value.split(":")[1]))));
+      return next;
+    });
   }
   function assignCategory(clear = false) {
-    if (!selected || !ticketAssignable.has(selected.objectType)) return;
     const id = clear ? null : assignmentCategory;
-    if (selected.objectType === "ZONE" || selected.priceMode === "WHOLE_TABLE") patch({ categoryId:id, priceMinor:categories.find((category) => category.id === id)?.priceMinor ?? 0 });
-    else {
-      const positions = selectedPositions.size ? selectedPositions : new Set(Array.from({ length:selected.seats }, (_, index) => index + 1));
-      patch({ seatAssignments:assignments(selected.seats, selected.seatAssignments).map((seat) => positions.has(seat.position) ? { ...seat, categoryId:id } : seat) });
+    const price = categories.find((category) => category.id === id)?.priceMinor ?? 0;
+    const objectIds = new Set(multiSelectedIds);
+    if (!objectIds.size && !multiSeatKeys.size && selected && ticketAssignable.has(selected.objectType)) objectIds.add(selected.id);
+    if (!objectIds.size && !multiSeatKeys.size) return;
+
+    const next = objects.map((item) => {
+      if (!ticketAssignable.has(item.objectType)) return item;
+      if (objectIds.has(item.id)) {
+        if (item.objectType === "ZONE" || item.priceMode === "WHOLE_TABLE") return { ...item, categoryId:id, priceMinor:price };
+        return { ...item, seatAssignments:assignments(item.seats, item.seatAssignments).map((seat) => ({ ...seat, categoryId:id })) };
+      }
+      const positions = new Set([...multiSeatKeys].filter((value) => value.startsWith(`${item.id}:`)).map((value) => Number(value.split(":")[1])));
+      if (!positions.size) return item;
+      return { ...item, seatAssignments:assignments(item.seats, item.seatAssignments).map((seat) => positions.has(seat.position) ? { ...seat, categoryId:id } : seat) };
+    });
+    commit(next);
+  }
+  function startMarquee(event: React.PointerEvent<HTMLDivElement>) {
+    if (mode !== "tickets" || event.button !== 0 || event.target !== event.currentTarget) return;
+    marqueeDrag.current = { pointerId:event.pointerId, startX:event.clientX, startY:event.clientY, shift:event.shiftKey };
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { marqueeDrag.current = null; return; }
+    setMarquee({ left:event.clientX, top:event.clientY, width:0, height:0 });
+    if (!event.shiftKey) clearTicketSelection();
+    event.preventDefault();
+  }
+  function moveMarquee(event: React.PointerEvent<HTMLDivElement>) {
+    const current = marqueeDrag.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    const left = Math.min(current.startX, event.clientX);
+    const top = Math.min(current.startY, event.clientY);
+    setMarquee({ left, top, width:Math.abs(event.clientX-current.startX), height:Math.abs(event.clientY-current.startY) });
+  }
+  function endMarquee(event: React.PointerEvent<HTMLDivElement>) {
+    const current = marqueeDrag.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    const rect = { left:Math.min(current.startX,event.clientX), right:Math.max(current.startX,event.clientX), top:Math.min(current.startY,event.clientY), bottom:Math.max(current.startY,event.clientY) };
+    const selectedIds = new Set<string>();
+    if (Math.abs(event.clientX-current.startX) > 3 || Math.abs(event.clientY-current.startY) > 3) {
+      document.querySelectorAll<HTMLElement>(".venue-builder .editor-object[data-map-object-id]").forEach((node) => {
+        const id = node.dataset.mapObjectId;
+        const item = objects.find((value) => value.id === id);
+        if (!id || !item || !ticketAssignable.has(item.objectType) || item.reserved) return;
+        const bounds = node.getBoundingClientRect();
+        const intersects = bounds.right >= rect.left && bounds.left <= rect.right && bounds.bottom >= rect.top && bounds.top <= rect.bottom;
+        if (intersects) selectedIds.add(id);
+      });
     }
+    setMultiSelectedIds((previous) => current.shift ? new Set([...previous, ...selectedIds]) : selectedIds);
+    if (selectedIds.size) {
+      const first = [...selectedIds][0];
+      setSelectedId(first);
+      setInspector(true);
+      setSelectedPositions(new Set());
+    } else if (!current.shift) {
+      setSelectedId("");
+      setInspector(false);
+    }
+    marqueeDrag.current = null;
+    setMarquee(null);
+    try { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
+    event.preventDefault();
   }
   async function save() {
     setBusy(true); setMessage("");
@@ -198,13 +281,14 @@ export function VenueMapEditor({ eventId, categories, initialObjects, venueName 
     [text.addSeats, [["ROW", text.row], ["TABLE", text.table], ["ROUND_TABLE", text.round], ["SOFA", text.sofa], ["ZONE", text.zone]]],
     [text.addObjects, [["STAGE", text.stage], ["BAR", text.bar], ["TEXT", text.text]]],
   ];
+  const selectedCount = multiSelectedIds.size + multiSeatKeys.size;
 
   return <section className={`venue-builder ${mapStyle.atlas}`}>
-    <header className="builder-topbar"><div className="builder-title"><span className="eyebrow">Atlas venue builder</span><strong>{venueName || text.mapTitle}</strong></div><div className="builder-tabs"><button type="button" className={mode === "design" ? "active" : ""} onClick={() => { setMode("design"); setSelectedPositions(new Set()); }}>{text.design}</button><button type="button" className={mode === "tickets" ? "active" : ""} onClick={() => setMode("tickets")}>{text.tickets}</button></div><div className="builder-actions"><button type="button" className="icon-btn" disabled={!history.length} onClick={() => { const previous = history.at(-1); if (previous) { setFuture((current) => [objects, ...current]); setObjects(previous); setHistory((current) => current.slice(0, -1)); } }}>↶</button><button type="button" className="icon-btn" disabled={!future.length} onClick={() => { const next = future[0]; if (next) { setHistory((current) => [...current, objects]); setObjects(next); setFuture((current) => current.slice(1)); } }}>↷</button>{selected && <button type="button" className="btn secondary inspector-toggle" onClick={() => setInspector((current) => !current)}>{text.settings}</button>}<button type="button" className="btn" disabled={busy || !objects.length} onClick={() => void save()}>{busy ? text.saving : text.save}</button></div></header>
+    <header className="builder-topbar"><div className="builder-title"><span className="eyebrow">Atlas venue builder</span><strong>{venueName || text.mapTitle}</strong></div><div className="builder-tabs"><button type="button" className={mode === "design" ? "active" : ""} onClick={() => { setMode("design"); clearTicketSelection(); }}>{text.design}</button><button type="button" className={mode === "tickets" ? "active" : ""} onClick={() => { setMode("tickets"); clearTicketSelection(); }}>{text.tickets}</button></div><div className="builder-actions"><button type="button" className="icon-btn" disabled={!history.length} onClick={() => { const previous = history.at(-1); if (previous) { setFuture((current) => [objects, ...current]); setObjects(previous); setHistory((current) => current.slice(0, -1)); } }}>↶</button><button type="button" className="icon-btn" disabled={!future.length} onClick={() => { const next = future[0]; if (next) { setHistory((current) => [...current, objects]); setObjects(next); setFuture((current) => current.slice(1)); } }}>↷</button>{selected && <button type="button" className="btn secondary inspector-toggle" onClick={() => setInspector((current) => !current)}>{text.settings}</button>}<button type="button" className="btn" disabled={busy || !objects.length} onClick={() => void save()}>{busy ? text.saving : text.save}</button></div></header>
     <div className={`builder-body ${inspector ? "inspector-open" : ""}`}>
       <aside className="object-library">{groups.map(([title, items]) => <div className="library-group" key={title}><h3>{title}</h3>{items.map(([type, label]) => <button type="button" key={type} onClick={() => add(type)}><Palette type={type}/><span>{label}</span></button>)}</div>)}<div className="library-group custom-object-group"><h3>{text.customObjects}</h3><p className="muted">{text.customHelp}</p><button type="button" onClick={() => add("TABLE", text.customRect)}><Palette type="TABLE"/><span>{text.customRect}</span></button><button type="button" onClick={() => add("ROUND_TABLE", text.customOval)}><Palette type="ROUND_TABLE"/><span>{text.customOval}</span></button><button type="button" onClick={() => add("ROW", text.customRow)}><Palette type="ROW"/><span>{text.customRow}</span></button></div></aside>
-      <main className="builder-workspace"><div className="floating-tools"><button type="button" className="tool-active">↖</button><span/><button type="button" onClick={() => setZoom((value) => Math.max(35, value - 10))}>−</button><strong>{zoom}%</strong><button type="button" onClick={() => setZoom((value) => Math.min(125, value + 10))}>＋</button></div><div className="workspace-hint">{mode === "design" ? text.designHelp : text.ticketHelp}</div>{mode === "tickets" && <div className="ticket-legend"><strong>{text.legend}</strong>{categories.map((category) => <span key={category.id}><i style={{ background:category.colorHex }}/>{category.name} · {money(category.priceMinor)}</span>)}<span><i className="unassigned"/>{text.unassigned}</span></div>}<div className="map-scroll"><div className="map-world-frame" style={{ width:WORLD_WIDTH * scale, height:WORLD_HEIGHT * scale }}><div className={`map-world ${mode}`} style={{ width:WORLD_WIDTH, height:WORLD_HEIGHT, transform:`scale(${scale})` }} onClick={() => { setSelectedId(""); setInspector(false); setSelectedPositions(new Set()); }}>{objects.filter((item) => !isPresetMarker(item)).map((item) => <div key={item.id} className={`editor-object ${selectedId === item.id ? "selected" : ""} ${item.reserved ? "locked" : ""}`} style={{ left:`${item.x}%`, top:`${item.y}%`, width:item.width, height:item.height, transform:`translate(-50%,-50%) rotate(${item.rotation}deg)`, zIndex:item.objectType === "ZONE" ? 1 : item.objectType === "STAGE" || item.objectType === "BAR" ? 2 : 3 }} onClick={(event) => { event.stopPropagation(); choose(item.id); }} onPointerDown={(event) => { if (mode !== "design" || item.reserved || event.button !== 0) return; event.stopPropagation(); drag.current = { id:item.id, before:objects }; try { event.currentTarget.setPointerCapture(event.pointerId); } catch { drag.current = null; } }} onPointerMove={(event) => { if (drag.current?.id !== item.id) return; const world = event.currentTarget.parentElement; if (!world) return; const bounds = world.getBoundingClientRect(); if (!bounds.width || !bounds.height) return; setObjects((current) => current.map((value) => value.id === item.id ? { ...value, x:clamp((event.clientX - bounds.left) / bounds.width * 100), y:clamp((event.clientY - bounds.top) / bounds.height * 100) } : value)); }} onPointerUp={(event) => { if (drag.current?.id === item.id) { setHistory((current) => [...current.slice(-29), drag.current!.before]); setFuture([]); drag.current = null; try { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); } catch {} } }} onPointerCancel={(event) => { if (drag.current?.id === item.id) drag.current = null; try { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); } catch {} }}><Shape item={item} categories={categories} mode={mode} selectedSeats={selectedId === item.id ? selectedPositions : new Set()} onSeat={selectSeat}/></div>)}</div></div></div><div className="builder-status"><span>{text.capacity}: {capacity}</span><span>{message}</span></div></main>
-      {inspector && <aside className="property-panel"><button type="button" className="close-inspector" onClick={() => setInspector(false)}>×</button>{!selected ? <p className="empty-inspector">{text.selectHelp}</p> : <div className="inspector-content"><span className="eyebrow">{mode === "design" ? text.design : text.tickets}</span><h3>{selected.label}</h3>{mode === "design" ? <><label className="field"><span>{text.label}</span><input className="input" value={selected.label} onChange={(event) => patch({ label:event.target.value })}/></label>{seatBased.has(selected.objectType) && <label className="field"><span>{text.seats}</span><input className="input" type="number" min="1" max="50" value={selected.seats} onChange={(event) => { const seats = Number(event.target.value); patch({ seats, seatAssignments:assignments(seats, selected.seatAssignments) }); }}/></label>}<div className="property-pair"><label className="field"><span>{text.width}</span><input className="input" type="number" value={selected.width} onChange={(event) => patch({ width:Number(event.target.value) })}/></label><label className="field"><span>{text.height}</span><input className="input" type="number" value={selected.height} onChange={(event) => patch({ height:Number(event.target.value) })}/></label></div><div className="rotation-controls"><strong>{text.rotation}: {selected.rotation}°</strong><div><button type="button" title={text.left} onClick={() => patch({ rotation:norm(selected.rotation - 15) })}>↶ 15°</button><button type="button" title={text.right} onClick={() => patch({ rotation:norm(selected.rotation + 15) })}>↷ 15°</button></div><input type="range" min="0" max="355" step="5" value={selected.rotation} onChange={(event) => patch({ rotation:Number(event.target.value) })}/></div><button type="button" className="delete-object" onClick={() => { commit(objects.filter((item) => item.id !== selected.id)); setSelectedId(""); setInspector(false); }}>{text.remove}</button></> : ticketAssignable.has(selected.objectType) ? <>{seatBased.has(selected.objectType) && <><div className="segmented"><button type="button" className={selected.priceMode === "WHOLE_TABLE" ? "active" : ""} onClick={() => patch({ priceMode:"WHOLE_TABLE" })}>{text.whole}</button><button type="button" className={selected.priceMode === "PER_SEAT" ? "active" : ""} onClick={() => patch({ priceMode:"PER_SEAT" })}>{text.perSeat}</button></div>{selected.priceMode === "PER_SEAT" && <div className="selection-count"><span>{text.selectedSeats}</span><strong>{selectedPositions.size || selected.seats}</strong></div>}</>}<label className="field"><span>{text.ticket}</span><select value={assignmentCategory} onChange={(event) => setAssignmentCategory(event.target.value)}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name} · {money(category.priceMinor)}</option>)}</select></label><button type="button" className="btn assign-ticket" onClick={() => assignCategory()}>{text.assign}</button><button type="button" className="btn secondary" onClick={() => assignCategory(true)}>{text.clear}</button></> : <p className="muted">{text.unassigned}</p>}</div>}</aside>}
+      <main className="builder-workspace"><div className="floating-tools"><button type="button" className="tool-active">↖</button><span/><button type="button" onClick={() => setZoom((value) => Math.max(35, value - 10))}>−</button><strong>{zoom}%</strong><button type="button" onClick={() => setZoom((value) => Math.min(125, value + 10))}>＋</button></div><div className="workspace-hint">{mode === "design" ? text.designHelp : text.ticketHelp}</div>{mode === "tickets" && <div className="ticket-legend"><strong>{text.legend}</strong>{categories.map((category) => <span key={category.id}><i style={{ background:category.colorHex }}/>{category.name} · {money(category.priceMinor)}</span>)}<span><i className="unassigned"/>{text.unassigned}</span></div>}<div className="map-scroll"><div className="map-world-frame" style={{ width:WORLD_WIDTH * scale, height:WORLD_HEIGHT * scale }}><div className={`map-world ${mode}`} style={{ width:WORLD_WIDTH, height:WORLD_HEIGHT, transform:`scale(${scale})` }} onPointerDown={startMarquee} onPointerMove={moveMarquee} onPointerUp={endMarquee} onPointerCancel={endMarquee} onClick={(event) => { if (event.target !== event.currentTarget || marqueeDrag.current) return; setSelectedId(""); setInspector(false); clearTicketSelection(); }}>{objects.filter((item) => !isPresetMarker(item)).map((item) => { const selectedSeatsForItem = new Set([...multiSeatKeys].filter((value) => value.startsWith(`${item.id}:`)).map((value) => Number(value.split(":")[1]))); return <div key={item.id} data-map-object-id={item.id} className={`editor-object ${(selectedId === item.id || multiSelectedIds.has(item.id)) ? "selected" : ""} ${item.reserved ? "locked" : ""}`} style={{ left:`${item.x}%`, top:`${item.y}%`, width:item.width, height:item.height, transform:`translate(-50%,-50%) rotate(${item.rotation}deg)`, zIndex:item.objectType === "ZONE" ? 1 : item.objectType === "STAGE" || item.objectType === "BAR" ? 2 : 3 }} onClick={(event) => { event.stopPropagation(); if (mode === "tickets" && ticketAssignable.has(item.objectType)) choose(item.id, event.shiftKey); else choose(item.id); }} onPointerDown={(event) => { if (mode !== "design" || item.reserved || event.button !== 0) return; event.stopPropagation(); drag.current = { id:item.id, before:objects }; try { event.currentTarget.setPointerCapture(event.pointerId); } catch { drag.current = null; } }} onPointerMove={(event) => { if (drag.current?.id !== item.id) return; const world = event.currentTarget.parentElement; if (!world) return; const bounds = world.getBoundingClientRect(); if (!bounds.width || !bounds.height) return; setObjects((current) => current.map((value) => value.id === item.id ? { ...value, x:clamp((event.clientX - bounds.left) / bounds.width * 100), y:clamp((event.clientY - bounds.top) / bounds.height * 100) } : value)); }} onPointerUp={(event) => { if (drag.current?.id === item.id) { setHistory((current) => [...current.slice(-29), drag.current!.before]); setFuture([]); drag.current = null; try { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); } catch {} } }} onPointerCancel={(event) => { if (drag.current?.id === item.id) drag.current = null; try { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); } catch {} }}><Shape item={item} categories={categories} mode={mode} selectedSeats={selectedSeatsForItem} onSeat={(position, shift) => selectSeat(item.id, position, shift)}/></div>; })}</div></div></div>{marquee && <div style={{ position:"fixed", zIndex:20000, pointerEvents:"none", left:marquee.left, top:marquee.top, width:marquee.width, height:marquee.height, border:"1.5px solid #1677ff", background:"rgba(22,119,255,.12)", boxShadow:"0 0 0 1px rgba(255,255,255,.55) inset" }}/>}<div className="builder-status"><span>{text.capacity}: {capacity}</span><span>{message}</span></div></main>
+      {inspector && <aside className="property-panel"><button type="button" className="close-inspector" onClick={() => setInspector(false)}>×</button>{!selected ? <p className="empty-inspector">{text.selectHelp}</p> : <div className="inspector-content"><span className="eyebrow">{mode === "design" ? text.design : text.tickets}</span><h3>{mode === "tickets" && selectedCount > 1 ? `${text.selectedSeats}: ${selectedCount}` : selected.label}</h3>{mode === "design" ? <><label className="field"><span>{text.label}</span><input className="input" value={selected.label} onChange={(event) => patch({ label:event.target.value })}/></label>{seatBased.has(selected.objectType) && <label className="field"><span>{text.seats}</span><input className="input" type="number" min="1" max="50" value={selected.seats} onChange={(event) => { const seats = Number(event.target.value); patch({ seats, seatAssignments:assignments(seats, selected.seatAssignments) }); }}/></label>}<div className="property-pair"><label className="field"><span>{text.width}</span><input className="input" type="number" value={selected.width} onChange={(event) => patch({ width:Number(event.target.value) })}/></label><label className="field"><span>{text.height}</span><input className="input" type="number" value={selected.height} onChange={(event) => patch({ height:Number(event.target.value) })}/></label></div><div className="rotation-controls"><strong>{text.rotation}: {selected.rotation}°</strong><div><button type="button" title={text.left} onClick={() => patch({ rotation:norm(selected.rotation - 15) })}>↶ 15°</button><button type="button" title={text.right} onClick={() => patch({ rotation:norm(selected.rotation + 15) })}>↷ 15°</button></div><input type="range" min="0" max="355" step="5" value={selected.rotation} onChange={(event) => patch({ rotation:Number(event.target.value) })}/></div><button type="button" className="delete-object" onClick={() => { commit(objects.filter((item) => item.id !== selected.id)); setSelectedId(""); setInspector(false); }}>{text.remove}</button></> : ticketAssignable.has(selected.objectType) ? <>{seatBased.has(selected.objectType) && selectedCount <= 1 && <><div className="segmented"><button type="button" className={selected.priceMode === "WHOLE_TABLE" ? "active" : ""} onClick={() => patch({ priceMode:"WHOLE_TABLE" })}>{text.whole}</button><button type="button" className={selected.priceMode === "PER_SEAT" ? "active" : ""} onClick={() => patch({ priceMode:"PER_SEAT" })}>{text.perSeat}</button></div>{selected.priceMode === "PER_SEAT" && <div className="selection-count"><span>{text.selectedSeats}</span><strong>{selectedPositions.size || selected.seats}</strong></div>}</>}<label className="field"><span>{text.ticket}</span><select value={assignmentCategory} onChange={(event) => setAssignmentCategory(event.target.value)}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name} · {money(category.priceMinor)}</option>)}</select></label><button type="button" className="btn assign-ticket" onClick={() => assignCategory()}>{text.assign}</button><button type="button" className="btn secondary" onClick={() => assignCategory(true)}>{text.clear}</button></> : <p className="muted">{text.unassigned}</p>}</div>}</aside>}
     </div>
   </section>;
 }
