@@ -79,13 +79,61 @@ const statements = [
     "categoryId" TEXT PRIMARY KEY,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "salesFlow" TEXT NOT NULL DEFAULT 'DIRECT'`,
+  `UPDATE "Order" o
+   SET "salesFlow"='APPROVAL'
+   WHERE o."salesFlow"='DIRECT'
+     AND (
+       o."status" IN ('PENDING_APPROVAL','REJECTED')
+       OR EXISTS (
+         SELECT 1 FROM "AuditLog" a
+         WHERE a."entityType"='Order'
+           AND a."entityId"=o."id"
+           AND a."action" IN (
+             'REQUEST_APPROVED_AND_CAPTURED',
+             'REQUEST_REJECTED_WITHOUT_COMMIT',
+             'LEGACY_REQUEST_APPROVED',
+             'REQUEST_CAPTURE_RECOVERED'
+           )
+       )
+     )`,
+  `CREATE INDEX IF NOT EXISTS "Order_salesFlow_status_createdAt_idx"
+    ON "Order"("salesFlow", "status", "createdAt")`,
+  `CREATE OR REPLACE FUNCTION atlas_assign_order_sales_flow()
+   RETURNS trigger AS $$
+   BEGIN
+     SELECT CASE WHEN e."salesMode"='APPROVAL_REQUIRED' THEN 'APPROVAL' ELSE 'DIRECT' END
+       INTO NEW."salesFlow"
+       FROM "Event" e
+       WHERE e."id"=NEW."eventId";
+     IF NEW."salesFlow" IS NULL THEN NEW."salesFlow":='DIRECT'; END IF;
+     RETURN NEW;
+   END;
+   $$ LANGUAGE plpgsql`,
+  `DROP TRIGGER IF EXISTS atlas_assign_order_sales_flow_trigger ON "Order"`,
+  `CREATE TRIGGER atlas_assign_order_sales_flow_trigger
+   BEFORE INSERT ON "Order"
+   FOR EACH ROW EXECUTE FUNCTION atlas_assign_order_sales_flow()`,
+  `CREATE OR REPLACE FUNCTION atlas_prevent_order_sales_flow_change()
+   RETURNS trigger AS $$
+   BEGIN
+     IF NEW."salesFlow" IS DISTINCT FROM OLD."salesFlow" THEN
+       RAISE EXCEPTION 'Order.salesFlow is immutable';
+     END IF;
+     RETURN NEW;
+   END;
+   $$ LANGUAGE plpgsql`,
+  `DROP TRIGGER IF EXISTS atlas_prevent_order_sales_flow_change_trigger ON "Order"`,
+  `CREATE TRIGGER atlas_prevent_order_sales_flow_change_trigger
+   BEFORE UPDATE ON "Order"
+   FOR EACH ROW EXECUTE FUNCTION atlas_prevent_order_sales_flow_change()`,
 ];
 
 try {
   for (const statement of statements) {
     await db.$executeRawUnsafe(statement);
   }
-  console.log("Payment and reservation runtime tables are ready.");
+  console.log("Payment, reservation, and immutable order sales-flow runtime are ready.");
 } finally {
   await db.$disconnect();
 }
