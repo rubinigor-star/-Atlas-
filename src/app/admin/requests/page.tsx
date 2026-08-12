@@ -7,7 +7,6 @@ import { getDismissedRequestIds } from "@/lib/request-dismissal";
 export const dynamic = "force-dynamic";
 
 const DISMISSED_EXPIRED_NOTE = "__DISMISSED_EXPIRED__";
-const FRESH_REQUEST_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 type AuthorizationRow = {
   orderId: string;
@@ -61,15 +60,13 @@ export default async function RequestsPage() {
   const now = new Date();
 
   const liveRequests = requests.filter((request) => {
-    const dismissed = dismissedIds.has(request.id);
-    if (dismissed) return false;
+    if (dismissedIds.has(request.id)) return false;
 
     const authorization = authorizationByOrder.get(request.id);
     const reservation = reservationByOrder.get(request.id);
 
     if (request.status === "PENDING_APPROVAL") {
       if (request.event.salesMode !== "APPROVAL_REQUIRED") return false;
-
       const validAuthorization = Boolean(
         authorization
         && authorization.provider === "HYP"
@@ -81,12 +78,7 @@ export default async function RequestsPage() {
         && reservation.status === "ACTIVE"
         && new Date(reservation.expiresAt) > now,
       );
-      const fresh = now.getTime() - request.createdAt.getTime() <= FRESH_REQUEST_WINDOW_MS;
-
-      // A newly submitted request must never disappear from the organizer inbox because
-      // one of the auxiliary HYP/Reservation rows is briefly inconsistent. Old legacy
-      // rows are only kept when their modern authorization + reservation are both valid.
-      return fresh || (validAuthorization && validReservation);
+      return validAuthorization && validReservation;
     }
 
     if (
@@ -116,22 +108,8 @@ export default async function RequestsPage() {
         initialRequests={liveRequests.map((request) => {
           const previous = request.guest?.orders.filter((order) => order.id !== request.id) ?? [];
           const visits = previous.flatMap((order) => order.tickets).filter((ticket) => ticket.scans.length > 0).length;
-          const authorization = authorizationByOrder.get(request.id);
           const reservation = reservationByOrder.get(request.id);
-          const reservationExpiresAt = reservation?.expiresAt ? new Date(reservation.expiresAt) : null;
-          const validAuthorization = Boolean(
-            authorization
-            && authorization.provider === "HYP"
-            && authorization.status === "AUTHORIZED"
-            && authorization.hypTransId,
-          );
-          const validReservation = Boolean(
-            reservation
-            && reservation.status === "ACTIVE"
-            && reservationExpiresAt
-            && reservationExpiresAt > now,
-          );
-          const inactive = request.status === "PENDING_APPROVAL" && (!validAuthorization || !validReservation);
+          const reservationExpiresAt = reservation?.expiresAt ? new Date(reservation.expiresAt) : request.createdAt;
 
           return {
             id: request.id,
@@ -152,8 +130,8 @@ export default async function RequestsPage() {
             eventTitle: request.event.title,
             eventDate: request.event.startsAt.toISOString(),
             createdAt: request.createdAt.toISOString(),
-            expiresAt: (reservationExpiresAt ?? request.createdAt).toISOString(),
-            inactive,
+            expiresAt: reservationExpiresAt.toISOString(),
+            inactive: false,
             totalMinor: request.totalMinor,
             items: request.items.map((item) => ({ name: item.categoryName, quantity: item.quantity })),
           };
