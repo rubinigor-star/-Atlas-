@@ -1,0 +1,4 @@
+/* Keep ticket-category colors visible on the public seat map even when a seat is not eligible for the currently selected group size. Eligibility still controls interaction, but it must not visually erase the back-office assignment. */
+body.atlas-seat-selection-active button[class*="filtered"] {
+  opacity: 1 !important;
+}
