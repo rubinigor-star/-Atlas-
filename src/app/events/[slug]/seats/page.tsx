@@ -25,25 +25,37 @@ export default async function EventSeatsPage({ params, searchParams }: { params:
 
   const now=new Date();
   const validPromoterLink=promoterLink&&promoterLink.eventId===event.id&&promoterLink.active&&(!promoterLink.startsAt||promoterLink.startsAt<=now)&&(!promoterLink.endsAt||promoterLink.endsAt>=now)?promoterLink:null;
-  const categories=event.categories.flatMap(category=>{
-    if(category.hidden)return[];
-    try{
-      const standardPrice=effectiveTicketPrice(category,now);
-      const channelPrice=validPromoterLink?.allocationType==="CATEGORY"&&validPromoterLink.categoryId===category.id&&validPromoterLink.customPriceMinor!==null?validPromoterLink.customPriceMinor:standardPrice;
-      return [{
-        id:category.id,
-        name:category.name,
-        priceMinor:channelPrice,
-        colorHex:category.colorHex,
-        capacity:category.capacity,
-        sold:category.sold,
-        pricingPresentation:ticketPricePresentation(category,now),
-        marketingStrategy:parsePricingMarketingStrategy(category.description),
-        salesStrategy:parseTicketSalesStrategy(category.description),
-      }];
-    }catch{return[];}
+
+  // Keep every category in the visual catalog so assignments saved in Venue Builder
+  // always retain their configured color on the public map. "active" controls only
+  // whether that category participates in price filters and can actually be bought.
+  const categories=event.categories.map(category=>{
+    let active=!category.hidden;
+    let standardPrice=category.priceMinor;
+    let pricingPresentation:{stageLabel:string}={stageLabel:""};
+    if(active){
+      try{
+        standardPrice=effectiveTicketPrice(category,now);
+        pricingPresentation=ticketPricePresentation(category,now);
+      }catch{
+        active=false;
+      }
+    }
+    const channelPrice=active&&validPromoterLink?.allocationType==="CATEGORY"&&validPromoterLink.categoryId===category.id&&validPromoterLink.customPriceMinor!==null?validPromoterLink.customPriceMinor:standardPrice;
+    return {
+      id:category.id,
+      name:category.name,
+      priceMinor:channelPrice,
+      colorHex:category.colorHex,
+      capacity:category.capacity,
+      sold:category.sold,
+      active,
+      pricingPresentation,
+      marketingStrategy:parsePricingMarketingStrategy(category.description),
+      salesStrategy:parseTicketSalesStrategy(category.description),
+    };
   });
-  if(!categories.length)notFound();
+  if(!categories.some(category=>category.active))notFound();
 
   const objects=zones.flatMap(zone=>zone.tables.map(table=>({
     id:table.id,
