@@ -73,7 +73,7 @@ export function LiveViewerPressure({ locale }: { locale: Locale }) {
   }, []);
 
   const copy = {
-    ru: { before: "Сейчас это мероприятие просматривают ", after: " человек" },
+    ru: { before: "Сейчас это событие смотрят ", after: "" },
     en: { before: "", after: " others are checking this out!" },
     he: { before: "", after: " אנשים צופים באירוע עכשיו" },
   }[locale];
