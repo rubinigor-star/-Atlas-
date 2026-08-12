@@ -79,10 +79,26 @@ const statements = [
     "categoryId" TEXT PRIMARY KEY,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
-  `ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "salesFlow" TEXT NOT NULL DEFAULT 'DIRECT'`,
+  `DO $$ BEGIN
+     CREATE TYPE "OrderSalesFlow" AS ENUM ('DIRECT','APPROVAL');
+   EXCEPTION WHEN duplicate_object THEN NULL;
+   END $$`,
+  `ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "salesFlow" "OrderSalesFlow" NOT NULL DEFAULT 'DIRECT'`,
+  `DO $$
+   DECLARE current_type text;
+   BEGIN
+     SELECT data_type INTO current_type
+     FROM information_schema.columns
+     WHERE table_schema='public' AND table_name='Order' AND column_name='salesFlow';
+     IF current_type='text' OR current_type='character varying' THEN
+       ALTER TABLE "Order" ALTER COLUMN "salesFlow" DROP DEFAULT;
+       ALTER TABLE "Order" ALTER COLUMN "salesFlow" TYPE "OrderSalesFlow" USING "salesFlow"::"OrderSalesFlow";
+       ALTER TABLE "Order" ALTER COLUMN "salesFlow" SET DEFAULT 'DIRECT'::"OrderSalesFlow";
+     END IF;
+   END $$`,
   `UPDATE "Order" o
-   SET "salesFlow"='APPROVAL'
-   WHERE o."salesFlow"='DIRECT'
+   SET "salesFlow"='APPROVAL'::"OrderSalesFlow"
+   WHERE o."salesFlow"='DIRECT'::"OrderSalesFlow"
      AND (
        o."status" IN ('PENDING_APPROVAL','REJECTED')
        OR EXISTS (
@@ -102,11 +118,11 @@ const statements = [
   `CREATE OR REPLACE FUNCTION atlas_assign_order_sales_flow()
    RETURNS trigger AS $$
    BEGIN
-     SELECT CASE WHEN e."salesMode"='APPROVAL_REQUIRED' THEN 'APPROVAL' ELSE 'DIRECT' END
+     SELECT CASE WHEN e."salesMode"='APPROVAL_REQUIRED' THEN 'APPROVAL'::"OrderSalesFlow" ELSE 'DIRECT'::"OrderSalesFlow" END
        INTO NEW."salesFlow"
        FROM "Event" e
        WHERE e."id"=NEW."eventId";
-     IF NEW."salesFlow" IS NULL THEN NEW."salesFlow":='DIRECT'; END IF;
+     IF NEW."salesFlow" IS NULL THEN NEW."salesFlow":='DIRECT'::"OrderSalesFlow"; END IF;
      RETURN NEW;
    END;
    $$ LANGUAGE plpgsql`,
