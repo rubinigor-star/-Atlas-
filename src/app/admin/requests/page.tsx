@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { AdminShell } from "@/components/admin-shell";
 import { RequestInbox } from "@/components/request-inbox";
 import { requirePermission } from "@/lib/auth";
+import { getDismissedRequestIds } from "@/lib/request-dismissal";
 
 export const dynamic = "force-dynamic";
 
@@ -49,20 +50,17 @@ export default async function RequestsPage() {
   });
 
   const orderIds = requests.map((request) => request.id);
-  const [authorizationRows, reservationRows] = await Promise.all([
+  const [authorizationRows, reservationRows, dismissedIds] = await Promise.all([
     runtimeRows<AuthorizationRow>("PaymentAuthorization", orderIds),
     runtimeRows<ReservationRow>("Reservation", orderIds),
+    getDismissedRequestIds(orderIds),
   ]);
   const authorizationByOrder = new Map(authorizationRows.map((row) => [row.orderId, row]));
   const reservationByOrder = new Map(reservationRows.map((row) => [row.orderId, row]));
   const now = new Date();
 
-  // Current HYP approval flow persists a valid authorization before moving an order to PENDING_APPROVAL.
-  // A pending approval without that authorization is therefore a legacy/incomplete record and must not
-  // re-enter the live review queue. We keep the Order untouched so it remains available in Orders/history.
-  // Likewise, an old PAID HYP row marked CAPTURED without a capture transaction id predates the current
-  // capture flow. It is historical recovery data, not an actionable request, so keep it out of this queue.
   const liveRequests = requests.filter((request) => {
+    if (dismissedIds.has(request.id)) return false;
     const authorization = authorizationByOrder.get(request.id);
 
     if (request.status === "PENDING_APPROVAL") {
