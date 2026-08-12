@@ -22,6 +22,15 @@ export type FinanceEventRow = {
   status: "PLANNED" | "AVAILABLE" | "PAID";
 };
 
+export type FinanceTransaction = {
+  id: string;
+  type: "SALE" | "REFUND" | "PAYOUT";
+  publicId: string;
+  createdAt: Date;
+  amountMinor: number;
+  description: string;
+};
+
 type FinanceOrderRow = {
   orderId: string;
   publicId: string;
@@ -39,18 +48,32 @@ type FinanceOrderRow = {
 };
 
 type RefundRow = {
+  id: string;
+  publicId: string;
   orderId: string;
   refundAmountMinor: number | null;
   statutoryFeeMinor: number;
   organizerChargeMinor: number | null;
+  createdAt: Date;
 };
 
-type PayoutRow = { eventId: string; amountMinor: number; status: string };
+type PayoutRow = { id:string; eventId: string; amountMinor: number; status: string; paidAt:Date|null; createdAt:Date; reference:string|null };
 
 let runtime: Promise<void> | null = null;
 export function ensureFinanceRuntime() {
   if (!runtime) runtime = (async () => {
     await ensureCancellationRuntime();
+    await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "OrderCommercialSnapshot" (
+      "orderId" TEXT PRIMARY KEY,
+      "subtotalMinor" INTEGER NOT NULL,
+      "serviceFeeMinor" INTEGER NOT NULL,
+      "buyerTotalMinor" INTEGER NOT NULL,
+      "organizerNetMinor" INTEGER NOT NULL,
+      "serviceFeePayer" TEXT NOT NULL,
+      "salesFeePercentBps" INTEGER NOT NULL,
+      "salesFeeFixedMinor" INTEGER NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`);
     await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "OrganizerPayout" (
       "id" TEXT PRIMARY KEY,
       "organizationId" TEXT NOT NULL,
@@ -93,18 +116,20 @@ async function financeOrders(organizationId?: string): Promise<FinanceOrderRow[]
 }
 
 async function refundRows(organizationId?: string): Promise<Map<string, RefundRow>> {
+  await ensureFinanceRuntime();
   const scope = organizationId ? `AND c."organizationId"=$1` : "";
   const params = organizationId ? [organizationId] : [];
   const rows = await db.$queryRawUnsafe<RefundRow[]>(`
-    SELECT c."orderId",c."refundAmountMinor",c."statutoryFeeMinor",c."organizerChargeMinor"
+    SELECT c."id",c."publicId",c."orderId",c."refundAmountMinor",c."statutoryFeeMinor",c."organizerChargeMinor",c."updatedAt" AS "createdAt"
     FROM "CancellationRequest" c WHERE c."status"='REFUNDED' ${scope}`, ...params);
   return new Map(rows.map(row => [row.orderId, row]));
 }
 
 async function payoutRows(organizationId?: string): Promise<PayoutRow[]> {
+  await ensureFinanceRuntime();
   const scope = organizationId ? `WHERE "organizationId"=$1 AND "status"='PAID'` : `WHERE "status"='PAID'`;
   const params = organizationId ? [organizationId] : [];
-  return db.$queryRawUnsafe<PayoutRow[]>(`SELECT "eventId","amountMinor","status" FROM "OrganizerPayout" ${scope}`, ...params);
+  return db.$queryRawUnsafe<PayoutRow[]>(`SELECT "id","eventId","amountMinor","status","paidAt","createdAt","reference" FROM "OrganizerPayout" ${scope}`, ...params);
 }
 
 export async function financeEvents(organizationId?: string): Promise<FinanceEventRow[]> {
@@ -158,6 +183,21 @@ export async function organizerFinanceSummary(organizationId: string) {
     awaitingSettlementMinor: events.reduce((s,e)=>s+Math.max(0,e.awaitingSettlementMinor),0),
     paidOutMinor: events.reduce((s,e)=>s+e.paidOutMinor,0),
   };
+}
+
+export async function organizerFinanceEvent(organizationId:string,eventId:string){
+  const [events,orders,refunds,payouts]=await Promise.all([financeEvents(organizationId),financeOrders(organizationId),refundRows(organizationId),payoutRows(organizationId)]);
+  const event=events.find(item=>item.eventId===eventId);
+  if(!event)return null;
+  const transactions:FinanceTransaction[]=[];
+  for(const order of orders.filter(item=>item.eventId===eventId)){
+    transactions.push({id:order.orderId,type:"SALE",publicId:order.publicId,createdAt:new Date(order.createdAt),amountMinor:order.organizerNetMinor,description:"Продажа билетов"});
+    const refund=refunds.get(order.orderId);
+    if(refund){const impact=order.organizerNetMinor+Math.max(0,refund.organizerChargeMinor||0);transactions.push({id:refund.id,type:"REFUND",publicId:refund.publicId,createdAt:new Date(refund.createdAt),amountMinor:-impact,description:`Возврат по заказу ${order.publicId}`});}
+  }
+  for(const payout of payouts.filter(item=>item.eventId===eventId))transactions.push({id:payout.id,type:"PAYOUT",publicId:payout.reference||"Выплата",createdAt:new Date(payout.paidAt||payout.createdAt),amountMinor:-payout.amountMinor,description:"Выплата организатору"});
+  transactions.sort((a,b)=>b.createdAt.getTime()-a.createdAt.getTime());
+  return {event,transactions};
 }
 
 export async function platformFinanceSummary() {
