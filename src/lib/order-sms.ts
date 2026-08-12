@@ -35,16 +35,25 @@ export async function sendOrderTicketSms(publicId: string, options?: { automatic
     return { recipient: order.customerPhone, providerStatus: "ALREADY_SENT", priceMinor: 0, alreadySent: true };
   }
 
-  const ticketUrl = await shortTicketUrl(order.publicId);
-  const message = `Ваши билеты на ${order.event.title} готовы. Заказ: ${order.publicId}. Билеты: ${ticketUrl}`;
-  const result = await sendSms019({ phone: order.customerPhone, message, campaignName: `ticket-${order.publicId}` });
+  try {
+    const ticketUrl = await shortTicketUrl(order.publicId);
+    const message = `Ваши билеты на ${order.event.title} готовы. Заказ: ${order.publicId}. Билеты: ${ticketUrl}`;
+    const result = await sendSms019({ phone: order.customerPhone, message, campaignName: `ticket-${order.publicId}` });
 
-  if (!result.ok) {
-    const errorMessage = result.providerMessage || `019SMS error ${result.status}`;
-    await failNotification(claim.id!, errorMessage, result.providerStatus);
-    throw new Error(errorMessage);
+    if (!result.ok) {
+      const errorMessage = result.providerMessage || `019SMS error ${result.status}`;
+      await failNotification(claim.id!, errorMessage, result.providerStatus);
+      console.error("ticket_sms.failed", { publicId, providerStatus: result.providerStatus ?? null, providerMessage: errorMessage, httpStatus: result.status });
+      throw new Error(errorMessage);
+    }
+
+    await completeNotification(claim.id!, { providerStatus: result.providerStatus, providerMessage: result.providerMessage });
+    console.info("ticket_sms.sent", { publicId, providerStatus: result.providerStatus ?? null, recipient: order.customerPhone });
+    return { recipient: order.customerPhone, providerStatus: result.providerStatus ?? null, priceMinor, alreadySent: false, ticketUrl };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown SMS error";
+    await failNotification(claim.id!, message).catch(() => undefined);
+    console.error("ticket_sms.exception", { publicId, message });
+    throw error;
   }
-
-  await completeNotification(claim.id!, { providerStatus: result.providerStatus, providerMessage: result.providerMessage });
-  return { recipient: order.customerPhone, providerStatus: result.providerStatus ?? null, priceMinor, alreadySent: false, ticketUrl };
 }
