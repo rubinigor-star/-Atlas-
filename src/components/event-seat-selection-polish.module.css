@@ -42,31 +42,41 @@
 :global(body.atlas-seat-selection-active) :global(.mapViewport){padding:14px 24px 28px!important}
 :global(body.atlas-seat-selection-active) :global(.mapFrame){margin:0 auto!important}
 
-/* Approved sidebar composition: ticket info on the left, remove control above the price on the right. */
+/* Selected ticket layout: remove icon on its own row, then title/price and details/fee aligned horizontally. */
 :global(.atlas-selected-ticket){padding-top:16px!important}
 :global(.atlas-selected-head){
   display:grid!important;
   grid-template-columns:minmax(0,1fr) auto!important;
-  grid-template-rows:auto auto!important;
+  grid-template-rows:auto auto auto!important;
   column-gap:12px!important;
-  row-gap:7px!important;
+  row-gap:4px!important;
   align-items:start!important;
 }
 :global(.atlas-selected-head)>div:first-child{
-  grid-column:1!important;
-  grid-row:1 / 3!important;
-  min-width:0!important;
+  display:contents!important;
 }
 :global(.atlas-remove-ticket){
   grid-column:2!important;
   grid-row:1!important;
   justify-self:end!important;
   align-self:start!important;
+  margin:0 0 2px 0!important;
+}
+:global(.atlas-selected-title){
+  grid-column:1!important;
+  grid-row:2!important;
+  align-self:start!important;
   margin:0!important;
+}
+:global(.atlas-selected-desc){
+  grid-column:1!important;
+  grid-row:3!important;
+  align-self:start!important;
+  margin-top:0!important;
 }
 :global(.atlas-selected-price){
   grid-column:2!important;
-  grid-row:2!important;
+  grid-row:2 / 4!important;
   justify-self:end!important;
   align-self:start!important;
   text-align:right!important;
@@ -74,6 +84,7 @@
 }
 :global(.atlas-selected-fee){
   max-width:118px!important;
+  margin-top:4px!important;
   white-space:normal!important;
   text-align:right!important;
 }
@@ -97,5 +108,5 @@
   .pill{font-size:11px!important;padding-inline:8px!important}
   .peopleButton{min-width:58px!important}
   .modalHeader h2{font-size:18px}
-  :global(.atlas-selected-head){column-gap:9px!important;row-gap:5px!important}
+  :global(.atlas-selected-head){column-gap:9px!important;row-gap:3px!important}
 }
