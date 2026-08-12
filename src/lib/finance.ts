@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { ensureCancellationRuntime } from "@/lib/cancellations";
+import { ensureNotificationLedger } from "@/lib/notification-ledger";
 
 export type FinanceEventRow = {
   eventId: string;
@@ -10,6 +11,7 @@ export type FinanceEventRow = {
   organizationName?: string;
   salesMinor: number;
   refundsMinor: number;
+  servicesMinor: number;
   balanceMinor: number;
   settledMinor: number;
   awaitingSettlementMinor: number;
@@ -24,7 +26,7 @@ export type FinanceEventRow = {
 
 export type FinanceTransaction = {
   id: string;
-  type: "SALE" | "REFUND" | "PAYOUT";
+  type: "SALE" | "REFUND" | "SERVICE" | "PAYOUT";
   publicId: string;
   createdAt: Date;
   amountMinor: number;
@@ -59,11 +61,12 @@ type RefundRow = {
 
 type RefundAttemptTotal = { orderId: string; totalRefundedMinor: number; createdAt: Date };
 type PayoutRow = { id: string; eventId: string; amountMinor: number; status: string; paidAt: Date | null; createdAt: Date; reference: string | null };
+type SmsChargeRow = { organizationId: string; eventId: string | null; amountMinor: number; sentCount: number; createdAt: Date };
 
 let runtime: Promise<void> | null = null;
 export function ensureFinanceRuntime() {
   if (!runtime) runtime = (async () => {
-    await ensureCancellationRuntime();
+    await Promise.all([ensureCancellationRuntime(), ensureNotificationLedger()]);
     await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "OrderCommercialSnapshot" (
       "orderId" TEXT PRIMARY KEY,
       "subtotalMinor" INTEGER NOT NULL,
@@ -90,15 +93,10 @@ export function ensureFinanceRuntime() {
   return runtime;
 }
 
-// HYP settlement is treated as received on the 6th of the following month.
-// We use a date boundary rather than server-local time so Vercel region timezone
-// cannot move an order into a different accounting day.
 function settlementDateForSale(saleDate: Date) {
   return new Date(Date.UTC(saleDate.getUTCFullYear(), saleDate.getUTCMonth() + 1, 6, 0, 0, 0));
 }
 
-// Standard Atlas payout cycle: the 7th of the month following the event.
-// No advance payments. A balance can become payable only on/after this date.
 export function payoutDateForEvent(eventDate: Date) {
   return new Date(Date.UTC(eventDate.getUTCFullYear(), eventDate.getUTCMonth() + 1, 7, 0, 0, 0));
 }
@@ -152,12 +150,21 @@ async function payoutRows(organizationId?: string): Promise<PayoutRow[]> {
   return db.$queryRawUnsafe<PayoutRow[]>(`SELECT "id","eventId","amountMinor","status","paidAt","createdAt","reference" FROM "OrganizerPayout" ${scope}`, ...params);
 }
 
+async function smsChargeRows(organizationId?: string): Promise<SmsChargeRow[]> {
+  await ensureFinanceRuntime();
+  const scope = organizationId ? `AND n."organizationId"=$1` : "";
+  const params = organizationId ? [organizationId] : [];
+  return db.$queryRawUnsafe<SmsChargeRow[]>(`
+    SELECT n."organizationId",o."eventId",COALESCE(SUM(n."priceMinor"),0)::int AS "amountMinor",
+      COUNT(*)::int AS "sentCount",MAX(COALESCE(n."sentAt",n."createdAt")) AS "createdAt"
+    FROM "NotificationDelivery" n
+    LEFT JOIN "Order" o ON o."id"=n."orderId"
+    WHERE n."channel"='SMS' AND n."status"='SENT' AND n."organizationId" IS NOT NULL ${scope}
+    GROUP BY n."organizationId",o."eventId"`, ...params);
+}
+
 function cancellationRefundImpact(order: FinanceOrderRow, cancellation: RefundRow) {
   const refundAmount = Math.max(0, cancellation.refundAmountMinor || 0);
-  // On a completed cancellation the original sales fee is replaced by the
-  // cancellation economics. The organizer keeps any non-refunded remainder,
-  // while Atlas keeps the cancellation fee. If the organizer refunds more than
-  // the standard amount, organizerChargeMinor naturally makes the balance negative.
   return Math.max(0, refundAmount + cancellation.statutoryFeeMinor - order.serviceFeeMinor);
 }
 
@@ -168,58 +175,37 @@ function organizerRefundImpact(order: FinanceOrderRow, cancellation: RefundRow |
 }
 
 export async function financeEvents(organizationId?: string): Promise<FinanceEventRow[]> {
-  const [orders, refunds, refundAttempts, payouts] = await Promise.all([
-    financeOrders(organizationId),
-    refundRows(organizationId),
-    successfulRefundAttempts(organizationId),
-    payoutRows(organizationId),
+  const [orders, refunds, refundAttempts, payouts, smsCharges] = await Promise.all([
+    financeOrders(organizationId), refundRows(organizationId), successfulRefundAttempts(organizationId), payoutRows(organizationId), smsChargeRows(organizationId),
   ]);
   const now = new Date();
   const paidByEvent = new Map<string, number>();
+  const smsByEvent = new Map<string, number>();
   for (const payout of payouts) paidByEvent.set(payout.eventId, (paidByEvent.get(payout.eventId) || 0) + payout.amountMinor);
+  for (const sms of smsCharges) if (sms.eventId) smsByEvent.set(sms.eventId, (smsByEvent.get(sms.eventId) || 0) + sms.amountMinor);
 
   const grouped = new Map<string, FinanceEventRow>();
   for (const order of orders) {
     let row = grouped.get(order.eventId);
     if (!row) {
       row = {
-        eventId: order.eventId,
-        eventTitle: order.eventTitle,
-        eventStartsAt: new Date(order.eventStartsAt),
-        posterUrl: order.posterUrl,
-        organizationId: order.organizationId,
-        organizationName: order.organizationName,
-        salesMinor: 0,
-        refundsMinor: 0,
-        balanceMinor: 0,
-        settledMinor: 0,
-        awaitingSettlementMinor: 0,
-        paidOutMinor: paidByEvent.get(order.eventId) || 0,
-        availableMinor: 0,
-        buyerPaidMinor: 0,
-        atlasSalesFeeMinor: 0,
-        atlasCancellationFeeMinor: 0,
-        payoutDate: payoutDateForEvent(new Date(order.eventStartsAt)),
-        status: "PLANNED",
+        eventId: order.eventId,eventTitle: order.eventTitle,eventStartsAt: new Date(order.eventStartsAt),posterUrl: order.posterUrl,
+        organizationId: order.organizationId,organizationName: order.organizationName,salesMinor: 0,refundsMinor: 0,servicesMinor: smsByEvent.get(order.eventId) || 0,balanceMinor: 0,
+        settledMinor: 0,awaitingSettlementMinor: 0,paidOutMinor: paidByEvent.get(order.eventId) || 0,availableMinor: 0,buyerPaidMinor: 0,
+        atlasSalesFeeMinor: 0,atlasCancellationFeeMinor: 0,payoutDate: payoutDateForEvent(new Date(order.eventStartsAt)),status: "PLANNED",
       };
       grouped.set(order.eventId, row);
     }
 
     row.salesMinor += order.organizerNetMinor;
     row.buyerPaidMinor += order.buyerTotalMinor;
-
     const cancellation = refunds.get(order.orderId);
     const refundAttempt = refundAttempts.get(order.orderId);
     const refundImpact = organizerRefundImpact(order, cancellation, refundAttempt);
     row.refundsMinor += refundImpact;
 
-    if (cancellation) {
-      // A fully cancelled transaction contributes cancellation fee revenue,
-      // not the original sales fee as a second simultaneous Atlas revenue line.
-      row.atlasCancellationFeeMinor += cancellation.statutoryFeeMinor;
-    } else {
-      row.atlasSalesFeeMinor += order.serviceFeeMinor;
-    }
+    if (cancellation) row.atlasCancellationFeeMinor += cancellation.statutoryFeeMinor;
+    else row.atlasSalesFeeMinor += order.serviceFeeMinor;
 
     const netForOrder = order.organizerNetMinor - refundImpact;
     if (settlementDateForSale(new Date(order.createdAt)) <= now) row.settledMinor += netForOrder;
@@ -227,120 +213,94 @@ export async function financeEvents(organizationId?: string): Promise<FinanceEve
   }
 
   for (const row of grouped.values()) {
-    row.balanceMinor = row.salesMinor - row.refundsMinor;
+    row.balanceMinor = row.salesMinor - row.refundsMinor - row.servicesMinor;
     const payoutCycleReached = now >= row.payoutDate;
-    row.availableMinor = payoutCycleReached ? Math.max(0, row.settledMinor - row.paidOutMinor) : 0;
+    row.availableMinor = payoutCycleReached ? Math.max(0, row.settledMinor - row.servicesMinor - row.paidOutMinor) : 0;
     if (row.paidOutMinor >= Math.max(0, row.balanceMinor) && row.balanceMinor !== 0) row.status = "PAID";
     else if (payoutCycleReached && row.availableMinor > 0) row.status = "AVAILABLE";
   }
-
   return [...grouped.values()].sort((a, b) => a.eventStartsAt.getTime() - b.eventStartsAt.getTime());
 }
 
 export async function organizerFinanceSummary(organizationId: string) {
-  const events = await financeEvents(organizationId);
+  const [events, smsCharges] = await Promise.all([financeEvents(organizationId), smsChargeRows(organizationId)]);
+  const eventServices = events.reduce((s, e) => s + e.servicesMinor, 0);
+  const allServices = smsCharges.reduce((s, row) => s + row.amountMinor, 0);
+  const unallocatedServicesMinor = Math.max(0, allServices - eventServices);
+  const rawAvailable = events.reduce((s, e) => s + e.availableMinor, 0);
   return {
     events,
     salesMinor: events.reduce((s, e) => s + e.salesMinor, 0),
     refundsMinor: events.reduce((s, e) => s + e.refundsMinor, 0),
-    balanceMinor: events.reduce((s, e) => s + e.balanceMinor, 0),
-    availableMinor: events.reduce((s, e) => s + e.availableMinor, 0),
+    servicesMinor: allServices,
+    unallocatedServicesMinor,
+    balanceMinor: events.reduce((s, e) => s + e.balanceMinor, 0) - unallocatedServicesMinor,
+    availableMinor: Math.max(0, rawAvailable - unallocatedServicesMinor),
     awaitingSettlementMinor: events.reduce((s, e) => s + Math.max(0, e.awaitingSettlementMinor), 0),
     paidOutMinor: events.reduce((s, e) => s + e.paidOutMinor, 0),
   };
 }
 
 export async function organizerFinanceEvent(organizationId: string, eventId: string) {
-  const [events, orders, refunds, refundAttempts, payouts] = await Promise.all([
-    financeEvents(organizationId),
-    financeOrders(organizationId),
-    refundRows(organizationId),
-    successfulRefundAttempts(organizationId),
-    payoutRows(organizationId),
+  const [events, orders, refunds, refundAttempts, payouts, smsCharges] = await Promise.all([
+    financeEvents(organizationId),financeOrders(organizationId),refundRows(organizationId),successfulRefundAttempts(organizationId),payoutRows(organizationId),smsChargeRows(organizationId),
   ]);
   const event = events.find(item => item.eventId === eventId);
   if (!event) return null;
   const transactions: FinanceTransaction[] = [];
 
   for (const order of orders.filter(item => item.eventId === eventId)) {
-    transactions.push({
-      id: order.orderId,
-      type: "SALE",
-      publicId: order.publicId,
-      createdAt: new Date(order.createdAt),
-      amountMinor: order.organizerNetMinor,
-      description: "Продажа билетов",
-    });
+    transactions.push({ id: order.orderId,type: "SALE",publicId: order.publicId,createdAt: new Date(order.createdAt),amountMinor: order.organizerNetMinor,description: "Продажа билетов" });
     const cancellation = refunds.get(order.orderId);
     const attempt = refundAttempts.get(order.orderId);
     const impact = organizerRefundImpact(order, cancellation, attempt);
     if (impact > 0) transactions.push({
-      id: cancellation?.id || `refund-${order.orderId}`,
-      type: "REFUND",
-      publicId: cancellation?.publicId || order.publicId,
-      createdAt: new Date(cancellation?.createdAt || attempt!.createdAt),
-      amountMinor: -impact,
+      id: cancellation?.id || `refund-${order.orderId}`,type: "REFUND",publicId: cancellation?.publicId || order.publicId,
+      createdAt: new Date(cancellation?.createdAt || attempt!.createdAt),amountMinor: -impact,
       description: cancellation ? `Отмена заказа ${order.publicId}` : `Возврат по заказу ${order.publicId}`,
     });
   }
 
-  for (const payout of payouts.filter(item => item.eventId === eventId)) transactions.push({
-    id: payout.id,
-    type: "PAYOUT",
-    publicId: payout.reference || "Выплата",
-    createdAt: new Date(payout.paidAt || payout.createdAt),
-    amountMinor: -payout.amountMinor,
-    description: "Выплата организатору",
+  for (const sms of smsCharges.filter(item => item.eventId === eventId && item.amountMinor > 0)) transactions.push({
+    id: `sms-${eventId}`,type: "SERVICE",publicId: `${sms.sentCount} SMS`,createdAt: new Date(sms.createdAt),amountMinor: -sms.amountMinor,description: "Дополнительная услуга: отправка SMS",
   });
-
+  for (const payout of payouts.filter(item => item.eventId === eventId)) transactions.push({
+    id: payout.id,type: "PAYOUT",publicId: payout.reference || "Выплата",createdAt: new Date(payout.paidAt || payout.createdAt),amountMinor: -payout.amountMinor,description: "Выплата организатору",
+  });
   transactions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   return { event, transactions };
 }
 
 export async function platformFinanceSummary() {
-  const events = await financeEvents();
-  const byOrganization = new Map<string, {
-    organizationId: string;
-    organizationName: string;
-    salesMinor: number;
-    refundsMinor: number;
-    balanceMinor: number;
-    availableMinor: number;
-    buyerPaidMinor: number;
-    atlasRevenueMinor: number;
-    eventCount: number;
-  }>();
+  const [events, smsCharges] = await Promise.all([financeEvents(), smsChargeRows()]);
+  const allSmsMinor = smsCharges.reduce((s, row) => s + row.amountMinor, 0);
+  const smsByOrganization = new Map<string, number>();
+  for (const sms of smsCharges) smsByOrganization.set(sms.organizationId, (smsByOrganization.get(sms.organizationId) || 0) + sms.amountMinor);
+  const eventSmsByOrganization = new Map<string, number>();
+  for (const event of events) eventSmsByOrganization.set(event.organizationId, (eventSmsByOrganization.get(event.organizationId) || 0) + event.servicesMinor);
 
+  const byOrganization = new Map<string, {organizationId:string;organizationName:string;salesMinor:number;refundsMinor:number;servicesMinor:number;balanceMinor:number;availableMinor:number;buyerPaidMinor:number;atlasRevenueMinor:number;eventCount:number}>();
   for (const event of events) {
-    const row = byOrganization.get(event.organizationId) || {
-      organizationId: event.organizationId,
-      organizationName: event.organizationName || "Организатор",
-      salesMinor: 0,
-      refundsMinor: 0,
-      balanceMinor: 0,
-      availableMinor: 0,
-      buyerPaidMinor: 0,
-      atlasRevenueMinor: 0,
-      eventCount: 0,
-    };
-    row.salesMinor += event.salesMinor;
-    row.refundsMinor += event.refundsMinor;
-    row.balanceMinor += event.balanceMinor;
-    row.availableMinor += event.availableMinor;
-    row.buyerPaidMinor += event.buyerPaidMinor;
-    row.atlasRevenueMinor += event.atlasSalesFeeMinor + event.atlasCancellationFeeMinor;
-    row.eventCount += 1;
+    const row = byOrganization.get(event.organizationId) || {organizationId:event.organizationId,organizationName:event.organizationName||"Организатор",salesMinor:0,refundsMinor:0,servicesMinor:0,balanceMinor:0,availableMinor:0,buyerPaidMinor:0,atlasRevenueMinor:0,eventCount:0};
+    row.salesMinor += event.salesMinor;row.refundsMinor += event.refundsMinor;row.servicesMinor += event.servicesMinor;row.balanceMinor += event.balanceMinor;row.availableMinor += event.availableMinor;
+    row.buyerPaidMinor += event.buyerPaidMinor;row.atlasRevenueMinor += event.atlasSalesFeeMinor + event.atlasCancellationFeeMinor + event.servicesMinor;row.eventCount += 1;
     byOrganization.set(event.organizationId, row);
+  }
+  for (const [organizationId,totalSms] of smsByOrganization) {
+    const unallocated = Math.max(0, totalSms - (eventSmsByOrganization.get(organizationId) || 0));
+    if (!unallocated) continue;
+    const row = byOrganization.get(organizationId);
+    if (row) { row.servicesMinor += unallocated;row.balanceMinor -= unallocated;row.availableMinor = Math.max(0,row.availableMinor-unallocated);row.atlasRevenueMinor += unallocated; }
   }
 
   const organizations = [...byOrganization.values()].sort((a, b) => b.balanceMinor - a.balanceMinor);
   return {
-    events,
-    organizations,
+    events,organizations,
     buyerPaidMinor: events.reduce((s, e) => s + e.buyerPaidMinor, 0),
-    organizerLiabilityMinor: events.reduce((s, e) => s + e.balanceMinor - e.paidOutMinor, 0),
+    organizerLiabilityMinor: organizations.reduce((s, org) => s + org.balanceMinor, 0) - events.reduce((s,e)=>s+e.paidOutMinor,0),
     atlasSalesFeeMinor: events.reduce((s, e) => s + e.atlasSalesFeeMinor, 0),
     atlasCancellationFeeMinor: events.reduce((s, e) => s + e.atlasCancellationFeeMinor, 0),
-    availableForPayoutMinor: events.reduce((s, e) => s + e.availableMinor, 0),
+    atlasServicesMinor: allSmsMinor,
+    availableForPayoutMinor: organizations.reduce((s, org) => s + org.availableMinor, 0),
   };
 }
