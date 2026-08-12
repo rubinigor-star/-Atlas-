@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PlatformShell } from "@/components/platform-shell";
+import { PlatformPayoutForm } from "@/components/platform-payout-form";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { platformFinanceSummary } from "@/lib/finance";
 import { money } from "@/lib/format";
@@ -28,8 +29,9 @@ export default async function PlatformFinancePage(){
     </tbody></table></div>
 
     <h2 className="section-title" style={{marginTop:28}}>Мероприятия и выплаты</h2>
-    <div className="table-wrap"><table><thead><tr><th>Мероприятие</th><th>Организатор</th><th>Баланс организатора</th><th>Atlas fee продажи</th><th>Atlas fee отмены</th><th>SMS</th><th>Доступно к выплате</th><th>Плановая дата</th></tr></thead><tbody>
-      {summary.events.map(event=><tr key={event.eventId}><td><strong>{event.eventTitle}</strong></td><td>{event.organizationName}</td><td>{money(event.balanceMinor-event.paidOutMinor)}</td><td>{money(event.atlasSalesFeeMinor)}</td><td>{money(event.atlasCancellationFeeMinor)}</td><td>{money(event.servicesMinor)}</td><td>{money(event.availableMinor)}</td><td>{new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric",timeZone:"Asia/Jerusalem"}).format(event.payoutDate)}</td></tr>)}
+    <div className="table-wrap"><table><thead><tr><th>Мероприятие</th><th>Организатор</th><th>Баланс организатора</th><th>Atlas fee продажи</th><th>Atlas fee отмены</th><th>SMS</th><th>Доступно к выплате</th><th>Плановая дата</th><th>Выплата</th></tr></thead><tbody>
+      {summary.events.map(event=><tr key={event.eventId}><td><strong>{event.eventTitle}</strong></td><td>{event.organizationName}</td><td>{money(event.balanceMinor-event.paidOutMinor)}</td><td>{money(event.atlasSalesFeeMinor)}</td><td>{money(event.atlasCancellationFeeMinor)}</td><td>{money(event.servicesMinor)}</td><td><strong>{money(event.availableMinor)}</strong></td><td>{new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric",timeZone:"Asia/Jerusalem"}).format(event.payoutDate)}</td><td>{event.availableMinor>0?<PlatformPayoutForm eventId={event.eventId} availableMinor={event.availableMinor}/>:<span className="muted">Недоступна</span>}</td></tr>)}
     </tbody></table></div>
+    <div className="platform-card" style={{marginTop:20}}><strong>Важно</strong><p className="muted" style={{marginBottom:0}}>Кнопка «Зафиксировать» не выполняет банковский перевод. Она используется только после фактической выплаты организатору и записывает её в финансовую историю Atlas.</p></div>
   </PlatformShell>;
 }
