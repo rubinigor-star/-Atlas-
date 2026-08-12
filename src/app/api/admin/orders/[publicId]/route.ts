@@ -19,10 +19,22 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ publicI
     });
     if (!target) throw new Error("Заявка не найдена");
     const actor = await requireEventAccess("REQUEST_REVIEW", target.eventId);
-    if (target.status !== "CANCELLED" && target.status !== "REJECTED") {
-      throw new Error("Удалить из очереди можно только отменённую или отклонённую заявку");
-    }
     if (target._count.tickets > 0) throw new Error("Заявку с выпущенными билетами нельзя удалить из очереди");
+
+    let expiredApproval = false;
+    if (target.status === "PENDING_APPROVAL") {
+      const rows = await db.$queryRawUnsafe<Array<{ status: string; expiresAt: Date }>>(
+        `SELECT "status","expiresAt" FROM "Reservation" WHERE "orderId"=$1 LIMIT 1`,
+        target.id,
+      );
+      const reservation = rows[0];
+      expiredApproval = !reservation || reservation.status !== "ACTIVE" || new Date(reservation.expiresAt) <= new Date();
+    }
+
+    if (target.status !== "CANCELLED" && target.status !== "REJECTED" && !expiredApproval) {
+      throw new Error("Удалить из очереди можно только отменённую, отклонённую или истёкшую заявку");
+    }
+
     await Promise.all([
       dismissRequest(target.id),
       db.order.update({
