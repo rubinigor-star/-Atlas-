@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { StaffPermission } from "@prisma/client";
-import { BarChart3, Building2, CalendarDays, ClipboardCheck, ContactRound, LayoutDashboard, ListChecks, Megaphone, QrCode, ReceiptText, Share2, ShoppingCart, Users } from "lucide-react";
+import { BarChart3, Building2, CalendarDays, ClipboardCheck, ContactRound, LayoutDashboard, ListChecks, Megaphone, QrCode, ReceiptText, RotateCcw, Share2, ShoppingCart, Users } from "lucide-react";
 import { useLocale } from "@/components/locale-provider";
 
-const links: Array<{ href: string; key: "overview" | "requests" | "events" | "guestLists" | "guests" | "promoters" | "marketing" | "abandoned" | "orders" | "scanner" | "team" | "audit" | "company"; permission?: StaffPermission; icon: typeof LayoutDashboard }> = [
+const links: Array<{ href: string; key: "overview" | "requests" | "cancellations" | "events" | "guestLists" | "guests" | "promoters" | "marketing" | "abandoned" | "orders" | "scanner" | "team" | "audit" | "company"; permission?: StaffPermission; icon: typeof LayoutDashboard }> = [
   { href: "/office", key: "overview", permission: "EVENT_VIEW", icon: LayoutDashboard },
   { href: "/office/requests", key: "requests", permission: "REQUEST_REVIEW", icon: ClipboardCheck },
+  { href: "/office/cancellations", key: "cancellations", permission: "ORDER_VIEW", icon: RotateCcw },
   { href: "/office/events", key: "events", permission: "EVENT_VIEW", icon: CalendarDays },
   { href: "/office/guest-lists", key: "guestLists", permission: "EVENT_MANAGE", icon: ListChecks },
   { href: "/office/guests", key: "guests", permission: "ORDER_VIEW", icon: ContactRound },
@@ -31,6 +32,7 @@ export function OfficeNavigation({ permissions, mobile = false }: { permissions:
   const labels = {
     overview: messages.common.overview,
     requests: messages.common.requests,
+    cancellations: "Отмены",
     events: messages.nav.events,
     guestLists: messages.nav.guestLists,
     guests: messages.nav.guests,
