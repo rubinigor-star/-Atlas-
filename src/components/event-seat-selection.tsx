@@ -342,7 +342,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   function startPan(event: React.PointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement;
-    if (!spaceHeld && target.closest("button,input,select,a")) return;
+    if (!spaceHeld && target.closest('button,input,select,a,[data-seatmap-selectable="true"]')) return;
     const viewport = viewportRef.current;
     if (!viewport) return;
     panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
@@ -436,8 +436,9 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
                 const zoneColor = zone && categoryAllowed ? categories.find(item => item.id === object.categoryId)?.colorHex : undefined;
                 return <div key={object.id} className={`${styles.object} ${zone ? styles.zoneLayer : ""}`} style={{ left: `${object.x}%`, top: `${object.y}%`, width: object.width, height: object.height, transform: `translate(-50%,-50%) rotate(${object.rotation}deg)`, opacity: faded ? .12 : 1, pointerEvents: faded ? "none" : undefined }}>
                   {!seatObject
-                    ? <div className={`${styles.decoration} ${styles[`decoration${object.objectType}`] ?? ""} ${selectedZone ? styles.zoneSelected : ""}`} style={zoneColor ? { background: zoneColor, borderColor: zoneColor, color: "#fff", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.18)" } : undefined} onClick={() => chooseZone(object)}><strong>{object.label}</strong></div>
-                    : <div className={`${styles.furniture} ${styles[`furniture${object.objectType}`] ?? ""}`} onClick={() => {
+                    ? <div data-seatmap-selectable="true" className={`${styles.decoration} ${styles[`decoration${object.objectType}`] ?? ""} ${selectedZone ? styles.zoneSelected : ""}`} style={zoneColor ? { background: zoneColor, borderColor: zoneColor, color: "#fff", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.18)" } : undefined} onClick={(event) => { event.stopPropagation(); chooseZone(object); }}><strong>{object.label}</strong></div>
+                    : <div data-seatmap-selectable="true" className={`${styles.furniture} ${styles[`furniture${object.objectType}`] ?? ""}`} onClick={(event) => {
+                        event.stopPropagation();
                         if (object.priceMode !== "WHOLE_TABLE" || object.reserved || !wholeVisible) return;
                         setSelectedSeatIds([]);
                         setZoneObjectId(null);
