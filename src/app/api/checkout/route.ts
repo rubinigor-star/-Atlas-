@@ -14,6 +14,7 @@ import { linkAbandonedCheckoutToOrder } from "@/lib/abandoned-order-attribution"
 const CANONICAL_APP_URL="https://www.atlas-one.co";
 function normalizePhone(value:string){const digits=value.replace(/\D/g,"");if(!digits)return "";if(digits.startsWith("972"))return `+${digits}`;if(digits.startsWith("0"))return `+972${digits.slice(1)}`;return `+972${digits}`;}
 function launchUrl(paymentUrl:string){return `/payments/hyp/launch?target=${encodeURIComponent(paymentUrl)}`;}
+async function orderSalesMode(orderId:string){const rows=await db.$queryRawUnsafe<Array<{salesFlow:string}>>(`SELECT "salesFlow" FROM "Order" WHERE "id"=$1 LIMIT 1`,orderId);return rows[0]?.salesFlow==="APPROVAL"?"APPROVAL_REQUIRED" as const:"INSTANT" as const;}
 
 async function createPaymentUrl(input:{salesMode:"INSTANT"|"APPROVAL_REQUIRED";totalMinor:number;publicId:string;eventTitle:string;customerName:string;customerEmail:string;customerPhone:string;language:"HEB"|"ENG"}){
   if(input.salesMode==="APPROVAL_REQUIRED"){
@@ -32,7 +33,8 @@ export async function POST(req:Request){
     if(existing){
       await linkAbandonedCheckoutToOrder(input.abandonToken, existing.id);
       if(existing.status==="PENDING"){
-        const paymentUrl=await createPaymentUrl({salesMode:existing.event.salesMode,totalMinor:existing.totalMinor,publicId:existing.publicId,eventTitle:existing.event.title,customerName:existing.customerName,customerEmail:existing.customerEmail,customerPhone:existing.customerPhone,language});
+        const persistedSalesMode=await orderSalesMode(existing.id);
+        const paymentUrl=await createPaymentUrl({salesMode:persistedSalesMode,totalMinor:existing.totalMinor,publicId:existing.publicId,eventTitle:existing.event.title,customerName:existing.customerName,customerEmail:existing.customerEmail,customerPhone:existing.customerPhone,language});
         return NextResponse.json({orderId:existing.publicId,status:existing.status,paymentUrl:launchUrl(paymentUrl)});
       }
       return NextResponse.json({orderId:existing.publicId,status:existing.status});

@@ -9,22 +9,37 @@ const DISMISSED_EXPIRED_NOTE = "__DISMISSED_EXPIRED__";
 
 export default async function RequestsPage() {
   const staff = await requirePermission("REQUEST_REVIEW");
-  const requests = await db.order.findMany({
-    where: {
-      status: { in: ["PENDING_APPROVAL", "AWAITING_PAYMENT", "PAID", "REJECTED", "CANCELLED"] },
-      event: { organizationId: staff.organizationId! },
-      OR: [{ reviewNote: null }, { reviewNote: { not: DISMISSED_EXPIRED_NOTE } }],
-    },
-    include: { event: true, items: true, guest: { include: { orders: { include: { tickets: { include: { scans: true } } } } } } },
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-  });
+
+  const approvalOrderRows = await db.$queryRawUnsafe<Array<{ id: string }>>(
+    `SELECT o."id"
+     FROM "Order" o
+     JOIN "Event" e ON e."id"=o."eventId"
+     WHERE o."salesFlow"='APPROVAL'
+       AND e."organizationId"=$1`,
+    staff.organizationId!,
+  );
+  const approvalOrderIds = approvalOrderRows.map((row) => row.id);
+
+  const requests = approvalOrderIds.length
+    ? await db.order.findMany({
+        where: {
+          id: { in: approvalOrderIds },
+          status: { in: ["PENDING_APPROVAL", "AWAITING_PAYMENT", "PAID", "REJECTED", "CANCELLED"] },
+          OR: [{ reviewNote: null }, { reviewNote: { not: DISMISSED_EXPIRED_NOTE } }],
+        },
+        include: { event: true, items: true, guest: { include: { orders: { include: { tickets: { include: { scans: true } } } } } } },
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      })
+    : [];
 
   const recoveryRows = await db.$queryRaw<Array<{ orderId: string }>>`
-    SELECT "orderId"
-    FROM "PaymentAuthorization"
-    WHERE provider = 'HYP'
-      AND status = 'CAPTURED'
-      AND "hypCaptureTransId" IS NULL
+    SELECT pa."orderId"
+    FROM "PaymentAuthorization" pa
+    JOIN "Order" o ON o."id"=pa."orderId"
+    WHERE o."salesFlow"='APPROVAL'
+      AND pa.provider = 'HYP'
+      AND pa.status = 'CAPTURED'
+      AND pa."hypCaptureTransId" IS NULL
   `;
   const recoveryIds = new Set(recoveryRows.map((row) => row.orderId));
 
