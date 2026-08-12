@@ -62,15 +62,22 @@ export default async function RequestsPage() {
   const liveRequests = requests.filter((request) => {
     if (dismissedIds.has(request.id)) return false;
     const authorization = authorizationByOrder.get(request.id);
+    const reservation = reservationByOrder.get(request.id);
 
     if (request.status === "PENDING_APPROVAL") {
       if (request.event.salesMode !== "APPROVAL_REQUIRED") return false;
-      return Boolean(
+      const validAuthorization = Boolean(
         authorization
         && authorization.provider === "HYP"
         && authorization.status === "AUTHORIZED"
         && authorization.hypTransId,
       );
+      const validReservation = Boolean(
+        reservation
+        && reservation.status === "ACTIVE"
+        && new Date(reservation.expiresAt) > now,
+      );
+      return validAuthorization && validReservation;
     }
 
     if (
@@ -102,12 +109,6 @@ export default async function RequestsPage() {
           const visits = previous.flatMap((order) => order.tickets).filter((ticket) => ticket.scans.length > 0).length;
           const reservation = reservationByOrder.get(request.id);
           const reservationExpiresAt = reservation?.expiresAt ? new Date(reservation.expiresAt) : null;
-          const inactive = request.status === "PENDING_APPROVAL" && Boolean(
-            !reservation
-            || reservation.status !== "ACTIVE"
-            || !reservationExpiresAt
-            || reservationExpiresAt <= now,
-          );
           return {
             id: request.id,
             publicId: request.publicId,
@@ -128,7 +129,7 @@ export default async function RequestsPage() {
             eventDate: request.event.startsAt.toISOString(),
             createdAt: request.createdAt.toISOString(),
             expiresAt: (reservationExpiresAt ?? request.createdAt).toISOString(),
-            inactive,
+            inactive: false,
             totalMinor: request.totalMinor,
             items: request.items.map((item) => ({ name: item.categoryName, quantity: item.quantity })),
           };
