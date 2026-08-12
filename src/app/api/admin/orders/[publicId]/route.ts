@@ -5,6 +5,7 @@ import { requireEventAccess } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { reviewOrder } from "@/lib/order-review-service";
 import { sendOrderTicketSms } from "@/lib/order-sms";
+import { dismissRequest } from "@/lib/request-dismissal";
 
 const DISMISSED_EXPIRED_NOTE = "__DISMISSED_EXPIRED__";
 const reviewSchema = z.object({ action: z.enum(["approve", "reject"]), note: z.string().max(500).optional() });
@@ -22,10 +23,13 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ publicI
       throw new Error("Удалить из очереди можно только отменённую или отклонённую заявку");
     }
     if (target._count.tickets > 0) throw new Error("Заявку с выпущенными билетами нельзя удалить из очереди");
-    await db.order.update({
-      where: { id: target.id },
-      data: { reviewNote: DISMISSED_EXPIRED_NOTE, reviewedAt: new Date(), paymentDueAt: null },
-    });
+    await Promise.all([
+      dismissRequest(target.id),
+      db.order.update({
+        where: { id: target.id },
+        data: { reviewNote: DISMISSED_EXPIRED_NOTE, reviewedAt: new Date(), paymentDueAt: null },
+      }),
+    ]);
     await writeAudit(actor, {
       action: "REQUEST_DISMISSED",
       entityType: "Order",
