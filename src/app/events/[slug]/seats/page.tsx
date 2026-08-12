@@ -9,6 +9,8 @@ import { EventSeatSelection } from "@/components/event-seat-selection";
 
 export const dynamic="force-dynamic";
 
+function cssAttr(value:string){return value.replace(/\\/g,"\\\\").replace(/\"/g,"\\\"");}
+
 export default async function EventSeatsPage({ params, searchParams }: { params:Promise<{slug:string}>; searchParams:Promise<Record<string,string|undefined>> }) {
   const [{slug},query] = await Promise.all([params,searchParams]);
   const event = await db.event.findUnique({ where:{slug}, include:{ venue:true, categories:{include:{priceTiers:true}} } });
@@ -25,37 +27,25 @@ export default async function EventSeatsPage({ params, searchParams }: { params:
 
   const now=new Date();
   const validPromoterLink=promoterLink&&promoterLink.eventId===event.id&&promoterLink.active&&(!promoterLink.startsAt||promoterLink.startsAt<=now)&&(!promoterLink.endsAt||promoterLink.endsAt>=now)?promoterLink:null;
-
-  // Keep every category in the visual catalog so assignments saved in Venue Builder
-  // always retain their configured color on the public map. "active" controls only
-  // whether that category participates in price filters and can actually be bought.
-  const categories=event.categories.map(category=>{
-    let active=!category.hidden;
-    let standardPrice=category.priceMinor;
-    let pricingPresentation:{stageLabel:string}={stageLabel:""};
-    if(active){
-      try{
-        standardPrice=effectiveTicketPrice(category,now);
-        pricingPresentation=ticketPricePresentation(category,now);
-      }catch{
-        active=false;
-      }
-    }
-    const channelPrice=active&&validPromoterLink?.allocationType==="CATEGORY"&&validPromoterLink.categoryId===category.id&&validPromoterLink.customPriceMinor!==null?validPromoterLink.customPriceMinor:standardPrice;
-    return {
-      id:category.id,
-      name:category.name,
-      priceMinor:channelPrice,
-      colorHex:category.colorHex,
-      capacity:category.capacity,
-      sold:category.sold,
-      active,
-      pricingPresentation,
-      marketingStrategy:parsePricingMarketingStrategy(category.description),
-      salesStrategy:parseTicketSalesStrategy(category.description),
-    };
+  const categories=event.categories.flatMap(category=>{
+    if(category.hidden)return[];
+    try{
+      const standardPrice=effectiveTicketPrice(category,now);
+      const channelPrice=validPromoterLink?.allocationType==="CATEGORY"&&validPromoterLink.categoryId===category.id&&validPromoterLink.customPriceMinor!==null?validPromoterLink.customPriceMinor:standardPrice;
+      return [{
+        id:category.id,
+        name:category.name,
+        priceMinor:channelPrice,
+        colorHex:category.colorHex,
+        capacity:category.capacity,
+        sold:category.sold,
+        pricingPresentation:ticketPricePresentation(category,now),
+        marketingStrategy:parsePricingMarketingStrategy(category.description),
+        salesStrategy:parseTicketSalesStrategy(category.description),
+      }];
+    }catch{return[];}
   });
-  if(!categories.some(category=>category.active))notFound();
+  if(!categories.length)notFound();
 
   const objects=zones.flatMap(zone=>zone.tables.map(table=>({
     id:table.id,
@@ -74,10 +64,23 @@ export default async function EventSeatsPage({ params, searchParams }: { params:
     seatItems:table.seatItems.map(seat=>({id:seat.id,label:seat.label,position:seat.position,status:seat.status,categoryId:seat.categoryId})),
   })));
 
+  // Venue Builder is the source of truth for visual seat assignments. The public
+  // sales filter intentionally excludes hidden/not-yet-on-sale categories, but
+  // their saved map colors must still remain visible. We apply those colors by
+  // the persisted seat label while keeping purchase eligibility unchanged.
+  const categoryColors=new Map(event.categories.map(category=>[category.id,category.colorHex]));
+  const assignmentCss=zones.flatMap(zone=>zone.tables.flatMap(table=>table.seatItems.flatMap(seat=>{
+    if(seat.status!=="AVAILABLE")return[];
+    const categoryId=seat.categoryId??table.categoryId;
+    const color=categoryId?categoryColors.get(categoryId):undefined;
+    if(!color)return[];
+    return [`body.atlas-seat-selection-active button[aria-label="${cssAttr(seat.label)}"]::before{background:${color}!important;}`];
+  }))).join("\n");
+
   const feeTerms={salesFeePercentBps:commercialTerms.organizer.salesFeePercentBps,salesFeeFixedMinor:commercialTerms.organizer.salesFeeFixedMinor,serviceFeePayer:commercialTerms.serviceFeePayer};
   const parsedQty=Number.parseInt(query.qty||"2",10);
   const initialQty=Number.isFinite(parsedQty)?Math.max(1,Math.min(10,parsedQty)):2;
   const allocation=validPromoterLink?{type:validPromoterLink.allocationType,categoryId:validPromoterLink.categoryId,tableId:validPromoterLink.tableId,customPriceMinor:validPromoterLink.customPriceMinor}:undefined;
 
-  return <EventSeatSelection eventId={event.id} slug={event.slug} title={event.title} posterUrl={event.posterUrl} venueName={event.venue.name} categories={categories} objects={objects} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocation={allocation} initialQty={initialQty}/>;
+  return <><style dangerouslySetInnerHTML={{__html:assignmentCss}}/><EventSeatSelection eventId={event.id} slug={event.slug} title={event.title} posterUrl={event.posterUrl} venueName={event.venue.name} categories={categories} objects={objects} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocation={allocation} initialQty={initialQty}/></>;
 }
