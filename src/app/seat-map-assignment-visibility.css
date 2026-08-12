@@ -1,4 +1,20 @@
-/* Keep ticket-category colors visible on the public seat map even when a seat is not eligible for the currently selected group size. Eligibility still controls interaction, but it must not visually erase the back-office assignment. */
+/* Public seat-map visibility rules.
+   Back-office ticket assignments must remain visually visible even when the
+   current quantity/price filter makes an object non-interactive. Filtering
+   controls interaction only, never whether an assigned table appears. */
+body.atlas-seat-selection-active div[class*="object"][style*="opacity: 0.12"] {
+  opacity: 1 !important;
+}
+
 body.atlas-seat-selection-active button[class*="filtered"] {
   opacity: 1 !important;
+}
+
+/* Seats that are unavailable/reserved use the neutral fallback color in the
+   public map. Make that neutral state clearly readable instead of almost
+   disappearing against the white venue canvas. */
+body.atlas-seat-selection-active button[class*="seat"][style*="#e3e7eb"]::before,
+body.atlas-seat-selection-active button[class*="seat"][style*="#E3E7EB"]::before {
+  background: #c5cbd3 !important;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, .10) !important;
 }
