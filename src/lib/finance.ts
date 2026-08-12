@@ -57,6 +57,7 @@ type RefundRow = {
   createdAt: Date;
 };
 
+type RefundAttemptTotal = { orderId:string; totalRefundedMinor:number; createdAt:Date };
 type PayoutRow = { id:string; eventId: string; amountMinor: number; status: string; paidAt:Date|null; createdAt:Date; reference:string|null };
 
 let runtime: Promise<void> | null = null;
@@ -125,6 +126,20 @@ async function refundRows(organizationId?: string): Promise<Map<string, RefundRo
   return new Map(rows.map(row => [row.orderId, row]));
 }
 
+async function successfulRefundAttempts(organizationId?:string):Promise<Map<string,RefundAttemptTotal>>{
+  await ensureFinanceRuntime();
+  const scope=organizationId?`AND e."organizationId"=$1`:"";
+  const params=organizationId?[organizationId]:[];
+  const rows=await db.$queryRawUnsafe<RefundAttemptTotal[]>(`
+    SELECT r."orderId",SUM(r."amountMinor")::int AS "totalRefundedMinor",MAX(COALESCE(r."completedAt",r."updatedAt",r."createdAt")) AS "createdAt"
+    FROM "RefundAttempt" r
+    JOIN "Order" o ON o."id"=r."orderId"
+    JOIN "Event" e ON e."id"=o."eventId"
+    WHERE r."status"='SUCCEEDED' ${scope}
+    GROUP BY r."orderId"`,...params).catch(()=>[] as RefundAttemptTotal[]);
+  return new Map(rows.map(row=>[row.orderId,row]));
+}
+
 async function payoutRows(organizationId?: string): Promise<PayoutRow[]> {
   await ensureFinanceRuntime();
   const scope = organizationId ? `WHERE "organizationId"=$1 AND "status"='PAID'` : `WHERE "status"='PAID'`;
@@ -132,8 +147,14 @@ async function payoutRows(organizationId?: string): Promise<PayoutRow[]> {
   return db.$queryRawUnsafe<PayoutRow[]>(`SELECT "id","eventId","amountMinor","status","paidAt","createdAt","reference" FROM "OrganizerPayout" ${scope}`, ...params);
 }
 
+function organizerRefundImpact(order:FinanceOrderRow,cancellation:RefundRow|undefined,attempt:RefundAttemptTotal|undefined){
+  if(cancellation)return order.organizerNetMinor+Math.max(0,cancellation.organizerChargeMinor||0);
+  if(attempt)return Math.min(order.organizerNetMinor,Math.max(0,attempt.totalRefundedMinor));
+  return 0;
+}
+
 export async function financeEvents(organizationId?: string): Promise<FinanceEventRow[]> {
-  const [orders, refunds, payouts] = await Promise.all([financeOrders(organizationId), refundRows(organizationId), payoutRows(organizationId)]);
+  const [orders, refunds, refundAttempts, payouts] = await Promise.all([financeOrders(organizationId), refundRows(organizationId), successfulRefundAttempts(organizationId), payoutRows(organizationId)]);
   const now = new Date();
   const paidByEvent = new Map<string, number>();
   for (const payout of payouts) paidByEvent.set(payout.eventId, (paidByEvent.get(payout.eventId) || 0) + payout.amountMinor);
@@ -153,11 +174,12 @@ export async function financeEvents(organizationId?: string): Promise<FinanceEve
     row.salesMinor += order.organizerNetMinor;
     row.buyerPaidMinor += order.buyerTotalMinor;
     row.atlasSalesFeeMinor += order.serviceFeeMinor;
-    const refund = refunds.get(order.orderId);
-    const organizerRefundImpact = refund ? order.organizerNetMinor + Math.max(0, refund.organizerChargeMinor || 0) : 0;
-    row.refundsMinor += organizerRefundImpact;
-    if (refund) row.atlasCancellationFeeMinor += refund.statutoryFeeMinor;
-    const netForOrder = order.organizerNetMinor - organizerRefundImpact;
+    const cancellation = refunds.get(order.orderId);
+    const refundAttempt = refundAttempts.get(order.orderId);
+    const refundImpact = organizerRefundImpact(order,cancellation,refundAttempt);
+    row.refundsMinor += refundImpact;
+    if (cancellation) row.atlasCancellationFeeMinor += cancellation.statutoryFeeMinor;
+    const netForOrder = order.organizerNetMinor - refundImpact;
     if (settlementDateForSale(new Date(order.createdAt)) <= now) row.settledMinor += netForOrder;
     else row.awaitingSettlementMinor += netForOrder;
   }
@@ -186,14 +208,16 @@ export async function organizerFinanceSummary(organizationId: string) {
 }
 
 export async function organizerFinanceEvent(organizationId:string,eventId:string){
-  const [events,orders,refunds,payouts]=await Promise.all([financeEvents(organizationId),financeOrders(organizationId),refundRows(organizationId),payoutRows(organizationId)]);
+  const [events,orders,refunds,refundAttempts,payouts]=await Promise.all([financeEvents(organizationId),financeOrders(organizationId),refundRows(organizationId),successfulRefundAttempts(organizationId),payoutRows(organizationId)]);
   const event=events.find(item=>item.eventId===eventId);
   if(!event)return null;
   const transactions:FinanceTransaction[]=[];
   for(const order of orders.filter(item=>item.eventId===eventId)){
     transactions.push({id:order.orderId,type:"SALE",publicId:order.publicId,createdAt:new Date(order.createdAt),amountMinor:order.organizerNetMinor,description:"Продажа билетов"});
-    const refund=refunds.get(order.orderId);
-    if(refund){const impact=order.organizerNetMinor+Math.max(0,refund.organizerChargeMinor||0);transactions.push({id:refund.id,type:"REFUND",publicId:refund.publicId,createdAt:new Date(refund.createdAt),amountMinor:-impact,description:`Возврат по заказу ${order.publicId}`});}
+    const cancellation=refunds.get(order.orderId);
+    const attempt=refundAttempts.get(order.orderId);
+    const impact=organizerRefundImpact(order,cancellation,attempt);
+    if(impact>0)transactions.push({id:cancellation?.id||`refund-${order.orderId}`,type:"REFUND",publicId:cancellation?.publicId||order.publicId,createdAt:new Date(cancellation?.createdAt||attempt!.createdAt),amountMinor:-impact,description:cancellation?`Отмена заказа ${order.publicId}`:`Возврат по заказу ${order.publicId}`});
   }
   for(const payout of payouts.filter(item=>item.eventId===eventId))transactions.push({id:payout.id,type:"PAYOUT",publicId:payout.reference||"Выплата",createdAt:new Date(payout.paidAt||payout.createdAt),amountMinor:-payout.amountMinor,description:"Выплата организатору"});
   transactions.sort((a,b)=>b.createdAt.getTime()-a.createdAt.getTime());
