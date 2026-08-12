@@ -56,11 +56,11 @@
   font-weight: 750;
 }
 
-.title {
+:global(#event-public-page) .title {
   max-width: 610px;
   margin: 0;
   font-family: var(--atlas-heading-font);
-  font-size: 34px !important;
+  font-size: 30px !important;
   font-weight: 700;
   line-height: 1.08 !important;
   letter-spacing: 0 !important;
@@ -310,8 +310,8 @@
     gap: 30px;
   }
 
-  .title {
-    font-size: 34px !important;
+  :global(#event-public-page) .title {
+    font-size: 30px !important;
     line-height: 1.08 !important;
   }
 
