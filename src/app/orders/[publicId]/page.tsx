@@ -19,20 +19,24 @@ export default async function OrderPage({ params }: { params: Promise<{ publicId
   const rejected = order.status === "REJECTED";
   const awaitingPayment = order.status === "AWAITING_PAYMENT";
   const paid = order.status === "PAID";
+  const cancelled = order.status === "CANCELLED";
   const design = parseTicketDesign(order.event.ticketTemplate);
   const walletReady = Boolean(process.env.APPLE_WALLET_PASS_TYPE_ID && process.env.APPLE_WALLET_TEAM_ID && process.env.APPLE_WALLET_SIGNER_CERT_BASE64 && process.env.APPLE_WALLET_SIGNER_KEY_BASE64 && process.env.APPLE_WALLET_WWDR_CERT_BASE64);
+  const cancellationParams = new URLSearchParams({ order: order.publicId, email: order.customerEmail });
+  const cancellationPolicyUrl = `/cancellation-policy?${cancellationParams.toString()}`;
 
   return (
     <main className="shell">
       <section className="panel success">
         {pending && <Clock3 color="#d68b00" size={58} />}
-        {rejected && <XCircle color="#b42318" size={58} />}
-        {!pending && !rejected && <CheckCircle2 color="#0c9b66" size={58} />}
+        {(rejected || cancelled) && <XCircle color="#b42318" size={58} />}
+        {!pending && !rejected && !cancelled && <CheckCircle2 color="#0c9b66" size={58} />}
 
-        <h1>{pending ? "Заявка отправлена" : rejected ? "Заявка отклонена" : awaitingPayment ? "Заявка одобрена" : "Спасибо! Заказ оформлен"}</h1>
+        <h1>{pending ? "Заявка отправлена" : rejected ? "Заявка отклонена" : cancelled ? "Заказ отменён" : awaitingPayment ? "Заявка одобрена" : "Спасибо! Заказ оформлен"}</h1>
         <p className="muted">
           {pending && "Заявка передана организатору. Сумма предварительно авторизована на карте, но деньги ещё не списаны. Списание произойдёт только после подтверждения организатором."}
           {rejected && (order.reviewNote || "Организатор не подтвердил участие в мероприятии.")}
+          {cancelled && "Заказ и билеты отменены. Если был подтверждён возврат, зачисление средств зависит от банка и платёжной системы."}
           {awaitingPayment && "Организатор подтвердил участие. Теперь можно завершить оплату и получить билет."}
           {paid && "Оплата подтверждена. Билеты отправлены на email и доступны ниже."}
         </p>
@@ -44,6 +48,9 @@ export default async function OrderPage({ params }: { params: Promise<{ publicId
         {paid && walletReady && <section aria-label="Apple Wallet" style={{ marginTop: 22, padding: "20px 22px", borderRadius: 18, background: "linear-gradient(135deg,#060606 0%,#1f2937 100%)", color: "white", textAlign: "left", boxShadow: "0 14px 35px rgba(17,24,39,.18)" }}><div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}><span style={{ width: 44, height: 44, borderRadius: 13, background: "rgba(255,255,255,.12)", display: "grid", placeItems: "center", flex: "0 0 auto" }}><WalletCards size={24} /></span><div><div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".12em", color: "#d1d5db", textTransform: "uppercase" }}>Быстрый вход</div><h2 style={{ margin: "5px 0 7px", color: "white", fontSize: 22 }}>Добавьте билеты в Apple Wallet</h2><p style={{ margin: 0, color: "#d1d5db", lineHeight: 1.55, fontSize: 14 }}>Сохраните билет на iPhone, чтобы QR-код всегда был под рукой.</p></div></div></section>}
 
         {order.tickets.map((ticket, index) => <TicketCard key={ticket.id} ticket={ticket} qr={qrs[index]} design={design} event={order.event} orderNumber={order.publicId} walletReady={walletReady} />)}
+
+        {paid && <section className="panel" style={{marginTop:22,textAlign:"left",background:"#f8fafc"}}><span className="eyebrow">Отмена и возврат</span><h2 style={{margin:"6px 0 8px"}}>Нужно отменить заказ?</h2><p className="muted" style={{margin:"0 0 16px"}}>Сначала ознакомьтесь с политикой отмены Atlas One и правилами Закона о защите прав потребителей. После этого можно подать заявку организатору.</p><Link href={cancellationPolicyUrl} className="btn secondary">Правила отмены и подача заявки</Link></section>}
+
         <Link href="/" className="btn dark" style={{ marginTop: 20 }}>Вернуться к событиям</Link>
       </section>
     </main>
