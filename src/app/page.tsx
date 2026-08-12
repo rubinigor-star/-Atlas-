@@ -11,6 +11,9 @@ import { eventTypeLabels, parseEventType, type EventType } from "@/lib/event-typ
 import { EventLanguagePreferences } from "@/components/event-language-preferences";
 import { EVENT_LANGUAGE_COOKIE, parsePreferredEventLanguages } from "@/lib/event-language";
 import { getHiddenEventIds } from "@/lib/event-language-server";
+import { effectiveTicketPrice } from "@/lib/ticketing";
+import { getEffectiveEventTerms } from "@/lib/commercial-terms";
+import { calculateServiceFee } from "@/lib/service-fee";
 
 export const dynamic = "force-dynamic";
 
@@ -112,8 +115,9 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
         description: true,
         posterUrl: true,
         startsAt: true,
+        organizationId: true,
         venue: { select: { city: true, name: true } },
-        categories: { where: { hidden: false }, select: { priceMinor: true } },
+        categories: { where: { hidden: false }, select: { priceMinor: true, pricingMode: true, salesStart: true, salesEnd: true, priceTiers: { select: { priceMinor: true, startsAt: true, endsAt: true } } } },
       },
       orderBy: { startsAt: "asc" },
     }),
@@ -129,6 +133,15 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
   type EventRow=(typeof events)[number];
   type TourCard={tour:TourRow;linked:EventRow[];poster:string;minimumPrice:number|null;cities:string[]};
 
+  const now=new Date();
+  const minimumPriceEntries=await Promise.all(events.map(async event=>{
+    const terms=await getEffectiveEventTerms(event.id,event.organizationId);
+    const feeTerms={salesFeePercentBps:terms.organizer.salesFeePercentBps,salesFeeFixedMinor:terms.organizer.salesFeeFixedMinor,serviceFeePayer:terms.serviceFeePayer};
+    const prices=event.categories.flatMap(category=>{try{return [calculateServiceFee(effectiveTicketPrice(category,now),feeTerms).buyerTotalMinor];}catch{return [];}});
+    return [event.id,prices.length?Math.min(...prices):null] as const;
+  }));
+  const minimumPriceByEvent=new Map(minimumPriceEntries);
+
   const buildCards=(sourceEvents:EventRow[])=>{
     const eventById=new Map(sourceEvents.map(event=>[event.id,event]));
     const linkedEventIds=new Set(tourLinks.filter(link=>eventById.has(link.eventid)).map(link=>link.eventid));
@@ -141,7 +154,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
       if(!linked.length)return null;
       const poster=tour.posterurl||linked[0].posterUrl;
       if(!poster)return null;
-      const prices=linked.flatMap(event=>event.categories.map(category=>category.priceMinor));
+      const prices=linked.map(event=>minimumPriceByEvent.get(event.id)).filter((value):value is number=>typeof value==="number");
       const cities=[...new Set(linked.map(event=>displayCity(event.venue.city,locale)))];
       return {tour,linked,poster,minimumPrice:prices.length?Math.min(...prices):null,cities};
     }).filter(Boolean) as TourCard[];
@@ -157,10 +170,10 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
   const copy=heroCopy[locale];
 
   const marqueeEventById=new Map(events.map(event=>[event.id,event]));
-  const now=Date.now();
+  const nowMs=Date.now();
   const marqueeCards=marqueeRows
     .map(row=>marqueeEventById.get(row.eventId))
-    .filter((event):event is EventRow=>Boolean(event&&event.startsAt.getTime()>=now))
+    .filter((event):event is EventRow=>Boolean(event&&event.startsAt.getTime()>=nowMs))
     .map(event=>({
       id:`event-${event.id}`,
       href:`/events/${event.slug}`,
@@ -243,7 +256,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
             <div className="row between card-actions"><strong>{minimumPrice===null?messages.home.salesSoon:`${messages.home.from} ${money(minimumPrice,"ILS",locale)}`}</strong><span className="btn">{messages.home.chooseCity}</span></div>
           </div>
         </Link>})}
-        {visibleCards.standaloneEvents.map(event=>{const minimumPrice=event.categories.length?Math.min(...event.categories.map(category=>category.priceMinor)):null;const city=displayCity(event.venue.city,locale);const eventType=parseEventType(event.description);return <Link className="card" href={`/events/${event.slug}`} prefetch={false} key={event.id}>
+        {visibleCards.standaloneEvents.map(event=>{const minimumPrice=minimumPriceByEvent.get(event.id)??null;const city=displayCity(event.venue.city,locale);const eventType=parseEventType(event.description);return <Link className="card" href={`/events/${event.slug}`} prefetch={false} key={event.id}>
           <Image src={event.posterUrl} width={750} height={750} alt={event.title} className="card-img" quality={72} sizes="(max-width: 520px) 50vw, (max-width: 800px) 50vw, (max-width: 1100px) 33vw, 25vw"/>
           <div className="card-body">
             <span className="pill card-tag">{eventTypeLabels[locale][eventType]}</span>
