@@ -33,43 +33,62 @@ export function LiveViewerPressure({ locale }: { locale: Locale }) {
     return () => window.clearTimeout(timer);
   }, [intervalIndex]);
 
-  const text = {
-    ru: `Сейчас это мероприятие просматривают ${viewers} человек`,
-    en: `${viewers} people are viewing this event now`,
-    he: `${viewers} אנשים צופים באירוע עכשיו`,
+  const copy = {
+    ru: { before: "Сейчас это мероприятие просматривают ", after: " человек" },
+    en: { before: "", after: " others are checking this out!" },
+    he: { before: "", after: " אנשים צופים באירוע עכשיו" },
   }[locale];
 
   return <div className="atlas-live-viewers" aria-live="polite">
-    <span className="atlas-live-viewers-dot" aria-hidden="true" />
-    <span>{text}</span>
+    <span className="atlas-live-viewers-pulse" aria-hidden="true">
+      <span className="atlas-live-viewers-dot" />
+    </span>
+    <span className="atlas-live-viewers-copy">
+      {copy.before}<strong className="atlas-live-viewers-count">{viewers}</strong>{copy.after}
+    </span>
     <style jsx>{`
       .atlas-live-viewers {
         display: flex;
         align-items: center;
-        justify-content: center;
-        gap: 9px;
-        min-height: 34px;
-        padding: 6px 10px;
+        justify-content: flex-start;
+        gap: 10px;
+        min-height: 36px;
+        padding: 7px 12px;
         border-radius: 10px;
-        background: #f5f6f8;
-        color: #1d2737;
+        background: #f4f5f7;
+        color: #111827;
         font-size: 13px;
-        font-weight: 650;
-        text-align: center;
+        font-weight: 500;
+        line-height: 1.25;
+        text-align: left;
+      }
+      .atlas-live-viewers-pulse {
+        position: relative;
+        display: grid;
+        width: 18px;
+        height: 18px;
+        flex: 0 0 18px;
+        place-items: center;
+        border-radius: 50%;
+        background: rgba(76, 141, 255, .10);
       }
       .atlas-live-viewers-dot {
         width: 8px;
         height: 8px;
-        flex: 0 0 8px;
         border-radius: 50%;
         background: #4c8dff;
-        box-shadow: 0 0 0 0 rgba(76, 141, 255, .45);
+        box-shadow: 0 0 0 0 rgba(76, 141, 255, .48);
         animation: atlasViewerPulse 1.6s ease-out infinite;
       }
+      .atlas-live-viewers-copy { min-width: 0; }
+      .atlas-live-viewers-count { font-weight: 800; }
       @keyframes atlasViewerPulse {
-        0% { box-shadow: 0 0 0 0 rgba(76, 141, 255, .45); }
+        0% { box-shadow: 0 0 0 0 rgba(76, 141, 255, .48); }
         70% { box-shadow: 0 0 0 7px rgba(76, 141, 255, 0); }
         100% { box-shadow: 0 0 0 0 rgba(76, 141, 255, 0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .atlas-live-viewers-dot { animation: none; }
       }
     `}</style>
   </div>;
