@@ -43,7 +43,6 @@
   height: 9px !important;
   flex-basis: 9px !important;
   background: #4c8dff !important;
-  box-shadow: 0 0 0 5px rgba(76, 141, 255, .12) !important;
 }
 
 @media (max-width: 1180px) and (min-width: 801px) {
