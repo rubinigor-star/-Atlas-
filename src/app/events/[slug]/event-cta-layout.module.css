@@ -16,6 +16,36 @@
   flex: 0 0 auto;
 }
 
+.viewerPressure {
+  width: min(100%, 390px);
+  margin-top: 10px;
+}
+
+.viewerPressure :global(.atlas-live-viewers) {
+  justify-content: flex-start !important;
+  min-height: auto !important;
+  padding: 0 0 0 6px !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #fff !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  text-align: left !important;
+  gap: 12px !important;
+}
+
+.viewerPressure :global(.atlas-live-viewers strong) {
+  font-weight: 800 !important;
+}
+
+.viewerPressure :global(.atlas-live-viewers-dot) {
+  width: 9px !important;
+  height: 9px !important;
+  flex-basis: 9px !important;
+  background: #4c8dff !important;
+  box-shadow: 0 0 0 5px rgba(76, 141, 255, .12) !important;
+}
+
 @media (max-width: 1180px) and (min-width: 801px) {
   .buy {
     min-width: 270px !important;
@@ -36,6 +66,10 @@
     flex: 1 1 auto !important;
     padding-inline: 18px !important;
     font-size: 16px !important;
+  }
+
+  .viewerPressure {
+    display: none;
   }
 }
 
