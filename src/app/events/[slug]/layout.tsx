@@ -5,6 +5,9 @@ import { stripEventMedia } from "@/lib/event-media";
 import { stripEventRejectionMessage } from "@/lib/event-approval-message";
 import { stripPricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 import { stripEventType } from "@/lib/event-type";
+import { effectiveTicketPrice } from "@/lib/ticketing";
+import { getEffectiveEventTerms } from "@/lib/commercial-terms";
+import { calculateServiceFee } from "@/lib/service-fee";
 
 const BASE="https://www.atlas-one.co";
 type Props={children:React.ReactNode;params:Promise<{slug:string}>};
@@ -16,7 +19,7 @@ function cleanDescription(value:string){
 async function getEvent(slug:string){
   return db.event.findUnique({
     where:{slug},
-    include:{venue:true,organization:true,categories:{where:{hidden:false},select:{priceMinor:true,currency:true,sold:true,capacity:true}}},
+    include:{venue:true,organization:true,categories:{where:{hidden:false},include:{priceTiers:true}}},
   });
 }
 
@@ -42,14 +45,21 @@ export default async function EventLayout({children,params}:Props){
   if(!event||event.status!=="PUBLISHED")notFound();
   const now=new Date();
   const url=`${BASE}/events/${event.slug}`;
-  const offers=event.categories.map((category)=>({
-    "@type":"Offer",
-    url,
-    price:(category.priceMinor/100).toFixed(2),
-    priceCurrency:category.currency,
-    validFrom:event.salesStart.toISOString(),
-    availability:category.sold>=category.capacity?"https://schema.org/SoldOut":now>event.salesEnd?"https://schema.org/Discontinued":"https://schema.org/InStock",
-  }));
+  const terms=await getEffectiveEventTerms(event.id,event.organizationId);
+  const feeTerms={salesFeePercentBps:terms.organizer.salesFeePercentBps,salesFeeFixedMinor:terms.organizer.salesFeeFixedMinor,serviceFeePayer:terms.serviceFeePayer};
+  const offers=event.categories.flatMap((category)=>{
+    let currentPrice:number;
+    try{currentPrice=effectiveTicketPrice(category,now);}catch{return [];}
+    const buyerPrice=calculateServiceFee(currentPrice,feeTerms).buyerTotalMinor;
+    return [{
+      "@type":"Offer",
+      url,
+      price:(buyerPrice/100).toFixed(2),
+      priceCurrency:category.currency,
+      validFrom:(category.salesStart||event.salesStart).toISOString(),
+      availability:category.sold>=category.capacity?"https://schema.org/SoldOut":now>event.salesEnd?"https://schema.org/Discontinued":"https://schema.org/InStock",
+    }];
+  });
   const schema={"@context":"https://schema.org","@type":"Event","@id":`${url}#event`,name:event.title,description:cleanDescription(event.description),image:[new URL(event.posterUrl,BASE).toString()],startDate:event.startsAt.toISOString(),eventStatus:"https://schema.org/EventScheduled",eventAttendanceMode:"https://schema.org/OfflineEventAttendanceMode",location:{"@type":"Place",name:event.venue.name,address:{"@type":"PostalAddress",streetAddress:event.venue.address,addressLocality:event.venue.city,addressCountry:"IL"}},organizer:{"@type":"Organization",name:event.organization.name,url:BASE},url,offers};
   const breadcrumb={"@context":"https://schema.org","@type":"BreadcrumbList",itemListElement:[{"@type":"ListItem",position:1,name:"События",item:BASE},{"@type":"ListItem",position:2,name:event.title,item:url}]};
   const safeJson=(value:unknown)=>JSON.stringify(value).replace(/</g,"\\u003c");
