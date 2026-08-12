@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireEventAccess } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { reviewOrder } from "@/lib/order-review-service";
+import { sendOrderTicketSms } from "@/lib/order-sms";
 
 const DISMISSED_EXPIRED_NOTE = "__DISMISSED_EXPIRED__";
 const reviewSchema = z.object({ action: z.enum(["approve", "reject"]), note: z.string().max(500).optional() });
@@ -58,7 +59,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ public
     if (!target) throw new Error("Заявка не найдена");
     await assertApprovalOrder(target.id);
     const actor = await requireEventAccess("REQUEST_REVIEW", target.eventId);
-    return NextResponse.json(await reviewOrder(publicId, input, actor));
+    const result = await reviewOrder(publicId, input, actor);
+    if (input.action === "approve" && result.status === "PAID") {
+      try {
+        await sendOrderTicketSms(publicId, { automatic: true });
+      } catch (smsError) {
+        console.error("admin.request.ticket_sms_failed", {
+          publicId,
+          message: smsError instanceof Error ? smsError.message : "Unknown SMS error",
+        });
+        return NextResponse.json({ ...result, smsSent: false, smsError: smsError instanceof Error ? smsError.message : "Ошибка SMS" });
+      }
+      return NextResponse.json({ ...result, smsSent: true });
+    }
+    return NextResponse.json(result);
   } catch (error) {
     const current = await db.order.findUnique({ where: { publicId }, select: { status: true } }).catch(() => null);
     console.error("admin.request.review_failed", {
