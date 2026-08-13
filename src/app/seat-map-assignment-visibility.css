@@ -1,11 +1,3 @@
-/* Public seat-map visibility rules.
-   Back-office ticket assignments must remain visually visible even when the
-   current quantity/price filter makes an object non-interactive. Filtering
-   controls interaction only, never whether an assigned table appears. */
-body.atlas-seat-selection-active div[class*="object"][style*="opacity: 0.12"] {
-  opacity: 1 !important;
-}
-
 body.atlas-seat-selection-active button[class*="filtered"] {
   opacity: 1 !important;
   visibility: hidden !important;

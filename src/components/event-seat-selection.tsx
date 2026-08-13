@@ -230,10 +230,10 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
   }, []);
 
-  const availableCategories = allocation?.type === "CATEGORY" ? categories.filter(item => item.id === allocation.categoryId) : categories;
   const availableObjects = (allocation?.type === "TABLE" ? objects.filter(item => item.id === allocation.tableId || !seatTypes.has(item.objectType)) : objects).filter(item => !isInternalObject(item));
-  const buyerPrice = (minor: number) => calculateServiceFee(minor, feeTerms).buyerTotalMinor;
-  const categoryPrice = useMemo(() => new Map(availableCategories.map(item => [item.id, buyerPrice(item.priceMinor)])), [availableCategories, feeTerms]);
+  const assignedCategoryIds = useMemo(() => new Set(availableObjects.flatMap(object => [object.categoryId, ...object.seatItems.map(seat => seat.categoryId)].filter((id): id is string => Boolean(id)))), [availableObjects]);
+  const availableCategories = (allocation?.type === "CATEGORY" ? categories.filter(item => item.id === allocation.categoryId) : categories).filter(item => assignedCategoryIds.has(item.id));
+  const categoryPrice = useMemo(() => new Map(availableCategories.map(item => [item.id, item.priceMinor])), [availableCategories]);
   const sortedPrices = useMemo(() => [...new Set(availableCategories.map(item => categoryPrice.get(item.id) ?? 0))].sort((a, b) => a - b), [availableCategories, categoryPrice]);
 
   const [minIndex, setMinIndex] = useState(0);
@@ -608,7 +608,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
                 const selectedZone = zoneObjectId === object.id;
                 const faded = (seatObject && !wholeVisible) || (zone && !categoryAllowed);
                 const zoneColor = zone && categoryAllowed ? categories.find(item => item.id === object.categoryId)?.colorHex : undefined;
-                return <div key={object.id} className={`${styles.object} ${zone ? styles.zoneLayer : ""}`} style={{ left: `${object.x}%`, top: `${object.y}%`, width: object.width, height: object.height, transform: `translate(-50%,-50%) rotate(${object.rotation}deg)`, opacity: faded ? .12 : 1, pointerEvents: faded ? "none" : undefined }}>
+                return <div key={object.id} className={`${styles.object} ${zone ? styles.zoneLayer : ""} ${faded ? styles.filteredObject : ""}`} style={{ left: `${object.x}%`, top: `${object.y}%`, width: object.width, height: object.height, transform: `translate(-50%,-50%) rotate(${object.rotation}deg)` }}>
                   {!seatObject
                     ? <div data-seatmap-selectable="true" className={`${styles.decoration} ${styles[`decoration${object.objectType}`] ?? ""} ${selectedZone ? styles.zoneSelected : ""}`} style={zoneColor ? { background: zoneColor, borderColor: zoneColor, color: "#fff", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.18)" } : undefined} onClick={(event) => { event.stopPropagation(); chooseZone(object); }}><strong>{object.label}</strong></div>
                     : <div data-seatmap-selectable="true" className={`${styles.furniture} ${styles[`furniture${object.objectType}`] ?? ""}`} onClick={(event) => {
@@ -681,7 +681,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
 
     {hoveredSeat && (() => {
       const hoverCategory = categoryFor(hoveredSeat.object, hoveredSeat.seat);
-      const hoverPrice = hoverCategory ? buyerPrice(hoverCategory.priceMinor) : 0;
+      const hoverPrice = hoverCategory?.priceMinor ?? 0;
       const left = Math.min(window.innerWidth - 290, hoveredSeat.x + 16);
       const top = Math.max(12, hoveredSeat.y - 82);
       return <div style={{ position: "fixed", zIndex: 20000, left, top, width: 270, background: "#fff", border: "1px solid #d1d5db", borderRadius: 8, padding: "13px 15px", boxShadow: "0 10px 30px rgba(15,23,42,.16)", pointerEvents: "none", fontFamily: "inherit" }}>
