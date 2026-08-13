@@ -63,3 +63,4 @@
 .cartItems{display:grid;gap:0;max-height:calc(100dvh - 265px);overflow:auto;scrollbar-width:thin}
 .cartError{border:1px solid #fecaca;border-radius:10px;background:#fff1f2;color:#b42318;padding:10px 12px;font-size:12px;font-weight:700;line-height:1.35}
 .seat.selected:before{width:15px!important;height:15px!important;box-shadow:0 0 0 2px #fff,0 0 0 5px #2878ff!important}
+.selectionHalo{position:absolute;z-index:3;transform:translate(-50%,-50%);border:3px solid #7435d6;border-radius:999px;background:rgba(116,53,214,.1);box-shadow:0 0 0 1px rgba(255,255,255,.8) inset;pointer-events:none}
