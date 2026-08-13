@@ -25,7 +25,7 @@
 .title{margin:0 0 8px!important;font-family:inherit!important;font-size:18px!important;line-height:1.15!important;font-weight:850!important;letter-spacing:-.016em!important;text-transform:none!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;word-break:normal!important;color:#071226!important}
 .quantityRow{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;direction:inherit}
 .quantityLabel{display:inline-flex;align-items:center;gap:4px;min-width:0;color:#111827}
-.quantityLabel>strong{font-size:14px;line-height:1.2;font-weight:800;white-space:nowrap}
+.quantityLabel>strong{font-size:12.5px;line-height:1.2;font-weight:800;white-space:nowrap}
 .infoHint{position:relative;display:inline-flex;align-items:center}
 .infoButton{width:20px;height:20px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:transparent;color:#8993a0;cursor:pointer}
 .infoButton:hover,.infoButton:focus-visible{background:#f0f2f5;color:#39475a;outline:none}
@@ -97,7 +97,7 @@
   .eventInfo{grid-template-columns:56px minmax(0,1fr)!important;gap:9px!important}
   .poster{width:56px!important;height:56px!important}
   .title{font-size:17px!important}
-  .quantityLabel>strong{font-size:13.5px}
+  .quantityLabel>strong{font-size:12px}
   .quantityControl{gap:7px}
   .quantityControl button{width:30px;height:30px}
 }
