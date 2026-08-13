@@ -244,6 +244,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const priceTrackRef = useRef<HTMLDivElement>(null);
   const panRef = useRef({ pointerId: -1, x: 0, y: 0, left: 0, top: 0 });
   const touchPointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const touchDragRef = useRef(false);
   const pinchRef = useRef({ distance: 0, zoom: DEFAULT_ZOOM, worldX: 0, worldY: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [panning, setPanning] = useState(false);
@@ -352,7 +353,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
       setZoom(fittedZoom);
       requestAnimationFrame(() => requestAnimationFrame(() => {
         viewport.scrollLeft = Math.max(0, contentCenterX * fittedScale - viewport.clientWidth / 2);
-        viewport.scrollTop = Math.max(0, mobileMapBounds.minY * fittedScale - 8);
+        viewport.scrollTop = Math.max(0, mobileMapBounds.minY * fittedScale + 12);
       }));
     };
     centerMobileMap();
@@ -546,10 +547,12 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     const viewport = viewportRef.current;
     if (!viewport) return;
     if (event.pointerType === "touch") {
+      if (touchPointersRef.current.size === 0) touchDragRef.current = false;
       touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
       viewport.setPointerCapture(event.pointerId);
       const points = [...touchPointersRef.current.values()];
       if (points.length >= 2) {
+        touchDragRef.current = true;
         const [first, second] = points;
         const centerX = (first.x + second.x) / 2;
         const centerY = (first.y + second.y) / 2;
@@ -565,7 +568,6 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
         event.preventDefault();
         return;
       }
-      if (target.closest('button,input,select,a,[data-seatmap-selectable="true"]')) return;
     } else if (!spaceHeld && target.closest('button,input,select,a,[data-seatmap-selectable="true"]')) return;
     panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
     viewport.setPointerCapture(event.pointerId);
@@ -580,6 +582,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
       touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
       const points = [...touchPointersRef.current.values()];
       if (points.length >= 2) {
+        touchDragRef.current = true;
         const [first, second] = points;
         const distance = Math.hypot(second.x - first.x, second.y - first.y);
         const ratio = pinchRef.current.distance > 0 ? distance / pinchRef.current.distance : 1;
@@ -599,8 +602,16 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
       }
     }
     if (!panning || panRef.current.pointerId !== event.pointerId) return;
+    if (event.pointerType === "touch" && Math.hypot(event.clientX - panRef.current.x, event.clientY - panRef.current.y) > 5) touchDragRef.current = true;
     viewport.scrollLeft = panRef.current.left - (event.clientX - panRef.current.x);
     viewport.scrollTop = panRef.current.top - (event.clientY - panRef.current.y);
+  }
+
+  function preventSelectionAfterDrag(event: React.MouseEvent<HTMLDivElement>) {
+    if (!touchDragRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    touchDragRef.current = false;
   }
 
   function endPan(event: React.PointerEvent<HTMLDivElement>) {
@@ -862,9 +873,9 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
               <button type="button" aria-label={local.quantityInfo} aria-haspopup="dialog" onClick={() => { setDraftQty(qty); setQuantityModalOpen(true); }}><Info size={13}/></button>
             </span>
             <span className={styles.mobileQuantityControl}>
-              <button type="button" aria-label={local.decrease} disabled={qty <= 1} onClick={() => setQty(value => Math.max(1, value - 1))}><Minus size={16}/></button>
+              <button type="button" aria-label={local.decrease} disabled={qty <= 1} onClick={() => setQty(value => Math.max(1, value - 1))}><Minus size={18}/></button>
               <strong aria-live="polite">{qty}</strong>
-              <button type="button" aria-label={local.increase} disabled={qty >= 8} onClick={() => setQty(value => Math.min(8, value + 1))}><Plus size={16}/></button>
+              <button type="button" aria-label={local.increase} disabled={qty >= 8} onClick={() => setQty(value => Math.min(8, value + 1))}><Plus size={18}/></button>
             </span>
           </div>
         </div>
@@ -890,7 +901,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           </div>
         </div>
 
-        <div ref={viewportRef} className={`${styles.mapViewport} ${spaceHeld ? styles.panReady : ""} ${panning ? styles.panning : ""}`} onPointerDown={startPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan}>
+        <div ref={viewportRef} className={`${styles.mapViewport} ${spaceHeld ? styles.panReady : ""} ${panning ? styles.panning : ""}`} onPointerDown={startPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan} onClickCapture={preventSelectionAfterDrag}>
           <div className={styles.zoom}>
             <button type="button" onClick={() => setZoom(value => Math.min(125, value + 10))}><Plus size={20}/></button>
             <button type="button" title={local.zoomReset} onClick={() => setZoom(DEFAULT_ZOOM)}><RotateCcw size={18}/></button>

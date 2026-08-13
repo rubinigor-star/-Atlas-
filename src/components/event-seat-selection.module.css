@@ -76,7 +76,7 @@
   .mapSide{height:100%;display:grid;grid-template-rows:96px 68px minmax(0,1fr);background:#fff}
   .mobileEventBar{position:relative;z-index:18;display:grid;grid-template-columns:60px minmax(0,1fr);grid-template-rows:minmax(20px,1fr) minmax(30px,1fr);align-items:center;column-gap:10px;padding:15px 18px 14px;border-bottom:1px solid #dfe3e8;background:#fff;color:#0b1220;direction:inherit;box-sizing:border-box}
   .mobileEventBar>img{grid-column:1;grid-row:1 / 3;width:60px;height:60px;border-radius:4px;object-fit:cover;box-shadow:0 1px 3px rgba(15,23,42,.1)}
-  .mobileEventTitle{grid-column:2;grid-row:1;min-width:0;align-self:end;margin:0 0 4px;padding-inline-end:34px;color:#070d19;text-decoration:none;font-size:15px;line-height:1.15;font-weight:850;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mobileEventTitle{grid-column:2;grid-row:1;min-width:0;align-self:end;margin:0 0 4px;padding-inline-end:34px;color:#070d19;text-decoration:none;font-size:16px;line-height:1.15;font-weight:850;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mobileInlineBack{position:absolute;z-index:2;top:15px;inset-inline-end:16px;width:30px;height:30px;display:grid;place-items:center;border-radius:50%;color:#111827;text-decoration:none}
   .mobileInlineBack:hover,.mobileInlineBack:focus-visible{background:#f1f3f6;outline:0}
   :global(html[dir="rtl"]) .mobileInlineBack svg{transform:rotate(180deg)}
@@ -86,7 +86,7 @@
   .mobileQuantityLabel button{width:18px;height:18px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:transparent;color:#9099a7;cursor:pointer}
   .mobileQuantityLabel button:hover,.mobileQuantityLabel button:focus-visible{background:#f0f2f5;color:#39475a;outline:0}
   .mobileQuantityControl{flex:0 0 auto;display:inline-flex;align-items:center;gap:9px;direction:ltr}
-  .mobileQuantityControl button{width:30px;height:30px;display:grid;place-items:center;padding:0;border:1px solid #d5dce5;border-radius:50%;background:#fff;color:#111827;cursor:pointer}
+  .mobileQuantityControl button{width:34px;height:34px;display:grid;place-items:center;padding:0;border:1px solid #d5dce5;border-radius:50%;background:#fff;color:#111827;cursor:pointer}
   .mobileQuantityControl button:disabled{opacity:.35;cursor:default}
   .mobileQuantityControl strong{min-width:13px;font-size:13px;line-height:1;text-align:center;color:#111827}
   .priceRail{height:68px;box-sizing:border-box;padding:9px 26px 7px;border-bottom:0;box-shadow:none;background:#fff}
@@ -104,23 +104,23 @@
   .visualHandle{top:16px;width:22px;height:22px;box-shadow:0 0 0 2px #fff,0 1px 3px rgba(15,23,42,.12)}
   .range{height:34px}
   .zoom{display:none}
-  .mapViewport{min-height:0;padding:24px 0 90px;overflow:auto;background:#fff;touch-action:none;overscroll-behavior:none}
-  .mapFrame{margin:0 auto;transition:none}
+  .mapViewport{min-height:0;padding:12px 0 90px;overflow:auto;background:#fff;touch-action:none;overscroll-behavior:none;box-sizing:border-box}
+  .mapFrame{min-height:calc(100% + 220px);margin:0 auto;transition:none}
   .world{background:#fff;box-shadow:none;transition:none}
   .headerBack{display:none!important}
-  .sidebar{position:fixed!important;z-index:90!important;left:0!important;right:0!important;bottom:0!important;width:100%!important;max-height:min(46dvh,430px)!important;box-sizing:border-box!important;display:flex!important;flex-direction:column!important;gap:0!important;padding:7px 16px max(12px,env(safe-area-inset-bottom))!important;border:0!important;border-radius:22px 22px 0 0!important;background:#fff!important;box-shadow:0 -8px 32px rgba(15,23,42,.18)!important;overflow:hidden!important}
+  .sidebar{position:fixed!important;z-index:90!important;left:0!important;right:0!important;bottom:0!important;width:100%!important;max-height:290px!important;box-sizing:border-box!important;display:flex!important;flex-direction:column!important;gap:0!important;padding:7px 16px max(12px,env(safe-area-inset-bottom))!important;border:0!important;border-radius:22px 22px 0 0!important;background:#fff!important;box-shadow:0 -8px 32px rgba(15,23,42,.18)!important;overflow:hidden!important}
   .sidebar:before{content:"";width:38px;height:4px;flex:0 0 auto;align-self:center;margin:0 0 3px;border-radius:999px;background:#d7dce3}
   .sidebarEmpty{display:none!important}
   .sidebar .eventInfo{display:none!important}
   .cartError{flex:0 0 auto;margin:5px 0}
-  .cartItems{display:grid;gap:0;max-height:calc(46dvh - 78px);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+  .cartItems{display:grid;gap:0;max-height:205px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;touch-action:pan-y;-webkit-overflow-scrolling:touch}
 }
 
 @media(max-width:520px){
   .priceStops button:nth-child(even){display:block}
   .mobileEventBar{grid-template-columns:60px minmax(0,1fr);column-gap:9px;padding-inline:16px}
-  .mobileEventTitle{font-size:14px;padding-inline-end:32px}
+  .mobileEventTitle{font-size:16px;padding-inline-end:32px}
   .mobileQuantityLabel strong{font-size:11.5px}
   .mobileQuantityControl{gap:8px}
-  .mobileQuantityControl button{width:28px;height:28px}
+  .mobileQuantityControl button{width:34px;height:34px}
 }

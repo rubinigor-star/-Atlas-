@@ -114,7 +114,7 @@
   .quantityModal h2{font-size:18px}
   .quantityModal p{font-size:12.5px}
   .modalClose{top:14px;inset-inline-end:14px}
-  :global(body.atlas-seat-selection-active) :global(.mapViewport){padding:24px 0 90px!important;background:#fff!important}
+  :global(body.atlas-seat-selection-active) :global(.mapViewport){padding:12px 0 90px!important;background:#fff!important}
   :global(body.atlas-seat-selection-active) :global(.mapFrame){margin:0 auto!important}
   :global(.atlas-selected-ticket){padding:13px 2px 14px!important}
   :global(.atlas-selected-ticket:first-child){border-top:0!important}
