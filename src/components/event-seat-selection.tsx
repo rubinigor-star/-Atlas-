@@ -19,6 +19,8 @@ type Category = {
   colorHex: string;
   capacity: number;
   sold: number;
+  minPerOrder: number;
+  maxPerOrder: number;
   pricingPresentation: { stageLabel: string };
   marketingStrategy: PricingMarketingStrategy;
   salesStrategy: TicketSalesStrategy;
@@ -54,6 +56,7 @@ type Allocation = {
   categoryId: string | null;
   tableId: string | null;
   customPriceMinor: number | null;
+  maxPerOrder: number;
 };
 
 type OfferFilter = "ALL" | "BUY_ONE_GET_ONE";
@@ -199,27 +202,28 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [panning, setPanning] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
-  const [draftQty, setDraftQty] = useState(Math.max(1, Math.min(8, initialQty)));
+  const [draftQty, setDraftQty] = useState(Math.max(1, Math.min(20, initialQty)));
   const [hoveredSeat, setHoveredSeat] = useState<HoveredSeat>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartError, setCartError] = useState("");
 
   const local = {
     ru: {
       back: "Вернуться к мероприятию", offers: "Предложения", all: "Все билеты", onePlusOne: "1 + 1",
       people: "Количество гостей", peopleHint: "Покажем только места, где вся группа сможет сидеть рядом", tickets: "билетов",
-      confirm: "Подтвердить", selected: "Выбрано", continue: "Перейти к оплате", emptyCheckout: "Выберите билет", price: "Цена", feeIncluded: "включая сервисный сбор", noSeats: "В выбранном диапазоне нет подходящих мест рядом", expandRange: "Расширьте диапазон цен", expandRangeHint: "Для выбранного количества гостей нет подходящих мест рядом. Выберите более широкий диапазон.", applyRange: "Применить диапазон",
+      confirm: "Подтвердить", selected: "Выбрано", continue: "Перейти к оплате", emptyCheckout: "Выберите билет", price: "Цена", feeIncluded: "включая сервисный сбор", noSeats: "В выбранном диапазоне нет подходящих мест рядом", expandRange: "Расширьте диапазон цен", expandRangeHint: "Для выбранного количества гостей нет доступного варианта. Выберите более широкий диапазон.", applyRange: "Применить диапазон", categoryLimit: "Для категории «{name}» можно купить не более {count} билетов в одном заказе", linkLimit: "По этой ссылке можно купить не более {count} билетов в одном заказе",
       zoomReset: "Сбросить масштаб", row: "Ряд", seat: "место", seats: "места", table: "Стол", zone: "Зона", section: "Категория"
     },
     en: {
       back: "Back to event", offers: "Offers", all: "All tickets", onePlusOne: "1 + 1",
       people: "Guests", peopleHint: "We only show places where the whole group can sit together", tickets: "tickets",
-      confirm: "Confirm", selected: "Selected", continue: "Go to checkout", emptyCheckout: "Select a ticket", price: "Price", feeIncluded: "incl. service fee", noSeats: "No adjacent seats match this price range", expandRange: "Expand the price range", expandRangeHint: "No adjacent places match the selected group size. Choose a wider range.", applyRange: "Apply range",
+      confirm: "Confirm", selected: "Selected", continue: "Go to checkout", emptyCheckout: "Select a ticket", price: "Price", feeIncluded: "incl. service fee", noSeats: "No adjacent seats match this price range", expandRange: "Expand the price range", expandRangeHint: "No available option matches the selected group size. Choose a wider range.", applyRange: "Apply range", categoryLimit: "You can buy no more than {count} tickets from “{name}” in one order", linkLimit: "This link allows no more than {count} tickets in one order",
       zoomReset: "Reset zoom", row: "Row", seat: "seat", seats: "seats", table: "Table", zone: "Zone", section: "Category"
     },
     he: {
       back: "חזרה לאירוע", offers: "הצעות", all: "כל הכרטיסים", onePlusOne: "1 + 1",
       people: "מספר אורחים", peopleHint: "נציג רק מקומות שבהם כל הקבוצה יכולה לשבת יחד", tickets: "כרטיסים",
-      confirm: "אישור", selected: "נבחרו", continue: "המשך לתשלום", emptyCheckout: "בחרו כרטיס", price: "מחיר", feeIncluded: "כולל דמי שירות", noSeats: "אין מקומות צמודים בטווח המחירים שנבחר", expandRange: "הרחיבו את טווח המחירים", expandRangeHint: "אין מקומות צמודים למספר האורחים שנבחר. בחרו טווח רחב יותר.", applyRange: "החלת הטווח",
+      confirm: "אישור", selected: "נבחרו", continue: "המשך לתשלום", emptyCheckout: "בחרו כרטיס", price: "מחיר", feeIncluded: "כולל דמי שירות", noSeats: "אין מקומות צמודים בטווח המחירים שנבחר", expandRange: "הרחיבו את טווח המחירים", expandRangeHint: "אין אפשרות זמינה למספר האורחים שנבחר. בחרו טווח רחב יותר.", applyRange: "החלת הטווח", categoryLimit: "ניתן לקנות עד {count} כרטיסים מקטגוריית „{name}” בהזמנה אחת", linkLimit: "בקישור זה ניתן לקנות עד {count} כרטיסים בהזמנה אחת",
       zoomReset: "איפוס זום", row: "שורה", seat: "מקום", seats: "מקומות", table: "שולחן", zone: "אזור", section: "קטגוריה"
     },
   }[locale];
@@ -255,7 +259,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const [maxSliderValue, setMaxSliderValue] = useState(PRICE_SLIDER_RESOLUTION);
   const [draftMinRangeIndex, setDraftMinRangeIndex] = useState(0);
   const [draftMaxRangeIndex, setDraftMaxRangeIndex] = useState(Math.max(0, sortedPrices.length - 1));
-  const [qty, setQty] = useState(Math.max(1, Math.min(8, initialQty)));
+  const [qty, setQty] = useState(Math.max(1, Math.min(20, initialQty)));
   const [offer, setOffer] = useState<OfferFilter>("ALL");
   const [offerOpen, setOfferOpen] = useState(false);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -291,24 +295,78 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   ), [availableCategories, offer, categoryPrice, minPrice, maxPrice]);
 
   const cartSeatIds = useMemo(() => new Set(cart.flatMap(item => item.seatIds)), [cart]);
-  const groupsByObject = useMemo(() => {
+  const seatCategoryById = useMemo(() => new Map(availableObjects.flatMap(object => object.seatItems.map(seat => [seat.id, seat.categoryId ?? object.categoryId] as const))), [availableObjects]);
+  const cartCategoryQuantities = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of cart) {
+      if (item.seatIds.length) {
+        for (const seatId of item.seatIds) {
+          const categoryId = seatCategoryById.get(seatId);
+          if (categoryId) counts.set(categoryId, (counts.get(categoryId) ?? 0) + 1);
+        }
+      } else counts.set(item.categoryId, (counts.get(item.categoryId) ?? 0) + item.quantity);
+    }
+    return counts;
+  }, [cart, seatCategoryById]);
+  const cartQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const quantityLimit = Math.max(1, Math.min(20, ...availableCategories.map(item => item.maxPerOrder)));
+
+  function categoryCanAccept(categoryId: string, increment: number) {
+    const category = availableCategories.find(item => item.id === categoryId);
+    if (!category) return false;
+    const next = (cartCategoryQuantities.get(categoryId) ?? 0) + increment;
+    return next <= category.maxPerOrder && next <= category.capacity - category.sold;
+  }
+
+  function additionsCanFit(additions: Map<string, number>) {
+    const addedTotal = [...additions.values()].reduce((sum, value) => sum + value, 0);
+    if (allocation && cartQuantity + addedTotal > allocation.maxPerOrder) return false;
+    return [...additions].every(([categoryId, increment]) => categoryCanAccept(categoryId, increment));
+  }
+
+  function additionsFitLimits(additions: Map<string, number>) {
+    const addedTotal = [...additions.values()].reduce((sum, value) => sum + value, 0);
+    if (allocation && cartQuantity + addedTotal > allocation.maxPerOrder) {
+      setCartError(local.linkLimit.replace("{count}", String(allocation.maxPerOrder)));
+      return false;
+    }
+    for (const [categoryId, increment] of additions) {
+      const category = availableCategories.find(item => item.id === categoryId);
+      if (!category) return false;
+      if (!categoryCanAccept(categoryId, increment)) {
+        setCartError(local.categoryLimit.replace("{name}", category.name).replace("{count}", String(Math.min(category.maxPerOrder, category.capacity - category.sold))));
+        return false;
+      }
+    }
+    setCartError("");
+    return true;
+  }
+
+  const groupsByObject = (() => {
     const map = new Map<string, string[][]>();
     for (const object of availableObjects) {
       if (!seatTypes.has(object.objectType) || object.reserved) continue;
       const groups = validGroups(object, qty, (seat) => {
         const categoryId = seat.categoryId ?? object.categoryId;
         return seat.status === "AVAILABLE" && !cartSeatIds.has(seat.id) && Boolean(categoryId && allowedCategoryIds.has(categoryId));
+      }).filter(group => {
+        const additions = new Map<string, number>();
+        for (const seatId of group) {
+          const categoryId = seatCategoryById.get(seatId);
+          if (categoryId) additions.set(categoryId, (additions.get(categoryId) ?? 0) + 1);
+        }
+        return additionsCanFit(additions);
       });
       if (groups.length) map.set(object.id, groups);
     }
     return map;
-  }, [availableObjects, qty, allowedCategoryIds, cartSeatIds]);
+  })();
 
-  const eligibleSeatIds = useMemo(() => new Set([...groupsByObject.values()].flat(2)), [groupsByObject]);
-  const hasMatchingPlaces = availableObjects.some(object => seatTypes.has(object.objectType) && !object.reserved && validGroups(object, qty, seat => {
-    const categoryId = seat.categoryId ?? object.categoryId;
-    return seat.status === "AVAILABLE" && Boolean(categoryId && allowedCategoryIds.has(categoryId));
-  }).length > 0);
+  const eligibleSeatIds = new Set([...groupsByObject.values()].flat(2));
+  const hasMatchingSeats = groupsByObject.size > 0;
+  const hasMatchingZone = availableObjects.some(object => object.objectType === "ZONE" && Boolean(object.categoryId && allowedCategoryIds.has(object.categoryId) && additionsCanFit(new Map([[object.categoryId, qty]]))));
+  const hasMatchingWholeObject = availableObjects.some(object => object.priceMode === "WHOLE_TABLE" && !object.reserved && !cart.some(item => item.objectId === object.id) && Boolean(object.categoryId && allowedCategoryIds.has(object.categoryId) && additionsCanFit(new Map([[object.categoryId, object.seats]]))));
+  const hasMatchingPlaces = hasMatchingSeats || hasMatchingZone || hasMatchingWholeObject;
   const draftMinPrice = sortedPrices[draftMinRangeIndex] ?? 0;
   const draftMaxPrice = sortedPrices[draftMaxRangeIndex] ?? draftMinPrice;
   const draftAllowedCategoryIds = new Set(availableCategories
@@ -317,20 +375,27 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     .map(item => item.id));
   const draftHasSeats = availableObjects.some(object => seatTypes.has(object.objectType) && !object.reserved && validGroups(object, qty, seat => {
     const categoryId = seat.categoryId ?? object.categoryId;
-    return seat.status === "AVAILABLE" && Boolean(categoryId && draftAllowedCategoryIds.has(categoryId));
-  }).length > 0);
-  const canApplyDraftRange = draftHasSeats;
+    return seat.status === "AVAILABLE" && !cartSeatIds.has(seat.id) && Boolean(categoryId && draftAllowedCategoryIds.has(categoryId));
+  }).some(group => {
+    const additions = new Map<string, number>();
+    for (const seatId of group) {
+      const categoryId = seatCategoryById.get(seatId);
+      if (categoryId) additions.set(categoryId, (additions.get(categoryId) ?? 0) + 1);
+    }
+    return additionsCanFit(additions);
+  }));
+  const draftHasZone = availableObjects.some(object => object.objectType === "ZONE" && Boolean(object.categoryId && draftAllowedCategoryIds.has(object.categoryId) && additionsCanFit(new Map([[object.categoryId, qty]]))));
+  const draftHasWholeObject = availableObjects.some(object => object.priceMode === "WHOLE_TABLE" && !object.reserved && !cart.some(item => item.objectId === object.id) && Boolean(object.categoryId && draftAllowedCategoryIds.has(object.categoryId) && additionsCanFit(new Map([[object.categoryId, object.seats]]))));
+  const canApplyDraftRange = draftHasSeats || draftHasZone || draftHasWholeObject;
   const wholeObject = objects.find(item => item.id === wholeObjectId);
   const zoneObject = objects.find(item => item.id === zoneObjectId);
   const noMatchingPlaces = !hasMatchingPlaces && !wholeObject && !zoneObject;
   const cartSubtotal = cart.reduce((sum, item) => sum + item.subtotalMinor, 0);
   const cartPricing = calculateServiceFee(cartSubtotal, feeTerms);
-  let allocatedCartFee = 0;
-  const cartDisplay = cart.map((item, index) => {
-    const fee = feeTerms.serviceFeePayer !== "BUYER" || cartSubtotal === 0 ? 0 : index === cart.length - 1 ? cartPricing.serviceFeeMinor - allocatedCartFee : Math.round(cartPricing.serviceFeeMinor * item.subtotalMinor / cartSubtotal);
-    allocatedCartFee += fee;
-    return { ...item, feeMinor: fee, buyerTotalMinor: item.subtotalMinor + fee };
-  });
+  const cartDisplay = cart.reduce<{items:Array<CartItem & {feeMinor:number;buyerTotalMinor:number}>;allocatedFee:number}>((result, item, index) => {
+    const fee = feeTerms.serviceFeePayer !== "BUYER" || cartSubtotal === 0 ? 0 : index === cart.length - 1 ? cartPricing.serviceFeeMinor - result.allocatedFee : Math.round(cartPricing.serviceFeeMinor * item.subtotalMinor / cartSubtotal);
+    return {items:[...result.items,{...item,feeMinor:fee,buyerTotalMinor:item.subtotalMinor+fee}],allocatedFee:result.allocatedFee+fee};
+  },{items:[],allocatedFee:0}).items;
   const scale = zoom / 100;
   const displayTitle = readableEventTitle(title);
 
@@ -343,6 +408,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
 
   function removeCartItem(id: string) {
     setCart(current => current.filter(item => item.id !== id));
+    setCartError("");
   }
 
   function addCartItem(item: Omit<CartItem, "id">) {
@@ -350,7 +416,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   }
 
   function confirmPeople() {
-    setQty(Math.max(1, Math.min(8, draftQty)));
+    setQty(Math.max(1, Math.min(quantityLimit, draftQty)));
     setPeopleOpen(false);
     clearSelection();
   }
@@ -367,7 +433,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   function chooseOffer(next: OfferFilter) {
     setOffer(next);
     setOfferOpen(false);
-    if (next === "BUY_ONE_GET_ONE") setQty(value => value < 2 ? 2 : value % 2 === 0 ? value : Math.min(8, value + 1));
+    if (next === "BUY_ONE_GET_ONE") setQty(value => value < 2 ? 2 : value % 2 === 0 ? value : Math.min(quantityLimit, value + 1));
     clearSelection();
   }
 
@@ -386,6 +452,12 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     const seats = object.seatItems.filter(item => candidate.includes(item.id));
     const categoryId = seats.find(item => item.categoryId)?.categoryId ?? object.categoryId;
     if (!categoryId) return;
+    const additions = new Map<string, number>();
+    for (const item of seats) {
+      const seatCategoryId = item.categoryId ?? object.categoryId;
+      if (seatCategoryId) additions.set(seatCategoryId, (additions.get(seatCategoryId) ?? 0) + 1);
+    }
+    if (!additionsFitLimits(additions)) { setSelectedSeatIds([]); return; }
     const category = categories.find(item => item.id === categoryId);
     addCartItem({ kind: "SEATS", categoryId, quantity: seats.length, objectId: object.id, seatIds: candidate, title: `${category?.name ?? object.label} × ${seats.length}`, description: objectDescription(object, seats), subtotalMinor: seats.reduce((sum, item) => sum + (categories.find(categoryItem => categoryItem.id === (item.categoryId ?? object.categoryId))?.priceMinor ?? 0), 0) });
     setSelectedSeatIds([]);
@@ -393,6 +465,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
 
   function chooseZone(object: MapObject) {
     if (object.objectType !== "ZONE" || !object.categoryId || !allowedCategoryIds.has(object.categoryId)) return;
+    if (!additionsFitLimits(new Map([[object.categoryId, qty]]))) return;
     const category = categories.find(item => item.id === object.categoryId);
     addCartItem({ kind: "ZONE", categoryId: object.categoryId, quantity: qty, objectId: object.id, seatIds: [], title: `${category?.name ?? object.label} × ${qty}`, description: objectDescription(object, []), subtotalMinor: (category?.priceMinor ?? object.priceMinor) * qty });
     clearSelection();
@@ -400,6 +473,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
 
   function chooseWholeObject(object: MapObject) {
     if (object.priceMode !== "WHOLE_TABLE" || object.reserved || !object.categoryId || !allowedCategoryIds.has(object.categoryId) || cart.some(item => item.objectId === object.id)) return;
+    if (!additionsFitLimits(new Map([[object.categoryId, object.seats]]))) return;
     const category = categories.find(item => item.id === object.categoryId);
     const subtotal = allocation?.type === "TABLE" && allocation.customPriceMinor !== null ? allocation.customPriceMinor : (category?.priceMinor ?? object.priceMinor);
     addCartItem({ kind: "WHOLE_TABLE", categoryId: object.categoryId, quantity: object.seats, objectId: object.id, seatIds: [], title: `${category?.name ?? object.label} × ${object.seats}`, description: objectDescription(object, []), subtotalMinor: subtotal });
@@ -704,6 +778,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           </div>
         </div>
 
+        {cartError && <div className={styles.cartError} role="alert">{cartError}</div>}
         <div className={styles.cartItems}>{cartDisplay.map(item => <div className="atlas-selected-ticket" key={item.id}>
           <div className="atlas-selected-head">
             <div>
@@ -748,7 +823,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
         <div className={polish.quantityControl}>
           <button type="button" onClick={() => setDraftQty(value => Math.max(1, value - 1))} disabled={draftQty <= 1}><Minus size={22}/></button>
           <strong>{draftQty} {local.tickets}</strong>
-          <button type="button" onClick={() => setDraftQty(value => Math.min(8, value + 1))} disabled={draftQty >= 8}><Plus size={22}/></button>
+          <button type="button" onClick={() => setDraftQty(value => Math.min(quantityLimit, value + 1))} disabled={draftQty >= quantityLimit}><Plus size={22}/></button>
         </div>
         <button type="button" className={polish.confirmButton} onClick={confirmPeople}>{local.confirm}</button>
       </div>

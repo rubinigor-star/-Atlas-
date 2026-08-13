@@ -7,9 +7,9 @@ const optionalText = (max: number) => z.string().trim().max(max).optional().defa
 export const checkoutSchema = z.object({
   eventId: z.string().min(1),
   categoryId: z.string().min(1),
-  quantity: z.number().int().min(1).max(50),
+  quantity: z.number().int().min(1).max(400),
   tableId: z.string().nullable().optional(),
-  seatIds: z.array(z.string().min(1)).max(50).optional(),
+  seatIds: z.array(z.string().min(1)).max(400).optional(),
   items: z.array(z.object({
     categoryId: z.string().min(1),
     quantity: z.number().int().min(1).max(20),

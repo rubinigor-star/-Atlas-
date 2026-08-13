@@ -40,6 +40,8 @@ export default async function EventSeatsPage({ params, searchParams }: { params:
         colorHex:category.colorHex,
         capacity:category.capacity,
         sold:category.sold,
+        minPerOrder:category.minPerOrder,
+        maxPerOrder:category.maxPerOrder,
         pricingPresentation:ticketPricePresentation(category,now),
         marketingStrategy:parsePricingMarketingStrategy(category.description),
         salesStrategy:parseTicketSalesStrategy(category.description),
@@ -98,7 +100,7 @@ export default async function EventSeatsPage({ params, searchParams }: { params:
   const feeTerms={salesFeePercentBps:commercialTerms.organizer.salesFeePercentBps,salesFeeFixedMinor:commercialTerms.organizer.salesFeeFixedMinor,serviceFeePayer:commercialTerms.serviceFeePayer};
   const parsedQty=Number.parseInt(query.qty||"2",10);
   const initialQty=Number.isFinite(parsedQty)?Math.max(1,Math.min(10,parsedQty)):2;
-  const allocation=validPromoterLink?{type:validPromoterLink.allocationType,categoryId:validPromoterLink.categoryId,tableId:validPromoterLink.tableId,customPriceMinor:validPromoterLink.customPriceMinor}:undefined;
+  const allocation=validPromoterLink?{type:validPromoterLink.allocationType,categoryId:validPromoterLink.categoryId,tableId:validPromoterLink.tableId,customPriceMinor:validPromoterLink.customPriceMinor,maxPerOrder:validPromoterLink.maxPerOrder}:undefined;
 
   return <><style dangerouslySetInnerHTML={{__html:`${assignmentCss}\n${zoneAssignmentCss}`}}/><EventSeatSelection eventId={event.id} slug={event.slug} title={event.title} posterUrl={event.posterUrl} venueName={event.venue.name} categories={categories} objects={objects} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocation={allocation} initialQty={initialQty}/></>;
 }

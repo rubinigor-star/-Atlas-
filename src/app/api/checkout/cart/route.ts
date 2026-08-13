@@ -56,7 +56,7 @@ export async function POST(req:Request){
       if(promoter?.allocationType==="CATEGORY"&&items.some(item=>item.categoryId!==promoter.categoryId))throw new Error("Эта ссылка предназначена для другой категории");
       if(promoter?.allocationType==="TABLE"&&items.some(item=>item.tableId!==promoter.tableId))throw new Error("Эта ссылка предназначена для другого стола");
       const reservationItems:ReservationItemInput[]=[];const orderItems:Array<{quantity:number;unitPriceMinor:number;categoryName:string;tableId?:string;seatId?:string}>=[];
-      const requested=new Map<string,{sold:number;capacity:number;name:string;quantity:number}>();
+      const requested=new Map<string,{sold:number;capacity:number;name:string;minPerOrder:number;maxPerOrder:number;quantity:number}>();
       let subtotal=0;let totalQuantity=0;
       for(const item of items){
         const baseCategory=categoryMap.get(item.categoryId)!;totalQuantity+=item.quantity;
@@ -65,15 +65,15 @@ export async function POST(req:Request){
           const price=promoter?.customPriceMinor??effectiveTicketPrice(table.category,now);subtotal+=price;
           reservationItems.push({categoryId:table.category.id,quantity:table.seats,tableId:table.id,seatId:null});
           orderItems.push({quantity:table.seats,unitPriceMinor:Math.round(price/table.seats),categoryName:table.category.name,tableId:table.id});
-          const current=requested.get(table.category.id);requested.set(table.category.id,{sold:table.category.sold,capacity:table.category.capacity,name:table.category.name,quantity:(current?.quantity??0)+table.seats});
+          const current=requested.get(table.category.id);requested.set(table.category.id,{sold:table.category.sold,capacity:table.category.capacity,name:table.category.name,minPerOrder:table.category.minPerOrder,maxPerOrder:table.category.maxPerOrder,quantity:(current?.quantity??0)+table.seats});
         }else if(item.seatIds.length){
           if(item.quantity!==item.seatIds.length)throw new Error("Количество мест в позиции изменилось");
-          for(const id of item.seatIds){const seat=seatMap.get(id);if(!seat?.category)throw new Error("Место не найдено");const price=promoter?.customPriceMinor??effectiveTicketPrice(seat.category,now);subtotal+=price;reservationItems.push({categoryId:seat.category.id,quantity:1,seatId:seat.id,tableId:null});orderItems.push({quantity:1,unitPriceMinor:price,categoryName:seat.category.name,tableId:seat.tableId,seatId:seat.id});const current=requested.get(seat.category.id);requested.set(seat.category.id,{sold:seat.category.sold,capacity:seat.category.capacity,name:seat.category.name,quantity:(current?.quantity??0)+1});}
+          for(const id of item.seatIds){const seat=seatMap.get(id);if(!seat?.category)throw new Error("Место не найдено");const price=promoter?.customPriceMinor??effectiveTicketPrice(seat.category,now);subtotal+=price;reservationItems.push({categoryId:seat.category.id,quantity:1,seatId:seat.id,tableId:null});orderItems.push({quantity:1,unitPriceMinor:price,categoryName:seat.category.name,tableId:seat.tableId,seatId:seat.id});const current=requested.get(seat.category.id);requested.set(seat.category.id,{sold:seat.category.sold,capacity:seat.category.capacity,name:seat.category.name,minPerOrder:seat.category.minPerOrder,maxPerOrder:seat.category.maxPerOrder,quantity:(current?.quantity??0)+1});}
         }else{
-          if(item.quantity<baseCategory.minPerOrder||item.quantity>baseCategory.maxPerOrder)throw new Error(`Для ${baseCategory.name} можно выбрать от ${baseCategory.minPerOrder} до ${baseCategory.maxPerOrder} билетов`);
-          const price=promoter?.customPriceMinor??effectiveTicketPrice(baseCategory,now);subtotal+=price*item.quantity;reservationItems.push({categoryId:baseCategory.id,quantity:item.quantity,tableId:null,seatId:null});orderItems.push({quantity:item.quantity,unitPriceMinor:price,categoryName:baseCategory.name});const current=requested.get(baseCategory.id);requested.set(baseCategory.id,{sold:baseCategory.sold,capacity:baseCategory.capacity,name:baseCategory.name,quantity:(current?.quantity??0)+item.quantity});
+          const price=promoter?.customPriceMinor??effectiveTicketPrice(baseCategory,now);subtotal+=price*item.quantity;reservationItems.push({categoryId:baseCategory.id,quantity:item.quantity,tableId:null,seatId:null});orderItems.push({quantity:item.quantity,unitPriceMinor:price,categoryName:baseCategory.name});const current=requested.get(baseCategory.id);requested.set(baseCategory.id,{sold:baseCategory.sold,capacity:baseCategory.capacity,name:baseCategory.name,minPerOrder:baseCategory.minPerOrder,maxPerOrder:baseCategory.maxPerOrder,quantity:(current?.quantity??0)+item.quantity});
         }
       }
+      for(const category of requested.values())if(category.quantity<category.minPerOrder||category.quantity>category.maxPerOrder)throw new Error(`Для ${category.name} можно выбрать от ${category.minPerOrder} до ${category.maxPerOrder} билетов в одном заказе`);
       if(promoter&&totalQuantity>promoter.maxPerOrder)throw new Error(`По этой ссылке можно купить не более ${promoter.maxPerOrder} билетов за заказ`);
       if(promoter?.guestLimit){const allocated=promoter.orders.flatMap(order=>order.items).reduce((sum,item)=>sum+item.quantity,0);if(allocated+totalQuantity>promoter.guestLimit)throw new Error("Квота этой персональной ссылки исчерпана");}
       const capacities=new Map([...requested].map(([id,value])=>[id,{sold:value.sold,capacity:value.capacity,name:value.name}]));await assertInventoryAvailable({items:reservationItems,capacities,executor:tx});
