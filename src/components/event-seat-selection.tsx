@@ -234,19 +234,19 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     ru: {
       back: "Вернуться к мероприятию",
       people: "Количество билетов", peopleHint: "Показываем только варианты, где все выбранные места находятся рядом", decreaseQuantity: "Уменьшить количество билетов", increaseQuantity: "Увеличить количество билетов",
-      confirm: "Подтвердить", selected: "Выбрано", continue: "Перейти к оплате", emptyCheckout: "Выберите билет", price: "Цена", feeIncluded: "включая сервисный сбор", noSeats: "В выбранном диапазоне нет подходящих мест рядом", expandRange: "Расширьте диапазон цен", expandRangeHint: "Для выбранного количества гостей нет доступного варианта. Выберите более широкий диапазон.", applyRange: "Применить диапазон", categoryLimit: "Для категории «{name}» можно купить не более {count} билетов в одном заказе", linkLimit: "По этой ссылке можно купить не более {count} билетов в одном заказе",
+      confirm: "Подтвердить", selected: "Выбрано", continue: "Перейти к оплате", emptyCheckout: "Выберите билет", price: "Цена", feeIncluded: "включая сервисный сбор", noSeats: "В выбранном диапазоне нет подходящих мест рядом", expandRange: "Расширьте диапазон цен", expandRangeHint: "Для выбранного количества гостей нет доступного варианта. Выберите более широкий диапазон.", applyRange: "Применить диапазон", categoryLimit: "Для категории «{name}» можно выбрать не более {count} билетов за один раз", linkLimit: "По этой ссылке можно купить не более {count} билетов в одном заказе",
       zoomReset: "Сбросить масштаб", row: "Ряд", seat: "место", seats: "места", table: "Стол", zone: "Зона", section: "Категория"
     },
     en: {
       back: "Back to event",
       people: "Ticket quantity", peopleHint: "Only options where all selected seats are together will be shown", decreaseQuantity: "Decrease ticket quantity", increaseQuantity: "Increase ticket quantity",
-      confirm: "Confirm", selected: "Selected", continue: "Go to checkout", emptyCheckout: "Select a ticket", price: "Price", feeIncluded: "incl. service fee", noSeats: "No adjacent seats match this price range", expandRange: "Expand the price range", expandRangeHint: "No available option matches the selected group size. Choose a wider range.", applyRange: "Apply range", categoryLimit: "You can buy no more than {count} tickets from “{name}” in one order", linkLimit: "This link allows no more than {count} tickets in one order",
+      confirm: "Confirm", selected: "Selected", continue: "Go to checkout", emptyCheckout: "Select a ticket", price: "Price", feeIncluded: "incl. service fee", noSeats: "No adjacent seats match this price range", expandRange: "Expand the price range", expandRangeHint: "No available option matches the selected group size. Choose a wider range.", applyRange: "Apply range", categoryLimit: "You can select no more than {count} tickets from “{name}” at a time", linkLimit: "This link allows no more than {count} tickets in one order",
       zoomReset: "Reset zoom", row: "Row", seat: "seat", seats: "seats", table: "Table", zone: "Zone", section: "Category"
     },
     he: {
       back: "חזרה לאירוע",
       people: "כמות כרטיסים", peopleHint: "יוצגו רק אפשרויות שבהן כל המקומות שנבחרו צמודים זה לזה", decreaseQuantity: "הפחתת כמות הכרטיסים", increaseQuantity: "הגדלת כמות הכרטיסים",
-      confirm: "אישור", selected: "נבחרו", continue: "המשך לתשלום", emptyCheckout: "בחרו כרטיס", price: "מחיר", feeIncluded: "כולל דמי שירות", noSeats: "אין מקומות צמודים בטווח המחירים שנבחר", expandRange: "הרחיבו את טווח המחירים", expandRangeHint: "אין אפשרות זמינה למספר האורחים שנבחר. בחרו טווח רחב יותר.", applyRange: "החלת הטווח", categoryLimit: "ניתן לקנות עד {count} כרטיסים מקטגוריית „{name}” בהזמנה אחת", linkLimit: "בקישור זה ניתן לקנות עד {count} כרטיסים בהזמנה אחת",
+      confirm: "אישור", selected: "נבחרו", continue: "המשך לתשלום", emptyCheckout: "בחרו כרטיס", price: "מחיר", feeIncluded: "כולל דמי שירות", noSeats: "אין מקומות צמודים בטווח המחירים שנבחר", expandRange: "הרחיבו את טווח המחירים", expandRangeHint: "אין אפשרות זמינה למספר האורחים שנבחר. בחרו טווח רחב יותר.", applyRange: "החלת הטווח", categoryLimit: "ניתן לבחור עד {count} כרטיסים מקטגוריית „{name}” בכל פעם", linkLimit: "בקישור זה ניתן לקנות עד {count} כרטיסים בהזמנה אחת",
       zoomReset: "איפוס זום", row: "שורה", seat: "מקום", seats: "מקומות", table: "שולחן", zone: "אזור", section: "קטגוריה"
     },
   }[locale];
@@ -333,8 +333,8 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   function categoryCanAccept(categoryId: string, increment: number) {
     const category = availableCategories.find(item => item.id === categoryId);
     if (!category) return false;
-    const next = (cartCategoryQuantities.get(categoryId) ?? 0) + increment;
-    return next <= category.maxPerOrder && next <= category.capacity - category.sold;
+    const cartTotal = cartCategoryQuantities.get(categoryId) ?? 0;
+    return increment <= category.maxPerOrder && cartTotal + increment <= category.capacity - category.sold;
   }
 
   function additionsCanFit(additions: Map<string, number>) {
