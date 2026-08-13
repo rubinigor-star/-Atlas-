@@ -1,11 +1,13 @@
 import type { MetadataRoute } from "next";
+import { getCanonicalOrigin } from "@/lib/public-origin";
 
 export default function robots():MetadataRoute.Robots{
+  const base=getCanonicalOrigin();
   return {
     rules:[
-      {userAgent:"*",allow:"/",disallow:["/office/","/admin/","/api/","/scanner/","/checkout"]},
+      {userAgent:"*",allow:"/",disallow:["/api/"]},
     ],
-    sitemap:"https://www.atlas-one.co/sitemap.xml",
-    host:"https://www.atlas-one.co",
+    sitemap:`${base}/sitemap.xml`,
+    host:base,
   };
 }
