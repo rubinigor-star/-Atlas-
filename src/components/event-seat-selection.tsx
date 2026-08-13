@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Info, Minus, Plus, RotateCcw, X } from "lucide-react";
+import { TransformComponent, TransformWrapper, useControls, type ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 import { money } from "@/lib/format";
 import { calculateServiceFee, type ServiceFeeTerms } from "@/lib/service-fee";
 import type { PricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
@@ -75,7 +76,7 @@ type CartItem = {
 
 const WORLD_WIDTH = 1400;
 const WORLD_HEIGHT = 900;
-const DEFAULT_ZOOM = 75;
+const DEFAULT_MAP_SCALE = .75;
 const PRICE_SLIDER_RESOLUTION = 1000;
 const seatTypes = new Set(["TABLE", "ROUND_TABLE", "SOFA", "ROW"]);
 
@@ -225,6 +226,15 @@ function SeatDot({ seat, object, color, selected, priceMatched, disabled, onClic
   ><span>{seat.position}</span></button>;
 }
 
+function MapZoomControls({ fitScale, zoomInLabel, zoomOutLabel, resetLabel }: { fitScale: number; zoomInLabel: string; zoomOutLabel: string; resetLabel: string }) {
+  const { zoomIn, zoomOut, centerView } = useControls();
+  return <div className={`${styles.zoom} atlas-map-controls`}>
+    <button type="button" aria-label={zoomInLabel} title={zoomInLabel} onClick={() => zoomIn(.6, 240, "easeOut")}><Plus size={20}/></button>
+    <button type="button" aria-label={resetLabel} title={resetLabel} onClick={() => centerView(fitScale, 320, "easeOut")}><RotateCcw size={18}/></button>
+    <button type="button" aria-label={zoomOutLabel} title={zoomOutLabel} onClick={() => zoomOut(.6, 240, "easeOut")}><Minus size={20}/></button>
+  </div>;
+}
+
 export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName, categories, objects, feeTerms, referralCode, allocation, initialQty }: {
   eventId: string;
   slug: string;
@@ -241,12 +251,8 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const router = useRouter();
   const { locale } = useLocale();
   const viewportRef = useRef<HTMLDivElement>(null);
+  const transformRef = useRef<ReactZoomPanPinchRef | null>(null);
   const priceTrackRef = useRef<HTMLDivElement>(null);
-  const panRef = useRef({ pointerId: -1, x: 0, y: 0, left: 0, top: 0 });
-  const touchPointersRef = useRef(new Map<number, { x: number; y: number }>());
-  const touchDragRef = useRef(false);
-  const pinchRef = useRef({ distance: 0, zoom: DEFAULT_ZOOM, worldX: 0, worldY: 0 });
-  const [spaceHeld, setSpaceHeld] = useState(false);
   const [panning, setPanning] = useState(false);
   const [hoveredSeat, setHoveredSeat] = useState<HoveredSeat>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -261,19 +267,19 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
       back: "Вернуться к мероприятию",
       quantity: "Количество билетов", quantityHint: "При нажатии на место сразу выберется указанное количество доступных мест рядом", quantityInfo: "Как выбираются места", decrease: "Уменьшить количество", increase: "Увеличить количество", confirmQuantity: "Подтвердить", closeQuantity: "Закрыть",
       continue: "Перейти к оплате", emptyCheckout: "Выберите билет", feeIncluded: "включая сервисный сбор", noSeats: "В выбранном диапазоне нет доступных мест", expandRange: "Расширьте диапазон цен", expandRangeHint: "В выбранном диапазоне нет доступных билетов. Выберите более широкий диапазон.", applyRange: "Применить диапазон", categoryLimit: "Для категории «{name}» можно выбрать не более {count} билетов за один раз", orderLimit: "В одном заказе можно выбрать не более {count} билетов", linkLimit: "По этой ссылке можно купить не более {count} билетов в одном заказе",
-      zoomReset: "Сбросить масштаб", row: "Ряд", seat: "место", seats: "места", table: "Стол", zone: "Зона", section: "Категория"
+      zoomIn: "Увеличить карту", zoomOut: "Уменьшить карту", zoomReset: "Показать карту целиком", row: "Ряд", seat: "место", seats: "места", table: "Стол", zone: "Зона", section: "Категория"
     },
     en: {
       back: "Back to event",
       quantity: "Ticket quantity", quantityHint: "Selecting a seat immediately adds the chosen number of available seats together", quantityInfo: "How seats are selected", decrease: "Decrease quantity", increase: "Increase quantity", confirmQuantity: "Confirm", closeQuantity: "Close",
       continue: "Go to checkout", emptyCheckout: "Select a ticket", feeIncluded: "incl. service fee", noSeats: "No available seats match this price range", expandRange: "Expand the price range", expandRangeHint: "No tickets are available in this price range. Choose a wider range.", applyRange: "Apply range", categoryLimit: "You can select no more than {count} tickets from “{name}” at a time", orderLimit: "You can select no more than {count} tickets in one order", linkLimit: "This link allows no more than {count} tickets in one order",
-      zoomReset: "Reset zoom", row: "Row", seat: "seat", seats: "seats", table: "Table", zone: "Zone", section: "Category"
+      zoomIn: "Zoom in", zoomOut: "Zoom out", zoomReset: "Fit map to screen", row: "Row", seat: "seat", seats: "seats", table: "Table", zone: "Zone", section: "Category"
     },
     he: {
       back: "חזרה לאירוע",
       quantity: "כמות כרטיסים", quantityHint: "לחיצה על מקום תבחר מיד את מספר המקומות הזמינים יחד", quantityInfo: "איך נבחרים המקומות", decrease: "הפחתת כמות", increase: "הגדלת כמות", confirmQuantity: "אישור", closeQuantity: "סגירה",
       continue: "המשך לתשלום", emptyCheckout: "בחרו כרטיס", feeIncluded: "כולל דמי שירות", noSeats: "אין מקומות זמינים בטווח המחירים שנבחר", expandRange: "הרחיבו את טווח המחירים", expandRangeHint: "אין כרטיסים זמינים בטווח המחירים שנבחר. בחרו טווח רחב יותר.", applyRange: "החלת הטווח", categoryLimit: "ניתן לבחור עד {count} כרטיסים מקטגוריית „{name}” בכל פעם", orderLimit: "ניתן לבחור עד {count} כרטיסים בהזמנה אחת", linkLimit: "בקישור זה ניתן לקנות עד {count} כרטיסים בהזמנה אחת",
-      zoomReset: "איפוס זום", row: "שורה", seat: "מקום", seats: "מקומות", table: "שולחן", zone: "אזור", section: "קטגוריה"
+      zoomIn: "הגדלת המפה", zoomOut: "הקטנת המפה", zoomReset: "הצגת המפה כולה", row: "שורה", seat: "מקום", seats: "מקומות", table: "שולחן", zone: "אזור", section: "קטגוריה"
     },
   }[locale];
 
@@ -289,22 +295,8 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [quantityModalOpen]);
 
-  useEffect(() => {
-    const down = (event: KeyboardEvent) => {
-      if (event.code !== "Space") return;
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("input,select,textarea,button,a")) return;
-      event.preventDefault();
-      setSpaceHeld(true);
-    };
-    const up = (event: KeyboardEvent) => { if (event.code === "Space") setSpaceHeld(false); };
-    window.addEventListener("keydown", down, { passive: false });
-    window.addEventListener("keyup", up);
-    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
-  }, []);
-
   const availableObjects = useMemo(() => (allocation?.type === "TABLE" ? objects.filter(item => item.id === allocation.tableId || !seatTypes.has(item.objectType)) : objects).filter(item => !isInternalObject(item)), [allocation?.tableId, allocation?.type, objects]);
-  const mobileMapBounds = useMemo(() => {
+  const mapBounds = useMemo(() => {
     if (!availableObjects.length) return { minX: 0, maxX: WORLD_WIDTH, minY: 0, maxY: WORLD_HEIGHT };
     const bleed = 34;
     return availableObjects.reduce((bounds, object) => {
@@ -329,7 +321,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const [maxSliderValue, setMaxSliderValue] = useState(PRICE_SLIDER_RESOLUTION);
   const [draftMinRangeIndex, setDraftMinRangeIndex] = useState(0);
   const [draftMaxRangeIndex, setDraftMaxRangeIndex] = useState(Math.max(0, sortedPrices.length - 1));
-  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const [fitScale, setFitScale] = useState(DEFAULT_MAP_SCALE);
   const [wholeObjectId, setWholeObjectId] = useState<string | null>(allocation?.type === "TABLE" ? allocation.tableId : null);
   const [zoneObjectId, setZoneObjectId] = useState<string | null>(null);
 
@@ -344,23 +336,26 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
 
   useEffect(() => {
     const viewport = viewportRef.current;
-    if (!viewport || !window.matchMedia("(max-width: 900px)").matches) return;
-    const centerMobileMap = () => {
-      const contentWidth = Math.max(1, mobileMapBounds.maxX - mobileMapBounds.minX);
-      const fittedZoom = Math.max(24, Math.min(48, ((viewport.clientWidth - 28) / contentWidth) * 100));
-      const fittedScale = fittedZoom / 100;
-      const contentCenterX = (mobileMapBounds.minX + mobileMapBounds.maxX) / 2;
-      setZoom(fittedZoom);
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        viewport.scrollLeft = Math.max(0, contentCenterX * fittedScale - viewport.clientWidth / 2);
-        viewport.scrollTop = Math.max(0, mobileMapBounds.minY * fittedScale + 12);
-      }));
+    if (!viewport) return;
+    const fitMap = () => {
+      const contentWidth = Math.max(1, mapBounds.maxX - mapBounds.minX);
+      const contentHeight = Math.max(1, mapBounds.maxY - mapBounds.minY);
+      const mobile = window.matchMedia("(max-width: 900px)").matches;
+      const horizontalPadding = mobile ? 24 : 96;
+      const verticalPadding = mobile ? 24 : 72;
+      const nextScale = Math.max(.16, Math.min(1, (viewport.clientWidth - horizontalPadding) / contentWidth, (viewport.clientHeight - verticalPadding) / contentHeight));
+      setFitScale(nextScale);
     };
-    centerMobileMap();
-    const observer = new ResizeObserver(centerMobileMap);
+    fitMap();
+    const observer = new ResizeObserver(fitMap);
     observer.observe(viewport);
     return () => observer.disconnect();
-  }, [mobileMapBounds]);
+  }, [mapBounds]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => transformRef.current?.centerView(fitScale, 0));
+    return () => cancelAnimationFrame(frame);
+  }, [fitScale, mapBounds]);
 
   const sliderValueForIndex = (index: number) => sortedPrices.length <= 1
     ? PRICE_SLIDER_RESOLUTION / 2
@@ -470,7 +465,6 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     const fee = feeTerms.serviceFeePayer !== "BUYER" || cartSubtotal === 0 ? 0 : index === cart.length - 1 ? cartPricing.serviceFeeMinor - result.allocatedFee : Math.round(cartPricing.serviceFeeMinor * item.subtotalMinor / cartSubtotal);
     return {items:[...result.items,{...item,feeMinor:fee,buyerTotalMinor:item.subtotalMinor+fee}],allocatedFee:result.allocatedFee+fee};
   },{items:[],allocatedFee:0}).items;
-  const scale = zoom / 100;
   const displayTitle = readableEventTitle(title);
 
   function clearSelection() {
@@ -539,102 +533,6 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     const query = new URLSearchParams({ eventId, locale, cart: JSON.stringify(cart.map(item => ({ categoryId: item.categoryId, quantity: item.quantity, tableId: item.kind === "WHOLE_TABLE" ? item.objectId : null, seatIds: item.seatIds }))) });
     if (referralCode) query.set("ref", referralCode);
     router.push(`/checkout?${query}`);
-  }
-
-  function startPan(event: React.PointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) return;
-    const target = event.target as HTMLElement;
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    if (event.pointerType === "touch") {
-      if (touchPointersRef.current.size === 0) touchDragRef.current = false;
-      touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      viewport.setPointerCapture(event.pointerId);
-      const points = [...touchPointersRef.current.values()];
-      if (points.length >= 2) {
-        touchDragRef.current = true;
-        const [first, second] = points;
-        const centerX = (first.x + second.x) / 2;
-        const centerY = (first.y + second.y) / 2;
-        const bounds = viewport.getBoundingClientRect();
-        const currentScale = zoom / 100;
-        pinchRef.current = {
-          distance: Math.hypot(second.x - first.x, second.y - first.y),
-          zoom,
-          worldX: (viewport.scrollLeft + centerX - bounds.left) / currentScale,
-          worldY: (viewport.scrollTop + centerY - bounds.top) / currentScale,
-        };
-        setPanning(true);
-        event.preventDefault();
-        return;
-      }
-    } else if (!spaceHeld && target.closest('button,input,select,a,[data-seatmap-selectable="true"]')) return;
-    panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
-    viewport.setPointerCapture(event.pointerId);
-    setPanning(true);
-    event.preventDefault();
-  }
-
-  function movePan(event: React.PointerEvent<HTMLDivElement>) {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    if (event.pointerType === "touch" && touchPointersRef.current.has(event.pointerId)) {
-      touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      const points = [...touchPointersRef.current.values()];
-      if (points.length >= 2) {
-        touchDragRef.current = true;
-        const [first, second] = points;
-        const distance = Math.hypot(second.x - first.x, second.y - first.y);
-        const ratio = pinchRef.current.distance > 0 ? distance / pinchRef.current.distance : 1;
-        const minimumZoom = window.matchMedia("(max-width: 900px)").matches ? 24 : 35;
-        const nextZoom = Math.max(minimumZoom, Math.min(125, pinchRef.current.zoom * ratio));
-        const centerX = (first.x + second.x) / 2;
-        const centerY = (first.y + second.y) / 2;
-        const bounds = viewport.getBoundingClientRect();
-        setZoom(nextZoom);
-        requestAnimationFrame(() => {
-          const nextScale = nextZoom / 100;
-          viewport.scrollLeft = Math.max(0, pinchRef.current.worldX * nextScale - (centerX - bounds.left));
-          viewport.scrollTop = Math.max(0, pinchRef.current.worldY * nextScale - (centerY - bounds.top));
-        });
-        event.preventDefault();
-        return;
-      }
-    }
-    if (!panning || panRef.current.pointerId !== event.pointerId) return;
-    if (event.pointerType === "touch" && Math.hypot(event.clientX - panRef.current.x, event.clientY - panRef.current.y) > 5) touchDragRef.current = true;
-    viewport.scrollLeft = panRef.current.left - (event.clientX - panRef.current.x);
-    viewport.scrollTop = panRef.current.top - (event.clientY - panRef.current.y);
-  }
-
-  function preventSelectionAfterDrag(event: React.MouseEvent<HTMLDivElement>) {
-    if (!touchDragRef.current) return;
-    event.preventDefault();
-    event.stopPropagation();
-    touchDragRef.current = false;
-  }
-
-  function endPan(event: React.PointerEvent<HTMLDivElement>) {
-    const viewport = viewportRef.current;
-    if (event.pointerType === "touch") {
-      touchPointersRef.current.delete(event.pointerId);
-      if (viewport?.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
-      const remaining = [...touchPointersRef.current.entries()];
-      if (remaining.length === 1 && viewport) {
-        const [pointerId, point] = remaining[0];
-        panRef.current = { pointerId, x: point.x, y: point.y, left: viewport.scrollLeft, top: viewport.scrollTop };
-        return;
-      }
-      if (remaining.length === 0) {
-        panRef.current.pointerId = -1;
-        setPanning(false);
-      }
-      return;
-    }
-    if (panRef.current.pointerId !== event.pointerId) return;
-    if (viewport?.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
-    panRef.current.pointerId = -1;
-    setPanning(false);
   }
 
   function categoryFor(object: MapObject, seat?: MapSeat) {
@@ -901,14 +799,33 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           </div>
         </div>
 
-        <div ref={viewportRef} className={`${styles.mapViewport} ${spaceHeld ? styles.panReady : ""} ${panning ? styles.panning : ""}`} onPointerDown={startPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan} onClickCapture={preventSelectionAfterDrag}>
-          <div className={styles.zoom}>
-            <button type="button" onClick={() => setZoom(value => Math.min(125, value + 10))}><Plus size={20}/></button>
-            <button type="button" title={local.zoomReset} onClick={() => setZoom(DEFAULT_ZOOM)}><RotateCcw size={18}/></button>
-            <button type="button" onClick={() => setZoom(value => Math.max(35, value - 10))}><Minus size={20}/></button>
-          </div>
-          <div className={styles.mapFrame} style={{ width: WORLD_WIDTH * scale, height: WORLD_HEIGHT * scale }}>
-            <div className={styles.world} style={{ width: WORLD_WIDTH, height: WORLD_HEIGHT, transform: `scale(${scale})` }}>
+        <div ref={viewportRef} className={`${styles.mapViewport} ${panning ? styles.panning : ""}`}>
+          <TransformWrapper
+            ref={transformRef}
+            initialScale={fitScale}
+            minScale={fitScale}
+            maxScale={Math.max(3.2, fitScale * 8)}
+            centerOnInit
+            centerZoomedOut
+            limitToBounds
+            disablePadding
+            smooth
+            wheel={{ step: .08 }}
+            panning={{ allowLeftClickPan: true, velocityDisabled: false, excluded: ["atlas-map-controls"] }}
+            pinch={{ step: 5, allowPanning: true }}
+            doubleClick={{ mode: "zoomIn", step: .7, animationTime: 220, animationType: "easeOut", excluded: ["atlas-map-controls"] }}
+            zoomAnimation={{ size: .5, animationTime: 240, animationType: "easeOut" }}
+            autoAlignment={{ animationTime: 220, velocityAlignmentTime: 220, animationType: "easeOut" }}
+            velocityAnimation={{ animationTime: 280, maxAnimationTime: 520, sensitivityTouch: 1.2, sensitivityMouse: 1, animationType: "easeOut" }}
+            onPanningStart={() => setPanning(true)}
+            onPanningStop={() => setPanning(false)}
+            onPinchStart={() => setPanning(true)}
+            onPinchStop={() => setPanning(false)}
+          >
+            <MapZoomControls fitScale={fitScale} zoomInLabel={local.zoomIn} zoomOutLabel={local.zoomOut} resetLabel={local.zoomReset}/>
+            <TransformComponent wrapperClass={styles.transformWrapper} contentClass={styles.transformContent}>
+          <div className={styles.mapFrame} style={{ width: Math.max(1, mapBounds.maxX - mapBounds.minX), height: Math.max(1, mapBounds.maxY - mapBounds.minY) }}>
+            <div className={styles.world} style={{ width: WORLD_WIDTH, height: WORLD_HEIGHT, left: -mapBounds.minX, top: -mapBounds.minY }}>
               {availableObjects.map(object => {
                 const seatObject = seatTypes.has(object.objectType);
                 const zone = object.objectType === "ZONE";
@@ -948,6 +865,8 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
               })}
             </div>
           </div>
+            </TransformComponent>
+          </TransformWrapper>
         </div>
       </section>
 

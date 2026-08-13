@@ -42,7 +42,7 @@
 .modalQuantityControl button{width:44px;height:44px;display:grid;place-items:center;padding:0;border:1px solid #d8dde5;border-radius:50%;background:#fff;color:#111827;cursor:pointer}
 .modalQuantityControl button:disabled{opacity:.35;cursor:default}
 .modalQuantityControl strong{font-size:16px;line-height:1;text-align:center}
-:global(body.atlas-seat-selection-active) :global(.mapViewport){padding:14px 24px 28px!important}
+:global(body.atlas-seat-selection-active) :global(.mapViewport){padding:0!important;overflow:hidden!important;background:#dfe3e7!important}
 :global(body.atlas-seat-selection-active) :global(.mapFrame){margin:0 auto!important}
 
 /* Selected ticket layout: remove icon on its own row, then title/price and details/fee aligned horizontally. */
@@ -114,7 +114,7 @@
   .quantityModal h2{font-size:18px}
   .quantityModal p{font-size:12.5px}
   .modalClose{top:14px;inset-inline-end:14px}
-  :global(body.atlas-seat-selection-active) :global(.mapViewport){padding:12px 0 90px!important;background:#fff!important}
+  :global(body.atlas-seat-selection-active) :global(.mapViewport){padding:0!important;overflow:hidden!important;background:#dfe3e7!important}
   :global(body.atlas-seat-selection-active) :global(.mapFrame){margin:0 auto!important}
   :global(.atlas-selected-ticket){padding:13px 2px 14px!important}
   :global(.atlas-selected-ticket:first-child){border-top:0!important}
