@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCanonicalOrigin } from "@/lib/public-origin";
-import { getDirectOnlyEventIds } from "@/lib/event-language-server";
+import { getNonIndexableEventIds } from "@/lib/event-language-server";
 
 type TourRow={id:string;slug:string;title:string;description:string;posterurl:string|null};
 type TourEventRow={eventid:string};
@@ -13,8 +13,8 @@ async function getTour(slug:string){
     const [tour]=await db.$queryRawUnsafe<TourRow[]>(`SELECT id,slug,title,description,posterurl FROM tour WHERE slug=$1 LIMIT 1`,slug);
     if(!tour)return undefined;
     const links=await db.$queryRawUnsafe<TourEventRow[]>(`SELECT eventid FROM tourevent WHERE tourid=$1`,tour.id);
-    const directOnlyIds=await getDirectOnlyEventIds();
-    const publicEventCount=links.length?await db.event.count({where:{id:{in:links.map(link=>link.eventid),...(directOnlyIds.length?{notIn:directOnlyIds}:{})},status:"PUBLISHED"}}):0;
+    const nonIndexableIds=await getNonIndexableEventIds();
+    const publicEventCount=links.length?await db.event.count({where:{id:{in:links.map(link=>link.eventid),...(nonIndexableIds.length?{notIn:nonIndexableIds}:{})},status:"PUBLISHED"}}):0;
     return {...tour,hasPublicEvents:publicEventCount>0};
   }catch{
     return undefined;
