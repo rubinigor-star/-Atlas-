@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
+import { getPublicOrigin } from "@/lib/public-origin";
 
 export default function robots(): MetadataRoute.Robots {
+  const base=getPublicOrigin();
   return {
     rules: [
       {
@@ -27,7 +29,7 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
-    sitemap: "https://www.atlas-one.co/sitemap.xml",
-    host: "https://www.atlas-one.co",
+    sitemap: `${base}/sitemap.xml`,
+    host: base,
   };
 }
