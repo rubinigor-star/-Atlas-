@@ -10,6 +10,13 @@ const nextConfig: NextConfig = {
       "./public/branding/atlas-one-logo.jpg",
     ],
   },
+  async headers() {
+    if (process.env.VERCEL_ENV !== "preview") return [];
+    return [{
+      source: "/:path*",
+      headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
+    }];
+  },
 };
 
 export default nextConfig;
