@@ -143,5 +143,14 @@
   :global(.atlas-selected-head){column-gap:9px!important;row-gap:3px!important}
 }
 
-/* The quantity hint belongs to the event header and must not be clipped by its grid cell. */
-.eventDetails{overflow:visible!important}
+.modalHeader{display:flex!important;align-items:center!important;justify-content:space-between!important;place-items:initial!important;min-height:32px!important;margin:0 0 8px!important;padding:0 38px 0 0!important;text-align:start!important}
+.modalHeader h2{font-size:20px!important;text-align:start!important}
+.closeButton{top:0!important;right:auto!important;inset-inline-end:0!important;width:28px!important;height:28px!important}
+.quantityDescription{margin:0 0 18px!important;color:#667085;font-size:13px;line-height:1.45;text-align:start}
+.quantityControl{grid-template-columns:42px minmax(120px,1fr) 42px!important;gap:14px!important;max-width:275px!important;margin:0 auto 20px!important;direction:ltr}
+.quantityControl>button{width:42px!important;height:42px!important}
+.quantityControl strong{font-size:16px!important}
+.quantityModal{min-height:0!important;padding:20px 24px 24px!important}
+.peopleButton{width:fit-content!important;min-width:64px!important;max-width:none!important;padding:0 9px!important;box-shadow:0 1px 2px rgba(15,23,42,.04)!important}
+.peopleButton:hover{border-color:#bdc7d3!important;background:#f8fafc!important}
+@media(max-width:900px){.modalHeader{padding-inline-end:34px!important}.modalHeader h2{font-size:18px!important}.quantityDescription{font-size:12.5px}.quantityModal{padding:18px 20px 20px!important}.peopleButton{min-width:60px!important}}
