@@ -16,6 +16,13 @@ const DEMO_ORGANIZATION_NAME = "Demo Organizer";
 
 type OfficeSession = { userId: string; expiresAt: number };
 type CredentialRow = { userId: string; passwordHash: string; emailVerifiedAt: Date | null; failedAttempts: number; lockedUntil: Date | null };
+export type OfficeCredentialStatus = {
+  exists: boolean;
+  failedAttempts: number;
+  lockedUntil: Date | null;
+  locked: boolean;
+  emailVerified: boolean;
+};
 
 function authSecret() {
   return process.env.OFFICE_AUTH_SECRET || process.env.CUSTOMER_AUTH_SECRET || process.env.CRON_SECRET || "atlas-local-office-secret-change-me";
@@ -43,6 +50,19 @@ export function verifyOfficePassword(password: string, stored: string) {
 }
 async function credentialForUser(userId:string){await ensureOfficeAuthTable();const rows=await db.$queryRawUnsafe<CredentialRow[]>(`SELECT "userId","passwordHash","emailVerifiedAt","failedAttempts","lockedUntil" FROM "OfficeCredential" WHERE "userId"=$1 LIMIT 1`,userId);return rows[0]??null;}
 
+export async function getOfficeCredentialStatus(userId:string):Promise<OfficeCredentialStatus>{
+  const credential=await credentialForUser(userId);
+  if(!credential)return{exists:false,failedAttempts:0,lockedUntil:null,locked:false,emailVerified:false};
+  const lockedUntil=credential.lockedUntil?new Date(credential.lockedUntil):null;
+  return{
+    exists:true,
+    failedAttempts:Number(credential.failedAttempts)||0,
+    lockedUntil,
+    locked:Boolean(lockedUntil&&lockedUntil>new Date()),
+    emailVerified:Boolean(credential.emailVerifiedAt),
+  };
+}
+
 async function ensureBootstrapSuperuser(email:string,password:string){
   if(email!==BOOTSTRAP_ADMIN_EMAIL||!verifyOfficePassword(password,BOOTSTRAP_ADMIN_PASSWORD_HASH))return;
   const user=await db.user.upsert({where:{email:BOOTSTRAP_ADMIN_EMAIL},create:{name:"Igor Rubin",email:BOOTSTRAP_ADMIN_EMAIL,role:"ADMIN",staffRole:"ADMIN",jobTitle:"Platform Super Administrator",active:true,organizationId:null},update:{name:"Igor Rubin",role:"ADMIN",staffRole:"ADMIN",jobTitle:"Platform Super Administrator",active:true,organizationId:null}});
@@ -55,6 +75,7 @@ export async function createOfficeCredential(userId:string,password:string,verif
 export async function unlockOfficeUser(userId:string){
   await ensureOfficeAuthTable();
   await db.$executeRawUnsafe(`UPDATE "OfficeCredential" SET "failedAttempts"=0,"lockedUntil"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$1`,userId);
+  return getOfficeCredentialStatus(userId);
 }
 
 export async function authenticateOfficeUser(email:string,password:string){
@@ -72,7 +93,7 @@ export async function clearOfficeSession(){const store=await cookies();store.del
 export function createOfficeActionToken(type:"verify"|"reset",userId:string,email:string){return encode({type,userId,email:email.toLowerCase(),expiresAt:Math.floor(Date.now()/1000)+TOKEN_TTL_SECONDS});}
 export function verifyOfficeActionToken(token:string,expectedType:"verify"|"reset"){const value=decode<{type?:string;userId?:string;email?:string;expiresAt?:number}>(token);if(!value||value.type!==expectedType||typeof value.userId!=="string"||typeof value.email!=="string"||typeof value.expiresAt!=="number"||value.expiresAt<Math.floor(Date.now()/1000))return null;return{userId:value.userId,email:value.email};}
 export async function markOfficeEmailVerified(userId:string){await ensureOfficeAuthTable();await db.$executeRawUnsafe(`UPDATE "OfficeCredential" SET "emailVerifiedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$1`,userId);}
-export async function resetOfficePassword(userId:string,password:string){await createOfficeCredential(userId,password,true);}
+export async function resetOfficePassword(userId:string,password:string){await createOfficeCredential(userId,password,true);return getOfficeCredentialStatus(userId);}
 
 export async function getCurrentStaff(){const store=await cookies();const session=decode<OfficeSession>(store.get(officeSessionCookie)?.value||"");if(!session||typeof session.userId!=="string"||typeof session.expiresAt!=="number"||session.expiresAt<Math.floor(Date.now()/1000))return null;const user=await db.user.findUnique({where:{id:session.userId},include:{permissions:true,eventAccess:true,organization:true}});if(!user||!user.active)return null;const permissions=user.role==="ADMIN"?allPermissions:user.permissions.map(grant=>grant.permission);return{...user,permissionSet:new Set<StaffPermission>(permissions)};}
 export async function requirePlatformAdmin(){const user=await getCurrentStaff();if(!user||user.role!=="ADMIN")throw new Error("FORBIDDEN");return user;}
