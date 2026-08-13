@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureFinanceRuntime, financeEvents, organizerFinanceSummary } from "@/lib/finance";
+import { getOrganizerCompliance, payoutReadiness } from "@/lib/organizer-compliance";
 
 const schema=z.object({
   eventId:z.string().min(1),
@@ -19,9 +20,14 @@ export async function POST(req:Request){
     const event=await db.event.findUnique({where:{id:input.eventId},select:{id:true,organizationId:true,title:true}});
     if(!event)throw new Error("Мероприятие не найдено");
 
+    const compliance=await getOrganizerCompliance(event.organizationId);
+    const readiness=payoutReadiness(compliance);
+    if(!readiness.ready){
+      const missing=readiness.checks.filter(item=>!item.ready).map(item=>item.label).join(", ");
+      throw new Error(`Выплата заблокирована: организатор не завершил обязательные данные для выплаты (${missing})`);
+    }
+
     const result=await db.$transaction(async tx=>{
-      // Serialize payouts for the entire organizer, not only one event. A debt
-      // created by refunds on event A must reduce a payout from event B.
       await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`finance-org:${event.organizationId}`);
       const events=await financeEvents(event.organizationId);
       const finance=events.find(item=>item.eventId===event.id);
