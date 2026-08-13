@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { ORGANIZER_AGREEMENT_TEXT, ORGANIZER_AGREEMENT_TITLE, ORGANIZER_AGREEMENT_VERSION } from "@/lib/organizer-agreement";
+export { ORGANIZER_AGREEMENT_TEXT, ORGANIZER_AGREEMENT_TITLE, ORGANIZER_AGREEMENT_VERSION } from "@/lib/organizer-agreement";
 
 export type OrganizerCompliance = {
   organizationId: string;
