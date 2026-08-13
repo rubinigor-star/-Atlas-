@@ -24,6 +24,9 @@ export function ensureNotificationLedger() {
     )`);
     await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "NotificationDelivery_org_created_idx" ON "NotificationDelivery"("organizationId","createdAt")`);
     await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "NotificationDelivery_order_idx" ON "NotificationDelivery"("orderId")`);
+    // Ticket delivery is included in the sale. Normalize historical test rows that
+    // were created before this billing rule so Finance never charges TICKET_AUTO.
+    await db.$executeRawUnsafe(`UPDATE "NotificationDelivery" SET "priceMinor"=0,"updatedAt"=CURRENT_TIMESTAMP WHERE "channel"='SMS' AND "type"='TICKET_AUTO' AND "priceMinor"<>0`);
   })().catch((error) => { ready = undefined; throw error; });
   return ready;
 }
