@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AtlasLogo } from "@/components/atlas-logo";
 import { getServerI18n } from "@/lib/server-locale";
 import { OfficeLanguageControl } from "./office-login-branding";
+import { OfficeLoginForm } from "./office-login-form";
 import styles from "./office-login.module.css";
 import brandingStyles from "./office-login-branding.module.css";
 
@@ -18,6 +19,8 @@ const copy = {
     forgot: "Забыли пароль?",
     create: "Создать аккаунт организатора",
     back: "Вернуться на сайт",
+    attemptsLeft: "Осталось попыток",
+    lockMessage: "Слишком много попыток входа. Новая попытка через",
     resendTitle: "Повторная отправка подтверждения",
     resendHelp: "Введите email, который использовали при регистрации.",
     resendButton: "Отправить письмо ещё раз",
@@ -34,7 +37,7 @@ const copy = {
       INVALID_CREDENTIALS: "Неверный email или пароль.",
       PASSWORD_NOT_SET: "Для этого аккаунта ещё не создан пароль. Используйте восстановление доступа.",
       EMAIL_NOT_VERIFIED: "Сначала подтвердите email по ссылке из письма.",
-      LOCKED: "Слишком много попыток входа. Попробуйте снова через 15 минут.",
+      LOCKED: "Слишком много попыток входа.",
       TOKEN_EXPIRED: "Ссылка недействительна или срок её действия истёк.",
     },
   },
@@ -48,6 +51,8 @@ const copy = {
     forgot: "שכחתם סיסמה?",
     create: "יצירת חשבון מארגן",
     back: "חזרה לאתר",
+    attemptsLeft: "מספר הניסיונות שנותרו",
+    lockMessage: "יותר מדי ניסיונות כניסה. ניתן לנסות שוב בעוד",
     resendTitle: "שליחה חוזרת של אישור",
     resendHelp: "הזינו את כתובת הדוא״ל שבה השתמשתם בהרשמה.",
     resendButton: "שליחת המייל מחדש",
@@ -64,7 +69,7 @@ const copy = {
       INVALID_CREDENTIALS: "כתובת הדוא״ל או הסיסמה שגויות.",
       PASSWORD_NOT_SET: "עדיין לא הוגדרה סיסמה לחשבון זה. השתמשו בשחזור הגישה.",
       EMAIL_NOT_VERIFIED: "יש לאשר תחילה את כתובת הדוא״ל באמצעות הקישור שנשלח.",
-      LOCKED: "בוצעו יותר מדי ניסיונות כניסה. נסו שוב בעוד 15 דקות.",
+      LOCKED: "בוצעו יותר מדי ניסיונות כניסה.",
       TOKEN_EXPIRED: "הקישור אינו תקין או שפג תוקפו.",
     },
   },
@@ -78,6 +83,8 @@ const copy = {
     forgot: "Forgot password?",
     create: "Create organizer account",
     back: "Return to website",
+    attemptsLeft: "Attempts remaining",
+    lockMessage: "Too many login attempts. Try again in",
     resendTitle: "Resend verification",
     resendHelp: "Enter the email address used during registration.",
     resendButton: "Resend email",
@@ -94,7 +101,7 @@ const copy = {
       INVALID_CREDENTIALS: "Incorrect email or password.",
       PASSWORD_NOT_SET: "A password has not been created for this account. Use account recovery.",
       EMAIL_NOT_VERIFIED: "Verify your email using the link sent to you before logging in.",
-      LOCKED: "Too many login attempts. Try again in 15 minutes.",
+      LOCKED: "Too many login attempts.",
       TOKEN_EXPIRED: "The link is invalid or has expired.",
     },
   },
@@ -105,6 +112,8 @@ export default async function OfficeLoginPage({ searchParams }: { searchParams: 
   const text = copy[locale];
   const errorCode = typeof params.error === "string" ? params.error : "";
   const error = errorCode && errorCode in text.errors ? text.errors[errorCode as keyof typeof text.errors] : "";
+  const lockSeconds = errorCode === "LOCKED" ? Math.max(0, Math.min(60, Number.parseInt(typeof params.retryAfter === "string" ? params.retryAfter : "60", 10) || 60)) : 0;
+  const attempts = Math.max(0, Math.min(2, Number.parseInt(typeof params.attempts === "string" ? params.attempts : "", 10)));
   const verification = typeof params.verification === "string" ? params.verification : "";
   const showResend = verification === "failed" || params.error === "EMAIL_NOT_VERIFIED";
 
@@ -130,7 +139,7 @@ export default async function OfficeLoginPage({ searchParams }: { searchParams: 
         {verification==="invalid"&&<div className={styles.notice} style={{background:"#fff1f0",color:"#b42318"}}>{text.notices.invalid}</div>}
         {params.verified&&<div className={styles.notice} style={{background:"#ecfdf3",color:"#166534"}}>{text.notices.verified}</div>}
         {params.reset&&<div className={styles.notice} style={{background:"#ecfdf3",color:"#166534"}}>{text.notices.reset}</div>}
-        {error&&<div className={styles.notice} style={{background:"#fff1f0",color:"#b42318"}}>{error}</div>}
+        {error&&errorCode!=="LOCKED"&&<div className={styles.notice} style={{background:"#fff1f0",color:"#b42318"}}>{error}{errorCode==="INVALID_CREDENTIALS"&&attempts>0?` ${text.attemptsLeft}: ${attempts}.`:""}</div>}
 
         {showResend&&<form method="post" action="/api/office/auth/resend-verification" className={styles.resend}>
           <div><strong>{text.resendTitle}</strong><p>{text.resendHelp}</p></div>
@@ -138,11 +147,7 @@ export default async function OfficeLoginPage({ searchParams }: { searchParams: 
           <button className={styles.secondaryButton}>{text.resendButton}</button>
         </form>}
 
-        <form method="post" action="/api/office/auth/login" className={styles.form}>
-          <div className={styles.field}><label>{text.email}</label><input className={styles.input} type="email" name="email" autoComplete="email" required /></div>
-          <div className={styles.field}><label>{text.password}</label><input className={styles.input} type="password" name="password" autoComplete="current-password" required /></div>
-          <button className={styles.primaryButton}>{text.login}</button>
-        </form>
+        <OfficeLoginForm emailLabel={text.email} passwordLabel={text.password} loginLabel={text.login} lockSeconds={lockSeconds} lockMessage={text.lockMessage}/>
 
         <div className={styles.links}><Link href="/office/forgot-password">{text.forgot}</Link><Link href="/office/register">{text.create}</Link></div>
         <Link href="/" className={styles.backLink}>{text.back}</Link>
