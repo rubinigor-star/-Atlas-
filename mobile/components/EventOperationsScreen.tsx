@@ -281,14 +281,15 @@ export default function EventOperationsScreen() {
     const age = ageFromBirthDate(order.customerBirthDate);
     const ticketLabel = order.categories.map((item) => item.name).filter(Boolean).join(", ") || "Билет";
 
-    // Gesture direction follows the organizer UX: swipe left to approve, swipe right to reject.
+    // SwipeOrderRow prop names describe the revealed side, not the physical finger direction on iOS.
+    // Bind actions to the observed device behavior: finger left = approve, finger right = reject.
     const rightSwipe = pending
-      ? (order.canReject ? { label: "Отклонить", icon: "close-circle" as const, backgroundColor: "#B42318", onPress: () => confirmReview("reject", order) } : null)
+      ? (order.canApprove ? { label: "Подтвердить", icon: "checkmark-circle" as const, backgroundColor: "#168044", onPress: () => confirmReview("approve", order) } : null)
       : approved
         ? { label: "WhatsApp", icon: "logo-whatsapp" as const, backgroundColor: "#168044", onPress: () => order.customerPhone && void Linking.openURL(whatsappUrl(order.customerPhone)) }
         : null;
     const leftSwipe = pending
-      ? (order.canApprove ? { label: "Подтвердить", icon: "checkmark-circle" as const, backgroundColor: "#168044", onPress: () => confirmReview("approve", order) } : null)
+      ? (order.canReject ? { label: "Отклонить", icon: "close-circle" as const, backgroundColor: "#B42318", onPress: () => confirmReview("reject", order) } : null)
       : approved
         ? { label: "Билет", icon: "mail-unread" as const, backgroundColor: "#17213C", onPress: () => confirmResend(order) }
         : null;
