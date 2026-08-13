@@ -13,10 +13,13 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
+    if (process.env.VERCEL_ENV === "preview") {
+      return [{ source: "/:path*", headers: noIndexHeader }];
+    }
+
     const privateRoots = [
       "account",
       "admin",
-      "api",
       "cancel-order",
       "cancellation-email-preview",
       "checkout",
