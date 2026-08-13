@@ -56,25 +56,19 @@ export default async function Checkout({searchParams}:{searchParams:Promise<Reco
   const labels:string[]=[];let subtotal=0;let quantity=0;
   for(const item of items){
     const category=categoryMap.get(item.categoryId);if(!category)notFound();quantity+=item.quantity;
-    const itemCategoryQuantities=new Map<string,{quantity:number;minPerOrder:number;maxPerOrder:number}>();
-    const addItemCategoryQuantity=(selectedCategory:{id:string;minPerOrder:number;maxPerOrder:number},amount:number)=>{const current=itemCategoryQuantities.get(selectedCategory.id);itemCategoryQuantities.set(selectedCategory.id,{quantity:(current?.quantity??0)+amount,minPerOrder:selectedCategory.minPerOrder,maxPerOrder:selectedCategory.maxPerOrder});};
     if(item.tableId){
       const table=tableMap.get(item.tableId);if(!table?.category)notFound();
       subtotal+=validLink?.customPriceMinor??effectiveTicketPrice(table.category,now);
-      addItemCategoryQuantity(table.category,table.seats);
       labels.push(`${table.objectType==="SOFA"?"Диван":"Стол"} ${table.label}, ${table.seats} мест целиком`);
     }else if(item.seatIds.length){
       const itemSeats=item.seatIds.map(id=>seatMap.get(id)).filter(Boolean);if(itemSeats.length!==item.seatIds.length)notFound();
       subtotal+=itemSeats.reduce((sum,seat)=>sum+(validLink?.customPriceMinor??effectiveTicketPrice(seat!.category!,now)),0);
-      for(const seat of itemSeats)addItemCategoryQuantity(seat!.category!,1);
       const table=itemSeats[0]!.table;
       labels.push(`${table.objectType==="SOFA"?"Диван":"Стол"} ${table.label}, места ${itemSeats.map(seat=>seat!.position).join(", ")}`);
     }else{
       subtotal+=(validLink?.customPriceMinor??effectiveTicketPrice(category,now))*item.quantity;
-      addItemCategoryQuantity(category,item.quantity);
       labels.push(`${category.name} × ${item.quantity}`);
     }
-    if([...itemCategoryQuantities.values()].some(selected=>selected.quantity<selected.minPerOrder||selected.quantity>selected.maxPerOrder))notFound();
   }
   if(quantity>Math.max(1,eventOrderLimit._max.maxPerOrder??1))notFound();
   if(validLink&&quantity>validLink.maxPerOrder)notFound();

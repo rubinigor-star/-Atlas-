@@ -251,6 +251,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const [qty, setQty] = useState(Math.max(1, Math.min(8, initialQty)));
   const [quantityModalOpen, setQuantityModalOpen] = useState(false);
   const [draftQty, setDraftQty] = useState(Math.max(1, Math.min(8, initialQty)));
+  const [dismissedRecoveryQty, setDismissedRecoveryQty] = useState<number | null>(null);
 
   const local = {
     ru: {
@@ -361,7 +362,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     const category = availableCategories.find(item => item.id === categoryId);
     if (!category) return false;
     const next = (cartCategoryQuantities.get(categoryId) ?? 0) + increment;
-    return increment <= category.maxPerOrder && next <= category.capacity - category.sold;
+    return next <= category.capacity - category.sold;
   }
 
   function additionsCanFit(additions: Map<string, number>) {
@@ -380,7 +381,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
       const category = availableCategories.find(item => item.id === categoryId);
       if (!category) return false;
       if (!categoryCanAccept(categoryId, increment)) {
-        setCartError(local.categoryLimit.replace("{name}", category.name).replace("{count}", String(Math.min(category.maxPerOrder, category.capacity - category.sold))));
+        setCartError(local.categoryLimit.replace("{name}", category.name).replace("{count}", String(Math.max(0, category.capacity - category.sold))));
         return false;
       }
     }
@@ -425,7 +426,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const canApplyDraftRange = draftHasSeats || draftHasZone || draftHasWholeObject;
   const wholeObject = objects.find(item => item.id === wholeObjectId);
   const zoneObject = objects.find(item => item.id === zoneObjectId);
-  const noMatchingPlaces = !hasMatchingPlaces && !wholeObject && !zoneObject;
+  const noMatchingPlaces = cartQuantity < purchaseLimit && !hasMatchingPlaces && !wholeObject && !zoneObject;
   const cartSubtotal = cart.reduce((sum, item) => sum + item.subtotalMinor, 0);
   const cartPricing = calculateServiceFee(cartSubtotal, feeTerms);
   const cartDisplay = cart.reduce<{items:Array<CartItem & {feeMinor:number;buyerTotalMinor:number}>;allocatedFee:number}>((result, item, index) => {
@@ -850,8 +851,9 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
       </div>
     </div>}
 
-    {noMatchingPlaces && !quantityModalOpen && <div className={polish.modalBackdrop} role="presentation">
+    {noMatchingPlaces && !quantityModalOpen && dismissedRecoveryQty !== qty && <div className={polish.modalBackdrop} role="presentation">
       <div className={styles.rangeRecoveryModal} role="dialog" aria-modal="true" aria-label={local.expandRange}>
+        <button type="button" className={styles.rangeRecoveryClose} aria-label={local.closeQuantity} onClick={() => setDismissedRecoveryQty(qty)}><X size={18}/></button>
         <h2>{local.expandRange}</h2>
         <p>{local.expandRangeHint}</p>
         <div className={styles.recoveryPriceLabels}>
@@ -863,7 +865,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           <input aria-label="minimum ticket price" type="range" min="0" max={Math.max(0, sortedPrices.length - 1)} step="1" value={draftMinRangeIndex} onChange={event => setDraftMinRangeIndex(Math.min(Number(event.target.value), draftMaxRangeIndex))}/>
           <input aria-label="maximum ticket price" type="range" min="0" max={Math.max(0, sortedPrices.length - 1)} step="1" value={draftMaxRangeIndex} onChange={event => setDraftMaxRangeIndex(Math.max(Number(event.target.value), draftMinRangeIndex))}/>
         </div>
-        <button type="button" disabled={!canApplyDraftRange} onClick={applyDraftPriceRange}>{local.applyRange}</button>
+        <button type="button" className={styles.rangeRecoveryApply} disabled={!canApplyDraftRange} onClick={applyDraftPriceRange}>{local.applyRange}</button>
       </div>
     </div>}
   </main>;
