@@ -19,6 +19,23 @@
   flex: 0 0 76px;
 }
 
+.atlas-cancellation-policy-bar {
+  min-height: 34px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-bottom: 1px solid rgba(148, 163, 184, .22);
+  background: rgba(255, 255, 255, .96);
+  font-size: 13px;
+  font-weight: 700;
+  transition: background-color 220ms ease, border-color 220ms ease, color 180ms ease;
+}
+
+.atlas-cancellation-policy-bar a {
+  color: inherit;
+  text-decoration: none;
+}
+
 /* Keep immersive public-page backgrounds underneath the fixed header. */
 body.atlas-header-home .live-emotions-hero,
 body:has(.home-page) .live-emotions-hero {
@@ -53,6 +70,29 @@ body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .at
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+/* The cancellation-policy strip must not put a white block underneath the
+   transparent header. On immersive pages it floats below the header instead
+   of taking layout space before the hero. */
+body:is(.atlas-header-home, .atlas-header-event) .atlas-cancellation-policy-bar {
+  position: fixed;
+  top: 76px;
+  right: 0;
+  left: 0;
+  z-index: 999;
+}
+
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-cancellation-policy-bar {
+  border-bottom-color: transparent;
+  background: transparent;
+  color: rgba(255, 255, 255, .82);
+}
+
+body:is(.atlas-header-home, .atlas-header-event).atlas-header-scrolled .atlas-cancellation-policy-bar {
+  border-bottom-color: rgba(15, 23, 42, .08);
+  background: rgba(255, 255, 255, .97);
+  color: #303746;
 }
 
 body:has(.home-page):not(.atlas-header-scrolled) .atlas-header-nav,
@@ -126,6 +166,10 @@ body:is(.atlas-header-home, .atlas-header-event).atlas-header-scrolled .atlas-si
   body.atlas-header-event .event-stage {
     padding-top: 80px;
   }
+
+  body:is(.atlas-header-home, .atlas-header-event) .atlas-cancellation-policy-bar {
+    top: 62px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -142,6 +186,10 @@ body:is(.atlas-header-home, .atlas-header-event).atlas-header-scrolled .atlas-si
   body.atlas-header-event .event-stage {
     padding-top: 76px;
   }
+
+  body:is(.atlas-header-home, .atlas-header-event) .atlas-cancellation-policy-bar {
+    top: 58px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -149,7 +197,8 @@ body:is(.atlas-header-home, .atlas-header-event).atlas-header-scrolled .atlas-si
   .atlas-site-header .atlas-header-nav,
   .atlas-site-header .atlas-language-button,
   .atlas-site-header .atlas-header-icon-button,
-  .atlas-site-header .atlas-header-divider {
+  .atlas-site-header .atlas-header-divider,
+  .atlas-cancellation-policy-bar {
     transition: none !important;
   }
 }
