@@ -52,6 +52,11 @@ async function ensureBootstrapSuperuser(email:string,password:string){
 
 export async function createOfficeCredential(userId:string,password:string,verified=false){await ensureOfficeAuthTable();const passwordHash=hashOfficePassword(password);const verifiedAt=verified?new Date():null;await db.$executeRawUnsafe(`INSERT INTO "OfficeCredential" ("userId","passwordHash","emailVerifiedAt","failedAttempts","createdAt","updatedAt") VALUES ($1,$2,$3,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT ("userId") DO UPDATE SET "passwordHash"=EXCLUDED."passwordHash","emailVerifiedAt"=COALESCE("OfficeCredential"."emailVerifiedAt",EXCLUDED."emailVerifiedAt"),"failedAttempts"=0,"lockedUntil"=NULL,"updatedAt"=CURRENT_TIMESTAMP`,userId,passwordHash,verifiedAt);}
 
+export async function unlockOfficeUser(userId:string){
+  await ensureOfficeAuthTable();
+  await db.$executeRawUnsafe(`UPDATE "OfficeCredential" SET "failedAttempts"=0,"lockedUntil"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$1`,userId);
+}
+
 export async function authenticateOfficeUser(email:string,password:string){
   const normalizedEmail=email.trim().toLowerCase();await ensureBootstrapSuperuser(normalizedEmail,password);
   const user=await db.user.findUnique({where:{email:normalizedEmail}});if(!user||!user.active||!["ORGANIZER","CHECKIN","ADMIN"].includes(user.role))return{ok:false as const,error:"INVALID_CREDENTIALS"};
