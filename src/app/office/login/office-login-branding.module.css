@@ -125,9 +125,17 @@
   width: min(100%, 438px) !important;
 }
 
+.loginTopbar + div[data-auth-view="register"] {
+  width: min(100%, 760px) !important;
+}
+
 .loginTopbar + div > section {
   padding: 27px 36px 27px !important;
   font-family: var(--atlas-body-font) !important;
+}
+
+.loginTopbar + div[data-auth-view="register"] > section {
+  padding: 23px 34px 24px !important;
 }
 
 .loginTopbar + div > section header {
@@ -222,6 +230,10 @@
   }
 
   .loginTopbar + div {
+    width: min(100%, 438px) !important;
+  }
+
+  .loginTopbar + div[data-auth-view="register"] {
     width: min(100%, 438px) !important;
   }
 

@@ -266,6 +266,23 @@
   line-height: 1.25;
 }
 
+.links button {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #202939;
+  font: inherit;
+  line-height: 1.25;
+  text-decoration: underline;
+  text-decoration-color: rgba(32, 41, 57, .28);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.links button:first-child { text-align: left; }
+.links button:last-child { text-align: right; }
+
 .links a:first-child { text-align: left; }
 .links a:last-child { text-align: right; }
 
@@ -289,6 +306,86 @@
   font-weight: 750;
   text-decoration: none;
   transition: background .18s ease, border-color .18s ease;
+  cursor: pointer;
+}
+
+.singleLineTitle {
+  max-width: none;
+  font-size: 32px !important;
+  white-space: nowrap;
+  text-wrap: nowrap;
+}
+
+.registerFrame {
+  width: min(100%, 760px);
+}
+
+.registerCard {
+  max-height: calc(100svh - 112px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.registerBrand {
+  margin-bottom: 16px;
+}
+
+.registerTitle {
+  max-width: none;
+  font-size: 32px !important;
+  white-space: nowrap;
+  text-wrap: nowrap;
+}
+
+.registerForm {
+  gap: 12px;
+}
+
+.registerGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.registerForm .input {
+  min-height: 48px;
+}
+
+.registerForm small {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.consent {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 12px 13px;
+  border: 1px solid #dfe3ea;
+  border-radius: 13px;
+  cursor: pointer;
+}
+
+.consent input {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: #ff7900;
+}
+
+.consent span {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.consent a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .backLink:hover,
@@ -388,5 +485,21 @@
   }
 
   .links a:first-child,
-  .links a:last-child { text-align: center; }
+  .links a:last-child,
+  .links button:first-child,
+  .links button:last-child { text-align: center; }
+
+  .singleLineTitle { font-size: clamp(24px, 7.3vw, 29px) !important; }
+
+  .registerFrame { width: min(100%, 470px); }
+
+  .registerCard { max-height: calc(100svh - 92px); }
+
+  .registerTitle {
+    font-size: clamp(23px, 7vw, 28px) !important;
+    white-space: normal;
+    text-wrap: balance;
+  }
+
+  .registerGrid { grid-template-columns: 1fr; }
 }

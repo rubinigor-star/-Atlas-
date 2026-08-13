@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const input = schema.parse(Object.fromEntries(form));
     const existing = await db.user.findUnique({ where: { email: input.email } });
-    if (existing) return NextResponse.redirect(new URL("/office/register?error=EMAIL_EXISTS", request.url), 303);
+    if (existing) return NextResponse.redirect(new URL("/office/login?view=register&error=EMAIL_EXISTS", request.url), 303);
 
     const created = await db.$transaction(async tx => {
       const organization = await tx.organization.create({ data: { name: input.organizationName } });
@@ -48,6 +48,6 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error("[office-register]", error);
-    return NextResponse.redirect(new URL("/office/register?error=INVALID", request.url), 303);
+    return NextResponse.redirect(new URL("/office/login?view=register&error=INVALID", request.url), 303);
   }
 }

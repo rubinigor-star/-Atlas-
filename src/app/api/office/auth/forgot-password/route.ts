@@ -10,5 +10,5 @@ export async function POST(request: Request) {
     try { await sendOrganizerPasswordReset(user.id, user.email); }
     catch (error) { console.error("[office-forgot-password]", error); }
   }
-  return NextResponse.redirect(new URL("/office/forgot-password?sent=1", request.url), 303);
+  return NextResponse.redirect(new URL("/office/login?view=forgot&sent=1", request.url), 303);
 }
