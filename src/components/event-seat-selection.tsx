@@ -569,7 +569,8 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
               const category = availableCategories.find(item => (categoryPrice.get(item.id) ?? 0) === price);
               const active = index >= minIndex && index <= maxIndex;
               const stopPosition = sortedPrices.length <= 1 ? 50 : index / (sortedPrices.length - 1) * 100;
-              return <button type="button" key={`${price}-${index}`} className={active ? styles.priceActive : ""} style={{ left: `${stopPosition}%` }} onClick={event => { event.stopPropagation(); selectPriceStop(index); }}><b style={{ color: category?.colorHex ?? "#64748b" }}>{money(price, "ILS", locale)}</b></button>;
+              const thumbAlignedPosition = `calc(${stopPosition}% + ${13 - stopPosition * 0.26}px)`;
+              return <button type="button" key={`${price}-${index}`} className={active ? styles.priceActive : ""} style={{ left: thumbAlignedPosition }} onClick={event => { event.stopPropagation(); selectPriceStop(index); }}><b style={{ color: category?.colorHex ?? "#64748b" }}>{money(price, "ILS", locale)}</b></button>;
             })}
           </div>
           <div className={styles.rangeWrap}>

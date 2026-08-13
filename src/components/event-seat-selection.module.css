@@ -18,3 +18,13 @@
 
 /* The complete white price rail is a generous click target. */
 .priceRail{cursor:pointer}.rangeTrack,.priceStops{cursor:pointer}.range::-webkit-slider-thumb{cursor:grab}.range::-moz-range-thumb{cursor:grab}.range:active::-webkit-slider-thumb{cursor:grabbing}.range:active::-moz-range-thumb{cursor:grabbing}
+
+/* Keep labels on the native range thumb travel line and visually pair each
+   amount with its handle. The horizontal coordinate is calculated in TSX
+   against the usable track width (full width minus the 26px thumb). */
+.priceRail{padding-block:8px 7px}
+.priceStops{min-height:27px}
+.priceStops button,.priceStops button:first-child,.priceStops button:last-child{top:3px;transform:translateX(-50%);text-align:center;font-size:14px;line-height:18px;font-weight:850;transition:opacity .16s ease,color .16s ease}
+.priceStops button:hover{transform:translateX(-50%)}
+.rangeWrap{margin-top:0}
+@media(max-width:900px){.priceRail{padding-block:6px 5px}.priceStops{min-height:25px}.priceStops button{font-size:12px;line-height:16px}.range::-webkit-slider-thumb{width:26px;height:26px}}
