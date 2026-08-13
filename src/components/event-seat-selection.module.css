@@ -11,3 +11,7 @@
 /* Price labels use the exact same 0..100% stops as the range inputs. */
 .priceStops{position:relative;display:block;margin-inline:13px;padding:0}.priceStops button{position:absolute;top:0;transform:translateX(-50%);text-align:center}.priceStops button:first-child{transform:none;text-align:left}.priceStops button:last-child{transform:translateX(-100%);text-align:right}
 @media(max-width:900px){.priceStops{margin-inline:12px;padding:0}}
+
+/* Handles move continuously, inherit the nearest ticket color, then snap to
+   the exact proportional price stop when dragging ends. */
+.range::-webkit-slider-thumb,.rangeMax::-webkit-slider-thumb{background:var(--range-thumb-color,#168bf2)}.range::-moz-range-thumb,.rangeMax::-moz-range-thumb{background:var(--range-thumb-color,#168bf2)}
