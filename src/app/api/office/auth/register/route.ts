@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { createOfficeCredential } from "@/lib/auth";
 import { rolePermissions } from "@/lib/permissions";
 import { sendOrganizerVerification } from "@/lib/office-auth-email";
+import { recordOrganizerAgreementAcceptance } from "@/lib/organizer-compliance";
 
 const schema = z.object({
   firstName: z.string().trim().min(2).max(80),
@@ -16,6 +17,10 @@ const schema = z.object({
   country: z.string().trim().min(2).max(80),
   acceptedTerms: z.literal("on"),
 });
+
+function clientIp(request: Request) {
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || null;
+}
 
 export async function POST(request: Request) {
   try {
@@ -35,12 +40,25 @@ export async function POST(request: Request) {
         organizationId: organization.id,
         permissions: { create: rolePermissions.OWNER.map(permission => ({ permission })) },
       } });
-      return user;
+      return { user, organization };
     });
 
-    await createOfficeCredential(created.id, input.password, false);
+    await Promise.all([
+      createOfficeCredential(created.user.id, input.password, false),
+      recordOrganizerAgreementAcceptance({
+        organizationId: created.organization.id,
+        businessType: input.businessType,
+        country: input.country,
+        phone: input.phone,
+        signerName: created.user.name,
+        signerEmail: created.user.email,
+        ip: clientIp(request),
+        userAgent: request.headers.get("user-agent"),
+      }),
+    ]);
+
     try {
-      await sendOrganizerVerification(created.id, created.email);
+      await sendOrganizerVerification(created.user.id, created.user.email);
       return NextResponse.redirect(new URL("/office/login?registered=1&verification=sent", request.url), 303);
     } catch (error) {
       console.error("[office-register] verification email failed", error);
