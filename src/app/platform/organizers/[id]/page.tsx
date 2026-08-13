@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PlatformShell } from "@/components/platform-shell";
 import { OrganizerTermsForm } from "@/components/organizer-terms-form";
+import { OrganizerDocumentsForm } from "@/components/organizer-documents-form";
 import { PlatformOrganizerProfileForm } from "@/components/platform-organizer-profile-form";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { getOrganizerTerms } from "@/lib/commercial-terms";
@@ -13,6 +14,7 @@ import { eventDate, money } from "@/lib/format";
 export const dynamic="force-dynamic";
 
 function acceptedDate(date:Date|null){return date?new Intl.DateTimeFormat("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"Asia/Jerusalem"}).format(date):"-";}
+function documentDate(date:Date|null){return date?new Intl.DateTimeFormat("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric",timeZone:"Asia/Jerusalem"}).format(date):null;}
 
 export default async function OrganizerCommercialCard({params}:{params:Promise<{id:string}>}){
   await requirePlatformAdmin();
@@ -32,7 +34,8 @@ export default async function OrganizerCommercialCard({params}:{params:Promise<{
       <div className="stat"><span className="muted">Статус договора</span><strong style={{fontSize:20,color:compliance.agreementStatus==="ACCEPTED"?"#15803d":"#b42318"}}>{compliance.agreementStatus==="ACCEPTED"?"Подписан":"Не подписан"}</strong><small>{compliance.agreementStatus==="ACCEPTED"?contractReference(id,compliance.acceptedAt):"Требуется принятие договора"}</small></div>
     </div>
 
-    <PlatformOrganizerProfileForm organizationId={id} initial={{organizationName:organization.name,ownerName:owner?.name??"",ownerEmail:owner?.email??"",businessType:compliance.businessType??"",country:compliance.country??"",phone:compliance.phone??"",bankAccountLabel:compliance.bankAccountLabel??"",taxDocumentLabel:compliance.taxDocumentLabel??""}}/>
+    <PlatformOrganizerProfileForm organizationId={id} initial={{organizationName:organization.name,ownerName:owner?.name??"",ownerEmail:owner?.email??"",businessType:compliance.businessType??"",country:compliance.country??"",phone:compliance.phone??""}}/>
+    <OrganizerDocumentsForm organizationId={id} bank={{provided:Boolean(compliance.bankDocumentPath),name:compliance.bankDocumentName,updatedAt:documentDate(compliance.bankAccountUpdatedAt)}} tax={{provided:Boolean(compliance.taxDocumentPath),name:compliance.taxDocumentName,updatedAt:documentDate(compliance.taxDocumentUpdatedAt)}}/>
 
     <section className="platform-section-card">
       <div className="row between" style={{alignItems:"flex-start",gap:18,flexWrap:"wrap"}}><div><span className="eyebrow">Договор и compliance</span><h2>Готовность организатора</h2><p className="muted">Организатор может зарегистрироваться и продавать без банковских и налоговых документов. Выплата становится операционно готовой только после завершения checklist.</p></div><span className="pill" style={{background:readiness.ready?"#e8f8ef":"#fff3d6",color:readiness.ready?"#15803d":"#966400"}}>{readiness.ready?"Готов к выплатам":"Документы не завершены"}</span></div>
