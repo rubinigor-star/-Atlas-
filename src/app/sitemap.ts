@@ -23,7 +23,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       WHERE EXISTS (
         SELECT 1
         FROM tourevent te
-        JOIN Event e ON e.id = te.eventid
+        JOIN "Event" e ON e.id = te.eventid
         LEFT JOIN "EventLanguageSettings" els ON els."eventId" = e.id
         WHERE te.tourid = t.id
           AND e.status = 'PUBLISHED'
