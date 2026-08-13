@@ -385,9 +385,9 @@ export default function EventOperationsScreen() {
 
       {group === "pending" && data.orders.length > 0 && (
         <View style={styles.swipeHint}>
-          <Text style={styles.swipeHintApprove}>← Подтвердить</Text>
+          <Text style={styles.swipeHintReject}>← Отклонить</Text>
           <Text style={styles.swipeHintDot}>·</Text>
-          <Text style={styles.swipeHintReject}>Отклонить →</Text>
+          <Text style={styles.swipeHintApprove}>Подтвердить →</Text>
         </View>
       )}
 
