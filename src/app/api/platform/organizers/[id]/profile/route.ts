@@ -11,8 +11,6 @@ const schema=z.object({
   businessType:z.string().trim().max(120).optional().default(""),
   country:z.string().trim().max(120).optional().default(""),
   phone:z.string().trim().max(40).optional().default(""),
-  bankAccountLabel:z.string().trim().max(300).optional().default(""),
-  taxDocumentLabel:z.string().trim().max(500).optional().default(""),
 });
 
 export async function PUT(request:Request,{params}:{params:Promise<{id:string}>}){
@@ -30,9 +28,6 @@ export async function PUT(request:Request,{params}:{params:Promise<{id:string}>}
     await tx.organization.update({where:{id},data:{name:parsed.data.organizationName}});
     await tx.user.update({where:{id:owner.id},data:{name:parsed.data.ownerName,email:parsed.data.ownerEmail}});
   });
-  const compliance=await updateOrganizerCompliance({
-    organizationId:id,businessType:parsed.data.businessType||null,country:parsed.data.country||null,phone:parsed.data.phone||null,
-    bankAccountLabel:parsed.data.bankAccountLabel||null,taxDocumentLabel:parsed.data.taxDocumentLabel||null,
-  });
+  const compliance=await updateOrganizerCompliance({organizationId:id,businessType:parsed.data.businessType||null,country:parsed.data.country||null,phone:parsed.data.phone||null});
   return NextResponse.json({ok:true,compliance});
 }
