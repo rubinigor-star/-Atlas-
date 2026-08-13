@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Info, Minus, Plus, RotateCcw, Users, X } from "lucide-react";
+import { ArrowLeft, Info, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { money } from "@/lib/format";
 import { calculateServiceFee, type ServiceFeeTerms } from "@/lib/service-fee";
 import type { PricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
@@ -330,14 +330,20 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
 
   useEffect(() => {
     const viewport = viewportRef.current;
-    if (!viewport || mobileMapReadyRef.current || !window.matchMedia("(max-width: 900px)").matches) return;
-    mobileMapReadyRef.current = true;
-    const fittedZoom = Math.max(35, Math.min(52, ((viewport.clientWidth - 16) / WORLD_WIDTH) * 100));
-    setZoom(fittedZoom);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2);
-      viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2);
-    }));
+    if (!viewport || !window.matchMedia("(max-width: 900px)").matches) return;
+    const centerMobileMap = () => {
+      const fittedZoom = Math.max(28, Math.min(36, ((viewport.clientWidth + 72) / WORLD_WIDTH) * 100));
+      setZoom(fittedZoom);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2);
+        viewport.scrollTop = 0;
+        mobileMapReadyRef.current = true;
+      }));
+    };
+    centerMobileMap();
+    const observer = new ResizeObserver(centerMobileMap);
+    observer.observe(viewport);
+    return () => observer.disconnect();
   }, []);
 
   const sliderValueForIndex = (index: number) => sortedPrices.length <= 1
@@ -562,7 +568,8 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
         const [first, second] = points;
         const distance = Math.hypot(second.x - first.x, second.y - first.y);
         const ratio = pinchRef.current.distance > 0 ? distance / pinchRef.current.distance : 1;
-        const nextZoom = Math.max(35, Math.min(125, pinchRef.current.zoom * ratio));
+        const minimumZoom = window.matchMedia("(max-width: 900px)").matches ? 24 : 35;
+        const nextZoom = Math.max(minimumZoom, Math.min(125, pinchRef.current.zoom * ratio));
         const centerX = (first.x + second.x) / 2;
         const centerY = (first.y + second.y) / 2;
         const bounds = viewport.getBoundingClientRect();
@@ -663,6 +670,11 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     selectPriceStop(Math.round(ratio * Math.max(0, sortedPrices.length - 1)));
   }
   const backHref = `/events/${slug}${referralCode ? `?ref=${encodeURIComponent(referralCode)}` : ""}`;
+  const mobileEventTitle = locale === "ru"
+    ? `Билеты на ${displayTitle.replace(/^Группа\s+/i, "")}`
+    : locale === "he"
+      ? `כרטיסים ל${displayTitle.replace(/^להקת\s+/i, "")}`
+      : `Tickets for ${displayTitle.replace(/^Group\s+/i, "")}`;
 
   return <main className={styles.page}>
     <style jsx>{`
@@ -826,13 +838,18 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     <div className={styles.layout}>
       <section className={styles.mapSide}>
         <div className={styles.mobileEventBar}>
-          <Link className={styles.mobileBack} href={backHref} aria-label={local.back}><ArrowLeft size={18}/></Link>
           <img src={posterUrl} alt=""/>
-          <div className={styles.mobileEventDetails}>
-            <h1>{displayTitle}</h1>
-            <button type="button" className={styles.mobileQuantityButton} onClick={() => { setDraftQty(qty); setQuantityModalOpen(true); }} aria-haspopup="dialog">
-              <Users size={15}/><span>{qty}</span>
-            </button>
+          <Link className={styles.mobileEventTitle} href={backHref}>{mobileEventTitle}</Link>
+          <div className={styles.mobileQuantityRow}>
+            <span className={styles.mobileQuantityLabel}>
+              <strong>{local.quantity}</strong>
+              <button type="button" aria-label={local.quantityInfo} aria-haspopup="dialog" onClick={() => { setDraftQty(qty); setQuantityModalOpen(true); }}><Info size={13}/></button>
+            </span>
+            <span className={styles.mobileQuantityControl}>
+              <button type="button" aria-label={local.decrease} disabled={qty <= 1} onClick={() => setQty(value => Math.max(1, value - 1))}><Minus size={16}/></button>
+              <strong aria-live="polite">{qty}</strong>
+              <button type="button" aria-label={local.increase} disabled={qty >= 8} onClick={() => setQty(value => Math.min(8, value + 1))}><Plus size={16}/></button>
+            </span>
           </div>
         </div>
         <div className={styles.priceRail} onClick={selectNearestPrice}>
