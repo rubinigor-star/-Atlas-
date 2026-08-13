@@ -16,8 +16,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
       - name: Run SEO regression tests
         run: npx vitest run src/lib/event-seo.test.ts src/lib/public-origin.test.ts
