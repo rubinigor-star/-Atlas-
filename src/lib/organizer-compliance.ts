@@ -1,10 +1,6 @@
 import { createHash, randomUUID } from "crypto";
 import { db } from "@/lib/db";
-
-export const ORGANIZER_AGREEMENT_VERSION = "2026-08-13-v1";
-export const ORGANIZER_AGREEMENT_TITLE = "Atlas One - Organizer Agreement";
-
-export const ORGANIZER_AGREEMENT_TEXT = `Atlas One Organizer Agreement\n\nBy creating an organizer account, the organizer confirms that the information provided is accurate, agrees to the Atlas One organizer terms and privacy policy, and authorizes Atlas One to operate ticket sales, cancellations and settlement services according to the commercial terms assigned to the organization.\n\nPayouts are subject to event completion, receipt of settlement funds by Atlas One, and completion of payout compliance requirements, including valid banking details and required tax documentation. Registration itself is not blocked while payout documents are pending.`;
+import { ORGANIZER_AGREEMENT_TEXT, ORGANIZER_AGREEMENT_TITLE, ORGANIZER_AGREEMENT_VERSION } from "@/lib/organizer-agreement";
 
 export type OrganizerCompliance = {
   organizationId: string;
@@ -23,9 +19,17 @@ export type OrganizerCompliance = {
   acceptedUserAgent: string | null;
   bankAccountStatus: "MISSING" | "PROVIDED";
   bankAccountLabel: string | null;
+  bankDocumentPath: string | null;
+  bankDocumentName: string | null;
+  bankDocumentMime: string | null;
+  bankDocumentSize: number | null;
   bankAccountUpdatedAt: Date | null;
   taxDocumentStatus: "MISSING" | "PROVIDED";
   taxDocumentLabel: string | null;
+  taxDocumentPath: string | null;
+  taxDocumentName: string | null;
+  taxDocumentMime: string | null;
+  taxDocumentSize: number | null;
   taxDocumentUpdatedAt: Date | null;
   updatedAt: Date;
 };
@@ -52,13 +56,29 @@ export function ensureOrganizerComplianceRuntime() {
       "acceptedUserAgent" TEXT,
       "bankAccountStatus" TEXT NOT NULL DEFAULT 'MISSING',
       "bankAccountLabel" TEXT,
+      "bankDocumentPath" TEXT,
+      "bankDocumentName" TEXT,
+      "bankDocumentMime" TEXT,
+      "bankDocumentSize" INTEGER,
       "bankAccountUpdatedAt" TIMESTAMP,
       "taxDocumentStatus" TEXT NOT NULL DEFAULT 'MISSING',
       "taxDocumentLabel" TEXT,
+      "taxDocumentPath" TEXT,
+      "taxDocumentName" TEXT,
+      "taxDocumentMime" TEXT,
+      "taxDocumentSize" INTEGER,
       "taxDocumentUpdatedAt" TIMESTAMP,
       "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`);
+    await db.$executeRawUnsafe(`ALTER TABLE "OrganizerCompliance" ADD COLUMN IF NOT EXISTS "bankDocumentPath" TEXT`);
+    await db.$executeRawUnsafe(`ALTER TABLE "OrganizerCompliance" ADD COLUMN IF NOT EXISTS "bankDocumentName" TEXT`);
+    await db.$executeRawUnsafe(`ALTER TABLE "OrganizerCompliance" ADD COLUMN IF NOT EXISTS "bankDocumentMime" TEXT`);
+    await db.$executeRawUnsafe(`ALTER TABLE "OrganizerCompliance" ADD COLUMN IF NOT EXISTS "bankDocumentSize" INTEGER`);
+    await db.$executeRawUnsafe(`ALTER TABLE "OrganizerCompliance" ADD COLUMN IF NOT EXISTS "taxDocumentPath" TEXT`);
+    await db.$executeRawUnsafe(`ALTER TABLE "OrganizerCompliance" ADD COLUMN IF NOT EXISTS "taxDocumentName" TEXT`);
+    await db.$executeRawUnsafe(`ALTER TABLE "OrganizerCompliance" ADD COLUMN IF NOT EXISTS "taxDocumentMime" TEXT`);
+    await db.$executeRawUnsafe(`ALTER TABLE "OrganizerCompliance" ADD COLUMN IF NOT EXISTS "taxDocumentSize" INTEGER`);
   })().catch(error => { ready = null; throw error; });
   return ready;
 }
@@ -75,6 +95,8 @@ export async function getOrganizerCompliance(organizationId: string): Promise<Or
   if (!row) throw new Error("COMPLIANCE_NOT_FOUND");
   return {
     ...row,
+    bankDocumentSize: row.bankDocumentSize == null ? null : Number(row.bankDocumentSize),
+    taxDocumentSize: row.taxDocumentSize == null ? null : Number(row.taxDocumentSize),
     acceptedAt: row.acceptedAt ? new Date(row.acceptedAt) : null,
     bankAccountUpdatedAt: row.bankAccountUpdatedAt ? new Date(row.bankAccountUpdatedAt) : null,
     taxDocumentUpdatedAt: row.taxDocumentUpdatedAt ? new Date(row.taxDocumentUpdatedAt) : null,
@@ -118,29 +140,46 @@ export async function updateOrganizerCompliance(input: {
   businessType?: string | null;
   country?: string | null;
   phone?: string | null;
-  bankAccountLabel?: string | null;
-  taxDocumentLabel?: string | null;
 }) {
   await ensureOrganizerComplianceRuntime();
   await getOrganizerCompliance(input.organizationId);
   await db.$executeRawUnsafe(`UPDATE "OrganizerCompliance" SET
     "businessType"=COALESCE($2,"businessType"),"country"=COALESCE($3,"country"),"phone"=COALESCE($4,"phone"),
-    "bankAccountLabel"=$5,"bankAccountStatus"=CASE WHEN NULLIF(TRIM(COALESCE($5,'')),'') IS NULL THEN 'MISSING' ELSE 'PROVIDED' END,
-    "bankAccountUpdatedAt"=CASE WHEN NULLIF(TRIM(COALESCE($5,'')),'') IS NULL THEN NULL ELSE CURRENT_TIMESTAMP END,
-    "taxDocumentLabel"=$6,"taxDocumentStatus"=CASE WHEN NULLIF(TRIM(COALESCE($6,'')),'') IS NULL THEN 'MISSING' ELSE 'PROVIDED' END,
-    "taxDocumentUpdatedAt"=CASE WHEN NULLIF(TRIM(COALESCE($6,'')),'') IS NULL THEN NULL ELSE CURRENT_TIMESTAMP END,
     "updatedAt"=CURRENT_TIMESTAMP WHERE "organizationId"=$1`,
     input.organizationId, input.businessType ?? null, input.country ?? null, input.phone ?? null,
-    input.bankAccountLabel ?? null, input.taxDocumentLabel ?? null,
   );
+  return getOrganizerCompliance(input.organizationId);
+}
+
+export async function recordOrganizerComplianceDocument(input: {
+  organizationId: string;
+  kind: "bank" | "tax";
+  pathname: string;
+  originalName: string;
+  mime: string;
+  size: number;
+}) {
+  await ensureOrganizerComplianceRuntime();
+  await getOrganizerCompliance(input.organizationId);
+  if (input.kind === "bank") {
+    await db.$executeRawUnsafe(`UPDATE "OrganizerCompliance" SET
+      "bankAccountStatus"='PROVIDED',"bankAccountLabel"=$2,"bankDocumentPath"=$3,"bankDocumentName"=$2,
+      "bankDocumentMime"=$4,"bankDocumentSize"=$5,"bankAccountUpdatedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
+      WHERE "organizationId"=$1`, input.organizationId, input.originalName, input.pathname, input.mime, input.size);
+  } else {
+    await db.$executeRawUnsafe(`UPDATE "OrganizerCompliance" SET
+      "taxDocumentStatus"='PROVIDED',"taxDocumentLabel"=$2,"taxDocumentPath"=$3,"taxDocumentName"=$2,
+      "taxDocumentMime"=$4,"taxDocumentSize"=$5,"taxDocumentUpdatedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
+      WHERE "organizationId"=$1`, input.organizationId, input.originalName, input.pathname, input.mime, input.size);
+  }
   return getOrganizerCompliance(input.organizationId);
 }
 
 export function payoutReadiness(compliance: OrganizerCompliance) {
   const checks = [
     { key: "agreement", label: "Договор Atlas", ready: compliance.agreementStatus === "ACCEPTED" },
-    { key: "bank", label: "Банковские реквизиты", ready: compliance.bankAccountStatus === "PROVIDED" },
-    { key: "tax", label: "ניכוי מס במקור / налоговый документ", ready: compliance.taxDocumentStatus === "PROVIDED" },
+    { key: "bank", label: "Банковские реквизиты", ready: compliance.bankAccountStatus === "PROVIDED" && Boolean(compliance.bankDocumentPath) },
+    { key: "tax", label: "ניכוי מס במקור / налоговый документ", ready: compliance.taxDocumentStatus === "PROVIDED" && Boolean(compliance.taxDocumentPath) },
   ];
   return { ready: checks.every(item => item.ready), checks };
 }
