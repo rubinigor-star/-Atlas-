@@ -163,12 +163,14 @@
 }
 
 :global(html[dir="rtl"]) form[action="/api/office/auth/login"] label,
-:global(html[dir="rtl"]) form[action="/api/office/auth/resend-verification"] label {
+:global(html[dir="rtl"]) form[action="/api/office/auth/resend-verification"] label,
+:global(html[dir="rtl"]) form[action="/api/office/auth/forgot-password"] label {
   text-align: right;
 }
 
 :global(html[dir="rtl"]) form[action="/api/office/auth/login"] input,
-:global(html[dir="rtl"]) form[action="/api/office/auth/resend-verification"] input {
+:global(html[dir="rtl"]) form[action="/api/office/auth/resend-verification"] input,
+:global(html[dir="rtl"]) form[action="/api/office/auth/forgot-password"] input {
   direction: ltr;
   text-align: left;
 }
