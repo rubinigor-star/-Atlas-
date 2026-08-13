@@ -8,7 +8,7 @@ import { requirePlatformAdmin } from "@/lib/auth";
 import { getOrganizerTerms } from "@/lib/commercial-terms";
 import { db } from "@/lib/db";
 import { organizerFinanceSummary } from "@/lib/finance";
-import { contractReference, getOrganizerCompliance, payoutReadiness } from "@/lib/organizer-compliance";
+import { contractReference, getOrganizerAgreementHistory, getOrganizerCompliance, isCurrentOrganizerAgreement, payoutReadiness } from "@/lib/organizer-compliance";
 import { eventDate, money } from "@/lib/format";
 
 export const dynamic="force-dynamic";
@@ -21,8 +21,9 @@ export default async function OrganizerCommercialCard({params}:{params:Promise<{
   const{id}=await params;
   const organization=await db.organization.findUnique({where:{id},include:{users:true,events:{include:{venue:true,categories:true},orderBy:{startsAt:"desc"}}}});
   if(!organization)notFound();
-  const [terms,compliance,finance]=await Promise.all([getOrganizerTerms(id),getOrganizerCompliance(id),organizerFinanceSummary(id)]);
+  const [terms,compliance,finance,agreementHistory]=await Promise.all([getOrganizerTerms(id),getOrganizerCompliance(id),organizerFinanceSummary(id),getOrganizerAgreementHistory(id)]);
   const readiness=payoutReadiness(compliance);
+  const agreementCurrent=isCurrentOrganizerAgreement(compliance);
   const owner=organization.users.find(user=>user.staffRole==="OWNER")??organization.users[0];
   const financeByEvent=new Map(finance.events.map(event=>[event.eventId,event]));
   return <PlatformShell>
@@ -31,16 +32,18 @@ export default async function OrganizerCommercialCard({params}:{params:Promise<{
       <div className="stat"><span className="muted">Владелец</span><strong style={{fontSize:20}}>{owner?.name??"Не назначен"}</strong><small>{owner?.email??""}</small></div>
       <div className="stat"><span className="muted">Мероприятий</span><strong>{organization.events.length}</strong></div>
       <div className="stat"><span className="muted">Баланс организатора</span><strong>{money(finance.balanceMinor-finance.paidOutMinor)}</strong><small>после возвратов, сервисов и выплат</small></div>
-      <div className="stat"><span className="muted">Статус договора</span><strong style={{fontSize:20,color:compliance.agreementStatus==="ACCEPTED"?"#15803d":"#b42318"}}>{compliance.agreementStatus==="ACCEPTED"?"Подписан":"Не подписан"}</strong><small>{compliance.agreementStatus==="ACCEPTED"?contractReference(id,compliance.acceptedAt):"Требуется принятие договора"}</small></div>
+      <div className="stat"><span className="muted">Статус договора</span><strong style={{fontSize:20,color:agreementCurrent?"#15803d":"#b42318"}}>{agreementCurrent?"Актуален":compliance.agreementStatus==="ACCEPTED"?"Нужно обновить":"Не подписан"}</strong><small>{compliance.agreementStatus==="ACCEPTED"?contractReference(id,compliance.acceptedAt):"Требуется принятие организатором"}</small></div>
     </div>
 
     <PlatformOrganizerProfileForm organizationId={id} initial={{organizationName:organization.name,ownerName:owner?.name??"",ownerEmail:owner?.email??"",businessType:compliance.businessType??"",country:compliance.country??"",phone:compliance.phone??""}}/>
     <OrganizerDocumentsForm organizationId={id} bank={{provided:Boolean(compliance.bankDocumentPath),name:compliance.bankDocumentName,updatedAt:documentDate(compliance.bankAccountUpdatedAt)}} tax={{provided:Boolean(compliance.taxDocumentPath),name:compliance.taxDocumentName,updatedAt:documentDate(compliance.taxDocumentUpdatedAt)}}/>
 
     <section className="platform-section-card">
-      <div className="row between" style={{alignItems:"flex-start",gap:18,flexWrap:"wrap"}}><div><span className="eyebrow">Договор и compliance</span><h2>Готовность организатора</h2><p className="muted">Организатор может зарегистрироваться и продавать без банковских и налоговых документов. Выплата становится операционно готовой только после завершения checklist.</p></div><span className="pill" style={{background:readiness.ready?"#e8f8ef":"#fff3d6",color:readiness.ready?"#15803d":"#966400"}}>{readiness.ready?"Готов к выплатам":"Документы не завершены"}</span></div>
+      <div className="row between" style={{alignItems:"flex-start",gap:18,flexWrap:"wrap"}}><div><span className="eyebrow">Договор и compliance</span><h2>Готовность организатора</h2><p className="muted">Регистрация и настройка кабинета не блокируются. Финальная выплата доступна только при актуальном договоре и загруженных payout-документах.</p></div><span className="pill" style={{background:readiness.ready?"#e8f8ef":"#fff3d6",color:readiness.ready?"#15803d":"#966400"}}>{readiness.ready?"Готов к выплатам":"Compliance не завершён"}</span></div>
       <div className="platform-readiness-grid">{readiness.checks.map(check=><div key={check.key} className={`platform-readiness-item ${check.ready?"ready":"missing"}`}><b>{check.ready?"✓":"!"}</b><div><strong>{check.label}</strong><small>{check.ready?"Готово":"Требуется до первой выплаты"}</small></div></div>)}</div>
       {compliance.agreementStatus==="ACCEPTED"&&<div className="platform-contract-card"><div><strong>{compliance.agreementTitle}</strong><small>{contractReference(id,compliance.acceptedAt)} · версия {compliance.agreementVersion}</small></div><div><span>Принял: {compliance.acceptedByName} · {compliance.acceptedByEmail}</span><small>{acceptedDate(compliance.acceptedAt)} · SHA-256 {compliance.agreementHash?.slice(0,16)}...</small></div><details><summary>Показать сохранённый текст договора</summary><pre>{compliance.agreementText}</pre></details></div>}
+      {agreementHistory.length>0&&<details className="platform-contract-card"><summary style={{cursor:"pointer",fontWeight:800}}>История договоров ({agreementHistory.length})</summary>{agreementHistory.map(item=><div key={item.id} style={{padding:"10px 0",borderTop:"1px solid #e5e7eb"}}><strong>{item.version}</strong><br/><small>{acceptedDate(item.acceptedAt)} · {item.acceptedByName} · {item.acceptedByEmail}</small><details><summary>Показать текст версии</summary><pre>{item.text}</pre></details></div>)}</details>}
+      {!agreementCurrent&&<div className="toast" style={{marginTop:14}}>Организатор должен открыть «Компания и договор» в своём кабинете и принять актуальную редакцию. Superuser не подписывает договор вместо организатора.</div>}
     </section>
 
     <OrganizerTermsForm organizationId={id} initial={{salesFeePercentBps:terms.salesFeePercentBps,salesFeeFixedMinor:terms.salesFeeFixedMinor,serviceFeePayer:terms.serviceFeePayer,refundsEnabled:terms.refundsEnabled,refundFeePercentBps:terms.refundFeePercentBps,refundFeeFixedMinor:terms.refundFeeFixedMinor,refundDeadlineHours:terms.refundDeadlineHours,transferRefundWindowDays:terms.transferRefundWindowDays}}/>
