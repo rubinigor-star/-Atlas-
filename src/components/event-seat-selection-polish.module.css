@@ -142,3 +142,6 @@
   .confirmButton,.quantityModal>button:last-child{height:42px!important;min-height:42px!important;flex-basis:42px!important;font-size:15px!important}
   :global(.atlas-selected-head){column-gap:9px!important;row-gap:3px!important}
 }
+
+/* The quantity hint belongs to the event header and must not be clipped by its grid cell. */
+.eventDetails{overflow:visible!important}

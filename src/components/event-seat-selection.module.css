@@ -64,3 +64,19 @@
 .cartError{border:1px solid #fecaca;border-radius:10px;background:#fff1f2;color:#b42318;padding:10px 12px;font-size:12px;font-weight:700;line-height:1.35}
 .seat.selected:before{width:15px!important;height:15px!important;box-shadow:0 0 0 2px #fff,0 0 0 5px #2878ff!important}
 .selectionHalo{position:absolute;z-index:3;transform:translate(-50%,-50%);border:3px solid #7435d6;border-radius:999px;background:rgba(116,53,214,.1);box-shadow:0 0 0 1px rgba(255,255,255,.8) inset;pointer-events:none}
+.quantityPanel{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:36px;width:100%;direction:inherit}
+.quantityLabel{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap}
+.quantityLabel>strong{font-size:13px;line-height:1.2;font-weight:750;color:#111827}
+.quantityInfo{position:relative;display:grid;place-items:center;flex:0 0 auto;width:18px;height:18px;border-radius:50%;color:#8390a0;cursor:help;outline:none}
+.quantityInfo:hover,.quantityInfo:focus-visible{color:#465466;background:#f1f4f7}
+.quantityInfo:focus-visible{box-shadow:0 0 0 2px #cdd7e2}
+.quantityTooltip{position:absolute;z-index:80;inset-inline-start:0;top:calc(100% + 8px);width:230px;padding:9px 11px;border:1px solid #d9dee5;border-radius:9px;background:#fff;color:#526174;font-size:11.5px;font-weight:600;line-height:1.4;white-space:normal;box-shadow:0 10px 28px rgba(15,23,42,.16);opacity:0;visibility:hidden;transform:translateY(-3px);transition:opacity .14s ease,transform .14s ease,visibility .14s ease;pointer-events:none}
+.quantityInfo:hover .quantityTooltip,.quantityInfo:focus-visible .quantityTooltip{opacity:1;visibility:visible;transform:translateY(0)}
+.quantityControls{display:grid;grid-template-columns:32px 22px 32px;align-items:center;gap:5px;flex:0 0 auto;direction:ltr}
+.quantityControls button{width:32px;height:32px;padding:0;border:1px solid #d6dde6;border-radius:50%;background:#fff;color:#111827;display:grid;place-items:center;cursor:pointer;transition:background .14s ease,border-color .14s ease}
+.quantityControls button:hover:not(:disabled){background:#f5f7f9;border-color:#c5ced8}
+.quantityControls button:disabled{color:#b2bbc6;background:#fafbfc;cursor:default}
+.quantityControls>strong{font-size:14px;font-weight:800;text-align:center;color:#111827}
+.sidebarDivider{height:1px;flex:0 0 1px;margin:0 -18px;background:#dfe4e9}
+@media(max-width:1100px){.quantityLabel>strong{font-size:12px}.quantityControls{grid-template-columns:30px 20px 30px;gap:4px}.quantityControls button{width:30px;height:30px}.sidebarDivider{margin-inline:-16px}}
+@media(max-width:900px){.quantityPanel{min-height:32px}.quantityLabel>strong{font-size:11.5px}.quantityControls{grid-template-columns:28px 18px 28px;gap:3px}.quantityControls button{width:28px;height:28px}.sidebarDivider{margin-inline:-12px}.quantityTooltip{inset-inline-start:auto;inset-inline-end:0;width:min(220px,calc(100vw - 56px))}}
