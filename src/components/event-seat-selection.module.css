@@ -149,3 +149,129 @@
   .mapFrame{min-height:0;margin:0;overflow:hidden;border-radius:8px;background:#fff;transition:none}
   .world{background:transparent;box-shadow:none;transition:none}
 }
+
+/* TodayTix-style price scale. Labels are fixed marks on one equal-index grid;
+   only the two handles move. The outer gutter keeps endpoint labels centered
+   without clipping in LTR or RTL layouts. */
+.priceRail{
+  height:63px;
+  box-sizing:border-box;
+  padding:0;
+  background:#fff;
+  border-bottom:1px solid #d2d2d9;
+  box-shadow:0 3px 7px rgba(15,23,42,.08);
+}
+.priceGrid{
+  position:relative;
+  height:63px;
+  margin-inline:40px;
+}
+.priceStops{
+  position:absolute;
+  inset-inline:0;
+  top:10px;
+  height:12px;
+  min-height:0;
+  margin:0;
+}
+.priceStops button,
+.priceStops button:first-child,
+.priceStops button:last-child,
+:global(html[dir="rtl"]) .priceStops button:first-child,
+:global(html[dir="rtl"]) .priceStops button:last-child{
+  display:block;
+  top:0;
+  min-width:0;
+  padding:0;
+  transform:translateX(-50%);
+  border:0;
+  background:transparent;
+  font-size:12px;
+  line-height:12px;
+  font-weight:800;
+  text-align:center;
+  white-space:nowrap;
+  transition:opacity .16s ease;
+}
+.priceStops button:hover{
+  transform:translateX(-50%);
+}
+.priceStops button b{
+  display:block;
+  direction:ltr;
+  unicode-bidi:isolate;
+  text-align:center;
+}
+.rangeWrap{
+  position:absolute;
+  inset-inline:0;
+  top:28px;
+  height:28px;
+  margin:0;
+  padding:0;
+}
+.rangeTrack{
+  position:absolute;
+  inset:0;
+}
+.rangeBase,
+.rangeActive{
+  top:13px;
+  height:2px;
+  border-radius:0;
+}
+.rangeBase{
+  left:0;
+  right:0;
+  background:#d2d2d9;
+}
+.rangeActive{
+  background:#1e1d40;
+  transition:none;
+}
+.range{
+  left:-13px;
+  top:0;
+  width:calc(100% + 26px);
+  height:28px;
+}
+.visualHandle{
+  top:13px;
+  width:26px;
+  height:26px;
+  transform:translate(-50%,-50%);
+  box-shadow:none;
+  transition:background-color .12s ease;
+}
+
+@media(max-width:900px){
+  .priceRail{height:63px;padding:0;border-bottom:1px solid #d2d2d9;box-shadow:0 3px 7px rgba(15,23,42,.08)}
+  .priceGrid{height:63px;margin-inline:24px}
+  .priceStops{top:10px;height:12px;min-height:0;margin:0}
+  .priceStops button,
+  .priceStops button:first-child,
+  .priceStops button:last-child,
+  :global(html[dir="rtl"]) .priceStops button:first-child,
+  :global(html[dir="rtl"]) .priceStops button:last-child{
+    top:0;
+    font-size:12px;
+    line-height:12px;
+    transform:translateX(-50%);
+    text-align:center;
+  }
+  .priceDense .priceStops button{font-size:10.5px}
+  .priceVeryDense .priceStops button{font-size:9px;letter-spacing:-.02em}
+  .rangeWrap{top:28px;height:28px}
+  .rangeTrack{inset:0;top:0}
+  .rangeBase,.rangeActive{top:13px;height:2px}
+  .rangeBase{background:#d2d2d9}
+  .visualHandle{top:13px;width:26px;height:26px;box-shadow:none}
+  .range{height:28px}
+  .mapSide{grid-template-rows:96px 63px minmax(0,1fr)}
+}
+
+@media(max-width:360px){
+  .priceGrid{margin-inline:20px}
+  .priceDense .priceStops button{font-size:9.5px}
+  .priceVeryDense .priceStops button{font-size:8px;letter-spacing:-.035em}
+}

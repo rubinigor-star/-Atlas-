@@ -793,7 +793,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           </div>
         </div>
         <div className={styles.priceRail} onClick={selectNearestPrice}>
-          <div className={styles.priceGrid}>
+          <div className={`${styles.priceGrid} ${sortedPrices.length >= 8 ? styles.priceVeryDense : sortedPrices.length >= 6 ? styles.priceDense : ""}`}>
           <div className={styles.priceStops}>
             {sortedPrices.map((price, index) => {
               const category = availableCategories.find(item => (categoryPrice.get(item.id) ?? 0) === price);
