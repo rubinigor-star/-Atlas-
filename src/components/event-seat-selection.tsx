@@ -113,6 +113,32 @@ function tableSeatPosition(item: MapObject, index: number): React.CSSProperties 
   return horizontal ? { left: offset, top: first ? "14%" : "86%" } : { left: first ? "15%" : "85%", top: offset };
 }
 
+function seatPoint(object: MapObject, seat: MapSeat) {
+  const index = Math.max(0, object.seatItems.findIndex(item => item.id === seat.id));
+  if (object.objectType === "ROUND_TABLE") {
+    const angle = index / Math.max(1, object.seats) * Math.PI * 2 - Math.PI / 2;
+    return { x: 50 + Math.cos(angle) * 39, y: 50 + Math.sin(angle) * 39 };
+  }
+  if (object.objectType === "ROW") return { x: ((index + .5) / Math.max(1, object.seatItems.length)) * 100, y: 50 };
+  const position = tableSeatPosition(object, index) as { left?: string | number; top?: string | number };
+  return { x: Number.parseFloat(String(position.left ?? 50)), y: Number.parseFloat(String(position.top ?? 50)) };
+}
+
+function selectionHaloStyle(object: MapObject, seatIds: string[]): React.CSSProperties | undefined {
+  const points = object.seatItems.filter(seat => seatIds.includes(seat.id)).map(seat => seatPoint(object, seat));
+  if (!points.length) return undefined;
+  const minX = Math.min(...points.map(point => point.x));
+  const maxX = Math.max(...points.map(point => point.x));
+  const minY = Math.min(...points.map(point => point.y));
+  const maxY = Math.max(...points.map(point => point.y));
+  return {
+    left: `${(minX + maxX) / 2}%`,
+    top: `${(minY + maxY) / 2}%`,
+    width: `max(48px, calc(${maxX - minX}% + 34px))`,
+    height: `max(48px, calc(${maxY - minY}% + 34px))`,
+  };
+}
+
 function seatSequences(object: MapObject): MapSeat[][] {
   const seats = [...object.seatItems].sort((a, b) => a.position - b.position);
   if (object.objectType === "TABLE") {
@@ -441,14 +467,14 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     if (!eligibleSeatIds.has(seat.id) || seat.status !== "AVAILABLE") return;
     setWholeObjectId(null);
     setZoneObjectId(null);
-    if (selectedSeatIds.includes(seat.id)) { setSelectedSeatIds(selectedSeatIds.filter(id => id !== seat.id)); return; }
-    const sameObject = selectedSeatIds.every(id => object.seatItems.some(item => item.id === id));
-    const base = sameObject ? selectedSeatIds : [];
-    const candidate = [...base, seat.id];
-    if (candidate.length > qty) return;
-    const possible = (groupsByObject.get(object.id) ?? []).some(group => candidate.every(id => group.includes(id)));
-    if (!possible) { setSelectedSeatIds(base.length ? base : [seat.id]); return; }
-    if (candidate.length < qty) { setSelectedSeatIds(candidate); return; }
+    const candidates = (groupsByObject.get(object.id) ?? []).filter(group => group.includes(seat.id));
+    if (!candidates.length) return;
+    const clickedPosition = seat.position;
+    const score = (group: string[]) => {
+      const positions = object.seatItems.filter(item => group.includes(item.id)).map(item => item.position).sort((a, b) => a - b);
+      return Math.abs(clickedPosition - (positions[0] + positions[positions.length - 1]) / 2);
+    };
+    const candidate = [...candidates].sort((left, right) => score(left) - score(right))[0];
     const seats = object.seatItems.filter(item => candidate.includes(item.id));
     const categoryId = seats.find(item => item.categoryId)?.categoryId ?? object.categoryId;
     if (!categoryId) return;
@@ -737,6 +763,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
                         if (object.priceMode !== "WHOLE_TABLE" || object.reserved || !wholeVisible) return;
                         chooseWholeObject(object);
                       }}>
+                        {cart.filter(item => item.kind === "SEATS" && item.objectId === object.id).map(item => <span key={item.id} className={styles.selectionHalo} style={selectionHaloStyle(object, item.seatIds)}/>)}
                         <div className={`${styles.core} ${selectedWhole ? styles.coreSelected : ""}`}><strong>{object.label}</strong></div>
                         {object.objectType === "ROW"
                           ? <div className={styles.rowSeats}>{object.seatItems.map(seat => {

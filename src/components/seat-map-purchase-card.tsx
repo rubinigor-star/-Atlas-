@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Info } from "lucide-react";
 import { useLocale } from "@/components/locale-provider";
 import { LiveViewerPressure } from "@/components/live-viewer-pressure";
 import type { PricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
@@ -112,9 +113,9 @@ export function SeatMapPurchaseCard({ slug, title, categories, objects, referral
   const { locale } = useLocale();
   const [qty, setQty] = useState(2);
   const local = {
-    ru: { ticketsOn:"Билеты на", offersTitle:"На данном мероприятии действуют следующие предложения:", early:"Купить раньше и сэкономить", onePlusOne:"При заказе 1+1 билетов цена снижается", tickets:"Tickets", pick:"Выбрать места", decrease:"Уменьшить количество", increase:"Увеличить количество" },
-    en: { ticketsOn:"Tickets for", offersTitle:"The following offers are available for this event:", early:"Buy early and save", onePlusOne:"Order 1+1 tickets and pay less", tickets:"Tickets", pick:"Pick your seats", decrease:"Decrease quantity", increase:"Increase quantity" },
-    he: { ticketsOn:"כרטיסים ל", offersTitle:"באירוע זה זמינות ההצעות הבאות:", early:"קונים מוקדם וחוסכים", onePlusOne:"בהזמנת 1+1 כרטיסים המחיר יורד", tickets:"כרטיסים", pick:"בחירת מקומות", decrease:"הפחתת כמות", increase:"הגדלת כמות" },
+    ru: { ticketsOn:"Билеты на", offersTitle:"На данном мероприятии действуют следующие предложения:", early:"Купить раньше и сэкономить", onePlusOne:"При заказе 1+1 билетов цена снижается", tickets:"Количество билетов", adjacentHint:"Показываем только варианты, где все выбранные места находятся рядом", info:"Как подбираются места", pick:"Выбрать места", decrease:"Уменьшить количество", increase:"Увеличить количество" },
+    en: { ticketsOn:"Tickets for", offersTitle:"The following offers are available for this event:", early:"Buy early and save", onePlusOne:"Order 1+1 tickets and pay less", tickets:"Ticket quantity", adjacentHint:"Only options where all selected seats are together will be shown", info:"How seats are selected", pick:"Pick your seats", decrease:"Decrease quantity", increase:"Increase quantity" },
+    he: { ticketsOn:"כרטיסים ל", offersTitle:"באירוע זה זמינות ההצעות הבאות:", early:"קונים מוקדם וחוסכים", onePlusOne:"בהזמנת 1+1 כרטיסים המחיר יורד", tickets:"כמות כרטיסים", adjacentHint:"יוצגו רק אפשרויות שבהן כל המקומות שנבחרו צמודים זה לזה", info:"איך נבחרים המקומות", pick:"בחירת מקומות", decrease:"הפחתת כמות", increase:"הגדלת כמות" },
   }[locale];
 
   const hasEarly = categories.some((item) => /early/i.test(item.pricingPresentation.stageLabel));
@@ -143,7 +144,13 @@ export function SeatMapPurchaseCard({ slug, title, categories, objects, referral
     </div>}
     <div className={styles.mapSection}><SeatMapPreview objects={objects} categories={categories}/></div>
     <div className={styles.quantityRow}>
-      <strong>{local.tickets}</strong>
+      <div className={styles.quantityLabel}>
+        <strong>{local.tickets}</strong>
+        <span className={styles.infoHint}>
+          <button type="button" className={styles.infoButton} aria-label={local.info} aria-describedby="seat-quantity-hint"><Info size={14}/></button>
+          <span id="seat-quantity-hint" className={styles.infoTooltip} role="tooltip">{local.adjacentHint}</span>
+        </span>
+      </div>
       <div className={styles.quantity}>
         <button type="button" aria-label={local.decrease} onClick={() => setQty((value) => Math.max(1, value - 1))}>−</button>
         <span>{qty}</span>
