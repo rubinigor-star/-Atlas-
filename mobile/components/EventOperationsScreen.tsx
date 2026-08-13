@@ -281,8 +281,6 @@ export default function EventOperationsScreen() {
     const age = ageFromBirthDate(order.customerBirthDate);
     const ticketLabel = order.categories.map((item) => item.name).filter(Boolean).join(", ") || "Билет";
 
-    // SwipeOrderRow prop names describe the revealed side, not the physical finger direction on iOS.
-    // Bind actions to the observed device behavior: finger left = approve, finger right = reject.
     const rightSwipe = pending
       ? (order.canApprove ? { label: "Подтвердить", icon: "checkmark-circle" as const, backgroundColor: "#168044", onPress: () => confirmReview("approve", order) } : null)
       : approved
@@ -385,9 +383,9 @@ export default function EventOperationsScreen() {
 
       {group === "pending" && data.orders.length > 0 && (
         <View style={styles.swipeHint}>
-          <Text style={styles.swipeHintReject}>Отклонить →</Text>
-          <Text style={styles.swipeHintDot}>·</Text>
           <Text style={styles.swipeHintApprove}>← Подтвердить</Text>
+          <Text style={styles.swipeHintDot}>·</Text>
+          <Text style={styles.swipeHintReject}>Отклонить →</Text>
         </View>
       )}
 
