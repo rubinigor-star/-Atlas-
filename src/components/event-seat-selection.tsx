@@ -572,6 +572,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     <div className={styles.layout}>
       <section className={styles.mapSide}>
         <div className={styles.priceRail} onClick={selectNearestPrice}>
+          <div className={styles.priceGrid}>
           <div className={styles.priceStops}>
             {sortedPrices.map((price, index) => {
               const category = availableCategories.find(item => (categoryPrice.get(item.id) ?? 0) === price);
@@ -588,6 +589,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
               <span className={styles.visualHandle} style={{ left: `${minSliderValue / PRICE_SLIDER_RESOLUTION * 100}%`, backgroundColor: minCategory?.colorHex ?? "#168bf2" }}/>
               <span className={`${styles.visualHandle} ${styles.visualHandleMax}`} style={{ left: `${maxSliderValue / PRICE_SLIDER_RESOLUTION * 100}%`, backgroundColor: maxCategory?.colorHex ?? "#a35df0" }}/>
             </div>
+          </div>
           </div>
         </div>
 

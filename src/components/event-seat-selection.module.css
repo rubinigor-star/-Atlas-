@@ -35,3 +35,8 @@
 .visualHandleMax{z-index:4}
 .filteredObject{visibility:hidden!important;opacity:0!important;pointer-events:none!important}
 .range,.range:focus,.range:focus-visible,.range:active{border:0!important;outline:0!important;box-shadow:none!important}
+.priceGrid{position:relative;margin-inline:13px}
+.priceGrid .priceStops{margin-inline:0}
+.priceGrid .rangeTrack{inset-inline:0}
+.priceStops button b{display:block;direction:ltr;unicode-bidi:isolate;text-align:center}
+@media(max-width:900px){.priceGrid{margin-inline:12px}}
