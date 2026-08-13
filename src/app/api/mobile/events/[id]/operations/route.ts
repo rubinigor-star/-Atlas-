@@ -24,6 +24,7 @@ type ReservationRow = {
   orderId: string;
   status: string;
   expiresAt: Date;
+  active: boolean;
 };
 
 type AbandonedRow = {
@@ -123,9 +124,7 @@ function moneyReadiness(params: {
     };
   }
 
-  const reservationActive = Boolean(
-    reservation && reservation.status === "ACTIVE" && new Date(reservation.expiresAt).getTime() > Date.now(),
-  );
+  const reservationActive = Boolean(reservation?.active);
 
   return {
     canApprove: reservationActive,
@@ -350,7 +349,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         ...orderIds,
       ).catch(() => []),
       db.$queryRawUnsafe<ReservationRow[]>(
-        `SELECT "orderId","status","expiresAt" FROM "Reservation" WHERE "orderId" IN (${placeholders})`,
+        `SELECT "orderId","status","expiresAt", ("status"='ACTIVE' AND "expiresAt" > CURRENT_TIMESTAMP) AS "active" FROM "Reservation" WHERE "orderId" IN (${placeholders})`,
         ...orderIds,
       ).catch(() => []),
     ]);
