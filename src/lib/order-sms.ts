@@ -18,8 +18,11 @@ export async function sendOrderTicketSms(publicId: string, options?: { automatic
   if (order.status !== "PAID") throw new Error("Билет можно отправить только после оплаты");
   if (!order.tickets.length) throw new Error("В заказе ещё нет билетов");
 
-  const priceMinor = getSmsPriceMinor();
   const automatic = Boolean(options?.automatic);
+  // The first ticket-delivery SMS is included in the sale and is free for the organizer.
+  // Only an explicit later resend is a paid additional service. Automatic retries keep
+  // the same zero-priced dedupe record, so a provider retry can never become billable.
+  const priceMinor = automatic ? 0 : getSmsPriceMinor();
   const claim = await claimNotification({
     dedupeKey: automatic ? `ticket-sms:auto:${order.id}` : undefined,
     organizationId: order.event.organizationId,
@@ -48,7 +51,7 @@ export async function sendOrderTicketSms(publicId: string, options?: { automatic
     }
 
     await completeNotification(claim.id!, { providerStatus: result.providerStatus, providerMessage: result.providerMessage });
-    console.info("ticket_sms.sent", { publicId, providerStatus: result.providerStatus ?? null, recipient: order.customerPhone });
+    console.info("ticket_sms.sent", { publicId, providerStatus: result.providerStatus ?? null, recipient: order.customerPhone, priceMinor });
     return { recipient: order.customerPhone, providerStatus: result.providerStatus ?? null, priceMinor, alreadySent: false, ticketUrl };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown SMS error";
