@@ -1,0 +1,23 @@
+name: SEO foundation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/atlas-seo-foundation-audit
+
+jobs:
+  seo-foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run SEO regression tests
+        run: npx vitest run src/lib/event-seo.test.ts src/lib/public-origin.test.ts
