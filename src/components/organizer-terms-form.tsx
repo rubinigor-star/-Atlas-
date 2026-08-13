@@ -16,10 +16,14 @@ type Terms = {
 
 export function OrganizerTermsForm({ organizationId, initial, readOnly = false }: { organizationId: string; initial: Terms; readOnly?: boolean }) {
   const router = useRouter();
-  const [form, setForm] = useState(initial);
+  const [form, setForm] = useState({
+    salesFeePercentBps: initial.salesFeePercentBps,
+    salesFeeFixedMinor: initial.salesFeeFixedMinor,
+    serviceFeePayer: initial.serviceFeePayer,
+  });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const set = <K extends keyof Terms>(key: K, value: Terms[K]) => setForm((current) => ({ ...current, [key]: value }));
+  const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => setForm((current) => ({ ...current, [key]: value }));
 
   async function save() {
     setSaving(true);
@@ -39,17 +43,29 @@ export function OrganizerTermsForm({ organizationId, initial, readOnly = false }
   }
 
   return <div className="card stack">
-    <div><span className="eyebrow">Условия продажи</span><h2>Базовые условия организатора</h2><p className="muted">Эти значения применяются по умолчанию ко всем новым мероприятиям. Плательщика сервисного сбора организатор сможет изменить в конкретном мероприятии.</p></div>
+    <div>
+      <span className="eyebrow">Условия продажи</span>
+      <h2>Базовые условия организатора</h2>
+      <p className="muted">Эти значения применяются по умолчанию к продажам. Плательщика сервисного сбора можно переопределить для конкретного мероприятия.</p>
+    </div>
     <div className="form-grid">
       <label>Комиссия Atlas, %<input disabled={readOnly} type="number" min="0" max="100" step="0.01" value={form.salesFeePercentBps / 100} onChange={(e) => set("salesFeePercentBps", Math.round(Number(e.target.value) * 100))}/></label>
       <label>Фиксированная часть за билет, ₪<input disabled={readOnly} type="number" min="0" step="0.01" value={form.salesFeeFixedMinor / 100} onChange={(e) => set("salesFeeFixedMinor", Math.round(Number(e.target.value) * 100))}/></label>
-      <label>Кто оплачивает сервисный сбор<select disabled={readOnly} value={form.serviceFeePayer} onChange={(e) => set("serviceFeePayer", e.target.value as Terms["serviceFeePayer"])}><option value="BUYER">Покупатель</option><option value="ORGANIZER">Организатор</option></select></label>
-      <label>Возвраты<select disabled={readOnly} value={form.refundsEnabled ? "YES" : "NO"} onChange={(e) => set("refundsEnabled", e.target.value === "YES")}><option value="YES">Разрешены</option><option value="NO">Запрещены</option></select></label>
-      <label>Комиссия за возврат, %<input disabled={readOnly || !form.refundsEnabled} type="number" min="0" max="100" step="0.01" value={form.refundFeePercentBps / 100} onChange={(e) => set("refundFeePercentBps", Math.round(Number(e.target.value) * 100))}/></label>
-      <label>Фиксированная комиссия за возврат, ₪<input disabled={readOnly || !form.refundsEnabled} type="number" min="0" step="0.01" value={form.refundFeeFixedMinor / 100} onChange={(e) => set("refundFeeFixedMinor", Math.round(Number(e.target.value) * 100))}/></label>
-      <label>Возврат доступен не позднее, часов до события<input disabled={readOnly || !form.refundsEnabled} type="number" min="0" step="1" value={form.refundDeadlineHours} onChange={(e) => set("refundDeadlineHours", Math.max(0, Number(e.target.value)))} /></label>
-      <label>Окно возврата после переноса, дней<input disabled={readOnly} type="number" min="0" step="1" value={form.transferRefundWindowDays} onChange={(e) => set("transferRefundWindowDays", Math.max(0, Number(e.target.value)))} /></label>
+      <label>Кто оплачивает сервисный сбор<select disabled={readOnly} value={form.serviceFeePayer} onChange={(e) => set("serviceFeePayer", e.target.value as "BUYER" | "ORGANIZER")}><option value="BUYER">Покупатель</option><option value="ORGANIZER">Организатор</option></select></label>
     </div>
+
+    <div className="platform-section-card" style={{marginTop:6,boxShadow:"none"}}>
+      <span className="eyebrow">Отмена заказа</span>
+      <h3 style={{margin:"6px 0 10px"}}>Единая политика Cancellation</h3>
+      <p className="muted" style={{marginTop:0}}>Эти правила не редактируются в коммерческих условиях организатора. Они применяются единым Cancellation-модулем Atlas.</p>
+      <div className="platform-readiness-grid" style={{marginTop:14}}>
+        <div className="platform-readiness-item ready"><b>5%</b><div><strong>Комиссия за отмену</strong><small>5% от суммы операции, максимум 100 ₪</small></div></div>
+        <div className="platform-readiness-item ready"><b>+</b><div><strong>Sales fee сохраняется</strong><small>Комиссия первоначальной продажи не аннулируется при возврате</small></div></div>
+        <div className="platform-readiness-item ready"><b>−</b><div><strong>Нагрузка организатора</strong><small>Фактический refund клиенту + комиссия отмены уменьшают баланс организатора</small></div></div>
+      </div>
+      <p className="muted" style={{marginBottom:0}}>Право клиента на отмену определяется Cancellation-модулем и применимой политикой/законодательством. Добровольный возврат сверх стандартной суммы оплачивается из баланса организатора.</p>
+    </div>
+
     {!readOnly && <div className="row"><button className="btn" disabled={saving} onClick={save}>{saving ? "Сохранение..." : "Сохранить условия"}</button>{message && <span className="muted">{message}</span>}</div>}
   </div>;
 }
