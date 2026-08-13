@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
+import { FinanceReportActions } from "@/components/finance-report-actions";
 import { requirePermission, canAccessEvent } from "@/lib/auth";
 import { organizerFinanceEvent } from "@/lib/finance";
 import { eventDate, money } from "@/lib/format";
@@ -19,11 +20,11 @@ export default async function EventFinancePage({params}:{params:Promise<{eventId
   if(!data)notFound();
   const {event,transactions}=data;
   return <AdminShell>
-    <div className="office-page-heading"><div><Link href="/office/finance" className="muted">← Все мероприятия</Link><span className="eyebrow" style={{display:"block",marginTop:12}}>Finance · {eventDate(event.eventStartsAt)}</span><h1>{event.eventTitle}</h1><p>Финансовый результат и движение средств по этому мероприятию.</p></div></div>
+    <div className="office-page-heading"><div><Link href="/office/finance" className="muted">← Все мероприятия</Link><span className="eyebrow" style={{display:"block",marginTop:12}}>Finance · {eventDate(event.eventStartsAt)}</span><h1>{event.eventTitle}</h1><p>Финансовый результат и движение средств по этому мероприятию. Этот экран можно передать бухгалтерии как прозрачный отчёт.</p></div><FinanceReportActions eventId={eventId}/></div>
     <div className="stats">
       <div className="stat"><span className="muted">Продажи</span><strong>{money(event.salesMinor)}</strong><small>ваш доход от билетов</small></div>
       <div className="stat"><span className="muted">Возвраты</span><strong>{money(event.refundsMinor)}</strong><small>уменьшают ваш баланс</small></div>
-      <div className="stat"><span className="muted">Доп. услуги</span><strong>{money(event.servicesMinor)}</strong><small>сейчас: успешно отправленные SMS</small></div>
+      <div className="stat"><span className="muted">Доп. услуги</span><strong>{money(event.servicesMinor)}</strong><small>только платные дополнительные сервисы</small></div>
       <div className="stat"><span className="muted">Текущий баланс</span><strong>{money(event.balanceMinor-event.paidOutMinor)}</strong><small>после возвратов, услуг и выплат</small></div>
       <div className="stat"><span className="muted">Уже выплачено</span><strong>{money(event.paidOutMinor)}</strong><small>по этому мероприятию</small></div>
     </div>
@@ -39,6 +40,6 @@ export default async function EventFinancePage({params}:{params:Promise<{eventId
       {transactions.map(tx=><tr key={`${tx.type}-${tx.id}`}><td>{dateTime(tx.createdAt)}</td><td><span className="pill">{typeLabel(tx.type)}</span></td><td><strong>{tx.publicId}</strong></td><td>{tx.description}</td><td style={{fontWeight:800,color:tx.amountMinor>=0?"#15803d":"#b42318"}}>{tx.amountMinor>=0?"+":""}{money(tx.amountMinor)}</td></tr>)}
       {!transactions.length&&<tr><td colSpan={5}>Операций пока нет.</td></tr>}
     </tbody></table></div>
-    <section className="panel" style={{marginTop:20}}><strong>Как считается этот экран?</strong><p className="muted" style={{marginBottom:0}}>Продажи показывают только сумму, принадлежащую вашей организации. Внутренние комиссии Atlas не раскрываются. Возвраты и заказанные дополнительные услуги уменьшают текущий баланс.</p></section>
+    <section className="panel" style={{marginTop:20}}><strong>Как считается этот отчёт?</strong><p className="muted" style={{marginBottom:0}}>Продажи показывают только сумму, принадлежащую вашей организации. Внутренние комиссии Atlas не раскрываются. Фактические возвраты, комиссии отмены, заказанные дополнительные услуги и уже произведённые выплаты уменьшают текущий остаток.</p></section>
   </AdminShell>;
 }
