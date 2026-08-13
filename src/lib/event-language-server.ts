@@ -93,12 +93,14 @@ export async function getHiddenEventIds(preferredLanguages: readonly EventLangua
     "NO_LANGUAGE_BARRIER" as const,
   ])];
   const rows = await db.$queryRaw<Array<{ eventId: string }>>(Prisma.sql`
-    SELECT "eventId"
-    FROM "EventLanguageSettings"
-    WHERE "catalogVisibility" = 'DIRECT_ONLY'
+    SELECT e.id AS "eventId"
+    FROM "Event" e
+    LEFT JOIN "EventLanguageSettings" s ON s."eventId" = e.id
+    WHERE e.slug LIKE 'draft-%'
+       OR s."catalogVisibility" = 'DIRECT_ONLY'
        OR (
-         "catalogVisibility" = 'TARGETED'
-         AND "primaryLanguage" NOT IN (${Prisma.join(visibleTargetLanguages)})
+         s."catalogVisibility" = 'TARGETED'
+         AND s."primaryLanguage" NOT IN (${Prisma.join(visibleTargetLanguages)})
        )
   `);
   return rows.map((row) => row.eventId);
