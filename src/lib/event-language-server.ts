@@ -65,6 +65,28 @@ export async function getEventLanguageSettings(eventId: string): Promise<EventLa
   return normalizeEventLanguageSettings(rows[0].primaryLanguage, rows[0].catalogVisibility);
 }
 
+export async function getDirectOnlyEventIds() {
+  await ensureEventLanguageSettingsTable();
+  const rows = await db.$queryRaw<Array<{ eventId: string }>>(Prisma.sql`
+    SELECT "eventId"
+    FROM "EventLanguageSettings"
+    WHERE "catalogVisibility" = 'DIRECT_ONLY'
+  `);
+  return rows.map((row) => row.eventId);
+}
+
+export async function getNonIndexableEventIds() {
+  await ensureEventLanguageSettingsTable();
+  const rows = await db.$queryRaw<Array<{ eventId: string }>>(Prisma.sql`
+    SELECT e.id AS "eventId"
+    FROM "Event" e
+    LEFT JOIN "EventLanguageSettings" s ON s."eventId" = e.id
+    WHERE e.slug LIKE 'draft-%'
+       OR s."catalogVisibility" = 'DIRECT_ONLY'
+  `);
+  return rows.map((row) => row.eventId);
+}
+
 export async function saveEventLanguageSettings(
   eventId: string,
   settings: EventLanguageSettings,
@@ -83,12 +105,14 @@ export async function getHiddenEventIds(preferredLanguages: readonly EventLangua
     "NO_LANGUAGE_BARRIER" as const,
   ])];
   const rows = await db.$queryRaw<Array<{ eventId: string }>>(Prisma.sql`
-    SELECT "eventId"
-    FROM "EventLanguageSettings"
-    WHERE "catalogVisibility" = 'DIRECT_ONLY'
+    SELECT e.id AS "eventId"
+    FROM "Event" e
+    LEFT JOIN "EventLanguageSettings" s ON s."eventId" = e.id
+    WHERE e.slug LIKE 'draft-%'
+       OR s."catalogVisibility" = 'DIRECT_ONLY'
        OR (
-         "catalogVisibility" = 'TARGETED'
-         AND "primaryLanguage" NOT IN (${Prisma.join(visibleTargetLanguages)})
+         s."catalogVisibility" = 'TARGETED'
+         AND s."primaryLanguage" NOT IN (${Prisma.join(visibleTargetLanguages)})
        )
   `);
   return rows.map((row) => row.eventId);
