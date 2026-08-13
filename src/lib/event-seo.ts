@@ -16,8 +16,14 @@ export function slugifyEventText(value:string){
   return ascii.replace(/-+/g,"-").replace(/^-|-$/g,"");
 }
 
+function israelDateKey(value:Date){
+  const parts=new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Jerusalem",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(value);
+  const part=(type:"year"|"month"|"day")=>parts.find(item=>item.type===type)?.value??"";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 export function buildEventSeoSlug(title:string,city:string,startsAt:Date){
-  const date=startsAt.toISOString().slice(0,10);
+  const date=israelDateKey(startsAt);
   const titlePart=slugifyEventText(title)||"event";
   const cityPart=slugifyEventText(city);
   return [titlePart,cityPart,date].filter(Boolean).join("-").slice(0,110).replace(/-$/g,"");
