@@ -238,23 +238,25 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartError, setCartError] = useState("");
   const [qty, setQty] = useState(Math.max(1, Math.min(8, initialQty)));
+  const [quantityModalOpen, setQuantityModalOpen] = useState(false);
+  const [draftQty, setDraftQty] = useState(Math.max(1, Math.min(8, initialQty)));
 
   const local = {
     ru: {
       back: "Вернуться к мероприятию",
-      quantity: "Количество билетов", quantityHint: "При нажатии на место сразу выберется указанное количество доступных мест рядом", quantityInfo: "Как выбираются места", decrease: "Уменьшить количество", increase: "Увеличить количество",
+      quantity: "Количество билетов", quantityHint: "При нажатии на место сразу выберется указанное количество доступных мест рядом", quantityInfo: "Как выбираются места", decrease: "Уменьшить количество", increase: "Увеличить количество", confirmQuantity: "Подтвердить", closeQuantity: "Закрыть",
       continue: "Перейти к оплате", emptyCheckout: "Выберите билет", feeIncluded: "включая сервисный сбор", noSeats: "В выбранном диапазоне нет доступных мест", expandRange: "Расширьте диапазон цен", expandRangeHint: "В выбранном диапазоне нет доступных билетов. Выберите более широкий диапазон.", applyRange: "Применить диапазон", categoryLimit: "Для категории «{name}» можно выбрать не более {count} билетов за один раз", linkLimit: "По этой ссылке можно купить не более {count} билетов в одном заказе",
       zoomReset: "Сбросить масштаб", row: "Ряд", seat: "место", seats: "места", table: "Стол", zone: "Зона", section: "Категория"
     },
     en: {
       back: "Back to event",
-      quantity: "Ticket quantity", quantityHint: "Selecting a seat immediately adds the chosen number of available seats together", quantityInfo: "How seats are selected", decrease: "Decrease quantity", increase: "Increase quantity",
+      quantity: "Ticket quantity", quantityHint: "Selecting a seat immediately adds the chosen number of available seats together", quantityInfo: "How seats are selected", decrease: "Decrease quantity", increase: "Increase quantity", confirmQuantity: "Confirm", closeQuantity: "Close",
       continue: "Go to checkout", emptyCheckout: "Select a ticket", feeIncluded: "incl. service fee", noSeats: "No available seats match this price range", expandRange: "Expand the price range", expandRangeHint: "No tickets are available in this price range. Choose a wider range.", applyRange: "Apply range", categoryLimit: "You can select no more than {count} tickets from “{name}” at a time", linkLimit: "This link allows no more than {count} tickets in one order",
       zoomReset: "Reset zoom", row: "Row", seat: "seat", seats: "seats", table: "Table", zone: "Zone", section: "Category"
     },
     he: {
       back: "חזרה לאירוע",
-      quantity: "כמות כרטיסים", quantityHint: "לחיצה על מקום תבחר מיד את מספר המקומות הזמינים יחד", quantityInfo: "איך נבחרים המקומות", decrease: "הפחתת כמות", increase: "הגדלת כמות",
+      quantity: "כמות כרטיסים", quantityHint: "לחיצה על מקום תבחר מיד את מספר המקומות הזמינים יחד", quantityInfo: "איך נבחרים המקומות", decrease: "הפחתת כמות", increase: "הגדלת כמות", confirmQuantity: "אישור", closeQuantity: "סגירה",
       continue: "המשך לתשלום", emptyCheckout: "בחרו כרטיס", feeIncluded: "כולל דמי שירות", noSeats: "אין מקומות זמינים בטווח המחירים שנבחר", expandRange: "הרחיבו את טווח המחירים", expandRangeHint: "אין כרטיסים זמינים בטווח המחירים שנבחר. בחרו טווח רחב יותר.", applyRange: "החלת הטווח", categoryLimit: "ניתן לבחור עד {count} כרטיסים מקטגוריית „{name}” בכל פעם", linkLimit: "בקישור זה ניתן לקנות עד {count} כרטיסים בהזמנה אחת",
       zoomReset: "איפוס זום", row: "שורה", seat: "מקום", seats: "מקומות", table: "שולחן", zone: "אזור", section: "קטגוריה"
     },
@@ -264,6 +266,13 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     document.body.classList.add("atlas-seat-selection-active");
     return () => document.body.classList.remove("atlas-seat-selection-active");
   }, []);
+
+  useEffect(() => {
+    if (!quantityModalOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setQuantityModalOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [quantityModalOpen]);
 
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
@@ -776,8 +785,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
               <span className={polish.quantityLabel}>
                 <strong>{local.quantity}</strong>
                 <span className={polish.infoHint}>
-                  <button type="button" className={polish.infoButton} aria-label={local.quantityInfo} aria-describedby="seat-page-quantity-hint"><Info size={14}/></button>
-                  <span id="seat-page-quantity-hint" className={polish.infoTooltip} role="tooltip">{local.quantityHint}</span>
+                  <button type="button" className={polish.infoButton} aria-label={local.quantityInfo} aria-haspopup="dialog" onClick={() => { setDraftQty(qty); setQuantityModalOpen(true); }}><Info size={14}/></button>
                 </span>
               </span>
               <span className={polish.quantityControl}>
@@ -824,7 +832,21 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
       </div>;
     })()}
 
-    {noMatchingPlaces && <div className={polish.modalBackdrop} role="presentation">
+    {quantityModalOpen && <div className={polish.modalBackdrop} role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setQuantityModalOpen(false); }}>
+      <div className={polish.quantityModal} role="dialog" aria-modal="true" aria-labelledby="quantity-modal-title" aria-describedby="quantity-modal-description">
+        <button type="button" className={polish.modalClose} aria-label={local.closeQuantity} onClick={() => setQuantityModalOpen(false)}><X size={17}/></button>
+        <h2 id="quantity-modal-title">{local.quantity}</h2>
+        <p id="quantity-modal-description">{local.quantityHint}</p>
+        <div className={polish.modalQuantityControl}>
+          <button type="button" aria-label={local.decrease} disabled={draftQty <= 1} onClick={() => setDraftQty(value => Math.max(1, value - 1))}><Minus size={20}/></button>
+          <strong aria-live="polite">{draftQty}</strong>
+          <button type="button" aria-label={local.increase} disabled={draftQty >= 8} onClick={() => setDraftQty(value => Math.min(8, value + 1))}><Plus size={20}/></button>
+        </div>
+        <button type="button" className={polish.modalConfirm} onClick={() => { setQty(draftQty); setQuantityModalOpen(false); }}>{local.confirmQuantity}</button>
+      </div>
+    </div>}
+
+    {noMatchingPlaces && !quantityModalOpen && <div className={polish.modalBackdrop} role="presentation">
       <div className={styles.rangeRecoveryModal} role="dialog" aria-modal="true" aria-label={local.expandRange}>
         <h2>{local.expandRange}</h2>
         <p>{local.expandRangeHint}</p>
