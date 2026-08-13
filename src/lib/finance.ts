@@ -163,14 +163,21 @@ async function smsChargeRows(organizationId?: string): Promise<SmsChargeRow[]> {
     GROUP BY n."organizationId",o."eventId"`, ...params);
 }
 
-function cancellationRefundImpact(order: FinanceOrderRow, cancellation: RefundRow) {
+function cancellationRefundImpact(cancellation: RefundRow) {
   const refundAmount = Math.max(0, cancellation.refundAmountMinor || 0);
-  return Math.max(0, refundAmount + cancellation.statutoryFeeMinor - order.serviceFeeMinor);
+  // A cancellation creates two organizer-side debits: the money actually
+  // returned to the buyer and the cancellation fee. The original sales fee
+  // remains Atlas revenue and is intentionally NOT subtracted here.
+  return refundAmount + Math.max(0, cancellation.statutoryFeeMinor);
 }
 
-function organizerRefundImpact(order: FinanceOrderRow, cancellation: RefundRow | undefined, attempt: RefundAttemptTotal | undefined) {
-  if (cancellation) return cancellationRefundImpact(order, cancellation);
-  if (attempt) return Math.min(order.organizerNetMinor, Math.max(0, attempt.totalRefundedMinor));
+function organizerRefundImpact(cancellation: RefundRow | undefined, attempt: RefundAttemptTotal | undefined) {
+  if (cancellation) return cancellationRefundImpact(cancellation);
+  // A technical/manual refund without CancellationRequest reduces the amount
+  // Atlas owes the organizer by the full amount actually refunded. Do not cap
+  // it at organizerNet - negative organizer balances must remain visible and
+  // be carried against future payouts.
+  if (attempt) return Math.max(0, attempt.totalRefundedMinor);
   return 0;
 }
 
@@ -201,11 +208,13 @@ export async function financeEvents(organizationId?: string): Promise<FinanceEve
     row.buyerPaidMinor += order.buyerTotalMinor;
     const cancellation = refunds.get(order.orderId);
     const refundAttempt = refundAttempts.get(order.orderId);
-    const refundImpact = organizerRefundImpact(order, cancellation, refundAttempt);
+    const refundImpact = organizerRefundImpact(cancellation, refundAttempt);
     row.refundsMinor += refundImpact;
 
-    if (cancellation) row.atlasCancellationFeeMinor += cancellation.statutoryFeeMinor;
-    else row.atlasSalesFeeMinor += order.serviceFeeMinor;
+    // Sales commission is earned on every successful sale, including a sale
+    // that is later cancelled. Cancellation fee is an additional Atlas fee.
+    row.atlasSalesFeeMinor += order.serviceFeeMinor;
+    if (cancellation) row.atlasCancellationFeeMinor += Math.max(0, cancellation.statutoryFeeMinor);
 
     const netForOrder = order.organizerNetMinor - refundImpact;
     if (settlementDateForSale(new Date(order.createdAt)) <= now) row.settledMinor += netForOrder;
@@ -216,10 +225,21 @@ export async function financeEvents(organizationId?: string): Promise<FinanceEve
     row.balanceMinor = row.salesMinor - row.refundsMinor - row.servicesMinor;
     const payoutCycleReached = now >= row.payoutDate;
     row.availableMinor = payoutCycleReached ? Math.max(0, row.settledMinor - row.servicesMinor - row.paidOutMinor) : 0;
-    if (row.paidOutMinor >= Math.max(0, row.balanceMinor) && row.balanceMinor !== 0) row.status = "PAID";
+    if (row.paidOutMinor >= Math.max(0, row.balanceMinor) && row.balanceMinor > 0) row.status = "PAID";
     else if (payoutCycleReached && row.availableMinor > 0) row.status = "AVAILABLE";
   }
   return [...grouped.values()].sort((a, b) => a.eventStartsAt.getTime() - b.eventStartsAt.getTime());
+}
+
+function organizationAvailability(events: FinanceEventRow[], unallocatedServicesMinor = 0) {
+  const positiveAvailable = events.reduce((sum, event) => sum + Math.max(0, event.availableMinor), 0);
+  // Negative remaining balances are real organizer debt. They must reduce a
+  // later payout from another event instead of disappearing at event level.
+  const negativeRemaining = events.reduce((sum, event) => {
+    const remaining = event.balanceMinor - event.paidOutMinor;
+    return sum + Math.min(0, remaining);
+  }, 0);
+  return Math.max(0, positiveAvailable + negativeRemaining - Math.max(0, unallocatedServicesMinor));
 }
 
 export async function organizerFinanceSummary(organizationId: string) {
@@ -227,7 +247,6 @@ export async function organizerFinanceSummary(organizationId: string) {
   const eventServices = events.reduce((s, e) => s + e.servicesMinor, 0);
   const allServices = smsCharges.reduce((s, row) => s + row.amountMinor, 0);
   const unallocatedServicesMinor = Math.max(0, allServices - eventServices);
-  const rawAvailable = events.reduce((s, e) => s + e.availableMinor, 0);
   return {
     events,
     salesMinor: events.reduce((s, e) => s + e.salesMinor, 0),
@@ -235,7 +254,7 @@ export async function organizerFinanceSummary(organizationId: string) {
     servicesMinor: allServices,
     unallocatedServicesMinor,
     balanceMinor: events.reduce((s, e) => s + e.balanceMinor, 0) - unallocatedServicesMinor,
-    availableMinor: Math.max(0, rawAvailable - unallocatedServicesMinor),
+    availableMinor: organizationAvailability(events, unallocatedServicesMinor),
     awaitingSettlementMinor: events.reduce((s, e) => s + Math.max(0, e.awaitingSettlementMinor), 0),
     paidOutMinor: events.reduce((s, e) => s + e.paidOutMinor, 0),
   };
@@ -253,11 +272,11 @@ export async function organizerFinanceEvent(organizationId: string, eventId: str
     transactions.push({ id: order.orderId,type: "SALE",publicId: order.publicId,createdAt: new Date(order.createdAt),amountMinor: order.organizerNetMinor,description: "Продажа билетов" });
     const cancellation = refunds.get(order.orderId);
     const attempt = refundAttempts.get(order.orderId);
-    const impact = organizerRefundImpact(order, cancellation, attempt);
+    const impact = organizerRefundImpact(cancellation, attempt);
     if (impact > 0) transactions.push({
       id: cancellation?.id || `refund-${order.orderId}`,type: "REFUND",publicId: cancellation?.publicId || order.publicId,
       createdAt: new Date(cancellation?.createdAt || attempt!.createdAt),amountMinor: -impact,
-      description: cancellation ? `Отмена заказа ${order.publicId}` : `Возврат по заказу ${order.publicId}`,
+      description: cancellation ? `Возврат клиенту и комиссия отмены по ${order.publicId}` : `Возврат по заказу ${order.publicId}`,
     });
   }
 
@@ -282,15 +301,32 @@ export async function platformFinanceSummary() {
   const byOrganization = new Map<string, {organizationId:string;organizationName:string;salesMinor:number;refundsMinor:number;servicesMinor:number;balanceMinor:number;availableMinor:number;buyerPaidMinor:number;atlasRevenueMinor:number;eventCount:number}>();
   for (const event of events) {
     const row = byOrganization.get(event.organizationId) || {organizationId:event.organizationId,organizationName:event.organizationName||"Организатор",salesMinor:0,refundsMinor:0,servicesMinor:0,balanceMinor:0,availableMinor:0,buyerPaidMinor:0,atlasRevenueMinor:0,eventCount:0};
-    row.salesMinor += event.salesMinor;row.refundsMinor += event.refundsMinor;row.servicesMinor += event.servicesMinor;row.balanceMinor += event.balanceMinor;row.availableMinor += event.availableMinor;
-    row.buyerPaidMinor += event.buyerPaidMinor;row.atlasRevenueMinor += event.atlasSalesFeeMinor + event.atlasCancellationFeeMinor + event.servicesMinor;row.eventCount += 1;
+    row.salesMinor += event.salesMinor;
+    row.refundsMinor += event.refundsMinor;
+    row.servicesMinor += event.servicesMinor;
+    row.balanceMinor += event.balanceMinor;
+    row.buyerPaidMinor += event.buyerPaidMinor;
+    row.atlasRevenueMinor += event.atlasSalesFeeMinor + event.atlasCancellationFeeMinor + event.servicesMinor;
+    row.eventCount += 1;
     byOrganization.set(event.organizationId, row);
   }
   for (const [organizationId,totalSms] of smsByOrganization) {
     const unallocated = Math.max(0, totalSms - (eventSmsByOrganization.get(organizationId) || 0));
-    if (!unallocated) continue;
     const row = byOrganization.get(organizationId);
-    if (row) { row.servicesMinor += unallocated;row.balanceMinor -= unallocated;row.availableMinor = Math.max(0,row.availableMinor-unallocated);row.atlasRevenueMinor += unallocated; }
+    if (!row) continue;
+    if (unallocated) {
+      row.servicesMinor += unallocated;
+      row.balanceMinor -= unallocated;
+      row.atlasRevenueMinor += unallocated;
+    }
+    const organizationEvents = events.filter(event => event.organizationId === organizationId);
+    row.availableMinor = organizationAvailability(organizationEvents, unallocated);
+  }
+  // Organizations without SMS still need debt-adjusted availability.
+  for (const row of byOrganization.values()) {
+    if (!smsByOrganization.has(row.organizationId)) {
+      row.availableMinor = organizationAvailability(events.filter(event => event.organizationId === row.organizationId), 0);
+    }
   }
 
   const organizations = [...byOrganization.values()].sort((a, b) => b.balanceMinor - a.balanceMinor);
