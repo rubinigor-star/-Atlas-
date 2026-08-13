@@ -77,12 +77,20 @@ export type EventEditorBasicsInput = {
 export type OperationGroup = "pending" | "approved" | "cancelled" | "abandoned";
 export type OperationSort = "newest" | "oldest" | "amount_desc" | "amount_asc";
 
+export type OrderAttribution = {
+  kind: "DIRECT" | "PROMOTER" | "REFERRAL";
+  label: string;
+  detail: string | null;
+};
+
 export type EventOperationOrder = {
   id: string;
   publicId: string;
   customerName: string;
   customerPhone: string;
   customerEmail: string;
+  customerBirthDate?: string | null;
+  attribution?: OrderAttribution | null;
   totalMinor: number;
   currency: string;
   status: string;
@@ -250,7 +258,26 @@ export async function getEventOperations(eventId: string, group: OperationGroup 
   });
   if (query.search?.trim()) params.set("q", query.search.trim());
   if (query.category?.trim() && query.category !== "all") params.set("category", query.category.trim());
-  return request<EventOperationsPayload>(`/api/mobile/events/${encodeURIComponent(eventId)}/operations?${params.toString()}`);
+
+  const payload = await request<EventOperationsPayload>(`/api/mobile/events/${encodeURIComponent(eventId)}/operations?${params.toString()}`);
+  const orderIds = payload.orders.filter((order) => order.source === "ORDER").map((order) => order.id);
+  if (!orderIds.length) return payload;
+
+  try {
+    const meta = await request<{
+      orders: Record<string, { customerBirthDate: string | null; attribution: OrderAttribution }>;
+    }>(`/api/mobile/events/${encodeURIComponent(eventId)}/order-card-meta?ids=${encodeURIComponent(orderIds.join(","))}`);
+
+    return {
+      ...payload,
+      orders: payload.orders.map((order) => ({
+        ...order,
+        ...(meta.orders[order.id] || {}),
+      })),
+    };
+  } catch {
+    return payload;
+  }
 }
 
 export async function reviewEventOrder(publicId: string, action: "approve" | "reject", note?: string) {
