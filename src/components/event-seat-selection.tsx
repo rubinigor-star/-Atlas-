@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Info, Minus, Plus, RotateCcw, X } from "lucide-react";
@@ -226,11 +226,11 @@ function SeatDot({ seat, object, color, selected, priceMatched, disabled, onClic
   ><span>{seat.position}</span></button>;
 }
 
-function MapZoomControls({ fitScale, zoomInLabel, zoomOutLabel, resetLabel }: { fitScale: number; zoomInLabel: string; zoomOutLabel: string; resetLabel: string }) {
-  const { zoomIn, zoomOut, centerView } = useControls();
+function MapZoomControls({ zoomInLabel, zoomOutLabel, resetLabel, onReset }: { zoomInLabel: string; zoomOutLabel: string; resetLabel: string; onReset: () => void }) {
+  const { zoomIn, zoomOut } = useControls();
   return <div className={`${styles.zoom} atlas-map-controls`}>
     <button type="button" aria-label={zoomInLabel} title={zoomInLabel} onClick={() => zoomIn(.6, 240, "easeOut")}><Plus size={20}/></button>
-    <button type="button" aria-label={resetLabel} title={resetLabel} onClick={() => centerView(fitScale, 320, "easeOut")}><RotateCcw size={18}/></button>
+    <button type="button" aria-label={resetLabel} title={resetLabel} onClick={onReset}><RotateCcw size={18}/></button>
     <button type="button" aria-label={zoomOutLabel} title={zoomOutLabel} onClick={() => zoomOut(.6, 240, "easeOut")}><Minus size={20}/></button>
   </div>;
 }
@@ -322,6 +322,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const [draftMinRangeIndex, setDraftMinRangeIndex] = useState(0);
   const [draftMaxRangeIndex, setDraftMaxRangeIndex] = useState(Math.max(0, sortedPrices.length - 1));
   const [fitScale, setFitScale] = useState(DEFAULT_MAP_SCALE);
+  const [mobileMapMode, setMobileMapMode] = useState(false);
   const [wholeObjectId, setWholeObjectId] = useState<string | null>(allocation?.type === "TABLE" ? allocation.tableId : null);
   const [zoneObjectId, setZoneObjectId] = useState<string | null>(null);
 
@@ -341,6 +342,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
       const contentWidth = Math.max(1, mapBounds.maxX - mapBounds.minX);
       const contentHeight = Math.max(1, mapBounds.maxY - mapBounds.minY);
       const mobile = window.matchMedia("(max-width: 900px)").matches;
+      setMobileMapMode(mobile);
       const horizontalPadding = mobile ? 24 : 96;
       const verticalPadding = mobile ? 24 : 72;
       const nextScale = Math.max(.16, Math.min(1, (viewport.clientWidth - horizontalPadding) / contentWidth, (viewport.clientHeight - verticalPadding) / contentHeight));
@@ -352,10 +354,23 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     return () => observer.disconnect();
   }, [mapBounds]);
 
+  const resetMapView = useCallback((animationTime = 0) => {
+    const viewport = viewportRef.current;
+    const transform = transformRef.current;
+    if (!viewport || !transform) return;
+    if (!mobileMapMode) {
+      transform.centerView(fitScale, animationTime, "easeOut");
+      return;
+    }
+    const contentWidth = Math.max(1, mapBounds.maxX - mapBounds.minX);
+    const positionX = Math.max(12, (viewport.clientWidth - contentWidth * fitScale) / 2);
+    transform.setTransform(positionX, 12, fitScale, animationTime, "easeOut");
+  }, [fitScale, mapBounds, mobileMapMode]);
+
   useEffect(() => {
-    const frame = requestAnimationFrame(() => transformRef.current?.centerView(fitScale, 0));
+    const frame = requestAnimationFrame(() => resetMapView(0));
     return () => cancelAnimationFrame(frame);
-  }, [fitScale, mapBounds]);
+  }, [resetMapView]);
 
   const sliderValueForIndex = (index: number) => sortedPrices.length <= 1
     ? PRICE_SLIDER_RESOLUTION / 2
@@ -805,10 +820,10 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
             initialScale={fitScale}
             minScale={fitScale}
             maxScale={Math.max(3.2, fitScale * 8)}
-            centerOnInit
-            centerZoomedOut
+            centerOnInit={!mobileMapMode}
+            centerZoomedOut={!mobileMapMode}
             limitToBounds
-            disablePadding
+            disablePadding={!mobileMapMode}
             smooth={false}
             wheel={{ step: .1 }}
             panning={{ allowLeftClickPan: true, velocityDisabled: false, excluded: ["atlas-map-controls"] }}
@@ -822,7 +837,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
             onPinchStart={() => setPanning(true)}
             onPinchStop={() => setPanning(false)}
           >
-            <MapZoomControls fitScale={fitScale} zoomInLabel={local.zoomIn} zoomOutLabel={local.zoomOut} resetLabel={local.zoomReset}/>
+            <MapZoomControls zoomInLabel={local.zoomIn} zoomOutLabel={local.zoomOut} resetLabel={local.zoomReset} onReset={() => resetMapView(320)}/>
             <TransformComponent wrapperClass={styles.transformWrapper} contentClass={styles.transformContent}>
           <div className={styles.mapFrame} style={{ width: Math.max(1, mapBounds.maxX - mapBounds.minX), height: Math.max(1, mapBounds.maxY - mapBounds.minY) }}>
             <div className={styles.world} style={{ width: WORLD_WIDTH, height: WORLD_HEIGHT, left: -mapBounds.minX, top: -mapBounds.minY }}>
