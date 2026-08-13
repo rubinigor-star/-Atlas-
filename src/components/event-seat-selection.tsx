@@ -182,6 +182,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const router = useRouter();
   const { locale } = useLocale();
   const viewportRef = useRef<HTMLDivElement>(null);
+  const priceTrackRef = useRef<HTMLDivElement>(null);
   const panRef = useRef({ pointerId: -1, x: 0, y: 0, left: 0, top: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [panning, setPanning] = useState(false);
@@ -420,6 +421,27 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const activeWidth = (maxSliderValue - minSliderValue) / PRICE_SLIDER_RESOLUTION * 100;
   const snapMinimumHandle = () => setMinSliderValue(sliderValueForIndex(minIndex));
   const snapMaximumHandle = () => setMaxSliderValue(sliderValueForIndex(maxIndex));
+  function selectPriceStop(index: number) {
+    const distanceToMin = Math.abs(index - minIndex);
+    const distanceToMax = Math.abs(index - maxIndex);
+    const moveMinimum = index <= minIndex || (index < maxIndex && distanceToMin <= distanceToMax);
+    if (moveMinimum) {
+      setMinIndex(Math.min(index, maxIndex));
+      setMinSliderValue(sliderValueForIndex(Math.min(index, maxIndex)));
+    } else {
+      setMaxIndex(Math.max(index, minIndex));
+      setMaxSliderValue(sliderValueForIndex(Math.max(index, minIndex)));
+    }
+    clearSelection();
+  }
+  function selectNearestPrice(event: React.MouseEvent<HTMLDivElement>) {
+    if ((event.target as HTMLElement).closest("input")) return;
+    const track = priceTrackRef.current;
+    if (!track || sortedPrices.length === 0) return;
+    const bounds = track.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (event.clientX - bounds.left) / Math.max(1, bounds.width)));
+    selectPriceStop(Math.round(ratio * Math.max(0, sortedPrices.length - 1)));
+  }
   const backHref = `/events/${slug}${referralCode ? `?ref=${encodeURIComponent(referralCode)}` : ""}`;
   const selectionCategory = selectedObject ? categoryFor(selectedObject, selectedSeats[0]) : undefined;
   const selectionDescription = selectedObject ? objectDescription(selectedObject, selectedSeats) : "";
@@ -541,20 +563,17 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     <Link className={`${styles.headerBack} ${polish.headerBack}`} href={backHref}><ArrowLeft size={18}/><span>{local.back}</span></Link>
     <div className={styles.layout}>
       <section className={styles.mapSide}>
-        <div className={styles.priceRail}>
+        <div className={styles.priceRail} onClick={selectNearestPrice}>
           <div className={styles.priceStops}>
             {sortedPrices.map((price, index) => {
               const category = availableCategories.find(item => (categoryPrice.get(item.id) ?? 0) === price);
               const active = index >= minIndex && index <= maxIndex;
               const stopPosition = sortedPrices.length <= 1 ? 50 : index / (sortedPrices.length - 1) * 100;
-              return <button type="button" key={`${price}-${index}`} className={active ? styles.priceActive : ""} style={{ left: `${stopPosition}%` }} onClick={() => {
-                if (index < minIndex) { setMinIndex(index); setMinSliderValue(sliderValueForIndex(index)); clearSelection(); }
-                else if (index > maxIndex) { setMaxIndex(index); setMaxSliderValue(sliderValueForIndex(index)); clearSelection(); }
-              }}><b style={{ color: category?.colorHex ?? "#64748b" }}>{money(price, "ILS", locale)}</b></button>;
+              return <button type="button" key={`${price}-${index}`} className={active ? styles.priceActive : ""} style={{ left: `${stopPosition}%` }} onClick={event => { event.stopPropagation(); selectPriceStop(index); }}><b style={{ color: category?.colorHex ?? "#64748b" }}>{money(price, "ILS", locale)}</b></button>;
             })}
           </div>
           <div className={styles.rangeWrap}>
-            <div className={styles.rangeTrack}>
+            <div className={styles.rangeTrack} ref={priceTrackRef}>
               <div className={styles.rangeBase}/><div className={styles.rangeActive} style={{ left: `${activeLeft}%`, width: `${activeWidth}%` }}/>
               <input aria-label="minimum ticket price" className={styles.range} style={{ "--range-thumb-color": minCategory?.colorHex ?? "#168bf2" } as React.CSSProperties} type="range" min="0" max={PRICE_SLIDER_RESOLUTION} step="1" value={minSliderValue} onChange={event => { const value = Math.min(Number(event.target.value), maxSliderValue); const nextIndex = Math.min(indexForSliderValue(value), maxIndex); setMinSliderValue(value); if (nextIndex !== minIndex) { setMinIndex(nextIndex); clearSelection(); } }} onPointerUp={snapMinimumHandle} onPointerCancel={snapMinimumHandle} onBlur={snapMinimumHandle}/>
               <input aria-label="maximum ticket price" className={`${styles.range} ${styles.rangeMax}`} style={{ "--range-thumb-color": maxCategory?.colorHex ?? "#a35df0" } as React.CSSProperties} type="range" min="0" max={PRICE_SLIDER_RESOLUTION} step="1" value={maxSliderValue} onChange={event => { const value = Math.max(Number(event.target.value), minSliderValue); const nextIndex = Math.max(indexForSliderValue(value), minIndex); setMaxSliderValue(value); if (nextIndex !== maxIndex) { setMaxIndex(nextIndex); clearSelection(); } }} onPointerUp={snapMaximumHandle} onPointerCancel={snapMaximumHandle} onBlur={snapMaximumHandle}/>
