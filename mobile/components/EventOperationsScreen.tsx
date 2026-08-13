@@ -75,8 +75,25 @@ function timeAgo(value: string) {
   return `${Math.floor(hours / 24)} дн назад`;
 }
 
+function ageFromBirthDate(value?: string | null) {
+  if (!value) return null;
+  const birth = new Date(value);
+  if (Number.isNaN(birth.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const month = now.getMonth() - birth.getMonth();
+  if (month < 0 || (month === 0 && now.getDate() < birth.getDate())) age -= 1;
+  return age >= 0 && age < 120 ? age : null;
+}
+
 function whatsappUrl(phone: string) {
   return `https://wa.me/${phone.replace(/\D/g, "")}`;
+}
+
+function attributionIcon(kind?: string | null): React.ComponentProps<typeof Ionicons>["name"] {
+  if (kind === "PROMOTER") return "people-outline";
+  if (kind === "REFERRAL") return "link-outline";
+  return "navigate-outline";
 }
 
 export default function EventOperationsScreen() {
@@ -261,39 +278,67 @@ export default function EventOperationsScreen() {
     const pending = group === "pending";
     const approved = group === "approved";
     const blocked = pending && !order.canApprove;
+    const age = ageFromBirthDate(order.customerBirthDate);
+    const ticketLabel = order.categories.map((item) => item.name).filter(Boolean).join(", ") || "Билет";
+
+    // Gesture direction follows the organizer UX: swipe left to approve, swipe right to reject.
     const rightSwipe = pending
-      ? (order.canApprove ? { label: "Подтвердить", icon: "checkmark-circle" as const, backgroundColor: "#168044", onPress: () => confirmReview("approve", order) } : null)
+      ? (order.canReject ? { label: "Отклонить", icon: "close-circle" as const, backgroundColor: "#B42318", onPress: () => confirmReview("reject", order) } : null)
       : approved
         ? { label: "WhatsApp", icon: "logo-whatsapp" as const, backgroundColor: "#168044", onPress: () => order.customerPhone && void Linking.openURL(whatsappUrl(order.customerPhone)) }
         : null;
     const leftSwipe = pending
-      ? (order.canReject ? { label: "Отклонить", icon: "close-circle" as const, backgroundColor: "#B42318", onPress: () => confirmReview("reject", order) } : null)
+      ? (order.canApprove ? { label: "Подтвердить", icon: "checkmark-circle" as const, backgroundColor: "#168044", onPress: () => confirmReview("approve", order) } : null)
       : approved
         ? { label: "Билет", icon: "mail-unread" as const, backgroundColor: "#17213C", onPress: () => confirmResend(order) }
         : null;
 
     return (
-      <SwipeOrderRow enabled={!busyAction} rightSwipe={rightSwipe} leftSwipe={leftSwipe}>
-        <TouchableOpacity style={styles.orderRow} activeOpacity={0.75} onPress={() => { setSelected(order); setRefundInfo(null); }}>
-          <View style={[styles.avatar, order.source === "ABANDONED_CHECKOUT" && styles.avatarLost]}>
-            <Text style={styles.avatarText}>{order.customerName.trim().slice(0, 1).toUpperCase() || "?"}</Text>
-          </View>
-          <View style={styles.orderMain}>
-            <View style={styles.nameLine}>
-              <Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text>
-              {order.source === "ABANDONED_CHECKOUT" && <View style={styles.lostBadge}><Text style={styles.lostBadgeText}>Брошено</Text></View>}
+      <View style={styles.orderCardWrap}>
+        <SwipeOrderRow enabled={!busyAction} rightSwipe={rightSwipe} leftSwipe={leftSwipe}>
+          <TouchableOpacity style={styles.orderCard} activeOpacity={0.82} onPress={() => { setSelected(order); setRefundInfo(null); }}>
+            <View style={[styles.avatar, order.source === "ABANDONED_CHECKOUT" && styles.avatarLost]}>
+              <Ionicons name={order.source === "ABANDONED_CHECKOUT" ? "cart-outline" : "person-outline"} size={27} color="#17213C" />
             </View>
-            <Text style={styles.orderMeta} numberOfLines={1}>{order.ticketCount} бил. · {order.categories.map((c) => c.name).join(", ") || "Билет"}</Text>
-            {!!order.customerPhone && <Text style={styles.phone}>{order.customerPhone}</Text>}
-            {blocked && <Text style={styles.blockedText} numberOfLines={2}>{order.reviewBlockedReason}</Text>}
-          </View>
-          <View style={styles.orderEnd}>
-            <Text style={styles.amount}>{money(order.totalMinor)}</Text>
-            <Text style={styles.age}>{timeAgo(order.createdAt)}</Text>
-            <Ionicons name="chevron-forward" size={17} color="#A0A7B5" />
-          </View>
-        </TouchableOpacity>
-      </SwipeOrderRow>
+
+            <View style={styles.orderCardBody}>
+              <View style={styles.orderCardTop}>
+                <View style={styles.orderIdentity}>
+                  <View style={styles.nameLine}>
+                    <Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text>
+                    {order.source === "ABANDONED_CHECKOUT" && <View style={styles.lostBadge}><Text style={styles.lostBadgeText}>Брошено</Text></View>}
+                  </View>
+                  {age !== null && <Text style={styles.personMeta}>{age} лет</Text>}
+                  {!!order.customerPhone && <Text style={styles.phone}>{order.customerPhone}</Text>}
+                </View>
+                <View style={styles.orderEnd}>
+                  <Text style={styles.amount}>{money(order.totalMinor)}</Text>
+                  <Text style={styles.age}>{timeAgo(order.createdAt)}</Text>
+                  <Ionicons name="chevron-forward" size={17} color="#A0A7B5" />
+                </View>
+              </View>
+
+              {order.attribution && order.source === "ORDER" && (
+                <View style={styles.attributionBadge}>
+                  <Ionicons name={attributionIcon(order.attribution.kind)} size={15} color="#6D45FF" />
+                  <View style={styles.attributionCopy}>
+                    <Text style={styles.attributionLabel} numberOfLines={1}>{order.attribution.label}</Text>
+                    {!!order.attribution.detail && <Text style={styles.attributionDetail} numberOfLines={1}>{order.attribution.detail}</Text>}
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.ticketStrip}>
+                <Ionicons name="ticket-outline" size={17} color="#6D45FF" />
+                <Text style={styles.ticketType} numberOfLines={1}>{ticketLabel}</Text>
+                <View style={styles.ticketCountPill}><Text style={styles.ticketCountText}>{order.ticketCount} {order.ticketCount === 1 ? "билет" : "бил."}</Text></View>
+              </View>
+
+              {blocked && <Text style={styles.blockedText} numberOfLines={2}>{order.reviewBlockedReason}</Text>}
+            </View>
+          </TouchableOpacity>
+        </SwipeOrderRow>
+      </View>
     );
   }
 
@@ -337,6 +382,14 @@ export default function EventOperationsScreen() {
         <TouchableOpacity style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]} onPress={() => setFilterOpen(true)}><Ionicons name="options-outline" size={20} color={hasActiveFilters ? "#fff" : "#17213C"} /></TouchableOpacity>
       </View>
 
+      {group === "pending" && data.orders.length > 0 && (
+        <View style={styles.swipeHint}>
+          <Text style={styles.swipeHintApprove}>← Подтвердить</Text>
+          <Text style={styles.swipeHintDot}>·</Text>
+          <Text style={styles.swipeHintReject}>Отклонить →</Text>
+        </View>
+      )}
+
       <FlatList
         style={styles.list}
         contentContainerStyle={styles.listContent}
@@ -379,6 +432,8 @@ export default function EventOperationsScreen() {
           <View style={styles.detailCard}>
             {!!selected.customerPhone && <Detail label="Телефон" value={selected.customerPhone} />}
             {!!selected.customerEmail && <Detail label="Email" value={selected.customerEmail} />}
+            {selected.customerBirthDate && <Detail label="Возраст" value={`${ageFromBirthDate(selected.customerBirthDate) ?? "-"}`} />}
+            {selected.attribution && <Detail label="Источник" value={selected.attribution.detail ? `${selected.attribution.label} · ${selected.attribution.detail}` : selected.attribution.label} />}
             <Detail label="Билеты" value={`${selected.ticketCount}`} />
             <Detail label="Сумма" value={money(selected.totalMinor)} />
             <Detail label="Статус" value={selected.status} />
@@ -443,24 +498,38 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14 },
   filterButton: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E5EC", alignItems: "center", justifyContent: "center" },
   filterButtonActive: { backgroundColor: "#6D45FF", borderColor: "#6D45FF" },
+  swipeHint: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingBottom: 7, backgroundColor: "#F5F6FA" },
+  swipeHintApprove: { fontSize: 10.5, color: "#168044", fontWeight: "800" },
+  swipeHintReject: { fontSize: 10.5, color: "#B42318", fontWeight: "800" },
+  swipeHintDot: { color: "#A0A7B5" },
   list: { flex: 1 },
   listContent: { paddingHorizontal: 10, paddingBottom: 90 },
   listLoader: { height: 54, alignItems: "center", justifyContent: "center" },
-  orderRow: { minHeight: 78, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#ECEEF3", paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center" },
-  avatar: { width: 42, height: 42, borderRadius: 13, backgroundColor: "#071536", alignItems: "center", justifyContent: "center", marginRight: 11 },
-  avatarLost: { backgroundColor: "#8A4B08" },
-  avatarText: { color: "#fff", fontSize: 17, fontWeight: "900" },
-  orderMain: { flex: 1 },
+  orderCardWrap: { marginBottom: 8 },
+  orderCard: { minHeight: 112, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E6E9EF", borderRadius: 18, paddingHorizontal: 12, paddingVertical: 11, flexDirection: "row", alignItems: "flex-start" },
+  avatar: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center", marginRight: 11 },
+  avatarLost: { backgroundColor: "#FFF3E8" },
+  orderCardBody: { flex: 1 },
+  orderCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  orderIdentity: { flex: 1, minWidth: 0 },
   nameLine: { flexDirection: "row", alignItems: "center", gap: 6 },
-  customerName: { maxWidth: "72%", fontSize: 14.5, fontWeight: "800", color: "#17213C" },
+  customerName: { maxWidth: "78%", fontSize: 15, fontWeight: "900", color: "#17213C" },
   lostBadge: { borderRadius: 99, backgroundColor: "#FFF3E8", paddingHorizontal: 7, paddingVertical: 2 },
   lostBadgeText: { color: "#B54708", fontSize: 9.5, fontWeight: "800" },
-  orderMeta: { fontSize: 11.5, color: "#737C90", marginTop: 3 },
+  personMeta: { fontSize: 11.5, color: "#737C90", marginTop: 3 },
   phone: { fontSize: 11.5, color: "#60708A", marginTop: 2 },
-  blockedText: { fontSize: 10.5, color: "#B54708", marginTop: 4 },
-  orderEnd: { alignItems: "flex-end", minWidth: 72 },
-  amount: { fontSize: 13.5, fontWeight: "900", color: "#17213C" },
-  age: { fontSize: 10, color: "#9AA1B0", marginTop: 5, marginBottom: 2 },
+  blockedText: { fontSize: 10.5, color: "#B54708", marginTop: 7 },
+  orderEnd: { alignItems: "flex-end", minWidth: 78, marginLeft: 8 },
+  amount: { fontSize: 14, fontWeight: "900", color: "#17213C" },
+  age: { fontSize: 10, color: "#9AA1B0", marginTop: 4, marginBottom: 2 },
+  attributionBadge: { alignSelf: "flex-start", maxWidth: "100%", marginTop: 8, borderRadius: 12, backgroundColor: "#F3F0FF", paddingHorizontal: 9, paddingVertical: 6, flexDirection: "row", alignItems: "center", gap: 7 },
+  attributionCopy: { flexShrink: 1 },
+  attributionLabel: { fontSize: 10.5, color: "#3E2AA8", fontWeight: "800" },
+  attributionDetail: { fontSize: 9.5, color: "#7B6EB7", marginTop: 1 },
+  ticketStrip: { marginTop: 8, flexDirection: "row", alignItems: "center", gap: 7 },
+  ticketType: { flexShrink: 1, fontSize: 11.5, color: "#17213C", fontWeight: "700" },
+  ticketCountPill: { borderRadius: 99, backgroundColor: "#EEF2FF", paddingHorizontal: 8, paddingVertical: 3 },
+  ticketCountText: { color: "#4E3AC5", fontSize: 9.5, fontWeight: "800" },
   empty: { padding: 42, alignItems: "center" },
   emptyTitle: { fontSize: 17, fontWeight: "900", color: "#17213C" },
   emptyText: { color: "#8A92A3", marginTop: 6, textAlign: "center" },
