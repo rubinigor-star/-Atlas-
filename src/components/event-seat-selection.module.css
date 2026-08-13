@@ -44,3 +44,19 @@
 .seat.filtered{visibility:visible!important;opacity:1!important;pointer-events:none!important}
 .seat.filtered:before{background:#d9dee5!important;box-shadow:0 0 0 1px rgba(15,23,42,.045)!important}
 .filteredObject{visibility:visible!important;opacity:.14!important;pointer-events:none!important;filter:grayscale(.9) saturate(.15)}
+.rangeRecoveryModal{width:min(520px,calc(100vw - 32px));box-sizing:border-box;padding:28px 30px 30px;border-radius:20px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.3);color:#0b1220;text-align:center}
+.rangeRecoveryModal h2{margin:0;font-size:24px;line-height:1.15;font-weight:850;letter-spacing:-.025em;text-transform:uppercase}
+.rangeRecoveryModal p{max-width:410px;margin:10px auto 26px;color:#6b7280;font-size:14px;line-height:1.45}
+.recoveryPriceLabels{display:flex;justify-content:space-between;gap:18px;margin-bottom:10px;font-size:14px;direction:ltr}
+.recoverySlider{position:relative;height:36px;margin:0 1px 24px}
+.recoverySlider:before,.recoverySlider>span{content:"";position:absolute;left:0;right:0;top:17px;height:3px;border-radius:99px;background:#d7dce3}
+.recoverySlider>span{right:auto;background:#111827}
+.recoverySlider input{position:absolute;inset:0;width:100%;height:36px;margin:0;border:0;outline:0;background:transparent;pointer-events:none;-webkit-appearance:none;appearance:none}
+.recoverySlider input::-webkit-slider-runnable-track{height:3px;background:transparent}
+.recoverySlider input::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;margin-top:-11px;border:2px solid #fff;border-radius:50%;background:#2468e8;box-shadow:0 1px 5px rgba(15,23,42,.25);pointer-events:auto;cursor:grab}
+.recoverySlider input:last-child::-webkit-slider-thumb{background:#20a020}
+.recoverySlider input::-moz-range-track{height:3px;background:transparent}
+.recoverySlider input::-moz-range-thumb{width:24px;height:24px;border:2px solid #fff;border-radius:50%;background:#2468e8;pointer-events:auto;cursor:grab}
+.recoverySlider input:last-child::-moz-range-thumb{background:#20a020}
+.rangeRecoveryModal>button{width:100%;height:48px;border:0;border-radius:999px;background:linear-gradient(90deg,#ff7818,#ff315f 48%,#a72de5);color:#fff;font:inherit;font-size:15px;font-weight:800;cursor:pointer}
+.rangeRecoveryModal>button:disabled{background:#d7dce2;color:#8993a0;cursor:not-allowed}

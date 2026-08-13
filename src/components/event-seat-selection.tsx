@@ -194,19 +194,19 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     ru: {
       back: "Вернуться к мероприятию", offers: "Предложения", all: "Все билеты", onePlusOne: "1 + 1",
       people: "Количество гостей", peopleHint: "Покажем только места, где вся группа сможет сидеть рядом", tickets: "билетов",
-      confirm: "Подтвердить", selected: "Выбрано", continue: "Перейти к оплате", emptyCheckout: "Выберите билет", price: "Цена", feeIncluded: "включая сервисный сбор", noSeats: "В выбранном диапазоне нет подходящих мест рядом",
+      confirm: "Подтвердить", selected: "Выбрано", continue: "Перейти к оплате", emptyCheckout: "Выберите билет", price: "Цена", feeIncluded: "включая сервисный сбор", noSeats: "В выбранном диапазоне нет подходящих мест рядом", expandRange: "Расширьте диапазон цен", expandRangeHint: "Для выбранного количества гостей нет подходящих мест рядом. Выберите более широкий диапазон.", applyRange: "Применить диапазон",
       zoomReset: "Сбросить масштаб", row: "Ряд", seat: "место", seats: "места", table: "Стол", zone: "Зона", section: "Категория"
     },
     en: {
       back: "Back to event", offers: "Offers", all: "All tickets", onePlusOne: "1 + 1",
       people: "Guests", peopleHint: "We only show places where the whole group can sit together", tickets: "tickets",
-      confirm: "Confirm", selected: "Selected", continue: "Go to checkout", emptyCheckout: "Select a ticket", price: "Price", feeIncluded: "incl. service fee", noSeats: "No adjacent seats match this price range",
+      confirm: "Confirm", selected: "Selected", continue: "Go to checkout", emptyCheckout: "Select a ticket", price: "Price", feeIncluded: "incl. service fee", noSeats: "No adjacent seats match this price range", expandRange: "Expand the price range", expandRangeHint: "No adjacent places match the selected group size. Choose a wider range.", applyRange: "Apply range",
       zoomReset: "Reset zoom", row: "Row", seat: "seat", seats: "seats", table: "Table", zone: "Zone", section: "Category"
     },
     he: {
       back: "חזרה לאירוע", offers: "הצעות", all: "כל הכרטיסים", onePlusOne: "1 + 1",
       people: "מספר אורחים", peopleHint: "נציג רק מקומות שבהם כל הקבוצה יכולה לשבת יחד", tickets: "כרטיסים",
-      confirm: "אישור", selected: "נבחרו", continue: "המשך לתשלום", emptyCheckout: "בחרו כרטיס", price: "מחיר", feeIncluded: "כולל דמי שירות", noSeats: "אין מקומות צמודים בטווח המחירים שנבחר",
+      confirm: "אישור", selected: "נבחרו", continue: "המשך לתשלום", emptyCheckout: "בחרו כרטיס", price: "מחיר", feeIncluded: "כולל דמי שירות", noSeats: "אין מקומות צמודים בטווח המחירים שנבחר", expandRange: "הרחיבו את טווח המחירים", expandRangeHint: "אין מקומות צמודים למספר האורחים שנבחר. בחרו טווח רחב יותר.", applyRange: "החלת הטווח",
       zoomReset: "איפוס זום", row: "שורה", seat: "מקום", seats: "מקומות", table: "שולחן", zone: "אזור", section: "קטגוריה"
     },
   }[locale];
@@ -240,6 +240,8 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const [maxIndex, setMaxIndex] = useState(Math.max(0, sortedPrices.length - 1));
   const [minSliderValue, setMinSliderValue] = useState(0);
   const [maxSliderValue, setMaxSliderValue] = useState(PRICE_SLIDER_RESOLUTION);
+  const [draftMinRangeIndex, setDraftMinRangeIndex] = useState(0);
+  const [draftMaxRangeIndex, setDraftMaxRangeIndex] = useState(Math.max(0, sortedPrices.length - 1));
   const [qty, setQty] = useState(Math.max(1, Math.min(8, initialQty)));
   const [offer, setOffer] = useState<OfferFilter>("ALL");
   const [offerOpen, setOfferOpen] = useState(false);
@@ -293,9 +295,22 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     Boolean(object.categoryId && allowedCategoryIds.has(object.categoryId))
     && (object.objectType === "ZONE" || (object.priceMode === "WHOLE_TABLE" && !object.reserved))
   );
+  const draftMinPrice = sortedPrices[draftMinRangeIndex] ?? 0;
+  const draftMaxPrice = sortedPrices[draftMaxRangeIndex] ?? draftMinPrice;
+  const draftAllowedCategoryIds = new Set(availableCategories
+    .filter(item => item.salesStrategy === offer || offer === "ALL")
+    .filter(item => { const price = categoryPrice.get(item.id) ?? -1; return price >= draftMinPrice && price <= draftMaxPrice; })
+    .map(item => item.id));
+  const draftHasObject = availableObjects.some(object => Boolean(object.categoryId && draftAllowedCategoryIds.has(object.categoryId)) && (object.objectType === "ZONE" || (object.priceMode === "WHOLE_TABLE" && !object.reserved)));
+  const draftHasSeats = availableObjects.some(object => seatTypes.has(object.objectType) && !object.reserved && validGroups(object, qty, seat => {
+    const categoryId = seat.categoryId ?? object.categoryId;
+    return seat.status === "AVAILABLE" && Boolean(categoryId && draftAllowedCategoryIds.has(categoryId));
+  }).length > 0);
+  const canApplyDraftRange = draftHasObject || draftHasSeats;
   const selectedSeats = objects.flatMap(item => item.seatItems).filter(seat => selectedSeatIds.includes(seat.id));
   const wholeObject = objects.find(item => item.id === wholeObjectId);
   const zoneObject = objects.find(item => item.id === zoneObjectId);
+  const noMatchingPlaces = eligibleSeatIds.size === 0 && !hasEligibleObject && !wholeObject && !zoneObject;
   const selectedObject = wholeObject ?? zoneObject ?? objects.find(item => item.seatItems.some(seat => selectedSeatIds.includes(seat.id)));
   const selectionComplete = Boolean(wholeObject) || Boolean(zoneObject) || selectedSeatIds.length === qty;
 
@@ -328,6 +343,15 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   function confirmPeople() {
     setQty(Math.max(1, Math.min(8, draftQty)));
     setPeopleOpen(false);
+    clearSelection();
+  }
+
+  function applyDraftPriceRange() {
+    if (!canApplyDraftRange) return;
+    setMinIndex(draftMinRangeIndex);
+    setMaxIndex(draftMaxRangeIndex);
+    setMinSliderValue(sliderValueForIndex(draftMinRangeIndex));
+    setMaxSliderValue(sliderValueForIndex(draftMaxRangeIndex));
     clearSelection();
   }
 
@@ -643,7 +667,6 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
               })}
             </div>
           </div>
-          {eligibleSeatIds.size === 0 && !hasEligibleObject && !wholeObject && !zoneObject && <div className={styles.noSeats}>{local.noSeats}</div>}
         </div>
       </section>
 
@@ -712,6 +735,22 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           <button type="button" onClick={() => setDraftQty(value => Math.min(8, value + 1))} disabled={draftQty >= 8}><Plus size={22}/></button>
         </div>
         <button type="button" className={polish.confirmButton} onClick={confirmPeople}>{local.confirm}</button>
+      </div>
+    </div>}
+    {noMatchingPlaces && !peopleOpen && <div className={polish.modalBackdrop} role="presentation">
+      <div className={styles.rangeRecoveryModal} role="dialog" aria-modal="true" aria-label={local.expandRange}>
+        <h2>{local.expandRange}</h2>
+        <p>{local.expandRangeHint}</p>
+        <div className={styles.recoveryPriceLabels}>
+          <strong style={{ color: availableCategories.find(item => (categoryPrice.get(item.id) ?? 0) === draftMinPrice)?.colorHex }}>{money(draftMinPrice, "ILS", locale)}</strong>
+          <strong style={{ color: availableCategories.find(item => (categoryPrice.get(item.id) ?? 0) === draftMaxPrice)?.colorHex }}>{money(draftMaxPrice, "ILS", locale)}</strong>
+        </div>
+        <div className={styles.recoverySlider}>
+          <span style={{ left: `${draftMinRangeIndex / Math.max(1, sortedPrices.length - 1) * 100}%`, width: `${(draftMaxRangeIndex - draftMinRangeIndex) / Math.max(1, sortedPrices.length - 1) * 100}%` }}/>
+          <input aria-label="minimum ticket price" type="range" min="0" max={Math.max(0, sortedPrices.length - 1)} step="1" value={draftMinRangeIndex} onChange={event => setDraftMinRangeIndex(Math.min(Number(event.target.value), draftMaxRangeIndex))}/>
+          <input aria-label="maximum ticket price" type="range" min="0" max={Math.max(0, sortedPrices.length - 1)} step="1" value={draftMaxRangeIndex} onChange={event => setDraftMaxRangeIndex(Math.max(Number(event.target.value), draftMinRangeIndex))}/>
+        </div>
+        <button type="button" disabled={!canApplyDraftRange} onClick={applyDraftPriceRange}>{local.applyRange}</button>
       </div>
     </div>}
   </main>;
