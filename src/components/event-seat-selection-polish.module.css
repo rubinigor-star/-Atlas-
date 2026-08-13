@@ -102,7 +102,7 @@
   .quantityControl button{width:30px;height:30px}
 }
 @media(max-width:900px){
-  .headerBack{right:14px!important;height:68px!important;font-size:12px!important}
+  .headerBack{display:none!important}
   .sidebar{padding:7px 16px max(12px,env(safe-area-inset-bottom))!important;overflow:hidden!important}
   .eventInfo{grid-template-columns:48px minmax(0,1fr)!important;gap:8px!important}
   .poster{width:48px!important;height:48px!important}

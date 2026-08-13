@@ -70,13 +70,16 @@
 .mobileEventBar{display:none}
 
 @media(max-width:900px){
-  :global(body.atlas-seat-selection-active .atlas-site-header){display:none!important}
+  :global(body.atlas-seat-selection-active .atlas-site-header),:global(body.atlas-seat-selection-active .atlas-header-spacer){display:none!important}
   .page{height:100dvh;min-height:0;background:#fff}
   .layout{height:100%;display:block;position:relative}
   .mapSide{height:100%;display:grid;grid-template-rows:96px 68px minmax(0,1fr);background:#fff}
   .mobileEventBar{position:relative;z-index:18;display:grid;grid-template-columns:60px minmax(0,1fr);grid-template-rows:minmax(20px,1fr) minmax(30px,1fr);align-items:center;column-gap:10px;padding:15px 18px 14px;border-bottom:1px solid #dfe3e8;background:#fff;color:#0b1220;direction:inherit;box-sizing:border-box}
   .mobileEventBar>img{grid-column:1;grid-row:1 / 3;width:60px;height:60px;border-radius:4px;object-fit:cover;box-shadow:0 1px 3px rgba(15,23,42,.1)}
-  .mobileEventTitle{grid-column:2;grid-row:1;min-width:0;align-self:end;margin:0 0 4px;color:#070d19;text-decoration:none;font-size:15px;line-height:1.15;font-weight:850;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mobileEventTitle{grid-column:2;grid-row:1;min-width:0;align-self:end;margin:0 0 4px;padding-inline-end:34px;color:#070d19;text-decoration:none;font-size:15px;line-height:1.15;font-weight:850;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mobileInlineBack{position:absolute;z-index:2;top:15px;inset-inline-end:16px;width:30px;height:30px;display:grid;place-items:center;border-radius:50%;color:#111827;text-decoration:none}
+  .mobileInlineBack:hover,.mobileInlineBack:focus-visible{background:#f1f3f6;outline:0}
+  :global(html[dir="rtl"]) .mobileInlineBack svg{transform:rotate(180deg)}
   .mobileQuantityRow{grid-column:2;grid-row:2;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:8px;align-self:start}
   .mobileQuantityLabel{min-width:0;display:inline-flex;align-items:center;gap:4px;color:#111827}
   .mobileQuantityLabel strong{font-size:12px;line-height:1.2;font-weight:750;white-space:nowrap}
@@ -86,10 +89,14 @@
   .mobileQuantityControl button{width:30px;height:30px;display:grid;place-items:center;padding:0;border:1px solid #d5dce5;border-radius:50%;background:#fff;color:#111827;cursor:pointer}
   .mobileQuantityControl button:disabled{opacity:.35;cursor:default}
   .mobileQuantityControl strong{min-width:13px;font-size:13px;line-height:1;text-align:center;color:#111827}
-  .priceRail{height:68px;box-sizing:border-box;padding:9px 16px 7px;border-bottom:0;box-shadow:none;background:#fff}
+  .priceRail{height:68px;box-sizing:border-box;padding:9px 26px 7px;border-bottom:0;box-shadow:none;background:#fff}
   .priceGrid{height:100%;margin-inline:0}
   .priceStops{min-height:24px;margin-inline:0}
-  .priceStops button,.priceStops button:first-child,.priceStops button:last-child{display:block;top:0;padding:0;font-size:9px;line-height:13px}
+  .priceStops button,.priceStops button:first-child,.priceStops button:last-child{display:block;top:0;padding:0;font-size:11px;line-height:14px}
+  .priceStops button:first-child{transform:none;text-align:start}
+  .priceStops button:last-child{transform:translateX(-100%);text-align:end}
+  :global(html[dir="rtl"]) .priceStops button:first-child{transform:translateX(-100%)}
+  :global(html[dir="rtl"]) .priceStops button:last-child{transform:none}
   .rangeWrap{height:35px}
   .rangeTrack{inset-inline:0;top:2px}
   .rangeBase,.rangeActive{top:16px;height:2px}
@@ -112,7 +119,7 @@
 @media(max-width:520px){
   .priceStops button:nth-child(even){display:block}
   .mobileEventBar{grid-template-columns:60px minmax(0,1fr);column-gap:9px;padding-inline:16px}
-  .mobileEventTitle{font-size:14px}
+  .mobileEventTitle{font-size:14px;padding-inline-end:32px}
   .mobileQuantityLabel strong{font-size:11.5px}
   .mobileQuantityControl{gap:8px}
   .mobileQuantityControl button{width:28px;height:28px}

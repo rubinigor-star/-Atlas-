@@ -245,7 +245,6 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const panRef = useRef({ pointerId: -1, x: 0, y: 0, left: 0, top: 0 });
   const touchPointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchRef = useRef({ distance: 0, zoom: DEFAULT_ZOOM, worldX: 0, worldY: 0 });
-  const mobileMapReadyRef = useRef(false);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [panning, setPanning] = useState(false);
   const [hoveredSeat, setHoveredSeat] = useState<HoveredSeat>(null);
@@ -303,7 +302,21 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
   }, []);
 
-  const availableObjects = (allocation?.type === "TABLE" ? objects.filter(item => item.id === allocation.tableId || !seatTypes.has(item.objectType)) : objects).filter(item => !isInternalObject(item));
+  const availableObjects = useMemo(() => (allocation?.type === "TABLE" ? objects.filter(item => item.id === allocation.tableId || !seatTypes.has(item.objectType)) : objects).filter(item => !isInternalObject(item)), [allocation?.tableId, allocation?.type, objects]);
+  const mobileMapBounds = useMemo(() => {
+    if (!availableObjects.length) return { minX: 0, maxX: WORLD_WIDTH, minY: 0, maxY: WORLD_HEIGHT };
+    const bleed = 34;
+    return availableObjects.reduce((bounds, object) => {
+      const centerX = object.x / 100 * WORLD_WIDTH;
+      const centerY = object.y / 100 * WORLD_HEIGHT;
+      return {
+        minX: Math.min(bounds.minX, centerX - object.width / 2 - bleed),
+        maxX: Math.max(bounds.maxX, centerX + object.width / 2 + bleed),
+        minY: Math.min(bounds.minY, centerY - object.height / 2 - bleed),
+        maxY: Math.max(bounds.maxY, centerY + object.height / 2 + bleed),
+      };
+    }, { minX: WORLD_WIDTH, maxX: 0, minY: WORLD_HEIGHT, maxY: 0 });
+  }, [availableObjects]);
   const assignedCategoryIds = useMemo(() => new Set(availableObjects.flatMap(object => [object.categoryId, ...object.seatItems.map(seat => seat.categoryId)].filter((id): id is string => Boolean(id)))), [availableObjects]);
   const availableCategories = (allocation?.type === "CATEGORY" ? categories.filter(item => item.id === allocation.categoryId) : categories).filter(item => assignedCategoryIds.has(item.id));
   const categoryPrice = useMemo(() => new Map(availableCategories.map(item => [item.id, item.priceMinor])), [availableCategories]);
@@ -332,19 +345,21 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     const viewport = viewportRef.current;
     if (!viewport || !window.matchMedia("(max-width: 900px)").matches) return;
     const centerMobileMap = () => {
-      const fittedZoom = Math.max(28, Math.min(36, ((viewport.clientWidth + 72) / WORLD_WIDTH) * 100));
+      const contentWidth = Math.max(1, mobileMapBounds.maxX - mobileMapBounds.minX);
+      const fittedZoom = Math.max(24, Math.min(48, ((viewport.clientWidth - 28) / contentWidth) * 100));
+      const fittedScale = fittedZoom / 100;
+      const contentCenterX = (mobileMapBounds.minX + mobileMapBounds.maxX) / 2;
       setZoom(fittedZoom);
       requestAnimationFrame(() => requestAnimationFrame(() => {
-        viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2);
-        viewport.scrollTop = 0;
-        mobileMapReadyRef.current = true;
+        viewport.scrollLeft = Math.max(0, contentCenterX * fittedScale - viewport.clientWidth / 2);
+        viewport.scrollTop = Math.max(0, mobileMapBounds.minY * fittedScale - 8);
       }));
     };
     centerMobileMap();
     const observer = new ResizeObserver(centerMobileMap);
     observer.observe(viewport);
     return () => observer.disconnect();
-  }, []);
+  }, [mobileMapBounds]);
 
   const sliderValueForIndex = (index: number) => sortedPrices.length <= 1
     ? PRICE_SLIDER_RESOLUTION / 2
@@ -840,6 +855,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
         <div className={styles.mobileEventBar}>
           <img src={posterUrl} alt=""/>
           <Link className={styles.mobileEventTitle} href={backHref}>{mobileEventTitle}</Link>
+          <Link className={styles.mobileInlineBack} href={backHref} aria-label={local.back}><ArrowLeft size={18}/></Link>
           <div className={styles.mobileQuantityRow}>
             <span className={styles.mobileQuantityLabel}>
               <strong>{local.quantity}</strong>
