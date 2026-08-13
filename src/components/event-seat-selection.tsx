@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronDown, Minus, Plus, RotateCcw, UsersRound, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, Minus, Plus, RotateCcw, UserRound, X } from "lucide-react";
 import { money } from "@/lib/format";
 import { calculateServiceFee, type ServiceFeeTerms } from "@/lib/service-fee";
 import type { PricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
@@ -803,8 +803,8 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           <div className={`${styles.eventDetails} ${polish.eventDetails}`}>
             <h1 className={polish.title}>{displayTitle}</h1>
             <div className={styles.peopleWrap}>
-              <button type="button" className={`${styles.peopleButton} ${polish.peopleButton}`} aria-label={`${local.people}: ${qty}`} onClick={() => { setDraftQty(qty); setPeopleOpen(true); }}>
-                <UsersRound size={16}/><strong>{qty}</strong><ChevronDown size={14}/>
+              <button type="button" className={polish.quantityTrigger} aria-label={`${local.people}: ${qty}`} onClick={() => { setDraftQty(qty); setPeopleOpen(true); }}>
+                <UserRound size={14}/><strong>{qty}</strong><ChevronDown size={14}/>
               </button>
             </div>
           </div>
@@ -858,7 +858,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           <strong aria-live="polite">{ticketQuantityLabel(draftQty)}</strong>
           <button type="button" onClick={() => setDraftQty(value => Math.min(quantityLimit, value + 1))} disabled={draftQty >= quantityLimit}><Plus size={21}/></button>
         </div>
-        <button type="button" className={polish.confirmButton} onClick={confirmPeople}>{local.confirm}</button>
+        <button type="button" className={polish.quantityConfirm} onClick={confirmPeople}>{local.confirm}</button>
       </div>
     </div>}
     {noMatchingPlaces && !peopleOpen && <div className={polish.modalBackdrop} role="presentation">
