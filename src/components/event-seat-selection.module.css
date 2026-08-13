@@ -60,3 +60,4 @@
 .recoverySlider input:last-child::-moz-range-thumb{background:#20a020}
 .rangeRecoveryModal>button{width:100%;height:48px;border:0;border-radius:999px;background:linear-gradient(90deg,#ff7818,#ff315f 48%,#a72de5);color:#fff;font:inherit;font-size:15px;font-weight:800;cursor:pointer}
 .rangeRecoveryModal>button:disabled{background:#d7dce2;color:#8993a0;cursor:not-allowed}
+.cartItems{display:grid;gap:0;max-height:calc(100dvh - 265px);overflow:auto;scrollbar-width:thin}
