@@ -35,7 +35,7 @@ export default async function OrganizerCommercialCard({params}:{params:Promise<{
       <div className="stat"><span className="muted">Статус договора</span><strong style={{fontSize:20,color:agreementCurrent?"#15803d":"#b42318"}}>{agreementCurrent?"Актуален":compliance.agreementStatus==="ACCEPTED"?"Нужно обновить":"Не подписан"}</strong><small>{compliance.agreementStatus==="ACCEPTED"?contractReference(id,compliance.acceptedAt):"Требуется принятие организатором"}</small></div>
     </div>
 
-    <PlatformOrganizerProfileForm organizationId={id} initial={{organizationName:organization.name,ownerName:owner?.name??"",ownerEmail:owner?.email??"",businessType:compliance.businessType??"",country:compliance.country??"",phone:compliance.phone??""}}/>
+    <PlatformOrganizerProfileForm organizationId={id} initial={{organizationName:organization.name,ownerName:owner?.name??"",ownerEmail:owner?.email??"",businessType:compliance.businessType??"",country:compliance.country??"",phone:compliance.phone??""}} users={organization.users.map(user=>({id:user.id,name:user.name,email:user.email,staffRole:user.staffRole,role:user.role,active:user.active}))}/>
     <OrganizerDocumentsForm organizationId={id} bank={{provided:Boolean(compliance.bankDocumentPath),name:compliance.bankDocumentName,updatedAt:documentDate(compliance.bankAccountUpdatedAt)}} tax={{provided:Boolean(compliance.taxDocumentPath),name:compliance.taxDocumentName,updatedAt:documentDate(compliance.taxDocumentUpdatedAt)}}/>
 
     <section className="platform-section-card">
