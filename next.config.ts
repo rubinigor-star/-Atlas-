@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const noIndexHeaders = [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }];
+
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
   outputFileTracingIncludes: {
@@ -11,11 +13,33 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
-    if (process.env.VERCEL_ENV !== "preview") return [];
-    return [{
-      source: "/:path*",
-      headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
-    }];
+    if (process.env.VERCEL_ENV === "preview") {
+      return [{ source: "/:path*", headers: noIndexHeaders }];
+    }
+
+    const privateRoots = [
+      "account",
+      "admin",
+      "cancel-order",
+      "cancellation-email-preview",
+      "checkout",
+      "office",
+      "orders",
+      "payments",
+      "platform",
+      "promoter",
+      "scanner",
+      "ticket-design-preview",
+      "p",
+      "g",
+      "s",
+      "t",
+    ];
+
+    return privateRoots.map((root) => ({
+      source: `/${root}/:path*`,
+      headers: noIndexHeaders,
+    }));
   },
 };
 
