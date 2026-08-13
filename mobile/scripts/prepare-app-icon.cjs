@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { PNG } = require("pngjs");
 
 const root = path.resolve(__dirname, "..");
 const source = path.join(root, "assets", "atlas-one-app-icon.png.base64");
@@ -10,7 +11,23 @@ if (!fs.existsSync(source)) {
 }
 
 const encoded = fs.readFileSync(source, "utf8").trim();
-const buffer = Buffer.from(encoded, "base64");
+const sourceBuffer = Buffer.from(encoded, "base64");
+const decoded = PNG.sync.read(sourceBuffer, { skipRescale: true });
+
+if (decoded.width !== 1024 || decoded.height !== 1024) {
+  throw new Error(`Atlas One app icon must be 1024x1024, got ${decoded.width}x${decoded.height}`);
+}
+
+const normalized = PNG.sync.write(decoded, {
+  colorType: 2,
+  inputColorType: 6,
+  inputHasAlpha: true,
+  bitDepth: 8,
+  deflateLevel: 9,
+  deflateStrategy: 3,
+  filterType: 0,
+});
+
 fs.mkdirSync(path.dirname(target), { recursive: true });
-fs.writeFileSync(target, buffer);
-console.log(`Atlas One app icon prepared: ${target} (${buffer.length} bytes)`);
+fs.writeFileSync(target, normalized);
+console.log(`Atlas One app icon prepared: ${target} (${normalized.length} bytes, ${decoded.width}x${decoded.height})`);
