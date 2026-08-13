@@ -63,6 +63,7 @@ type HoveredSeat = { object: MapObject; seat: MapSeat; x: number; y: number } | 
 const WORLD_WIDTH = 1400;
 const WORLD_HEIGHT = 900;
 const DEFAULT_ZOOM = 75;
+const PRICE_SLIDER_RESOLUTION = 1000;
 const seatTypes = new Set(["TABLE", "ROUND_TABLE", "SOFA", "ROW"]);
 
 function isInternalObject(object: MapObject) {
@@ -236,6 +237,8 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
 
   const [minIndex, setMinIndex] = useState(0);
   const [maxIndex, setMaxIndex] = useState(Math.max(0, sortedPrices.length - 1));
+  const [minSliderValue, setMinSliderValue] = useState(0);
+  const [maxSliderValue, setMaxSliderValue] = useState(PRICE_SLIDER_RESOLUTION);
   const [qty, setQty] = useState(Math.max(1, Math.min(8, initialQty)));
   const [offer, setOffer] = useState<OfferFilter>("ALL");
   const [offerOpen, setOfferOpen] = useState(false);
@@ -244,9 +247,26 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const [wholeObjectId, setWholeObjectId] = useState<string | null>(allocation?.type === "TABLE" ? allocation.tableId : null);
   const [zoneObjectId, setZoneObjectId] = useState<string | null>(null);
 
+  useEffect(() => {
+    const lastIndex = Math.max(0, sortedPrices.length - 1);
+    const onlyStop = sortedPrices.length <= 1 ? PRICE_SLIDER_RESOLUTION / 2 : PRICE_SLIDER_RESOLUTION;
+    setMinIndex(0);
+    setMaxIndex(lastIndex);
+    setMinSliderValue(sortedPrices.length <= 1 ? onlyStop : 0);
+    setMaxSliderValue(onlyStop);
+  }, [sortedPrices.length]);
+
   const hasOnePlusOne = availableCategories.some(item => item.salesStrategy === "BUY_ONE_GET_ONE");
+  const sliderValueForIndex = (index: number) => sortedPrices.length <= 1
+    ? PRICE_SLIDER_RESOLUTION / 2
+    : Math.round(index / (sortedPrices.length - 1) * PRICE_SLIDER_RESOLUTION);
+  const indexForSliderValue = (value: number) => sortedPrices.length <= 1
+    ? 0
+    : Math.round(value / PRICE_SLIDER_RESOLUTION * (sortedPrices.length - 1));
   const minPrice = sortedPrices[minIndex] ?? 0;
   const maxPrice = sortedPrices[maxIndex] ?? minPrice;
+  const minCategory = availableCategories.find(item => (categoryPrice.get(item.id) ?? 0) === minPrice);
+  const maxCategory = availableCategories.find(item => (categoryPrice.get(item.id) ?? 0) === maxPrice);
   const allowedCategoryIds = useMemo(() => new Set(
     availableCategories
       .filter(item => item.salesStrategy === offer || offer === "ALL")
@@ -396,9 +416,10 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     return `${object.label}, ${local.seat} ${sorted[0].position}`;
   }
 
-  const rangeDenominator = Math.max(1, sortedPrices.length - 1);
-  const activeLeft = minIndex / rangeDenominator * 100;
-  const activeWidth = (maxIndex - minIndex) / rangeDenominator * 100;
+  const activeLeft = minSliderValue / PRICE_SLIDER_RESOLUTION * 100;
+  const activeWidth = (maxSliderValue - minSliderValue) / PRICE_SLIDER_RESOLUTION * 100;
+  const snapMinimumHandle = () => setMinSliderValue(sliderValueForIndex(minIndex));
+  const snapMaximumHandle = () => setMaxSliderValue(sliderValueForIndex(maxIndex));
   const backHref = `/events/${slug}${referralCode ? `?ref=${encodeURIComponent(referralCode)}` : ""}`;
   const selectionCategory = selectedObject ? categoryFor(selectedObject, selectedSeats[0]) : undefined;
   const selectionDescription = selectedObject ? objectDescription(selectedObject, selectedSeats) : "";
@@ -527,16 +548,16 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
               const active = index >= minIndex && index <= maxIndex;
               const stopPosition = sortedPrices.length <= 1 ? 50 : index / (sortedPrices.length - 1) * 100;
               return <button type="button" key={`${price}-${index}`} className={active ? styles.priceActive : ""} style={{ left: `${stopPosition}%` }} onClick={() => {
-                if (index < minIndex) setMinIndex(index);
-                else if (index > maxIndex) setMaxIndex(index);
+                if (index < minIndex) { setMinIndex(index); setMinSliderValue(sliderValueForIndex(index)); clearSelection(); }
+                else if (index > maxIndex) { setMaxIndex(index); setMaxSliderValue(sliderValueForIndex(index)); clearSelection(); }
               }}><b style={{ color: category?.colorHex ?? "#64748b" }}>{money(price, "ILS", locale)}</b></button>;
             })}
           </div>
           <div className={styles.rangeWrap}>
             <div className={styles.rangeTrack}>
               <div className={styles.rangeBase}/><div className={styles.rangeActive} style={{ left: `${activeLeft}%`, width: `${activeWidth}%` }}/>
-              <input aria-label="minimum ticket price" className={styles.range} type="range" min="0" max={Math.max(0, sortedPrices.length - 1)} step="1" value={minIndex} onChange={event => { setMinIndex(Math.min(Number(event.target.value), maxIndex)); clearSelection(); }}/>
-              <input aria-label="maximum ticket price" className={`${styles.range} ${styles.rangeMax}`} type="range" min="0" max={Math.max(0, sortedPrices.length - 1)} step="1" value={maxIndex} onChange={event => { setMaxIndex(Math.max(Number(event.target.value), minIndex)); clearSelection(); }}/>
+              <input aria-label="minimum ticket price" className={styles.range} style={{ "--range-thumb-color": minCategory?.colorHex ?? "#168bf2" } as React.CSSProperties} type="range" min="0" max={PRICE_SLIDER_RESOLUTION} step="1" value={minSliderValue} onChange={event => { const value = Math.min(Number(event.target.value), maxSliderValue); const nextIndex = Math.min(indexForSliderValue(value), maxIndex); setMinSliderValue(value); if (nextIndex !== minIndex) { setMinIndex(nextIndex); clearSelection(); } }} onPointerUp={snapMinimumHandle} onPointerCancel={snapMinimumHandle} onBlur={snapMinimumHandle}/>
+              <input aria-label="maximum ticket price" className={`${styles.range} ${styles.rangeMax}`} style={{ "--range-thumb-color": maxCategory?.colorHex ?? "#a35df0" } as React.CSSProperties} type="range" min="0" max={PRICE_SLIDER_RESOLUTION} step="1" value={maxSliderValue} onChange={event => { const value = Math.max(Number(event.target.value), minSliderValue); const nextIndex = Math.max(indexForSliderValue(value), minIndex); setMaxSliderValue(value); if (nextIndex !== maxIndex) { setMaxIndex(nextIndex); clearSelection(); } }} onPointerUp={snapMaximumHandle} onPointerCancel={snapMaximumHandle} onBlur={snapMaximumHandle}/>
             </div>
           </div>
         </div>
