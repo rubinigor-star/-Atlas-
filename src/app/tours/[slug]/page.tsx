@@ -3,6 +3,7 @@ import Link from "next/link";
 import {notFound} from "next/navigation";
 import {db} from "@/lib/db";
 import {eventDate,money} from "@/lib/format";
+import {getDirectOnlyEventIds} from "@/lib/event-language-server";
 
 export const dynamic="force-dynamic";
 type TourRow={id:string;slug:string;title:string;description:string;posterurl:string|null};
@@ -17,7 +18,8 @@ export default async function TourPage({params}:{params:Promise<{slug:string}>})
   }catch{return notFound();}
   if(!tour)return notFound();
   const ids=links.map(item=>item.eventid);
-  const events=await db.event.findMany({where:{id:{in:ids},status:"PUBLISHED"},include:{venue:true,categories:true}});
+  const directOnlyIds=await getDirectOnlyEventIds();
+  const events=await db.event.findMany({where:{id:{in:ids,...(directOnlyIds.length?{notIn:directOnlyIds}:{})},status:"PUBLISHED"},include:{venue:true,categories:true}});
   const byId=new Map(events.map(event=>[event.id,event]));
   const ordered=ids.map(id=>byId.get(id)).filter(Boolean) as typeof events;
   return <main>
