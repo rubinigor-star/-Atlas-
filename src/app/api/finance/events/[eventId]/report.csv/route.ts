@@ -34,5 +34,5 @@ export async function GET(_request:Request,{params}:{params:Promise<{eventId:str
   for(const tx of transactions)rows.push([iso(tx.createdAt),tx.type,tx.publicId,tx.description,moneyMinor(tx.amountMinor)].map(csvCell).join(","));
   const csv=`\uFEFF${rows.join("\r\n")}`;
   const safe=(finance.eventTitle||"event").replace(/[^a-zA-Z0-9а-яА-Яא-ת_-]+/g,"-").slice(0,80);
-  return new NextResponse(csv,{headers:{"content-type":"text/csv; charset=utf-8","content-disposition":`attachment; filename="atlas-${safe}-finance.csv"`,`cache-control`:"no-store"}});
+  return new NextResponse(csv,{headers:{"content-type":"text/csv; charset=utf-8","content-disposition":`attachment; filename="atlas-${safe}-finance.csv"`,"cache-control":"no-store"}});
 }
