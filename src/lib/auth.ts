@@ -7,8 +7,8 @@ import { allPermissions, rolePermissions } from "@/lib/permissions";
 export const officeSessionCookie = "atlas_office_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 14;
 const TOKEN_TTL_SECONDS = 60 * 60;
-const MAX_FAILED_ATTEMPTS = 5;
-const LOCK_MINUTES = 15;
+const MAX_FAILED_ATTEMPTS = 3;
+const LOCK_SECONDS = 60;
 const BOOTSTRAP_ADMIN_EMAIL = "rubin.igor@gmail.com";
 const BOOTSTRAP_ADMIN_PASSWORD_HASH = "scrypt:21b434e1ae97b23c011ab63710dca161:5ef4bb33cca7a691e7b8d4bd1380a045151e85ac1c27b55e721223c207d90ad83ba59620e315569149c0d288571c9bc198b856b23ead2c0210fe6ed448720c4d";
 export const DEMO_ORGANIZER_EMAIL = "demo.organizer@atlas-one.co";
@@ -56,8 +56,19 @@ export async function authenticateOfficeUser(email:string,password:string){
   const normalizedEmail=email.trim().toLowerCase();await ensureBootstrapSuperuser(normalizedEmail,password);
   const user=await db.user.findUnique({where:{email:normalizedEmail}});if(!user||!user.active||!["ORGANIZER","CHECKIN","ADMIN"].includes(user.role))return{ok:false as const,error:"INVALID_CREDENTIALS"};
   const credential=await credentialForUser(user.id);if(!credential)return{ok:false as const,error:"PASSWORD_NOT_SET"};
-  if(credential.lockedUntil&&new Date(credential.lockedUntil)>new Date())return{ok:false as const,error:"LOCKED"};
-  if(!verifyOfficePassword(password,credential.passwordHash)){const next=credential.failedAttempts+1;const lockedUntil=next>=MAX_FAILED_ATTEMPTS?new Date(Date.now()+LOCK_MINUTES*60_000):null;await db.$executeRawUnsafe(`UPDATE "OfficeCredential" SET "failedAttempts"=$1,"lockedUntil"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$3`,next,lockedUntil,user.id);return{ok:false as const,error:lockedUntil?"LOCKED":"INVALID_CREDENTIALS"};}
+  const now=Date.now();
+  let failedAttempts=credential.failedAttempts;
+  if(credential.lockedUntil){
+    const storedLockTime=new Date(credential.lockedUntil).getTime();
+    if(storedLockTime>now){
+      const normalizedLockTime=Math.min(storedLockTime,now+LOCK_SECONDS*1000);
+      if(normalizedLockTime!==storedLockTime)await db.$executeRawUnsafe(`UPDATE "OfficeCredential" SET "lockedUntil"=$1,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$2`,new Date(normalizedLockTime),user.id);
+      return{ok:false as const,error:"LOCKED",retryAfterSeconds:Math.max(1,Math.ceil((normalizedLockTime-now)/1000))};
+    }
+    failedAttempts=0;
+    await db.$executeRawUnsafe(`UPDATE "OfficeCredential" SET "failedAttempts"=0,"lockedUntil"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$1`,user.id);
+  }
+  if(!verifyOfficePassword(password,credential.passwordHash)){const next=failedAttempts+1;const lockedUntil=next>=MAX_FAILED_ATTEMPTS?new Date(now+LOCK_SECONDS*1000):null;await db.$executeRawUnsafe(`UPDATE "OfficeCredential" SET "failedAttempts"=$1,"lockedUntil"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$3`,next,lockedUntil,user.id);return lockedUntil?{ok:false as const,error:"LOCKED",retryAfterSeconds:LOCK_SECONDS}:{ok:false as const,error:"INVALID_CREDENTIALS",remainingAttempts:MAX_FAILED_ATTEMPTS-next};}
   if(!credential.emailVerifiedAt)return{ok:false as const,error:"EMAIL_NOT_VERIFIED"};
   await db.$executeRawUnsafe(`UPDATE "OfficeCredential" SET "failedAttempts"=0,"lockedUntil"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$1`,user.id);return{ok:true as const,user};
 }
