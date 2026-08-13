@@ -35,7 +35,22 @@ export type OrganizerCompliance = {
   updatedAt: Date;
 };
 
+export type OrganizerAgreementHistoryItem = {
+  id: string;
+  organizationId: string;
+  version: string;
+  hash: string;
+  title: string;
+  text: string;
+  acceptedAt: Date;
+  acceptedByName: string;
+  acceptedByEmail: string;
+  acceptedIp: string | null;
+  acceptedUserAgent: string | null;
+};
+
 type Row = OrganizerCompliance;
+type AgreementHistoryRow = Omit<OrganizerAgreementHistoryItem,"acceptedAt"> & {acceptedAt:Date|string};
 
 let ready: Promise<void> | null = null;
 export function ensureOrganizerComplianceRuntime() {
@@ -80,12 +95,30 @@ export function ensureOrganizerComplianceRuntime() {
     await db.$executeRawUnsafe(`ALTER TABLE "OrganizerCompliance" ADD COLUMN IF NOT EXISTS "taxDocumentName" TEXT`);
     await db.$executeRawUnsafe(`ALTER TABLE "OrganizerCompliance" ADD COLUMN IF NOT EXISTS "taxDocumentMime" TEXT`);
     await db.$executeRawUnsafe(`ALTER TABLE "OrganizerCompliance" ADD COLUMN IF NOT EXISTS "taxDocumentSize" INTEGER`);
+    await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "OrganizerAgreementAcceptance" (
+      "id" TEXT PRIMARY KEY,
+      "organizationId" TEXT NOT NULL,
+      "version" TEXT NOT NULL,
+      "hash" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "text" TEXT NOT NULL,
+      "acceptedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "acceptedByName" TEXT NOT NULL,
+      "acceptedByEmail" TEXT NOT NULL,
+      "acceptedIp" TEXT,
+      "acceptedUserAgent" TEXT
+    )`);
+    await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "OrganizerAgreementAcceptance_org_date_idx" ON "OrganizerAgreementAcceptance" ("organizationId","acceptedAt")`);
   })().catch(error => { ready = null; throw error; });
   return ready;
 }
 
 export function organizerAgreementHash(text = ORGANIZER_AGREEMENT_TEXT) {
   return createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+export function isCurrentOrganizerAgreement(compliance:OrganizerCompliance){
+  return compliance.agreementStatus==="ACCEPTED"&&compliance.agreementVersion===ORGANIZER_AGREEMENT_VERSION&&compliance.agreementHash===organizerAgreementHash();
 }
 
 export async function getOrganizerCompliance(organizationId: string): Promise<OrganizerCompliance> {
@@ -105,6 +138,12 @@ export async function getOrganizerCompliance(organizationId: string): Promise<Or
   };
 }
 
+export async function getOrganizerAgreementHistory(organizationId:string){
+  await ensureOrganizerComplianceRuntime();
+  const rows=await db.$queryRawUnsafe<AgreementHistoryRow[]>(`SELECT "id","organizationId","version","hash","title","text","acceptedAt","acceptedByName","acceptedByEmail","acceptedIp","acceptedUserAgent" FROM "OrganizerAgreementAcceptance" WHERE "organizationId"=$1 ORDER BY "acceptedAt" DESC`,organizationId);
+  return rows.map(row=>({...row,acceptedAt:new Date(row.acceptedAt)})) satisfies OrganizerAgreementHistoryItem[];
+}
+
 export async function recordOrganizerAgreementAcceptance(input: {
   organizationId: string;
   businessType?: string | null;
@@ -117,22 +156,26 @@ export async function recordOrganizerAgreementAcceptance(input: {
 }) {
   await ensureOrganizerComplianceRuntime();
   const hash = organizerAgreementHash();
-  await db.$executeRawUnsafe(`INSERT INTO "OrganizerCompliance" (
-    "organizationId","businessType","country","phone","agreementStatus","agreementVersion","agreementHash","agreementTitle","agreementText",
-    "acceptedAt","acceptedByName","acceptedByEmail","acceptedIp","acceptedUserAgent","updatedAt"
-  ) VALUES ($1,$2,$3,$4,'ACCEPTED',$5,$6,$7,$8,CURRENT_TIMESTAMP,$9,$10,$11,$12,CURRENT_TIMESTAMP)
-  ON CONFLICT ("organizationId") DO UPDATE SET
-    "businessType"=COALESCE(EXCLUDED."businessType","OrganizerCompliance"."businessType"),
-    "country"=COALESCE(EXCLUDED."country","OrganizerCompliance"."country"),
-    "phone"=COALESCE(EXCLUDED."phone","OrganizerCompliance"."phone"),
-    "agreementStatus"='ACCEPTED',"agreementVersion"=EXCLUDED."agreementVersion","agreementHash"=EXCLUDED."agreementHash",
-    "agreementTitle"=EXCLUDED."agreementTitle","agreementText"=EXCLUDED."agreementText","acceptedAt"=CURRENT_TIMESTAMP,
-    "acceptedByName"=EXCLUDED."acceptedByName","acceptedByEmail"=EXCLUDED."acceptedByEmail","acceptedIp"=EXCLUDED."acceptedIp",
-    "acceptedUserAgent"=EXCLUDED."acceptedUserAgent","updatedAt"=CURRENT_TIMESTAMP`,
-    input.organizationId, input.businessType ?? null, input.country ?? null, input.phone ?? null,
-    ORGANIZER_AGREEMENT_VERSION, hash, ORGANIZER_AGREEMENT_TITLE, ORGANIZER_AGREEMENT_TEXT,
-    input.signerName, input.signerEmail.toLowerCase(), input.ip ?? null, input.userAgent ?? null,
-  );
+  const acceptanceId=`agr_${randomUUID().replaceAll("-","")}`;
+  await db.$transaction(async tx=>{
+    await tx.$executeRawUnsafe(`INSERT INTO "OrganizerAgreementAcceptance" ("id","organizationId","version","hash","title","text","acceptedAt","acceptedByName","acceptedByEmail","acceptedIp","acceptedUserAgent") VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP,$7,$8,$9,$10)`,
+      acceptanceId,input.organizationId,ORGANIZER_AGREEMENT_VERSION,hash,ORGANIZER_AGREEMENT_TITLE,ORGANIZER_AGREEMENT_TEXT,input.signerName,input.signerEmail.toLowerCase(),input.ip??null,input.userAgent??null);
+    await tx.$executeRawUnsafe(`INSERT INTO "OrganizerCompliance" (
+      "organizationId","businessType","country","phone","agreementStatus","agreementVersion","agreementHash","agreementTitle","agreementText",
+      "acceptedAt","acceptedByName","acceptedByEmail","acceptedIp","acceptedUserAgent","updatedAt"
+    ) VALUES ($1,$2,$3,$4,'ACCEPTED',$5,$6,$7,$8,CURRENT_TIMESTAMP,$9,$10,$11,$12,CURRENT_TIMESTAMP)
+    ON CONFLICT ("organizationId") DO UPDATE SET
+      "businessType"=COALESCE(EXCLUDED."businessType","OrganizerCompliance"."businessType"),
+      "country"=COALESCE(EXCLUDED."country","OrganizerCompliance"."country"),
+      "phone"=COALESCE(EXCLUDED."phone","OrganizerCompliance"."phone"),
+      "agreementStatus"='ACCEPTED',"agreementVersion"=EXCLUDED."agreementVersion","agreementHash"=EXCLUDED."agreementHash",
+      "agreementTitle"=EXCLUDED."agreementTitle","agreementText"=EXCLUDED."agreementText","acceptedAt"=CURRENT_TIMESTAMP,
+      "acceptedByName"=EXCLUDED."acceptedByName","acceptedByEmail"=EXCLUDED."acceptedByEmail","acceptedIp"=EXCLUDED."acceptedIp",
+      "acceptedUserAgent"=EXCLUDED."acceptedUserAgent","updatedAt"=CURRENT_TIMESTAMP`,
+      input.organizationId, input.businessType ?? null, input.country ?? null, input.phone ?? null,
+      ORGANIZER_AGREEMENT_VERSION, hash, ORGANIZER_AGREEMENT_TITLE, ORGANIZER_AGREEMENT_TEXT,
+      input.signerName, input.signerEmail.toLowerCase(), input.ip ?? null, input.userAgent ?? null);
+  });
   return getOrganizerCompliance(input.organizationId);
 }
 
@@ -141,6 +184,8 @@ export async function updateOrganizerCompliance(input: {
   businessType?: string | null;
   country?: string | null;
   phone?: string | null;
+  bankAccountLabel?: string | null;
+  taxDocumentLabel?: string | null;
 }) {
   await ensureOrganizerComplianceRuntime();
   await getOrganizerCompliance(input.organizationId);
@@ -178,7 +223,7 @@ export async function recordOrganizerComplianceDocument(input: {
 
 export function payoutReadiness(compliance: OrganizerCompliance) {
   const checks = [
-    { key: "agreement", label: "Договор Atlas", ready: compliance.agreementStatus === "ACCEPTED" },
+    { key: "agreement", label: "Договор Atlas (актуальная версия)", ready: isCurrentOrganizerAgreement(compliance) },
     { key: "bank", label: "Банковские реквизиты", ready: compliance.bankAccountStatus === "PROVIDED" && Boolean(compliance.bankDocumentPath) },
     { key: "tax", label: "ניכוי מס במקור / налоговый документ", ready: compliance.taxDocumentStatus === "PROVIDED" && Boolean(compliance.taxDocumentPath) },
   ];
