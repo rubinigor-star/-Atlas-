@@ -128,7 +128,12 @@ export function SeatMapPurchaseCard({ slug, title, categories, objects, referral
   }
 
   return <div className={`${styles.card} ${hasOffers ? styles.withOffers : styles.noOffers}`}>
-    <div className={styles.titleRow}><h2>{local.ticketsOn} {title}</h2></div>
+    <div className={styles.titleRow}>
+      <h2 style={{ display:"grid", gap:4, minWidth:0 }}>
+        <span style={{ display:"block", color:"#8a94a3", fontSize:10, lineHeight:1.15, fontWeight:650, letterSpacing:".025em" }}>{local.ticketsOn}</span>
+        <span style={{ display:"block", minWidth:0, color:"#0b1220", fontSize:20, lineHeight:1.08, fontWeight:850, letterSpacing:"-.025em", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{title}</span>
+      </h2>
+    </div>
     {hasOffers && <div className={styles.offersSection}>
       <p>{local.offersTitle}</p>
       <div className={styles.offers}>
