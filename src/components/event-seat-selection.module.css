@@ -7,3 +7,7 @@
    discrete slider position lands exactly below a real ticket price. */
 .rangeWrap{padding:0}.rangeTrack{position:absolute;inset:0 13px}.rangeTrack .rangeBase{left:0;right:0}.seat.filtered{visibility:hidden}
 @media(max-width:900px){.rangeTrack{inset-inline:12px}}
+
+/* Price labels use the exact same 0..100% stops as the range inputs. */
+.priceStops{position:relative;display:block;margin-inline:13px;padding:0}.priceStops button{position:absolute;top:0;transform:translateX(-50%);text-align:center}.priceStops button:first-child{transform:none;text-align:left}.priceStops button:last-child{transform:translateX(-100%);text-align:right}
+@media(max-width:900px){.priceStops{margin-inline:12px;padding:0}}
