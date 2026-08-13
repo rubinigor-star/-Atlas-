@@ -9,7 +9,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base=getCanonicalOrigin();
   const directOnlyIds=await getDirectOnlyEventIds();
   const events = await db.event.findMany({
-    where: { status: "PUBLISHED", ...(directOnlyIds.length?{id:{notIn:directOnlyIds}}:{}) },
+    where: {
+      status: "PUBLISHED",
+      slug: { not: { startsWith: "draft-" } },
+      ...(directOnlyIds.length?{id:{notIn:directOnlyIds}}:{}),
+    },
     select: { slug: true, updatedAt: true },
   });
 
@@ -22,7 +26,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         SELECT 1
         FROM tourevent te
         JOIN Event e ON e.id = te.eventid
-        WHERE te.tourid = t.id AND e.status = 'PUBLISHED'
+        LEFT JOIN "EventLanguageSettings" els ON els."eventId" = e.id
+        WHERE te.tourid = t.id
+          AND e.status = 'PUBLISHED'
+          AND e.slug NOT LIKE 'draft-%'
+          AND COALESCE(els."catalogVisibility", 'PUBLIC') <> 'DIRECT_ONLY'
       )
     `);
   }catch{
