@@ -41,3 +41,6 @@
 .priceStops button b{display:block;direction:ltr;unicode-bidi:isolate;text-align:center}
 @media(max-width:900px){.priceGrid{margin-inline:12px}}
 .noSeats{position:absolute;left:50%;top:12px;bottom:auto;z-index:20;transform:translateX(-50%);margin:0;pointer-events:none}
+.seat.filtered{visibility:visible!important;opacity:1!important;pointer-events:none!important}
+.seat.filtered:before{background:#d9dee5!important;box-shadow:0 0 0 1px rgba(15,23,42,.045)!important}
+.filteredObject{visibility:visible!important;opacity:.14!important;pointer-events:none!important;filter:grayscale(.9) saturate(.15)}

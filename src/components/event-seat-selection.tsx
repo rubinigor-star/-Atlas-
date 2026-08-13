@@ -289,6 +289,10 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   }, [availableObjects, qty, allowedCategoryIds]);
 
   const eligibleSeatIds = useMemo(() => new Set([...groupsByObject.values()].flat(2)), [groupsByObject]);
+  const hasEligibleObject = availableObjects.some(object =>
+    Boolean(object.categoryId && allowedCategoryIds.has(object.categoryId))
+    && (object.objectType === "ZONE" || (object.priceMode === "WHOLE_TABLE" && !object.reserved))
+  );
   const selectedSeats = objects.flatMap(item => item.seatItems).filter(seat => selectedSeatIds.includes(seat.id));
   const wholeObject = objects.find(item => item.id === wholeObjectId);
   const zoneObject = objects.find(item => item.id === zoneObjectId);
@@ -639,7 +643,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
               })}
             </div>
           </div>
-          {eligibleSeatIds.size === 0 && !wholeObject && !zoneObject && <div className={styles.noSeats}>{local.noSeats}</div>}
+          {eligibleSeatIds.size === 0 && !hasEligibleObject && !wholeObject && !zoneObject && <div className={styles.noSeats}>{local.noSeats}</div>}
         </div>
       </section>
 
