@@ -34,7 +34,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
   return <>
     {!office && <SiteHeader/>}
-    {!office && <div style={{display:"flex",justifyContent:"center",alignItems:"center",minHeight:34,borderBottom:"1px solid rgba(148,163,184,.22)",background:"rgba(255,255,255,.96)",fontSize:13,fontWeight:700}}><Link href="/cancellation-policy" style={{color:"inherit",textDecoration:"none"}}>מדיניות ביטול · Отмена и возврат билетов</Link></div>}
+    {!office && <div className="atlas-cancellation-policy-bar"><Link href="/cancellation-policy">מדיניות ביטול · Отмена и возврат билетов</Link></div>}
     {!office && <GlobalSearch/>}
     {!office && <PublicSoldOutDecorator/>}
     {!office && !immersiveHeader && <div className="atlas-header-spacer" aria-hidden="true"/>}
