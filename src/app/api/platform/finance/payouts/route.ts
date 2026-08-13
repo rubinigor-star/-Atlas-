@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { ensureFinanceRuntime, financeEvents } from "@/lib/finance";
+import { ensureFinanceRuntime, financeEvents, organizerFinanceSummary } from "@/lib/finance";
 
 const schema=z.object({
   eventId:z.string().min(1),
@@ -20,20 +20,23 @@ export async function POST(req:Request){
     if(!event)throw new Error("Мероприятие не найдено");
 
     const result=await db.$transaction(async tx=>{
-      // Serialize financial writes for the same event. This prevents two tabs or
-      // two rapid requests from both passing the same available-balance check.
-      await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,event.id);
-      const finance=(await financeEvents(event.organizationId)).find(item=>item.eventId===event.id);
+      // Serialize payouts for the entire organizer, not only one event. A debt
+      // created by refunds on event A must reduce a payout from event B.
+      await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`finance-org:${event.organizationId}`);
+      const events=await financeEvents(event.organizationId);
+      const finance=events.find(item=>item.eventId===event.id);
       if(!finance)throw new Error("По мероприятию пока нет финансовых операций");
-      if(finance.availableMinor<=0)throw new Error("По этому мероприятию сейчас нет суммы, доступной к выплате");
-      if(input.amountMinor>finance.availableMinor)throw new Error(`Нельзя зафиксировать выплату больше доступного остатка: ${(finance.availableMinor/100).toFixed(2)} ₪`);
+      const organization=await organizerFinanceSummary(event.organizationId);
+      const allowedForThisEvent=Math.min(finance.availableMinor,organization.availableMinor);
+      if(allowedForThisEvent<=0)throw new Error("Сейчас нет суммы, доступной к выплате с учётом возвратов и общего баланса организатора");
+      if(input.amountMinor>allowedForThisEvent)throw new Error(`Нельзя зафиксировать выплату больше доступного остатка с учётом общего баланса: ${(allowedForThisEvent/100).toFixed(2)} ₪`);
 
       const id=`payout_${randomUUID().replace(/-/g,"")}`;
       await tx.$executeRawUnsafe(
         `INSERT INTO "OrganizerPayout" ("id","organizationId","eventId","amountMinor","status","paidAt","reference","createdAt") VALUES ($1,$2,$3,$4,'PAID',CURRENT_TIMESTAMP,$5,CURRENT_TIMESTAMP)`,
         id,event.organizationId,event.id,input.amountMinor,input.reference||null,
       );
-      return {id,availableBefore:finance.availableMinor};
+      return {id,availableBefore:allowedForThisEvent};
     });
 
     return NextResponse.json({ok:true,id:result.id,amountMinor:input.amountMinor,eventId:event.id});
