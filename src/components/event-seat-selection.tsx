@@ -694,6 +694,52 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
         box-shadow: none;
         cursor: not-allowed;
       }
+      .atlas-quantity-confirm-wrap {
+        position: relative;
+        z-index: 30;
+        display: block;
+        width: 100%;
+        min-width: 100%;
+        flex: 0 0 auto;
+      }
+      .atlas-quantity-confirm-button {
+        position: relative !important;
+        z-index: 31 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: none !important;
+        height: 44px !important;
+        min-height: 44px !important;
+        margin: 0 !important;
+        padding: 0 20px !important;
+        border: 0 !important;
+        border-radius: 999px !important;
+        background: linear-gradient(90deg, #ff0b55 0%, #ff087f 52%, #ff1493 100%) !important;
+        color: #fff !important;
+        font-family: inherit !important;
+        font-size: 16px !important;
+        line-height: 44px !important;
+        font-weight: 800 !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        overflow: visible !important;
+        appearance: none !important;
+        cursor: pointer !important;
+        box-shadow: none !important;
+      }
+      .atlas-quantity-confirm-button:hover {
+        filter: brightness(.98);
+      }
+      .atlas-quantity-confirm-button:focus-visible {
+        outline: 3px solid rgba(255, 10, 120, .25) !important;
+        outline-offset: 3px;
+      }
       @media (max-width: 900px) {
         .atlas-selected-ticket { padding: 10px 0 12px; }
         .atlas-selected-title { font-size: 17px; }
@@ -845,8 +891,8 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           <strong aria-live="polite">{draftQty}</strong>
           <button type="button" aria-label={local.increase} disabled={draftQty >= 8} onClick={() => setDraftQty(value => Math.min(8, value + 1))}><Plus size={20}/></button>
         </div>
-        <div className={polish.modalFooter}>
-          <button type="button" className={polish.modalConfirm} onClick={() => { setQty(draftQty); setQuantityModalOpen(false); }}>{local.confirmQuantity}</button>
+        <div className="atlas-quantity-confirm-wrap">
+          <button type="button" className="atlas-quantity-confirm-button" onClick={() => { setQty(draftQty); setQuantityModalOpen(false); }}>{local.confirmQuantity}</button>
         </div>
       </div>
     </div>}
