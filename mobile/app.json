@@ -38,9 +38,7 @@
     "updates": {
       "enabled": false
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "0.1.6",
     "extra": {
       "apiBaseUrl": "https://www.atlas-one.co",
       "eas": {
