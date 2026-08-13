@@ -16,8 +16,8 @@ export function EventMobileStickyCta({ priceLabel, actionLabel, locale, targetId
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const primaryButton = document.querySelector<HTMLAnchorElement>('a[href="#tickets"]');
-    const footer = document.querySelector<HTMLElement>("footer");
+    const primaryButton = document.querySelector<HTMLAnchorElement>("[data-event-primary-cta]");
+    const footer = document.querySelector<HTMLElement>("footer.atlas-footer") ?? document.querySelector<HTMLElement>("footer");
     if (!primaryButton) return;
 
     let passedPrimaryButton = false;
