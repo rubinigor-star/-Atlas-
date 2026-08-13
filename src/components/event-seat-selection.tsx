@@ -521,11 +521,12 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     <div className={styles.layout}>
       <section className={styles.mapSide}>
         <div className={styles.priceRail}>
-          <div className={styles.priceStops} style={{ gridTemplateColumns: `repeat(${Math.max(1, sortedPrices.length)},minmax(0,1fr))` }}>
+          <div className={styles.priceStops}>
             {sortedPrices.map((price, index) => {
               const category = availableCategories.find(item => (categoryPrice.get(item.id) ?? 0) === price);
               const active = index >= minIndex && index <= maxIndex;
-              return <button type="button" key={`${price}-${index}`} className={active ? styles.priceActive : ""} onClick={() => {
+              const stopPosition = sortedPrices.length <= 1 ? 50 : index / (sortedPrices.length - 1) * 100;
+              return <button type="button" key={`${price}-${index}`} className={active ? styles.priceActive : ""} style={{ left: `${stopPosition}%` }} onClick={() => {
                 if (index < minIndex) setMinIndex(index);
                 else if (index > maxIndex) setMaxIndex(index);
               }}><b style={{ color: category?.colorHex ?? "#64748b" }}>{money(price, "ILS", locale)}</b></button>;
