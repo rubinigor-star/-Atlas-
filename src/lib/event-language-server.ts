@@ -65,6 +65,16 @@ export async function getEventLanguageSettings(eventId: string): Promise<EventLa
   return normalizeEventLanguageSettings(rows[0].primaryLanguage, rows[0].catalogVisibility);
 }
 
+export async function getDirectOnlyEventIds() {
+  await ensureEventLanguageSettingsTable();
+  const rows = await db.$queryRaw<Array<{ eventId: string }>>(Prisma.sql`
+    SELECT "eventId"
+    FROM "EventLanguageSettings"
+    WHERE "catalogVisibility" = 'DIRECT_ONLY'
+  `);
+  return rows.map((row) => row.eventId);
+}
+
 export async function saveEventLanguageSettings(
   eventId: string,
   settings: EventLanguageSettings,
