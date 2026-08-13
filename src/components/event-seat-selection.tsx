@@ -817,7 +817,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
             centerOnInit={!mobileMapMode}
             centerZoomedOut={!mobileMapMode}
             limitToBounds
-            disablePadding={!mobileMapMode}
+            disablePadding
             smooth={false}
             wheel={{ step: .1 }}
             panning={{ allowLeftClickPan: true, velocityDisabled: false, excluded: ["atlas-map-controls"] }}
