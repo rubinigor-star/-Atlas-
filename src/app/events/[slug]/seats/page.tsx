@@ -76,7 +76,7 @@ export default async function EventSeatsPage({ params, searchParams }: { params:
     const categoryId=seat.categoryId??table.categoryId;
     const color=categoryId?categoryColors.get(categoryId):undefined;
     if(!color)return[];
-    return [`body.atlas-seat-selection-active button[aria-label="${cssAttr(seat.label)}"]::before{background:${color}!important;}`];
+    return [`body.atlas-seat-selection-active button[aria-label="${cssAttr(seat.label)}"]:not([data-price-filtered="true"])::before{background:${color}!important;}`];
   }))).join("\n");
 
   const publicObjects=objects.filter(object=>!isInternalMapLabel(object.label));

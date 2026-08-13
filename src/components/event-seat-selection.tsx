@@ -133,12 +133,12 @@ function validGroups(object: MapObject, quantity: number, seatAllowed: (seat: Ma
   return output;
 }
 
-function SeatDot({ seat, object, color, selected, eligible, disabled, onClick, onHover, onLeave }: {
+function SeatDot({ seat, object, color, selected, priceMatched, disabled, onClick, onHover, onLeave }: {
   seat: MapSeat;
   object: MapObject;
   color: string;
   selected: boolean;
-  eligible: boolean;
+  priceMatched: boolean;
   disabled: boolean;
   onClick: () => void;
   onHover: (event: React.MouseEvent<HTMLButtonElement>) => void;
@@ -156,7 +156,8 @@ function SeatDot({ seat, object, color, selected, eligible, disabled, onClick, o
   return <button
     type="button"
     aria-label={seat.label}
-    className={`${styles.seat} ${selected ? styles.selected : ""} ${!eligible ? styles.filtered : ""}`}
+    className={`${styles.seat} ${selected ? styles.selected : ""} ${!priceMatched ? styles.filtered : ""}`}
+    data-price-filtered={priceMatched ? undefined : "true"}
     style={seatStyle}
     disabled={disabled}
     onMouseEnter={onHover}
@@ -291,26 +292,21 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   }, [availableObjects, qty, allowedCategoryIds]);
 
   const eligibleSeatIds = useMemo(() => new Set([...groupsByObject.values()].flat(2)), [groupsByObject]);
-  const hasEligibleObject = availableObjects.some(object =>
-    Boolean(object.categoryId && allowedCategoryIds.has(object.categoryId))
-    && (object.objectType === "ZONE" || (object.priceMode === "WHOLE_TABLE" && !object.reserved))
-  );
   const draftMinPrice = sortedPrices[draftMinRangeIndex] ?? 0;
   const draftMaxPrice = sortedPrices[draftMaxRangeIndex] ?? draftMinPrice;
   const draftAllowedCategoryIds = new Set(availableCategories
     .filter(item => item.salesStrategy === offer || offer === "ALL")
     .filter(item => { const price = categoryPrice.get(item.id) ?? -1; return price >= draftMinPrice && price <= draftMaxPrice; })
     .map(item => item.id));
-  const draftHasObject = availableObjects.some(object => Boolean(object.categoryId && draftAllowedCategoryIds.has(object.categoryId)) && (object.objectType === "ZONE" || (object.priceMode === "WHOLE_TABLE" && !object.reserved)));
   const draftHasSeats = availableObjects.some(object => seatTypes.has(object.objectType) && !object.reserved && validGroups(object, qty, seat => {
     const categoryId = seat.categoryId ?? object.categoryId;
     return seat.status === "AVAILABLE" && Boolean(categoryId && draftAllowedCategoryIds.has(categoryId));
   }).length > 0);
-  const canApplyDraftRange = draftHasObject || draftHasSeats;
+  const canApplyDraftRange = draftHasSeats;
   const selectedSeats = objects.flatMap(item => item.seatItems).filter(seat => selectedSeatIds.includes(seat.id));
   const wholeObject = objects.find(item => item.id === wholeObjectId);
   const zoneObject = objects.find(item => item.id === zoneObjectId);
-  const noMatchingPlaces = eligibleSeatIds.size === 0 && !hasEligibleObject && !wholeObject && !zoneObject;
+  const noMatchingPlaces = eligibleSeatIds.size === 0 && !wholeObject && !zoneObject;
   const selectedObject = wholeObject ?? zoneObject ?? objects.find(item => item.seatItems.some(seat => selectedSeatIds.includes(seat.id)));
   const selectionComplete = Boolean(wholeObject) || Boolean(zoneObject) || selectedSeatIds.length === qty;
 
@@ -451,11 +447,13 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     const index = Math.min(indexForSliderValue(value), maxIndex);
     setMinIndex(index);
     setMinSliderValue(sliderValueForIndex(index));
+    setDraftMinRangeIndex(index);
   }
   function snapMaximumHandle(value = maxSliderValue) {
     const index = Math.max(indexForSliderValue(value), minIndex);
     setMaxIndex(index);
     setMaxSliderValue(sliderValueForIndex(index));
+    setDraftMaxRangeIndex(index);
   }
   function selectPriceStop(index: number) {
     const distanceToMin = Math.abs(index - minIndex);
@@ -464,9 +462,11 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     if (moveMinimum) {
       setMinIndex(Math.min(index, maxIndex));
       setMinSliderValue(sliderValueForIndex(Math.min(index, maxIndex)));
+      setDraftMinRangeIndex(Math.min(index, maxIndex));
     } else {
       setMaxIndex(Math.max(index, minIndex));
       setMaxSliderValue(sliderValueForIndex(Math.max(index, minIndex)));
+      setDraftMaxRangeIndex(Math.max(index, minIndex));
     }
     clearSelection();
   }
@@ -612,8 +612,8 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           <div className={styles.rangeWrap}>
             <div className={styles.rangeTrack} ref={priceTrackRef}>
               <div className={styles.rangeBase}/><div className={styles.rangeActive} style={{ left: `${activeLeft}%`, width: `${activeWidth}%` }}/>
-              <input aria-label="minimum ticket price" className={styles.range} style={{ "--range-thumb-color": minCategory?.colorHex ?? "#168bf2" } as React.CSSProperties} type="range" min="0" max={PRICE_SLIDER_RESOLUTION} step="1" value={minSliderValue} onChange={event => { const value = Math.min(Number(event.target.value), maxSliderValue); const nextIndex = Math.min(indexForSliderValue(value), maxIndex); setMinSliderValue(value); if (nextIndex !== minIndex) { setMinIndex(nextIndex); clearSelection(); } }} onPointerUp={event => snapMinimumHandle(Number(event.currentTarget.value))} onPointerCancel={event => snapMinimumHandle(Number(event.currentTarget.value))} onKeyUp={event => snapMinimumHandle(Number(event.currentTarget.value))} onBlur={event => snapMinimumHandle(Number(event.currentTarget.value))}/>
-              <input aria-label="maximum ticket price" className={`${styles.range} ${styles.rangeMax}`} style={{ "--range-thumb-color": maxCategory?.colorHex ?? "#a35df0" } as React.CSSProperties} type="range" min="0" max={PRICE_SLIDER_RESOLUTION} step="1" value={maxSliderValue} onChange={event => { const value = Math.max(Number(event.target.value), minSliderValue); const nextIndex = Math.max(indexForSliderValue(value), minIndex); setMaxSliderValue(value); if (nextIndex !== maxIndex) { setMaxIndex(nextIndex); clearSelection(); } }} onPointerUp={event => snapMaximumHandle(Number(event.currentTarget.value))} onPointerCancel={event => snapMaximumHandle(Number(event.currentTarget.value))} onKeyUp={event => snapMaximumHandle(Number(event.currentTarget.value))} onBlur={event => snapMaximumHandle(Number(event.currentTarget.value))}/>
+              <input aria-label="minimum ticket price" className={styles.range} style={{ "--range-thumb-color": minCategory?.colorHex ?? "#168bf2" } as React.CSSProperties} type="range" min="0" max={PRICE_SLIDER_RESOLUTION} step="1" value={minSliderValue} onChange={event => { const value = Math.min(Number(event.target.value), maxSliderValue); const nextIndex = Math.min(indexForSliderValue(value), maxIndex); setMinSliderValue(value); setDraftMinRangeIndex(nextIndex); if (nextIndex !== minIndex) { setMinIndex(nextIndex); clearSelection(); } }} onPointerUp={event => snapMinimumHandle(Number(event.currentTarget.value))} onPointerCancel={event => snapMinimumHandle(Number(event.currentTarget.value))} onKeyUp={event => snapMinimumHandle(Number(event.currentTarget.value))} onBlur={event => snapMinimumHandle(Number(event.currentTarget.value))}/>
+              <input aria-label="maximum ticket price" className={`${styles.range} ${styles.rangeMax}`} style={{ "--range-thumb-color": maxCategory?.colorHex ?? "#a35df0" } as React.CSSProperties} type="range" min="0" max={PRICE_SLIDER_RESOLUTION} step="1" value={maxSliderValue} onChange={event => { const value = Math.max(Number(event.target.value), minSliderValue); const nextIndex = Math.max(indexForSliderValue(value), minIndex); setMaxSliderValue(value); setDraftMaxRangeIndex(nextIndex); if (nextIndex !== maxIndex) { setMaxIndex(nextIndex); clearSelection(); } }} onPointerUp={event => snapMaximumHandle(Number(event.currentTarget.value))} onPointerCancel={event => snapMaximumHandle(Number(event.currentTarget.value))} onKeyUp={event => snapMaximumHandle(Number(event.currentTarget.value))} onBlur={event => snapMaximumHandle(Number(event.currentTarget.value))}/>
               <span className={styles.visualHandle} style={{ left: `${minSliderValue / PRICE_SLIDER_RESOLUTION * 100}%`, backgroundColor: minCategory?.colorHex ?? "#168bf2" }}/>
               <span className={`${styles.visualHandle} ${styles.visualHandleMax}`} style={{ left: `${maxSliderValue / PRICE_SLIDER_RESOLUTION * 100}%`, backgroundColor: maxCategory?.colorHex ?? "#a35df0" }}/>
             </div>
@@ -653,14 +653,16 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
                           ? <div className={styles.rowSeats}>{object.seatItems.map(seat => {
                               const categoryId = seat.categoryId ?? object.categoryId;
                               const color = categories.find(item => item.id === categoryId)?.colorHex ?? "#e3e7eb";
+                              const priceMatched = Boolean(categoryId && allowedCategoryIds.has(categoryId) && seat.status === "AVAILABLE");
                               const eligible = eligibleSeatIds.has(seat.id);
-                              return <SeatDot key={seat.id} seat={seat} object={object} color={seat.status === "AVAILABLE" ? color : "#e3e7eb"} selected={selectedSeatIds.includes(seat.id)} eligible={eligible} disabled={object.priceMode === "WHOLE_TABLE" || !eligible} onClick={() => chooseSeat(object, seat)} onHover={event => setHoveredSeat({ object, seat, x: event.clientX, y: event.clientY })} onLeave={() => setHoveredSeat(null)}/>;
+                              return <SeatDot key={seat.id} seat={seat} object={object} color={seat.status === "AVAILABLE" ? color : "#e3e7eb"} selected={selectedSeatIds.includes(seat.id)} priceMatched={priceMatched} disabled={object.priceMode === "WHOLE_TABLE" || !eligible} onClick={() => chooseSeat(object, seat)} onHover={event => priceMatched && setHoveredSeat({ object, seat, x: event.clientX, y: event.clientY })} onLeave={() => setHoveredSeat(null)}/>;
                             })}</div>
                           : object.seatItems.map(seat => {
                               const categoryId = seat.categoryId ?? object.categoryId;
                               const color = categories.find(item => item.id === categoryId)?.colorHex ?? "#e3e7eb";
+                              const priceMatched = Boolean(categoryId && allowedCategoryIds.has(categoryId) && seat.status === "AVAILABLE");
                               const eligible = eligibleSeatIds.has(seat.id);
-                              return <SeatDot key={seat.id} seat={seat} object={object} color={seat.status === "AVAILABLE" ? color : "#e3e7eb"} selected={selectedSeatIds.includes(seat.id)} eligible={eligible} disabled={object.priceMode === "WHOLE_TABLE" || !eligible} onClick={() => chooseSeat(object, seat)} onHover={event => setHoveredSeat({ object, seat, x: event.clientX, y: event.clientY })} onLeave={() => setHoveredSeat(null)}/>;
+                              return <SeatDot key={seat.id} seat={seat} object={object} color={seat.status === "AVAILABLE" ? color : "#e3e7eb"} selected={selectedSeatIds.includes(seat.id)} priceMatched={priceMatched} disabled={object.priceMode === "WHOLE_TABLE" || !eligible} onClick={() => chooseSeat(object, seat)} onHover={event => priceMatched && setHoveredSeat({ object, seat, x: event.clientX, y: event.clientY })} onLeave={() => setHoveredSeat(null)}/>;
                             })}
                       </div>}
                 </div>;
