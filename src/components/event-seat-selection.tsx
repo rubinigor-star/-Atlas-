@@ -809,8 +809,8 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
             centerZoomedOut
             limitToBounds
             disablePadding
-            smooth
-            wheel={{ step: .08 }}
+            smooth={false}
+            wheel={{ step: .1 }}
             panning={{ allowLeftClickPan: true, velocityDisabled: false, excluded: ["atlas-map-controls"] }}
             pinch={{ step: 5, allowPanning: true }}
             doubleClick={{ mode: "zoomIn", step: .7, animationTime: 220, animationType: "easeOut", excluded: ["atlas-map-controls"] }}
