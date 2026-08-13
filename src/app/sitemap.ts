@@ -1,19 +1,30 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
-import { getPublicOrigin } from "@/lib/public-origin";
+import { getCanonicalOrigin } from "@/lib/public-origin";
+import { getDirectOnlyEventIds } from "@/lib/event-language-server";
 
 type TourSitemapRow={slug:string;updatedat:Date|string|null};
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base=getPublicOrigin();
+  const base=getCanonicalOrigin();
+  const directOnlyIds=await getDirectOnlyEventIds();
   const events = await db.event.findMany({
-    where: { status: "PUBLISHED" },
+    where: { status: "PUBLISHED", ...(directOnlyIds.length?{id:{notIn:directOnlyIds}}:{}) },
     select: { slug: true, updatedAt: true },
   });
 
   let tours:TourSitemapRow[]=[];
   try{
-    tours=await db.$queryRawUnsafe<TourSitemapRow[]>(`SELECT slug, updatedat FROM tour`);
+    tours=await db.$queryRawUnsafe<TourSitemapRow[]>(`
+      SELECT t.slug, t.updatedat
+      FROM tour t
+      WHERE EXISTS (
+        SELECT 1
+        FROM tourevent te
+        JOIN Event e ON e.id = te.eventid
+        WHERE te.tourid = t.id AND e.status = 'PUBLISHED'
+      )
+    `);
   }catch{
     tours=[];
   }
