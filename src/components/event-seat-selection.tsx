@@ -152,14 +152,25 @@ function validSeatGroups(object: MapObject, quantity: number, seatAllowed: (seat
 
   if (object.objectType === "TABLE" && seats.length % 2 === 0) {
     const half = seats.length / 2;
+    const sides = [seats.slice(0, half), seats.slice(half)];
+    const adjacentPairs = sides.flatMap(side => side.slice(0, -1).map((seat, index) => [seat.id, side[index + 1].id]));
     const oppositePairs = Array.from({ length: half }, (_, index) => [seats[index].id, seats[index + half].id]);
-    if (quantity === 2) return oppositePairs.filter(pair => pair.every(id => seatAllowed(seats.find(seat => seat.id === id)!)));
+    const seatById = new Map(seats.map(seat => [seat.id, seat]));
+    const pairAllowed = (pair: string[]) => pair.every(id => {
+      const candidate = seatById.get(id);
+      return Boolean(candidate && seatAllowed(candidate));
+    });
+    if (quantity === 2) return [...adjacentPairs.filter(pairAllowed), ...oppositePairs.filter(pairAllowed)];
     const available = seats.filter(seatAllowed);
-    const requiredPairs = Math.floor(quantity / 2);
-    return combinations(available, quantity).filter(group => {
-      const ids = new Set(group.map(seat => seat.id));
-      return oppositePairs.filter(pair => pair.every(id => ids.has(id))).length >= requiredPairs;
-    }).map(group => group.map(seat => seat.id));
+    const preferred = quantity <= half ? sides.flatMap(side => side.slice(0, side.length - quantity + 1).map((_, index) => side.slice(index, index + quantity)).filter(group => group.every(seatAllowed)).map(group => group.map(seat => seat.id))) : [];
+    const all = combinations(available, quantity).map(group => group.map(seat => seat.id));
+    const seen = new Set<string>();
+    return [...preferred, ...all].filter(group => {
+      const key = [...group].sort().join("|");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   if (object.objectType === "ROUND_TABLE") {
@@ -245,19 +256,19 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     ru: {
       back: "Вернуться к мероприятию",
       quantity: "Количество билетов", quantityHint: "При нажатии на место сразу выберется указанное количество доступных мест рядом", quantityInfo: "Как выбираются места", decrease: "Уменьшить количество", increase: "Увеличить количество", confirmQuantity: "Подтвердить", closeQuantity: "Закрыть",
-      continue: "Перейти к оплате", emptyCheckout: "Выберите билет", feeIncluded: "включая сервисный сбор", noSeats: "В выбранном диапазоне нет доступных мест", expandRange: "Расширьте диапазон цен", expandRangeHint: "В выбранном диапазоне нет доступных билетов. Выберите более широкий диапазон.", applyRange: "Применить диапазон", categoryLimit: "Для категории «{name}» можно выбрать не более {count} билетов за один раз", linkLimit: "По этой ссылке можно купить не более {count} билетов в одном заказе",
+      continue: "Перейти к оплате", emptyCheckout: "Выберите билет", feeIncluded: "включая сервисный сбор", noSeats: "В выбранном диапазоне нет доступных мест", expandRange: "Расширьте диапазон цен", expandRangeHint: "В выбранном диапазоне нет доступных билетов. Выберите более широкий диапазон.", applyRange: "Применить диапазон", categoryLimit: "Для категории «{name}» можно выбрать не более {count} билетов за один раз", orderLimit: "В одном заказе можно выбрать не более {count} билетов", linkLimit: "По этой ссылке можно купить не более {count} билетов в одном заказе",
       zoomReset: "Сбросить масштаб", row: "Ряд", seat: "место", seats: "места", table: "Стол", zone: "Зона", section: "Категория"
     },
     en: {
       back: "Back to event",
       quantity: "Ticket quantity", quantityHint: "Selecting a seat immediately adds the chosen number of available seats together", quantityInfo: "How seats are selected", decrease: "Decrease quantity", increase: "Increase quantity", confirmQuantity: "Confirm", closeQuantity: "Close",
-      continue: "Go to checkout", emptyCheckout: "Select a ticket", feeIncluded: "incl. service fee", noSeats: "No available seats match this price range", expandRange: "Expand the price range", expandRangeHint: "No tickets are available in this price range. Choose a wider range.", applyRange: "Apply range", categoryLimit: "You can select no more than {count} tickets from “{name}” at a time", linkLimit: "This link allows no more than {count} tickets in one order",
+      continue: "Go to checkout", emptyCheckout: "Select a ticket", feeIncluded: "incl. service fee", noSeats: "No available seats match this price range", expandRange: "Expand the price range", expandRangeHint: "No tickets are available in this price range. Choose a wider range.", applyRange: "Apply range", categoryLimit: "You can select no more than {count} tickets from “{name}” at a time", orderLimit: "You can select no more than {count} tickets in one order", linkLimit: "This link allows no more than {count} tickets in one order",
       zoomReset: "Reset zoom", row: "Row", seat: "seat", seats: "seats", table: "Table", zone: "Zone", section: "Category"
     },
     he: {
       back: "חזרה לאירוע",
       quantity: "כמות כרטיסים", quantityHint: "לחיצה על מקום תבחר מיד את מספר המקומות הזמינים יחד", quantityInfo: "איך נבחרים המקומות", decrease: "הפחתת כמות", increase: "הגדלת כמות", confirmQuantity: "אישור", closeQuantity: "סגירה",
-      continue: "המשך לתשלום", emptyCheckout: "בחרו כרטיס", feeIncluded: "כולל דמי שירות", noSeats: "אין מקומות זמינים בטווח המחירים שנבחר", expandRange: "הרחיבו את טווח המחירים", expandRangeHint: "אין כרטיסים זמינים בטווח המחירים שנבחר. בחרו טווח רחב יותר.", applyRange: "החלת הטווח", categoryLimit: "ניתן לבחור עד {count} כרטיסים מקטגוריית „{name}” בכל פעם", linkLimit: "בקישור זה ניתן לקנות עד {count} כרטיסים בהזמנה אחת",
+      continue: "המשך לתשלום", emptyCheckout: "בחרו כרטיס", feeIncluded: "כולל דמי שירות", noSeats: "אין מקומות זמינים בטווח המחירים שנבחר", expandRange: "הרחיבו את טווח המחירים", expandRangeHint: "אין כרטיסים זמינים בטווח המחירים שנבחר. בחרו טווח רחב יותר.", applyRange: "החלת הטווח", categoryLimit: "ניתן לבחור עד {count} כרטיסים מקטגוריית „{name}” בכל פעם", orderLimit: "ניתן לבחור עד {count} כרטיסים בהזמנה אחת", linkLimit: "בקישור זה ניתן לקנות עד {count} כרטיסים בהזמנה אחת",
       zoomReset: "איפוס זום", row: "שורה", seat: "מקום", seats: "מקומות", table: "שולחן", zone: "אזור", section: "קטגוריה"
     },
   }[locale];
@@ -344,23 +355,25 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     return counts;
   }, [cart, seatCategoryById]);
   const cartQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const eventOrderLimit = Math.max(1, ...availableCategories.map(item => item.maxPerOrder));
+  const purchaseLimit = allocation ? Math.min(eventOrderLimit, allocation.maxPerOrder) : eventOrderLimit;
   function categoryCanAccept(categoryId: string, increment: number) {
     const category = availableCategories.find(item => item.id === categoryId);
     if (!category) return false;
     const next = (cartCategoryQuantities.get(categoryId) ?? 0) + increment;
-    return next <= category.maxPerOrder && next <= category.capacity - category.sold;
+    return increment <= category.maxPerOrder && next <= category.capacity - category.sold;
   }
 
   function additionsCanFit(additions: Map<string, number>) {
     const addedTotal = [...additions.values()].reduce((sum, value) => sum + value, 0);
-    if (allocation && cartQuantity + addedTotal > allocation.maxPerOrder) return false;
+    if (cartQuantity + addedTotal > purchaseLimit) return false;
     return [...additions].every(([categoryId, increment]) => categoryCanAccept(categoryId, increment));
   }
 
   function additionsFitLimits(additions: Map<string, number>) {
     const addedTotal = [...additions.values()].reduce((sum, value) => sum + value, 0);
-    if (allocation && cartQuantity + addedTotal > allocation.maxPerOrder) {
-      setCartError(local.linkLimit.replace("{count}", String(allocation.maxPerOrder)));
+    if (cartQuantity + addedTotal > purchaseLimit) {
+      setCartError((allocation ? local.linkLimit : local.orderLimit).replace("{count}", String(purchaseLimit)));
       return false;
     }
     for (const [categoryId, increment] of additions) {
@@ -449,18 +462,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   function chooseSeat(object: MapObject, seat: MapSeat) {
     if (!eligibleSeatIds.has(seat.id) || seat.status !== "AVAILABLE") return;
     const candidates = (groupsByObject.get(object.id) ?? []).filter(group => group.includes(seat.id));
-    const sortedSeats = [...object.seatItems].sort((a, b) => a.position - b.position);
-    const clickedIndex = sortedSeats.findIndex(item => item.id === seat.id);
-    const oppositeId = object.objectType === "TABLE" && sortedSeats.length % 2 === 0
-      ? sortedSeats[(clickedIndex + sortedSeats.length / 2) % sortedSeats.length]?.id
-      : undefined;
-    const selectedIds = [...candidates].sort((a, b) => {
-      const aIncludesOpposite = oppositeId && a.includes(oppositeId) ? 1 : 0;
-      const bIncludesOpposite = oppositeId && b.includes(oppositeId) ? 1 : 0;
-      if (aIncludesOpposite !== bIncludesOpposite) return bIncludesOpposite - aIncludesOpposite;
-      const distance = (group: string[]) => group.reduce((sum, id) => sum + Math.abs(sortedSeats.findIndex(item => item.id === id) - clickedIndex), 0);
-      return distance(a) - distance(b);
-    })[0];
+    const selectedIds = candidates[0];
     if (!selectedIds?.length) return;
     setWholeObjectId(null);
     setZoneObjectId(null);
