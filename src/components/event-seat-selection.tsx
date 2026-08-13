@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Info, Minus, Plus, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, Info, Minus, Plus, RotateCcw, Users, X } from "lucide-react";
 import { money } from "@/lib/format";
 import { calculateServiceFee, type ServiceFeeTerms } from "@/lib/service-fee";
 import type { PricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
@@ -243,6 +243,9 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   const viewportRef = useRef<HTMLDivElement>(null);
   const priceTrackRef = useRef<HTMLDivElement>(null);
   const panRef = useRef({ pointerId: -1, x: 0, y: 0, left: 0, top: 0 });
+  const touchPointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef({ distance: 0, zoom: DEFAULT_ZOOM, worldX: 0, worldY: 0 });
+  const mobileMapReadyRef = useRef(false);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [panning, setPanning] = useState(false);
   const [hoveredSeat, setHoveredSeat] = useState<HoveredSeat>(null);
@@ -324,6 +327,18 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     setMinSliderValue(sortedPrices.length <= 1 ? onlyStop : 0);
     setMaxSliderValue(onlyStop);
   }, [sortedPrices.length]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || mobileMapReadyRef.current || !window.matchMedia("(max-width: 900px)").matches) return;
+    mobileMapReadyRef.current = true;
+    const fittedZoom = Math.max(35, Math.min(52, ((viewport.clientWidth - 16) / WORLD_WIDTH) * 100));
+    setZoom(fittedZoom);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2);
+      viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2);
+    }));
+  }, []);
 
   const sliderValueForIndex = (index: number) => sortedPrices.length <= 1
     ? PRICE_SLIDER_RESOLUTION / 2
@@ -507,9 +522,30 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   function startPan(event: React.PointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement;
-    if (!spaceHeld && target.closest('button,input,select,a,[data-seatmap-selectable="true"]')) return;
     const viewport = viewportRef.current;
     if (!viewport) return;
+    if (event.pointerType === "touch") {
+      touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      viewport.setPointerCapture(event.pointerId);
+      const points = [...touchPointersRef.current.values()];
+      if (points.length >= 2) {
+        const [first, second] = points;
+        const centerX = (first.x + second.x) / 2;
+        const centerY = (first.y + second.y) / 2;
+        const bounds = viewport.getBoundingClientRect();
+        const currentScale = zoom / 100;
+        pinchRef.current = {
+          distance: Math.hypot(second.x - first.x, second.y - first.y),
+          zoom,
+          worldX: (viewport.scrollLeft + centerX - bounds.left) / currentScale,
+          worldY: (viewport.scrollTop + centerY - bounds.top) / currentScale,
+        };
+        setPanning(true);
+        event.preventDefault();
+        return;
+      }
+      if (target.closest('button,input,select,a,[data-seatmap-selectable="true"]')) return;
+    } else if (!spaceHeld && target.closest('button,input,select,a,[data-seatmap-selectable="true"]')) return;
     panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
     viewport.setPointerCapture(event.pointerId);
     setPanning(true);
@@ -517,16 +553,52 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
   }
 
   function movePan(event: React.PointerEvent<HTMLDivElement>) {
-    if (!panning || panRef.current.pointerId !== event.pointerId) return;
     const viewport = viewportRef.current;
     if (!viewport) return;
+    if (event.pointerType === "touch" && touchPointersRef.current.has(event.pointerId)) {
+      touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const points = [...touchPointersRef.current.values()];
+      if (points.length >= 2) {
+        const [first, second] = points;
+        const distance = Math.hypot(second.x - first.x, second.y - first.y);
+        const ratio = pinchRef.current.distance > 0 ? distance / pinchRef.current.distance : 1;
+        const nextZoom = Math.max(35, Math.min(125, pinchRef.current.zoom * ratio));
+        const centerX = (first.x + second.x) / 2;
+        const centerY = (first.y + second.y) / 2;
+        const bounds = viewport.getBoundingClientRect();
+        setZoom(nextZoom);
+        requestAnimationFrame(() => {
+          const nextScale = nextZoom / 100;
+          viewport.scrollLeft = Math.max(0, pinchRef.current.worldX * nextScale - (centerX - bounds.left));
+          viewport.scrollTop = Math.max(0, pinchRef.current.worldY * nextScale - (centerY - bounds.top));
+        });
+        event.preventDefault();
+        return;
+      }
+    }
+    if (!panning || panRef.current.pointerId !== event.pointerId) return;
     viewport.scrollLeft = panRef.current.left - (event.clientX - panRef.current.x);
     viewport.scrollTop = panRef.current.top - (event.clientY - panRef.current.y);
   }
 
   function endPan(event: React.PointerEvent<HTMLDivElement>) {
-    if (panRef.current.pointerId !== event.pointerId) return;
     const viewport = viewportRef.current;
+    if (event.pointerType === "touch") {
+      touchPointersRef.current.delete(event.pointerId);
+      if (viewport?.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+      const remaining = [...touchPointersRef.current.entries()];
+      if (remaining.length === 1 && viewport) {
+        const [pointerId, point] = remaining[0];
+        panRef.current = { pointerId, x: point.x, y: point.y, left: viewport.scrollLeft, top: viewport.scrollTop };
+        return;
+      }
+      if (remaining.length === 0) {
+        panRef.current.pointerId = -1;
+        setPanning(false);
+      }
+      return;
+    }
+    if (panRef.current.pointerId !== event.pointerId) return;
     if (viewport?.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
     panRef.current.pointerId = -1;
     setPanning(false);
@@ -753,6 +825,16 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     <Link className={`${styles.headerBack} ${polish.headerBack}`} href={backHref}><ArrowLeft size={18}/><span>{local.back}</span></Link>
     <div className={styles.layout}>
       <section className={styles.mapSide}>
+        <div className={styles.mobileEventBar}>
+          <Link className={styles.mobileBack} href={backHref} aria-label={local.back}><ArrowLeft size={18}/></Link>
+          <img src={posterUrl} alt=""/>
+          <div className={styles.mobileEventDetails}>
+            <h1>{displayTitle}</h1>
+            <button type="button" className={styles.mobileQuantityButton} onClick={() => { setDraftQty(qty); setQuantityModalOpen(true); }} aria-haspopup="dialog">
+              <Users size={15}/><span>{qty}</span>
+            </button>
+          </div>
+        </div>
         <div className={styles.priceRail} onClick={selectNearestPrice}>
           <div className={styles.priceGrid}>
           <div className={styles.priceStops}>
@@ -825,7 +907,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
         </div>
       </section>
 
-      <aside className={`${styles.sidebar} ${polish.sidebar}`}>
+      <aside className={`${styles.sidebar} ${!cart.length ? styles.sidebarEmpty : ""} ${polish.sidebar}`}>
         <div className={`${styles.eventInfo} ${polish.eventInfo}`}>
           <img className={polish.poster} src={posterUrl} alt=""/>
           <div className={`${styles.eventDetails} ${polish.eventDetails}`}>

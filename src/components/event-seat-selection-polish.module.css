@@ -103,7 +103,7 @@
 }
 @media(max-width:900px){
   .headerBack{right:14px!important;height:68px!important;font-size:12px!important}
-  .sidebar{padding:12px!important}
+  .sidebar{padding:7px 16px max(12px,env(safe-area-inset-bottom))!important;overflow:hidden!important}
   .eventInfo{grid-template-columns:48px minmax(0,1fr)!important;gap:8px!important}
   .poster{width:48px!important;height:48px!important}
   .title{font-size:14px!important;margin-bottom:6px!important}
@@ -114,4 +114,12 @@
   .quantityModal h2{font-size:18px}
   .quantityModal p{font-size:12.5px}
   .modalClose{top:14px;inset-inline-end:14px}
+  :global(body.atlas-seat-selection-active) :global(.mapViewport){padding:18px 8px 190px!important}
+  :global(body.atlas-seat-selection-active) :global(.mapFrame){margin:0 auto!important}
+  :global(.atlas-selected-ticket){padding:13px 2px 14px!important}
+  :global(.atlas-selected-ticket:first-child){border-top:0!important}
+  :global(.atlas-selected-title){font-size:18px!important;line-height:1.1!important}
+  :global(.atlas-selected-desc){font-size:13px!important;line-height:1.3!important;margin-top:4px!important}
+  :global(.atlas-selected-price){font-size:16px!important}
+  :global(.atlas-remove-ticket){width:28px!important;height:28px!important}
 }
