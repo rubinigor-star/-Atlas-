@@ -532,9 +532,11 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
             })}
           </div>
           <div className={styles.rangeWrap}>
-            <div className={styles.rangeBase}/><div className={styles.rangeActive} style={{ left: `${activeLeft}%`, width: `${activeWidth}%` }}/>
-            <input aria-label="minimum ticket price" className={styles.range} type="range" min="0" max={Math.max(0, sortedPrices.length - 1)} value={minIndex} onChange={event => { setMinIndex(Math.min(Number(event.target.value), maxIndex)); clearSelection(); }}/>
-            <input aria-label="maximum ticket price" className={`${styles.range} ${styles.rangeMax}`} type="range" min="0" max={Math.max(0, sortedPrices.length - 1)} value={maxIndex} onChange={event => { setMaxIndex(Math.max(Number(event.target.value), minIndex)); clearSelection(); }}/>
+            <div className={styles.rangeTrack}>
+              <div className={styles.rangeBase}/><div className={styles.rangeActive} style={{ left: `${activeLeft}%`, width: `${activeWidth}%` }}/>
+              <input aria-label="minimum ticket price" className={styles.range} type="range" min="0" max={Math.max(0, sortedPrices.length - 1)} step="1" value={minIndex} onChange={event => { setMinIndex(Math.min(Number(event.target.value), maxIndex)); clearSelection(); }}/>
+              <input aria-label="maximum ticket price" className={`${styles.range} ${styles.rangeMax}`} type="range" min="0" max={Math.max(0, sortedPrices.length - 1)} step="1" value={maxIndex} onChange={event => { setMaxIndex(Math.max(Number(event.target.value), minIndex)); clearSelection(); }}/>
+            </div>
           </div>
         </div>
 
