@@ -844,7 +844,9 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
           <strong aria-live="polite">{draftQty}</strong>
           <button type="button" aria-label={local.increase} disabled={draftQty >= 8} onClick={() => setDraftQty(value => Math.min(8, value + 1))}><Plus size={20}/></button>
         </div>
-        <button type="button" className={polish.modalConfirm} onClick={() => { setQty(draftQty); setQuantityModalOpen(false); }}>{local.confirmQuantity}</button>
+        <div className={polish.modalFooter}>
+          <button type="button" className={polish.modalConfirm} onClick={() => { setQty(draftQty); setQuantityModalOpen(false); }}>{local.confirmQuantity}</button>
+        </div>
       </div>
     </div>}
 
