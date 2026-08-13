@@ -609,12 +609,6 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
     selectPriceStop(Math.round(ratio * Math.max(0, sortedPrices.length - 1)));
   }
   const backHref = `/events/${slug}${referralCode ? `?ref=${encodeURIComponent(referralCode)}` : ""}`;
-  const mobileEventTitle = locale === "ru"
-    ? `Билеты на ${displayTitle.replace(/^Группа\s+/i, "")}`
-    : locale === "he"
-      ? `כרטיסים ל${displayTitle.replace(/^להקת\s+/i, "")}`
-      : `Tickets for ${displayTitle.replace(/^Group\s+/i, "")}`;
-
   return <main className={styles.page}>
     <style jsx>{`
       @keyframes atlasCheckoutFlow {
@@ -778,12 +772,12 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
       <section className={styles.mapSide}>
         <div className={styles.mobileEventBar}>
           <img src={posterUrl} alt=""/>
-          <Link className={styles.mobileEventTitle} href={backHref}>{mobileEventTitle}</Link>
+          <Link className={styles.mobileEventTitle} href={backHref}>{displayTitle}</Link>
           <Link className={styles.mobileInlineBack} href={backHref} aria-label={local.back}><ArrowLeft size={18}/></Link>
           <div className={styles.mobileQuantityRow}>
             <span className={styles.mobileQuantityLabel}>
               <strong>{local.quantity}</strong>
-              <button type="button" aria-label={local.quantityInfo} aria-haspopup="dialog" onClick={() => { setDraftQty(qty); setQuantityModalOpen(true); }}><Info size={13}/></button>
+              <button type="button" aria-label={local.quantityInfo} aria-haspopup="dialog" onClick={() => { setDraftQty(qty); setQuantityModalOpen(true); }}><Info size={15}/></button>
             </span>
             <span className={styles.mobileQuantityControl}>
               <button type="button" aria-label={local.decrease} disabled={qty <= 1} onClick={() => setQty(value => Math.max(1, value - 1))}><Minus size={18}/></button>
