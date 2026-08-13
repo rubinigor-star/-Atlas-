@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requirePlatformAdmin, resetOfficePassword, unlockOfficeUser } from "@/lib/auth";
+import { getOfficeCredentialStatus, requirePlatformAdmin, resetOfficePassword, unlockOfficeUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 const schema=z.discriminatedUnion("action",[
+  z.object({action:z.literal("STATUS")}),
   z.object({action:z.literal("UNLOCK")}),
   z.object({action:z.literal("SET_PASSWORD"),password:z.string().min(10).max(128)}),
 ]);
@@ -19,11 +20,16 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   const owner=organization.users.find(user=>user.staffRole==="OWNER")??organization.users[0];
   if(!owner)return NextResponse.json({error:"OWNER_NOT_FOUND"},{status:409});
 
-  if(parsed.data.action==="UNLOCK"){
-    await unlockOfficeUser(owner.id);
-    return NextResponse.json({ok:true,action:"UNLOCK",userId:owner.id,email:owner.email});
+  if(parsed.data.action==="STATUS"){
+    const status=await getOfficeCredentialStatus(owner.id);
+    return NextResponse.json({ok:true,action:"STATUS",userId:owner.id,email:owner.email,status});
   }
 
-  await resetOfficePassword(owner.id,parsed.data.password);
-  return NextResponse.json({ok:true,action:"SET_PASSWORD",userId:owner.id,email:owner.email});
+  if(parsed.data.action==="UNLOCK"){
+    const status=await unlockOfficeUser(owner.id);
+    return NextResponse.json({ok:true,action:"UNLOCK",userId:owner.id,email:owner.email,status});
+  }
+
+  const status=await resetOfficePassword(owner.id,parsed.data.password);
+  return NextResponse.json({ok:true,action:"SET_PASSWORD",userId:owner.id,email:owner.email,status});
 }
