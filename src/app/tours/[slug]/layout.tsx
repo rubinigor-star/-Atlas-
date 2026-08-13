@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { getPublicOrigin } from "@/lib/public-origin";
 
-const BASE="https://www.atlas-one.co";
 type TourRow={slug:string;title:string;description:string;posterurl:string|null};
 type Props={children:React.ReactNode;params:Promise<{slug:string}>};
 
@@ -19,7 +19,7 @@ export async function generateMetadata({params}:Pick<Props,"params">):Promise<Me
   const {slug}=await params;
   const tour=await getTour(slug);
   if(!tour)return {title:"Тур не найден",robots:{index:false,follow:false}};
-  const url=`${BASE}/tours/${tour.slug}`;
+  const url=`${getPublicOrigin()}/tours/${tour.slug}`;
   const description=tour.description.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().slice(0,160);
   return {
     title:tour.title,
