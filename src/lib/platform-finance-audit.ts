@@ -108,7 +108,7 @@ export async function platformFinanceAuditOperations(): Promise<PlatformFinanceA
       JOIN "Organization" org ON org."id"=n."organizationId"
       LEFT JOIN "Order" o ON o."id"=n."orderId"
       LEFT JOIN "Event" e ON e."id"=o."eventId"
-      WHERE n."channel"='SMS' AND n."status"='SENT' AND n."priceMinor">0
+      WHERE n."channel"='SMS' AND n."status"='SENT' AND n."priceMinor">0 AND n."type"<>'TICKET_AUTO'
       ORDER BY COALESCE(n."sentAt",n."createdAt") DESC`),
     db.$queryRawUnsafe<AuditPayout[]>(`
       SELECT p."id",p."organizationId",org."name" AS "organizationName",p."eventId",e."title" AS "eventTitle",
@@ -122,7 +122,6 @@ export async function platformFinanceAuditOperations(): Promise<PlatformFinanceA
 
   const cancellationByOrder = new Map(cancellations.map(item => [item.orderId, item]));
   const attemptByOrder = new Map(attempts.map(item => [item.orderId, item]));
-  const orderById = new Map(orders.map(item => [item.orderId, item]));
   const operations: PlatformFinanceAuditOperation[] = [];
 
   for (const order of orders) {
@@ -182,8 +181,5 @@ export async function platformFinanceAuditOperations(): Promise<PlatformFinanceA
     amountMinor:item.amountMinor,createdAt:new Date(item.createdAt),description:`Выплата организатору${item.reference ? ` - ${item.reference}` : ""}`,
   });
 
-  // Ignore refund attempts for orders outside the current paid/cancelled finance scope.
-  // This keeps the audit ledger mathematically identical to platformFinanceSummary().
-  void orderById;
   return operations.sort((a,b)=>b.createdAt.getTime()-a.createdAt.getTime());
 }
