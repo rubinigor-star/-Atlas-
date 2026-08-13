@@ -24,7 +24,6 @@ type ReservationRow = {
   orderId: string;
   status: string;
   expiresAt: Date;
-  active: boolean;
 };
 
 type AbandonedRow = {
@@ -124,12 +123,10 @@ function moneyReadiness(params: {
     };
   }
 
-  const reservationActive = Boolean(reservation?.active);
-
   return {
-    canApprove: reservationActive,
+    canApprove: true,
     canReject: true,
-    reviewBlockedReason: reservationActive ? null : "Срок резерва заявки истёк. Подтверждение оплаты заблокировано",
+    reviewBlockedReason: null,
     paymentProvider: authorization.provider,
     paymentAuthorizationStatus: authorization.status,
     reservationStatus: reservation?.status ?? null,
@@ -349,7 +346,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         ...orderIds,
       ).catch(() => []),
       db.$queryRawUnsafe<ReservationRow[]>(
-        `SELECT "orderId","status","expiresAt", ("status"='ACTIVE' AND "expiresAt" > CURRENT_TIMESTAMP) AS "active" FROM "Reservation" WHERE "orderId" IN (${placeholders})`,
+        `SELECT "orderId","status","expiresAt" FROM "Reservation" WHERE "orderId" IN (${placeholders})`,
         ...orderIds,
       ).catch(() => []),
     ]);
