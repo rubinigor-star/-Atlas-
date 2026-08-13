@@ -2,20 +2,18 @@ import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { getCanonicalOrigin } from "@/lib/public-origin";
 import { getDirectOnlyEventIds } from "@/lib/event-language-server";
+import { isTechnicalEventSlug } from "@/lib/event-seo";
 
 type TourSitemapRow={slug:string;updatedat:Date|string|null};
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base=getCanonicalOrigin();
-  const directOnlyIds=await getDirectOnlyEventIds();
-  const events = await db.event.findMany({
-    where: {
-      status: "PUBLISHED",
-      slug: { not: { startsWith: "draft-" } },
-      ...(directOnlyIds.length?{id:{notIn:directOnlyIds}}:{}),
-    },
-    select: { slug: true, updatedAt: true },
+  const directOnlyIds=new Set(await getDirectOnlyEventIds());
+  const publishedEvents = await db.event.findMany({
+    where: { status: "PUBLISHED" },
+    select: { id:true, slug: true, updatedAt: true },
   });
+  const events=publishedEvents.filter((event)=>!directOnlyIds.has(event.id)&&!isTechnicalEventSlug(event.slug));
 
   let tours:TourSitemapRow[]=[];
   try{
@@ -37,7 +35,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     tours=[];
   }
 
-  const staticPages = ["", "/about", "/faq", "/careers", "/contact", "/privacy", "/terms", "/refund-policy"];
+  const staticPages = ["", "/about", "/faq", "/careers", "/contact", "/privacy", "/terms", "/cancellation-policy"];
   const staticEntries: MetadataRoute.Sitemap = staticPages.map((path) => ({
     url: `${base}${path}`,
     changeFrequency: path === "" ? "daily" : "monthly",
