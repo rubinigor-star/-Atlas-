@@ -75,6 +75,18 @@ export async function getDirectOnlyEventIds() {
   return rows.map((row) => row.eventId);
 }
 
+export async function getNonIndexableEventIds() {
+  await ensureEventLanguageSettingsTable();
+  const rows = await db.$queryRaw<Array<{ eventId: string }>>(Prisma.sql`
+    SELECT e.id AS "eventId"
+    FROM "Event" e
+    LEFT JOIN "EventLanguageSettings" s ON s."eventId" = e.id
+    WHERE e.slug LIKE 'draft-%'
+       OR s."catalogVisibility" = 'DIRECT_ONLY'
+  `);
+  return rows.map((row) => row.eventId);
+}
+
 export async function saveEventLanguageSettings(
   eventId: string,
   settings: EventLanguageSettings,
