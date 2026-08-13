@@ -40,3 +40,4 @@
 .priceGrid .rangeTrack{inset-inline:0}
 .priceStops button b{display:block;direction:ltr;unicode-bidi:isolate;text-align:center}
 @media(max-width:900px){.priceGrid{margin-inline:12px}}
+.noSeats{position:absolute;left:50%;top:12px;bottom:auto;z-index:20;transform:translateX(-50%);margin:0;pointer-events:none}
