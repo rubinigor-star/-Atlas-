@@ -77,7 +77,7 @@ export function PlatformOrganizerProfileForm({ organizationId, initial }: { orga
         <div className="stat"><span className="muted">Неудачных попыток</span><strong style={{fontSize:18}}>{credentialStatus.failedAttempts}</strong></div>
         <div className="stat"><span className="muted">Email</span><strong style={{fontSize:18}}>{credentialStatus.emailVerified?"Подтверждён":"Не подтверждён"}</strong></div>
       </div>}
-      <div className="row" style={{marginTop:16,flexWrap:"wrap"}}><button className="btn secondary" type="button" disabled={securityBusy} onClick={()=>security("STATUS")}>Проверить статус</button><button className="btn secondary" type="button" disabled={securityBusy} onClick={()=>security("UNLOCK")}>Снять блокировку входа</button><button className="btn" type="button" disabled={securityBusy||newPassword.length<10} onClick={()=>security("SET_PASSWORD")}>Установить новый пароль</button>{securityMessage&&<span className="muted">{securityMessage}</span>}</div>
+      <div className="row" style={{marginTop:16,flexWrap:"wrap"}}><button className="btn secondary" type="button" disabled={securityBusy} onClick={()=>security("STATUS")}>Проверить статус</button><button className="btn secondary" type="button" disabled={securityBusy} onClick={()=>security("UNLOCK")}>Снять блокировку входа</button><button className="btn" type="button" disabled={securityBusy||newPassword.length<10} onClick={()=>security("SET_PASSWORD")}>Установить новый пароль</button>{credentialStatus&&!credentialStatus.locked&&<a className="btn secondary" href="/office/login" target="_blank" rel="noreferrer">Открыть чистую страницу входа</a>}{securityMessage&&<span className="muted">{securityMessage}</span>}</div>
     </section>
   </>;
 }
