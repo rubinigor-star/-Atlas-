@@ -141,10 +141,11 @@ function selectionHaloStyle(object: MapObject, seatIds: string[]): React.CSSProp
 function seatSequences(object: MapObject): MapSeat[][] {
   const seats = [...object.seatItems].sort((a, b) => a.position - b.position);
   if (object.objectType === "TABLE") {
-    const horizontal = object.width >= object.height;
-    if (object.seats === 6 && horizontal) return [seats.slice(0, 3), seats.slice(3, 6)];
-    if (object.seats === 8 && !horizontal) return [seats.slice(0, 4), seats.slice(4, 8)];
     if (object.seats === 2) return [seats];
+    if (seats.length >= 4 && seats.length % 2 === 0) {
+      const half = seats.length / 2;
+      return [seats.slice(0, half), seats.slice(half)];
+    }
   }
   return [seats];
 }
@@ -160,6 +161,16 @@ function validGroups(object: MapObject, quantity: number, seatAllowed: (seat: Ma
       if (new Set(group.map(item => item.id)).size === quantity && group.every(seatAllowed)) output.push(group.map(item => item.id));
     }
     return output;
+  }
+  if (object.objectType === "TABLE" && quantity === 2) {
+    const seats = [...object.seatItems].sort((a, b) => a.position - b.position);
+    if (seats.length >= 4 && seats.length % 2 === 0) {
+      const half = seats.length / 2;
+      for (let index = 0; index < half; index += 1) {
+        const pair = [seats[index], seats[index + half]];
+        if (pair.every(seatAllowed)) output.push(pair.map(item => item.id));
+      }
+    }
   }
   for (const sequence of seatSequences(object)) {
     if (quantity > sequence.length) continue;
