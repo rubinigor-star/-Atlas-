@@ -15,3 +15,6 @@
 /* Handles move continuously, inherit the nearest ticket color, then snap to
    the exact proportional price stop when dragging ends. */
 .range::-webkit-slider-thumb,.rangeMax::-webkit-slider-thumb{background:var(--range-thumb-color,#168bf2)}.range::-moz-range-thumb,.rangeMax::-moz-range-thumb{background:var(--range-thumb-color,#168bf2)}
+
+/* The complete white price rail is a generous click target. */
+.priceRail{cursor:pointer}.rangeTrack,.priceStops{cursor:pointer}.range::-webkit-slider-thumb{cursor:grab}.range::-moz-range-thumb{cursor:grab}.range:active::-webkit-slider-thumb{cursor:grabbing}.range:active::-moz-range-thumb{cursor:grabbing}
