@@ -246,7 +246,7 @@
 
 @media(max-width:900px){
   .priceRail{height:63px;padding:0;border-bottom:1px solid #d2d2d9;box-shadow:0 3px 7px rgba(15,23,42,.08)}
-  .priceGrid{height:63px;margin-inline:24px}
+  .priceGrid{height:63px;margin-inline:clamp(24px,7.6vw,40px)}
   .priceStops{top:10px;height:12px;min-height:0;margin:0}
   .priceStops button,
   .priceStops button:first-child,
@@ -271,7 +271,7 @@
 }
 
 @media(max-width:360px){
-  .priceGrid{margin-inline:20px}
+  .priceGrid{margin-inline:24px}
   .priceDense .priceStops button{font-size:9.5px}
   .priceVeryDense .priceStops button{font-size:8px;letter-spacing:-.035em}
 }
