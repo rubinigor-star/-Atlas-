@@ -8,6 +8,7 @@ body.atlas-seat-selection-active div[class*="object"][style*="opacity: 0.12"] {
 
 body.atlas-seat-selection-active button[class*="filtered"] {
   opacity: 1 !important;
+  visibility: hidden !important;
 }
 
 /* Seats that are unavailable/reserved use the neutral fallback color in the
