@@ -343,7 +343,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
       const contentHeight = Math.max(1, mapBounds.maxY - mapBounds.minY);
       const mobile = window.matchMedia("(max-width: 900px)").matches;
       setMobileMapMode(mobile);
-      const horizontalPadding = mobile ? 24 : 96;
+      const horizontalPadding = mobile ? 0 : 96;
       const verticalPadding = mobile ? 24 : 72;
       const nextScale = Math.max(.16, Math.min(1, (viewport.clientWidth - horizontalPadding) / contentWidth, (viewport.clientHeight - verticalPadding) / contentHeight));
       setFitScale(nextScale);
@@ -363,7 +363,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
       return;
     }
     const contentWidth = Math.max(1, mapBounds.maxX - mapBounds.minX);
-    const positionX = Math.max(12, (viewport.clientWidth - contentWidth * fitScale) / 2);
+    const positionX = Math.max(0, (viewport.clientWidth - contentWidth * fitScale) / 2);
     transform.setTransform(positionX, 12, fitScale, animationTime, "easeOut");
   }, [fitScale, mapBounds, mobileMapMode]);
 
@@ -815,7 +815,7 @@ export function EventSeatSelection({ eventId, slug, title, posterUrl, venueName,
             minScale={fitScale}
             maxScale={Math.max(3.2, fitScale * 8)}
             centerOnInit={!mobileMapMode}
-            centerZoomedOut={!mobileMapMode}
+            centerZoomedOut
             limitToBounds
             disablePadding
             smooth={false}
