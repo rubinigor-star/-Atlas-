@@ -1,9 +1,8 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getMobileStaff } from "@/lib/mobile-auth";
 import { ensureAbandonedCheckoutRuntime } from "@/lib/abandoned-checkout";
 import { ensureOrderReviewQueueRuntime } from "@/lib/order-review-queue";
-import { getCachedSocialProfiles, normalizeSocialProfile, refreshSocialProfiles, type SocialProfileInput } from "@/lib/social-profile-image";
 
 const STATUS_GROUPS = {
   pending: ["PENDING", "PENDING_APPROVAL"] as const,
@@ -281,10 +280,9 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         customerName: [row.customerFirstName, row.customerLastName].filter(Boolean).join(" ") || "Не представился",
         customerPhone: row.customerPhone || "",
         customerEmail: row.customerEmail || "",
+        customerCity: null,
         customerFacebook: null,
         customerInstagram: null,
-        socialProfileImageUrl: null,
-        socialProfileImageSource: null,
         totalMinor: row.amountMinor,
         currency: "ILS",
         status: "ABANDONED",
@@ -341,6 +339,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         customerName: true,
         customerPhone: true,
         customerEmail: true,
+        customerCity: true,
         customerFacebook: true,
         customerInstagram: true,
         customerBirthDate: true,
@@ -356,17 +355,6 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     }),
     db.order.count({ where: orderWhere }),
   ]);
-
-  const socialInputs: SocialProfileInput[] = orders.flatMap((order) => [
-    { kind: "INSTAGRAM" as const, value: order.customerInstagram },
-    { kind: "FACEBOOK" as const, value: order.customerFacebook },
-  ]);
-  const socialCache = await getCachedSocialProfiles(socialInputs);
-  after(async () => {
-    await refreshSocialProfiles(socialInputs).catch((error) => {
-      console.info("mobile.operations.social_profile_refresh_failed", { eventId: id, message: error instanceof Error ? error.message : "Unknown error" });
-    });
-  });
 
   const orderIds = orders.map((order) => order.id);
   let authorizationRows: AuthorizationRow[] = [];
@@ -392,39 +380,32 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     counts,
     group,
     pagination: { page, limit, total: filteredTotal, hasMore: page * limit < filteredTotal },
-    orders: orders.map((order) => {
-      const instagram = normalizeSocialProfile({ kind: "INSTAGRAM", value: order.customerInstagram });
-      const facebook = normalizeSocialProfile({ kind: "FACEBOOK", value: order.customerFacebook });
-      const instagramImage = instagram ? socialCache.get(instagram.url)?.imageUrl ?? null : null;
-      const facebookImage = facebook ? socialCache.get(facebook.url)?.imageUrl ?? null : null;
-      return {
-        id: order.id,
-        publicId: order.publicId,
-        customerName: order.customerName,
-        customerPhone: order.customerPhone,
-        customerEmail: order.customerEmail,
-        customerBirthDate: order.customerBirthDate?.toISOString() ?? null,
-        customerInstagram: instagram?.url ?? null,
-        customerFacebook: facebook?.url ?? null,
-        socialProfileImageUrl: instagramImage || facebookImage,
-        socialProfileImageSource: instagramImage ? "INSTAGRAM" : facebookImage ? "FACEBOOK" : null,
-        totalMinor: order.totalMinor,
-        currency: order.currency,
-        status: order.status,
-        reviewNote: order.reviewNote,
-        createdAt: order.createdAt.toISOString(),
-        reviewedAt: order.reviewedAt?.toISOString() ?? null,
-        ticketCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
-        categories: order.items.map((item) => ({ name: item.categoryName, quantity: item.quantity, unitPriceMinor: item.unitPriceMinor })),
-        usedTickets: order.tickets.filter((ticket) => ticket.status === "USED").length,
-        source: "ORDER",
-        ...moneyReadiness({
-          orderStatus: order.status,
-          orderTotalMinor: order.totalMinor,
-          authorization: authorizationByOrder.get(order.id),
-          reservation: reservationByOrder.get(order.id),
-        }),
-      };
-    }),
+    orders: orders.map((order) => ({
+      id: order.id,
+      publicId: order.publicId,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      customerEmail: order.customerEmail,
+      customerCity: order.customerCity?.trim() || null,
+      customerBirthDate: order.customerBirthDate?.toISOString() ?? null,
+      customerInstagram: order.customerInstagram?.trim() || null,
+      customerFacebook: order.customerFacebook?.trim() || null,
+      totalMinor: order.totalMinor,
+      currency: order.currency,
+      status: order.status,
+      reviewNote: order.reviewNote,
+      createdAt: order.createdAt.toISOString(),
+      reviewedAt: order.reviewedAt?.toISOString() ?? null,
+      ticketCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
+      categories: order.items.map((item) => ({ name: item.categoryName, quantity: item.quantity, unitPriceMinor: item.unitPriceMinor })),
+      usedTickets: order.tickets.filter((ticket) => ticket.status === "USED").length,
+      source: "ORDER",
+      ...moneyReadiness({
+        orderStatus: order.status,
+        orderTotalMinor: order.totalMinor,
+        authorization: authorizationByOrder.get(order.id),
+        reservation: reservationByOrder.get(order.id),
+      }),
+    })),
   });
 }
