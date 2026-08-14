@@ -71,7 +71,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ public
       }
     });
 
-    return NextResponse.json({ queued: true, processing: true, jobId: job.id, action: job.action }, { status: 202 });
+    return NextResponse.json({
+      queued: true,
+      processing: true,
+      jobId: job.id,
+      action: job.action,
+      status: job.action === "approve" ? "PROCESSING_APPROVE" : "PROCESSING_REJECT",
+    }, { status: 202 });
   } catch (error) {
     const current = await db.order.findUnique({ where: { publicId }, select: { status: true } }).catch(() => null);
     console.error("admin.request.review_enqueue_failed", {
