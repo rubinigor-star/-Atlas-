@@ -10,33 +10,28 @@ import { ResendTicketButton } from "@/components/resend-ticket-button";
 import { OrderRefundManager } from "@/components/order-refund-manager";
 import { requireEventAccess } from "@/lib/auth";
 import { ageAt, getOrderDemographics } from "@/lib/customer-demographics";
+import { searchValueCardMember } from "@/lib/valuecard";
 
 type AuthorizationRow={provider:string;providerReference:string;status:string;amountMinor:number;cardLast4:string|null;capturedAt:Date|null;voidedAt:Date|null;failureReason:string|null};
-
 export const dynamic = "force-dynamic";
 function genderLabel(value:string|null){return value==="MALE"?"Мужчина":value==="FEMALE"?"Женщина":"Не указан";}
+function ValueCardBadge(){return <img src="/branding/valuecard-mark.svg" alt="ValueCard member" title="ValueCard member" style={{width:22,height:22,objectFit:"contain",display:"inline-block"}}/>;}
 
 export default async function OrderAdmin({params,searchParams}:{params:Promise<{publicId:string}>;searchParams:Promise<{returnTo?:string}>}) {
-  const {publicId}=await params;
-  const query=await searchParams;
-  const returnTo=query.returnTo?.startsWith("/office/")?query.returnTo:"/office/orders";
-  const order=await db.order.findUnique({where:{publicId},include:{event:true,items:true,tickets:{include:{category:true}}}});
-  if(!order)notFound();
+  const {publicId}=await params;const query=await searchParams;const returnTo=query.returnTo?.startsWith("/office/")?query.returnTo:"/office/orders";
+  const order=await db.order.findUnique({where:{publicId},include:{event:true,items:true,tickets:{include:{category:true}}}});if(!order)notFound();
   const staff=await requireEventAccess("ORDER_VIEW",order.eventId);
-  const [authorization,demographics]=await Promise.all([
+  const [authorization,demographics,valueCardMember]=await Promise.all([
     db.$queryRaw<AuthorizationRow[]>`SELECT provider,"providerReference",status,"amountMinor","cardLast4","capturedAt","voidedAt","failureReason" FROM "PaymentAuthorization" WHERE "orderId"=${order.id} LIMIT 1`.then(rows=>rows[0]),
     getOrderDemographics(order.id),
+    searchValueCardMember(order.event.organizationId,order.customerPhone),
   ]);
-  const canRefund=staff.permissionSet.has("ORDER_MANAGE");
-  const refunded=authorization?.status==="REFUNDED"||authorization?.status==="PARTIALLY_REFUNDED"||order.status==="CANCELLED";
-  const gender=demographics?.gender??null;const age=ageAt(demographics?.birthDate??order.customerBirthDate);
-
+  const canRefund=staff.permissionSet.has("ORDER_MANAGE");const refunded=authorization?.status==="REFUNDED"||authorization?.status==="PARTIALLY_REFUNDED"||order.status==="CANCELLED";const gender=demographics?.gender??null;const age=ageAt(demographics?.birthDate??order.customerBirthDate);
   return <AdminShell>
-    <Link className="btn secondary" href={returnTo}>← Вернуться</Link>
-    <span className="eyebrow">{order.status==="PENDING_APPROVAL"?"Заявка на вход":"Order"}</span>
+    <Link className="btn secondary" href={returnTo}>← Вернуться</Link><span className="eyebrow">{order.status==="PENDING_APPROVAL"?"Заявка на вход":"Order"}</span>
     <div className="row between"><h1>{order.publicId}</h1><span className="pill">{order.status}</span></div>
     <div className="stats"><div className="stat"><span className="muted">Сумма</span><strong>{money(order.totalMinor)}</strong></div><div className="stat"><span className="muted">Мероприятие</span><strong>{order.event.title}</strong><small>{eventDate(order.event.startsAt)}</small></div><div className="stat"><span className="muted">Билеты</span><strong>{order.tickets.length}</strong></div></div>
-    <section className="panel form"><h2>Покупатель</h2><div className="form-grid two"><div><strong style={{display:"inline-flex",alignItems:"center",gap:6}}>{gender==="MALE"?<UserRound size={18}/>:gender==="FEMALE"?<UserRoundCheck size={18}/>:null}{order.customerName}</strong><p>{genderLabel(gender)}{age!==null?` · ${age} лет`:""}<br/>{order.customerEmail}<br/>{order.customerPhone}</p></div><div><strong>Данные заказа</strong><p>Создан: {israelDateTime(order.createdAt)}<br/>Статус: {order.status}</p></div></div></section>
+    <section className="panel form"><h2>Покупатель</h2><div className="form-grid two"><div><strong style={{display:"inline-flex",alignItems:"center",gap:6}}>{gender==="MALE"?<UserRound size={18}/>:gender==="FEMALE"?<UserRoundCheck size={18}/>:null}{order.customerName}{valueCardMember?<ValueCardBadge/>:null}</strong><p>{genderLabel(gender)}{age!==null?` · ${age} лет`:""}<br/>{order.customerEmail}<br/>{order.customerPhone}</p></div><div><strong>Данные заказа</strong><p>Создан: {israelDateTime(order.createdAt)}<br/>Статус: {order.status}</p></div></div></section>
     {order.eligibilityAnswer&&<div className="panel" style={{background:"#fff8e8"}}><strong>Ответ клиента</strong><p>{order.eligibilityAnswer}</p></div>}
     <section className="panel"><h2>Состав заказа</h2><div className="table-wrap"><table><thead><tr><th>Категория</th><th>Количество</th><th>Цена</th></tr></thead><tbody>{order.items.map(item=><tr key={item.id}><td>{item.categoryName}</td><td>{item.quantity}</td><td>{money(item.unitPriceMinor*item.quantity)}</td></tr>)}</tbody></table></div></section>
     <section className="panel form"><h2>Платёж</h2>{authorization?<div className="form-grid two"><div><strong>{authorization.provider}</strong><p>Статус: {authorization.status}<br/>Транзакция: {authorization.providerReference}<br/>Карта: {authorization.cardLast4?`•••• ${authorization.cardLast4}`:"—"}</p></div><div><strong>{money(authorization.amountMinor)}</strong><p>{authorization.capturedAt?`Оплачено: ${israelDateTime(authorization.capturedAt)}`:""}{authorization.voidedAt?<><br/>Возврат: {israelDateTime(authorization.voidedAt)}</>:null}{authorization.failureReason?<><br/>Причина: {authorization.failureReason}</>:null}</p></div></div>:<div className="toast">Платёжная транзакция не найдена.</div>}</section>
@@ -44,7 +39,6 @@ export default async function OrderAdmin({params,searchParams}:{params:Promise<{
     {order.reviewNote&&<div className="toast">Комментарий: {order.reviewNote}</div>}
     {order.status==="PAID"&&order.tickets.length>0&&canRefund&&<div className="panel" style={{marginTop:20}}><h2 style={{marginTop:0}}>Отправка билетов</h2><p className="muted" style={{marginBottom:0}}>Получатель: <strong>{order.customerEmail}</strong>. Письмо будет отправлено повторно со всеми билетами заказа и PDF-вложением.</p><ResendTicketButton publicId={order.publicId}/></div>}
     {canRefund&&order.status==="PAID"&&authorization?.provider==="HYP"&&<OrderRefundManager orderId={order.publicId} totalMinor={order.totalMinor} alreadyRefunded={refunded}/>} 
-    {order.tickets.length>0&&<h2>Билеты</h2>}
-    {order.tickets.map(ticket=><div className="panel row between" style={{marginBottom:12}} key={ticket.id}><div><span className="pill">{ticket.status}</span><h3>{ticket.category.name}</h3><code>{ticket.publicCode}</code></div><div>{canRefund&&<TicketActions id={ticket.id} status={ticket.status}/>}<Link className="btn secondary" style={{marginTop:8}} href={`/api/tickets/${ticket.id}/pdf`}>PDF</Link></div></div>)}
+    {order.tickets.length>0&&<h2>Билеты</h2>}{order.tickets.map(ticket=><div className="panel row between" style={{marginBottom:12}} key={ticket.id}><div><span className="pill">{ticket.status}</span><h3>{ticket.category.name}</h3><code>{ticket.publicCode}</code></div><div>{canRefund&&<TicketActions id={ticket.id} status={ticket.status}/>}<Link className="btn secondary" style={{marginTop:8}} href={`/api/tickets/${ticket.id}/pdf`}>PDF</Link></div></div>)}
   </AdminShell>;
 }
