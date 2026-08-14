@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { encryptIntegrationSecret } from "@/lib/integration-secrets";
+import { ensureOrganizationIntegrationsTable } from "@/lib/organization-integrations";
 import { writeAudit } from "@/lib/audit";
 
 type IntegrationRow = {
@@ -20,6 +21,7 @@ const updateSchema = z.object({
 });
 
 async function getValueCard(organizationId: string) {
+  await ensureOrganizationIntegrationsTable();
   const rows = await db.$queryRaw<IntegrationRow[]>`
     SELECT "id", "enabled", "credentialsEncrypted", "lastTestStatus", "lastTestedAt"
     FROM "OrganizationIntegration"
