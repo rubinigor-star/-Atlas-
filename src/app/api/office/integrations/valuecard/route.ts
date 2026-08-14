@@ -48,15 +48,14 @@ export async function PUT(request: Request) {
     const encrypted = input.token ? encryptIntegrationSecret(input.token) : existing?.credentialsEncrypted || null;
     if (input.enabled && !encrypted) return NextResponse.json({ error: "Сначала укажите ValueCard API token" }, { status: 400 });
 
-    const now = new Date().toISOString();
     const id = existing?.id || randomUUID();
     await db.$executeRaw`
       INSERT INTO "OrganizationIntegration" ("id", "organizationId", "provider", "enabled", "credentialsEncrypted", "createdAt", "updatedAt")
-      VALUES (${id}, ${actor.organizationId!}, 'VALUECARD', ${input.enabled}, ${encrypted}, ${now}, ${now})
+      VALUES (${id}, ${actor.organizationId!}, 'VALUECARD', ${input.enabled}, ${encrypted}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT("organizationId", "provider") DO UPDATE SET
         "enabled" = excluded."enabled",
         "credentialsEncrypted" = excluded."credentialsEncrypted",
-        "updatedAt" = excluded."updatedAt"
+        "updatedAt" = CURRENT_TIMESTAMP
     `;
 
     await writeAudit(actor, {
