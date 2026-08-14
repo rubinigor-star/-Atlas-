@@ -97,9 +97,16 @@ function attributionIcon(kind?: string | null): React.ComponentProps<typeof Ioni
 }
 
 type GenderedOrder = EventOperationOrder & { customerGender?: "MALE" | "FEMALE" | null };
+type CityOrder = EventOperationOrder & { customerCity?: string | null };
 
 function customerGender(order: EventOperationOrder | null) {
   return order ? (order as GenderedOrder).customerGender ?? null : null;
+}
+
+function customerCity(order: EventOperationOrder | null) {
+  if (!order) return null;
+  const city = (order as CityOrder).customerCity?.trim();
+  return city || null;
 }
 
 function customerAvatarIcon(order: EventOperationOrder): React.ComponentProps<typeof Ionicons>["name"] {
@@ -317,6 +324,7 @@ export default function EventOperationsScreen() {
     const blocked = pending && !order.canApprove;
     const reviewProcessing = processingReviewIds.has(order.id);
     const age = ageFromBirthDate(order.customerBirthDate);
+    const city = customerCity(order);
     const ticketLabel = order.categories.map((item) => item.name).filter(Boolean).join(", ") || "Билет";
 
     const rightSwipe = pending
@@ -347,10 +355,11 @@ export default function EventOperationsScreen() {
                   </View>
                   {age !== null && <Text style={styles.personMeta}>{age} лет</Text>}
                   {!!order.customerPhone && <Text style={styles.phone}>{order.customerPhone}</Text>}
+                  {!!city && <View style={styles.cityRow}><Ionicons name="location-outline" size={13} color="#7B8498" /><Text style={styles.cityText} numberOfLines={1}>{city}</Text></View>}
                   {(order.customerInstagram || order.customerFacebook || order.customerPhone) && <View style={styles.socialRow}>
-                    {!!order.customerInstagram && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(order.customerInstagram!)}><Ionicons name="logo-instagram" size={14} color="#C13584" /><Text style={styles.socialChipText}>Instagram</Text></TouchableOpacity>}
-                    {!!order.customerFacebook && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(order.customerFacebook!)}><Ionicons name="logo-facebook" size={14} color="#1877F2" /><Text style={styles.socialChipText}>Facebook</Text></TouchableOpacity>}
-                    {!!order.customerPhone && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(whatsappUrl(order.customerPhone))}><Ionicons name="logo-whatsapp" size={14} color="#168044" /><Text style={styles.socialChipText}>WhatsApp</Text></TouchableOpacity>}
+                    {!!order.customerInstagram && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(order.customerInstagram!)}><Ionicons name="logo-instagram" size={13} color="#C13584" /><Text style={styles.socialChipText} numberOfLines={1}>Instagram</Text></TouchableOpacity>}
+                    {!!order.customerFacebook && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(order.customerFacebook!)}><Ionicons name="logo-facebook" size={13} color="#1877F2" /><Text style={styles.socialChipText} numberOfLines={1}>Facebook</Text></TouchableOpacity>}
+                    {!!order.customerPhone && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(whatsappUrl(order.customerPhone))}><Ionicons name="logo-whatsapp" size={13} color="#168044" /><Text style={styles.socialChipText} numberOfLines={1}>WhatsApp</Text></TouchableOpacity>}
                   </View>}
                 </View>
                 <View style={styles.orderEnd}>
@@ -484,6 +493,7 @@ export default function EventOperationsScreen() {
           <View style={styles.detailCard}>
             {!!selected.customerPhone && <Detail label="Телефон" value={selected.customerPhone} />}
             {!!selected.customerEmail && <Detail label="Email" value={selected.customerEmail} />}
+            {!!customerCity(selected) && <Detail label="Город" value={customerCity(selected)!} />}
             {selected.customerBirthDate && <Detail label="Возраст" value={`${ageFromBirthDate(selected.customerBirthDate) ?? "-"}`} />}
             {customerGender(selected) && <Detail label="Пол" value={customerGender(selected) === "MALE" ? "Мужчина" : "Женщина"} />}
             {selected.attribution && <Detail label="Источник" value={selected.attribution.detail ? `${selected.attribution.label} · ${selected.attribution.detail}` : selected.attribution.label} />}
@@ -571,9 +581,11 @@ const styles = StyleSheet.create({
   lostBadgeText: { color: "#B54708", fontSize: 9.5, fontWeight: "800" },
   personMeta: { fontSize: 11.5, color: "#737C90", marginTop: 3 },
   phone: { fontSize: 11.5, color: "#60708A", marginTop: 2 },
-  socialRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 5 },
-  socialChip: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 99, backgroundColor: "#F5F6FA", paddingHorizontal: 7, paddingVertical: 4 },
-  socialChipText: { fontSize: 9.5, color: "#4E5668", fontWeight: "700" },
+  cityRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 3, minWidth: 0 },
+  cityText: { flexShrink: 1, fontSize: 10.5, color: "#7B8498" },
+  socialRow: { flexDirection: "row", flexWrap: "nowrap", gap: 4, marginTop: 6, width: "100%" },
+  socialChip: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, borderRadius: 99, backgroundColor: "#F5F6FA", paddingHorizontal: 4, paddingVertical: 4 },
+  socialChipText: { flexShrink: 1, fontSize: 8.8, color: "#4E5668", fontWeight: "700" },
   blockedText: { fontSize: 10.5, color: "#B54708", marginTop: 7 },
   orderEnd: { alignItems: "flex-end", minWidth: 78, marginLeft: 8 },
   amount: { fontSize: 14, fontWeight: "900", color: "#17213C" },
