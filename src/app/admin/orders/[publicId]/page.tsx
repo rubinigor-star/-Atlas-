@@ -15,7 +15,7 @@ import { searchValueCardMember } from "@/lib/valuecard";
 type AuthorizationRow={provider:string;providerReference:string;status:string;amountMinor:number;cardLast4:string|null;capturedAt:Date|null;voidedAt:Date|null;failureReason:string|null};
 export const dynamic = "force-dynamic";
 function genderLabel(value:string|null){return value==="MALE"?"Мужчина":value==="FEMALE"?"Женщина":"Не указан";}
-function ValueCardBadge(){return <span title="ValueCard member" aria-label="ValueCard member" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",height:22,minWidth:28,padding:"0 6px",borderRadius:6,background:"#111827",color:"white",fontSize:10,fontWeight:900,letterSpacing:.4}}>VC</span>;}
+function ValueCardBadge(){return <img src="/branding/valuecard-mark.svg" alt="ValueCard member" title="ValueCard member" style={{width:22,height:22,objectFit:"contain",display:"inline-block"}}/>;}
 
 export default async function OrderAdmin({params,searchParams}:{params:Promise<{publicId:string}>;searchParams:Promise<{returnTo?:string}>}) {
   const {publicId}=await params;const query=await searchParams;const returnTo=query.returnTo?.startsWith("/office/")?query.returnTo:"/office/orders";
