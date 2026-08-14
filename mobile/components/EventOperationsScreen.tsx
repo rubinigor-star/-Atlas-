@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Image,
   Linking,
   Modal,
   RefreshControl,
@@ -336,9 +335,7 @@ export default function EventOperationsScreen() {
         <SwipeOrderRow enabled={!busyAction && !reviewProcessing} rightSwipe={rightSwipe} leftSwipe={leftSwipe}>
           <TouchableOpacity style={styles.orderCard} activeOpacity={0.82} onPress={() => { setSelected(order); setRefundInfo(null); }}>
             <View style={[styles.avatar, order.source === "ABANDONED_CHECKOUT" && styles.avatarLost]}>
-              {order.socialProfileImageUrl
-                ? <Image source={{ uri: order.socialProfileImageUrl }} style={styles.avatarImage} />
-                : <Ionicons name={customerAvatarIcon(order)} size={27} color="#17213C" />}
+              <Ionicons name={customerAvatarIcon(order)} size={27} color="#17213C" />
             </View>
 
             <View style={styles.orderCardBody}>
@@ -350,9 +347,10 @@ export default function EventOperationsScreen() {
                   </View>
                   {age !== null && <Text style={styles.personMeta}>{age} лет</Text>}
                   {!!order.customerPhone && <Text style={styles.phone}>{order.customerPhone}</Text>}
-                  {(order.customerInstagram || order.customerFacebook) && <View style={styles.socialRow}>
+                  {(order.customerInstagram || order.customerFacebook || order.customerPhone) && <View style={styles.socialRow}>
                     {!!order.customerInstagram && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(order.customerInstagram!)}><Ionicons name="logo-instagram" size={14} color="#C13584" /><Text style={styles.socialChipText}>Instagram</Text></TouchableOpacity>}
                     {!!order.customerFacebook && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(order.customerFacebook!)}><Ionicons name="logo-facebook" size={14} color="#1877F2" /><Text style={styles.socialChipText}>Facebook</Text></TouchableOpacity>}
+                    {!!order.customerPhone && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(whatsappUrl(order.customerPhone))}><Ionicons name="logo-whatsapp" size={14} color="#168044" /><Text style={styles.socialChipText}>WhatsApp</Text></TouchableOpacity>}
                   </View>}
                 </View>
                 <View style={styles.orderEnd}>
@@ -469,9 +467,7 @@ export default function EventOperationsScreen() {
           <View style={styles.handle} />
           <View style={styles.sheetHeader}>
             <View style={styles.sheetIdentity}>
-              {selected.socialProfileImageUrl
-                ? <Image source={{ uri: selected.socialProfileImageUrl }} style={styles.sheetAvatar} />
-                : <View style={styles.sheetAvatarFallback}><Ionicons name={customerAvatarIcon(selected)} size={24} color="#17213C" /></View>}
+              <View style={styles.sheetAvatarFallback}><Ionicons name={customerAvatarIcon(selected)} size={24} color="#17213C" /></View>
               <View><Text style={styles.sheetTitle}>{selected.customerName}</Text><Text style={styles.sheetId}>{selected.source === "ABANDONED_CHECKOUT" ? "Брошенное оформление" : `#${selected.publicId}`}</Text></View>
             </View>
             <TouchableOpacity disabled={!!busyAction} onPress={resetOrderState}><Ionicons name="close" size={25} color="#17213C" /></TouchableOpacity>
@@ -565,7 +561,6 @@ const styles = StyleSheet.create({
   orderCardWrap: { marginBottom: 8 },
   orderCard: { minHeight: 112, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E6E9EF", borderRadius: 18, paddingHorizontal: 12, paddingVertical: 11, flexDirection: "row", alignItems: "flex-start" },
   avatar: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center", marginRight: 11, overflow: "hidden" },
-  avatarImage: { width: "100%", height: "100%" },
   avatarLost: { backgroundColor: "#FFF3E8" },
   orderCardBody: { flex: 1 },
   orderCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
@@ -603,7 +598,6 @@ const styles = StyleSheet.create({
   handle: { width: 42, height: 5, borderRadius: 3, backgroundColor: "#DDE1E9", alignSelf: "center", marginBottom: 14 },
   sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
   sheetIdentity: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  sheetAvatar: { width: 48, height: 48, borderRadius: 15 },
   sheetAvatarFallback: { width: 48, height: 48, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "#EEF2FF" },
   sheetTitle: { fontSize: 21, fontWeight: "900", color: "#17213C" },
   sheetId: { color: "#8A92A3", marginTop: 3 },
