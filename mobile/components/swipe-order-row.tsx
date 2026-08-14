@@ -17,52 +17,67 @@ type Props = PropsWithChildren<{
   leftSwipe?: SwipeAction | null;
 }>;
 
-const ACTION_WIDTH = 104;
-const TRIGGER_DISTANCE = 76;
+const ACTION_WIDTH = 92;
+const TRIGGER_DISTANCE = 64;
+const DIRECTION_LOCK_DISTANCE = 8;
 
 export function SwipeOrderRow({ enabled = true, rightSwipe = null, leftSwipe = null, children }: Props) {
   const translateX = useRef(new Animated.Value(0)).current;
+  const dragging = useRef(false);
 
   const reset = () => {
-    Animated.spring(translateX, {
+    dragging.current = false;
+    Animated.timing(translateX, {
       toValue: 0,
+      duration: 150,
       useNativeDriver: true,
-      speed: 22,
-      bounciness: 5,
     }).start();
   };
 
   const panResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_, gesture) => {
       if (!enabled) return false;
+      const horizontal = Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.6;
+      if (!horizontal || Math.abs(gesture.dx) < DIRECTION_LOCK_DISTANCE) return false;
       if (gesture.dx > 0 && !rightSwipe) return false;
       if (gesture.dx < 0 && !leftSwipe) return false;
-      const horizontal = Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.4;
-      return horizontal && Math.abs(gesture.dx) > 7;
+      return true;
     },
-    onPanResponderGrant: () => translateX.stopAnimation(),
+    onMoveShouldSetPanResponderCapture: (_, gesture) => {
+      if (!enabled) return false;
+      const horizontal = Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.8;
+      return horizontal && Math.abs(gesture.dx) >= DIRECTION_LOCK_DISTANCE;
+    },
+    onPanResponderGrant: () => {
+      dragging.current = true;
+      translateX.stopAnimation();
+    },
     onPanResponderMove: (_, gesture) => {
+      if (!dragging.current) return;
       const min = leftSwipe ? -ACTION_WIDTH : 0;
       const max = rightSwipe ? ACTION_WIDTH : 0;
-      translateX.setValue(Math.max(min, Math.min(max, gesture.dx)));
+      const next = Math.max(min, Math.min(max, gesture.dx));
+      translateX.setValue(next);
     },
     onPanResponderRelease: (_, gesture) => {
+      dragging.current = false;
       if (gesture.dx >= TRIGGER_DISTANCE && rightSwipe) {
-        Animated.timing(translateX, { toValue: ACTION_WIDTH, duration: 110, useNativeDriver: true }).start(() => {
-          reset();
+        Animated.timing(translateX, { toValue: ACTION_WIDTH, duration: 90, useNativeDriver: true }).start(() => {
+          translateX.setValue(0);
           rightSwipe.onPress();
         });
         return;
       }
       if (gesture.dx <= -TRIGGER_DISTANCE && leftSwipe) {
-        Animated.timing(translateX, { toValue: -ACTION_WIDTH, duration: 110, useNativeDriver: true }).start(() => {
-          reset();
+        Animated.timing(translateX, { toValue: -ACTION_WIDTH, duration: 90, useNativeDriver: true }).start(() => {
+          translateX.setValue(0);
           leftSwipe.onPress();
         });
         return;
       }
       reset();
     },
+    onPanResponderTerminationRequest: () => false,
     onPanResponderTerminate: reset,
   }), [enabled, leftSwipe, rightSwipe, translateX]);
 
@@ -71,14 +86,19 @@ export function SwipeOrderRow({ enabled = true, rightSwipe = null, leftSwipe = n
   return (
     <View style={styles.root}>
       {rightSwipe && <View style={[styles.action, styles.rightAction, { backgroundColor: rightSwipe.backgroundColor }]}>
-        <Ionicons name={rightSwipe.icon} size={24} color="#fff" />
+        <Ionicons name={rightSwipe.icon} size={22} color="#fff" />
         <Text style={styles.actionText}>{rightSwipe.label}</Text>
       </View>}
       {leftSwipe && <View style={[styles.action, styles.leftAction, { backgroundColor: leftSwipe.backgroundColor }]}>
-        <Ionicons name={leftSwipe.icon} size={24} color="#fff" />
+        <Ionicons name={leftSwipe.icon} size={22} color="#fff" />
         <Text style={styles.actionText}>{leftSwipe.label}</Text>
       </View>}
-      <Animated.View {...panResponder.panHandlers} style={[styles.foreground, { transform: [{ translateX }] }]}>
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={[styles.foreground, { transform: [{ translateX }] }]}
+        renderToHardwareTextureAndroid
+        shouldRasterizeIOS
+      >
         {children}
       </Animated.View>
     </View>
@@ -86,10 +106,10 @@ export function SwipeOrderRow({ enabled = true, rightSwipe = null, leftSwipe = n
 }
 
 const styles = StyleSheet.create({
-  root: { position: "relative", overflow: "hidden", backgroundColor: "#F5F6FA" },
+  root: { position: "relative", overflow: "hidden", borderRadius: 18, backgroundColor: "#F5F6FA" },
   foreground: { backgroundColor: "#fff" },
   action: { ...StyleSheet.absoluteFillObject, width: ACTION_WIDTH, alignItems: "center", justifyContent: "center", gap: 3 },
   rightAction: { right: undefined },
   leftAction: { left: undefined, right: 0 },
-  actionText: { color: "#fff", fontSize: 10.5, fontWeight: "900" },
+  actionText: { color: "#fff", fontSize: 10, fontWeight: "900" },
 });

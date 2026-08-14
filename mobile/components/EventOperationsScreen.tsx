@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Linking,
   Modal,
   RefreshControl,
@@ -75,8 +76,51 @@ function timeAgo(value: string) {
   return `${Math.floor(hours / 24)} дн назад`;
 }
 
+function ageFromBirthDate(value?: string | null) {
+  if (!value) return null;
+  const birth = new Date(value);
+  if (Number.isNaN(birth.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const month = now.getMonth() - birth.getMonth();
+  if (month < 0 || (month === 0 && now.getDate() < birth.getDate())) age -= 1;
+  return age >= 0 && age < 120 ? age : null;
+}
+
 function whatsappUrl(phone: string) {
   return `https://wa.me/${phone.replace(/\D/g, "")}`;
+}
+
+function attributionIcon(kind?: string | null): React.ComponentProps<typeof Ionicons>["name"] {
+  if (kind === "PROMOTER") return "people-outline";
+  if (kind === "REFERRAL") return "link-outline";
+  return "navigate-outline";
+}
+
+type GenderedOrder = EventOperationOrder & { customerGender?: "MALE" | "FEMALE" | null };
+type CityOrder = EventOperationOrder & { customerCity?: string | null };
+type ValueCardOrder = EventOperationOrder & { valueCardMember?: boolean };
+
+function customerGender(order: EventOperationOrder | null) {
+  return order ? (order as GenderedOrder).customerGender ?? null : null;
+}
+
+function customerCity(order: EventOperationOrder | null) {
+  if (!order) return null;
+  const city = (order as CityOrder).customerCity?.trim();
+  return city || null;
+}
+
+function hasValueCardMembership(order: EventOperationOrder | null) {
+  return Boolean(order && (order as ValueCardOrder).valueCardMember);
+}
+
+function customerAvatarIcon(order: EventOperationOrder): React.ComponentProps<typeof Ionicons>["name"] {
+  if (order.source === "ABANDONED_CHECKOUT") return "cart-outline";
+  const gender = customerGender(order);
+  if (gender === "MALE") return "man-outline";
+  if (gender === "FEMALE") return "woman-outline";
+  return "person-outline";
 }
 
 export default function EventOperationsScreen() {
@@ -89,7 +133,8 @@ export default function EventOperationsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<EventOperationOrder | null>(null);
-  const [busyAction, setBusyAction] = useState<"approve" | "reject" | "resend" | "refund" | null>(null);
+  const [processingReviewIds, setProcessingReviewIds] = useState<Set<string>>(() => new Set());
+  const [busyAction, setBusyAction] = useState<"resend" | "refund" | null>(null);
   const [refundInfo, setRefundInfo] = useState<RefundAvailability | null>(null);
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
@@ -143,8 +188,16 @@ export default function EventOperationsScreen() {
     setSortMode("newest");
   }
 
+  function setReviewProcessing(orderId: string, active: boolean) {
+    setProcessingReviewIds((current) => {
+      const next = new Set(current);
+      if (active) next.add(orderId); else next.delete(orderId);
+      return next;
+    });
+  }
+
   function confirmReview(action: "approve" | "reject", order: EventOperationOrder | null = selected) {
-    if (!order || busyAction) return;
+    if (!order || busyAction || processingReviewIds.has(order.id)) return;
     if (action === "approve" && !order.canApprove) {
       Alert.alert("Подтверждение недоступно", order.reviewBlockedReason || "Оплата не готова к подтверждению.");
       return;
@@ -167,19 +220,33 @@ export default function EventOperationsScreen() {
   }
 
   async function runReview(action: "approve" | "reject", order: EventOperationOrder) {
-    setBusyAction(action);
+    if (processingReviewIds.has(order.id)) return;
+    setReviewProcessing(order.id, true);
+    if (selected?.id === order.id) resetOrderState();
+
+    setData((current) => {
+      if (!current) return current;
+      const wasVisiblePending = group === "pending" && current.orders.some((item) => item.id === order.id);
+      return {
+        ...current,
+        counts: wasVisiblePending
+          ? { ...current.counts, pending: Math.max(0, current.counts.pending - 1) }
+          : current.counts,
+        orders: current.orders.filter((item) => item.id !== order.id),
+      };
+    });
+
     try {
-      const result = await reviewEventOrder(order.publicId, action);
-      if (selected?.id === order.id) resetOrderState();
+      await reviewEventOrder(order.publicId, action);
+      await load(group, true);
+    } catch (error) {
       await load(group, true);
       Alert.alert(
-        action === "approve" ? "Заказ подтверждён" : "Заказ отклонён",
-        result.emailSent ? "Клиенту отправлено уведомление." : (result.emailError || "Статус заказа обновлён."),
+        action === "approve" ? "Не удалось подтвердить заявку" : "Не удалось отклонить заявку",
+        `${order.customerName}: ${error instanceof Error ? error.message : "Неизвестная ошибка"}`,
       );
-    } catch (error) {
-      Alert.alert("Не удалось выполнить действие", error instanceof Error ? error.message : "Неизвестная ошибка");
     } finally {
-      setBusyAction(null);
+      setReviewProcessing(order.id, false);
     }
   }
 
@@ -261,39 +328,75 @@ export default function EventOperationsScreen() {
     const pending = group === "pending";
     const approved = group === "approved";
     const blocked = pending && !order.canApprove;
+    const reviewProcessing = processingReviewIds.has(order.id);
+    const age = ageFromBirthDate(order.customerBirthDate);
+    const city = customerCity(order);
+    const ticketLabel = order.categories.map((item) => item.name).filter(Boolean).join(", ") || "Билет";
+
     const rightSwipe = pending
-      ? (order.canApprove ? { label: "Подтвердить", icon: "checkmark-circle" as const, backgroundColor: "#168044", onPress: () => confirmReview("approve", order) } : null)
+      ? (order.canApprove ? { label: "Подтвердить", icon: "checkmark-circle" as const, backgroundColor: "#168044", onPress: () => void runReview("approve", order) } : null)
       : approved
         ? { label: "WhatsApp", icon: "logo-whatsapp" as const, backgroundColor: "#168044", onPress: () => order.customerPhone && void Linking.openURL(whatsappUrl(order.customerPhone)) }
         : null;
     const leftSwipe = pending
-      ? (order.canReject ? { label: "Отклонить", icon: "close-circle" as const, backgroundColor: "#B42318", onPress: () => confirmReview("reject", order) } : null)
+      ? (order.canReject ? { label: "Отклонить", icon: "close-circle" as const, backgroundColor: "#B42318", onPress: () => void runReview("reject", order) } : null)
       : approved
         ? { label: "Билет", icon: "mail-unread" as const, backgroundColor: "#17213C", onPress: () => confirmResend(order) }
         : null;
 
     return (
-      <SwipeOrderRow enabled={!busyAction} rightSwipe={rightSwipe} leftSwipe={leftSwipe}>
-        <TouchableOpacity style={styles.orderRow} activeOpacity={0.75} onPress={() => { setSelected(order); setRefundInfo(null); }}>
-          <View style={[styles.avatar, order.source === "ABANDONED_CHECKOUT" && styles.avatarLost]}>
-            <Text style={styles.avatarText}>{order.customerName.trim().slice(0, 1).toUpperCase() || "?"}</Text>
-          </View>
-          <View style={styles.orderMain}>
-            <View style={styles.nameLine}>
-              <Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text>
-              {order.source === "ABANDONED_CHECKOUT" && <View style={styles.lostBadge}><Text style={styles.lostBadgeText}>Брошено</Text></View>}
+      <View style={styles.orderCardWrap}>
+        <SwipeOrderRow enabled={!busyAction && !reviewProcessing} rightSwipe={rightSwipe} leftSwipe={leftSwipe}>
+          <TouchableOpacity style={styles.orderCard} activeOpacity={0.82} onPress={() => { setSelected(order); setRefundInfo(null); }}>
+            <View style={[styles.avatar, order.source === "ABANDONED_CHECKOUT" && styles.avatarLost]}>
+              <Ionicons name={customerAvatarIcon(order)} size={27} color="#17213C" />
             </View>
-            <Text style={styles.orderMeta} numberOfLines={1}>{order.ticketCount} бил. · {order.categories.map((c) => c.name).join(", ") || "Билет"}</Text>
-            {!!order.customerPhone && <Text style={styles.phone}>{order.customerPhone}</Text>}
-            {blocked && <Text style={styles.blockedText} numberOfLines={2}>{order.reviewBlockedReason}</Text>}
-          </View>
-          <View style={styles.orderEnd}>
-            <Text style={styles.amount}>{money(order.totalMinor)}</Text>
-            <Text style={styles.age}>{timeAgo(order.createdAt)}</Text>
-            <Ionicons name="chevron-forward" size={17} color="#A0A7B5" />
-          </View>
-        </TouchableOpacity>
-      </SwipeOrderRow>
+
+            <View style={styles.orderCardBody}>
+              <View style={styles.orderCardTop}>
+                <View style={styles.orderIdentity}>
+                  <View style={styles.nameLine}>
+                    <Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text>
+                    {hasValueCardMembership(order) && <Image source={{ uri: "https://www.atlas-one.co/branding/valuecard-mark.png" }} style={styles.valueCardMark} accessibilityLabel="ValueCard member" />}
+                    {order.source === "ABANDONED_CHECKOUT" && <View style={styles.lostBadge}><Text style={styles.lostBadgeText}>Брошено</Text></View>}
+                  </View>
+                  {age !== null && <Text style={styles.personMeta}>{age} лет</Text>}
+                  {!!order.customerPhone && <Text style={styles.phone}>{order.customerPhone}</Text>}
+                  {!!city && <View style={styles.cityRow}><Ionicons name="location-outline" size={13} color="#7B8498" /><Text style={styles.cityText} numberOfLines={1}>{city}</Text></View>}
+                  {(order.customerInstagram || order.customerFacebook || order.customerPhone) && <View style={styles.socialRow}>
+                    {!!order.customerInstagram && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(order.customerInstagram!)}><Ionicons name="logo-instagram" size={13} color="#C13584" /><Text style={styles.socialChipText} numberOfLines={1}>Instagram</Text></TouchableOpacity>}
+                    {!!order.customerFacebook && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(order.customerFacebook!)}><Ionicons name="logo-facebook" size={13} color="#1877F2" /><Text style={styles.socialChipText} numberOfLines={1}>Facebook</Text></TouchableOpacity>}
+                    {!!order.customerPhone && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(whatsappUrl(order.customerPhone))}><Ionicons name="logo-whatsapp" size={13} color="#168044" /><Text style={styles.socialChipText} numberOfLines={1}>WhatsApp</Text></TouchableOpacity>}
+                  </View>}
+                </View>
+                <View style={styles.orderEnd}>
+                  <Text style={styles.amount}>{money(order.totalMinor)}</Text>
+                  <Text style={styles.age}>{timeAgo(order.createdAt)}</Text>
+                  <Ionicons name="chevron-forward" size={17} color="#A0A7B5" />
+                </View>
+              </View>
+
+              {order.attribution && order.source === "ORDER" && (
+                <View style={styles.attributionBadge}>
+                  <Ionicons name={attributionIcon(order.attribution.kind)} size={15} color="#6D45FF" />
+                  <View style={styles.attributionCopy}>
+                    <Text style={styles.attributionLabel} numberOfLines={1}>{order.attribution.label}</Text>
+                    {!!order.attribution.detail && <Text style={styles.attributionDetail} numberOfLines={1}>{order.attribution.detail}</Text>}
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.ticketStrip}>
+                <Ionicons name="ticket-outline" size={17} color="#6D45FF" />
+                <Text style={styles.ticketType} numberOfLines={1}>{ticketLabel}</Text>
+                <View style={styles.ticketCountPill}><Text style={styles.ticketCountText}>{order.ticketCount} {order.ticketCount === 1 ? "билет" : "бил."}</Text></View>
+              </View>
+
+              {blocked && <Text style={styles.blockedText} numberOfLines={2}>{order.reviewBlockedReason}</Text>}
+            </View>
+          </TouchableOpacity>
+        </SwipeOrderRow>
+      </View>
     );
   }
 
@@ -337,6 +440,14 @@ export default function EventOperationsScreen() {
         <TouchableOpacity style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]} onPress={() => setFilterOpen(true)}><Ionicons name="options-outline" size={20} color={hasActiveFilters ? "#fff" : "#17213C"} /></TouchableOpacity>
       </View>
 
+      {group === "pending" && data.orders.length > 0 && (
+        <View style={styles.swipeHint}>
+          <Text style={styles.swipeHintApprove}>← Подтвердить</Text>
+          <Text style={styles.swipeHintDot}>·</Text>
+          <Text style={styles.swipeHintReject}>Отклонить →</Text>
+        </View>
+      )}
+
       <FlatList
         style={styles.list}
         contentContainerStyle={styles.listContent}
@@ -370,15 +481,29 @@ export default function EventOperationsScreen() {
       <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => !busyAction && resetOrderState()}>
         <View style={styles.modalRoot}><TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => !busyAction && resetOrderState()} /><View style={styles.sheet}>{selected && <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.handle} />
-          <View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{selected.customerName}</Text><Text style={styles.sheetId}>{selected.source === "ABANDONED_CHECKOUT" ? "Брошенное оформление" : `#${selected.publicId}`}</Text></View><TouchableOpacity disabled={!!busyAction} onPress={resetOrderState}><Ionicons name="close" size={25} color="#17213C" /></TouchableOpacity></View>
+          <View style={styles.sheetHeader}>
+            <View style={styles.sheetIdentity}>
+              <View style={styles.sheetAvatarFallback}><Ionicons name={customerAvatarIcon(selected)} size={24} color="#17213C" /></View>
+              <View><Text style={styles.sheetTitle}>{selected.customerName}</Text><Text style={styles.sheetId}>{selected.source === "ABANDONED_CHECKOUT" ? "Брошенное оформление" : `#${selected.publicId}`}</Text></View>
+            </View>
+            <TouchableOpacity disabled={!!busyAction} onPress={resetOrderState}><Ionicons name="close" size={25} color="#17213C" /></TouchableOpacity>
+          </View>
           <View style={styles.contactRow}>
             {!!selected.customerPhone && <TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`tel:${selected.customerPhone}`)}><Ionicons name="call-outline" size={20} color="#17213C" /><Text style={styles.contactText}>Позвонить</Text></TouchableOpacity>}
             {!!selected.customerPhone && <TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(whatsappUrl(selected.customerPhone))}><Ionicons name="logo-whatsapp" size={20} color="#168044" /><Text style={styles.contactText}>WhatsApp</Text></TouchableOpacity>}
             {!!selected.customerEmail && <TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`mailto:${selected.customerEmail}`)}><Ionicons name="mail-outline" size={20} color="#17213C" /><Text style={styles.contactText}>Email</Text></TouchableOpacity>}
           </View>
+          {(selected.customerInstagram || selected.customerFacebook) && <View style={styles.profileLinks}>
+            {!!selected.customerInstagram && <TouchableOpacity style={styles.profileLinkButton} onPress={() => void Linking.openURL(selected.customerInstagram!)}><Ionicons name="logo-instagram" size={19} color="#C13584" /><Text style={styles.profileLinkText}>Открыть Instagram</Text></TouchableOpacity>}
+            {!!selected.customerFacebook && <TouchableOpacity style={styles.profileLinkButton} onPress={() => void Linking.openURL(selected.customerFacebook!)}><Ionicons name="logo-facebook" size={19} color="#1877F2" /><Text style={styles.profileLinkText}>Открыть Facebook</Text></TouchableOpacity>}
+          </View>}
           <View style={styles.detailCard}>
             {!!selected.customerPhone && <Detail label="Телефон" value={selected.customerPhone} />}
             {!!selected.customerEmail && <Detail label="Email" value={selected.customerEmail} />}
+            {!!customerCity(selected) && <Detail label="Город" value={customerCity(selected)!} />}
+            {selected.customerBirthDate && <Detail label="Возраст" value={`${ageFromBirthDate(selected.customerBirthDate) ?? "-"}`} />}
+            {customerGender(selected) && <Detail label="Пол" value={customerGender(selected) === "MALE" ? "Мужчина" : "Женщина"} />}
+            {selected.attribution && <Detail label="Источник" value={selected.attribution.detail ? `${selected.attribution.label} · ${selected.attribution.detail}` : selected.attribution.label} />}
             <Detail label="Билеты" value={`${selected.ticketCount}`} />
             <Detail label="Сумма" value={money(selected.totalMinor)} />
             <Detail label="Статус" value={selected.status} />
@@ -388,8 +513,8 @@ export default function EventOperationsScreen() {
           {group === "pending" && <>
             {selected.reviewBlockedReason && !selected.canApprove && <View style={styles.warningBox}><Ionicons name="warning-outline" size={20} color="#B54708" /><Text style={styles.warningText}>{selected.reviewBlockedReason}</Text></View>}
             <View style={styles.reviewActions}>
-              <TouchableOpacity disabled={!!busyAction || !selected.canReject} style={[styles.reviewButton, styles.rejectButton, !selected.canReject && styles.disabledButton]} onPress={() => confirmReview("reject")}><Ionicons name="close-circle-outline" size={21} color="#B42318" /><Text style={styles.rejectText}>Отклонить</Text></TouchableOpacity>
-              <TouchableOpacity disabled={!!busyAction || !selected.canApprove} style={[styles.reviewButton, styles.approveButton, !selected.canApprove && styles.disabledApprove]} onPress={() => confirmReview("approve")}><Ionicons name="checkmark-circle-outline" size={21} color="#fff" /><Text style={styles.approveText}>Подтвердить</Text></TouchableOpacity>
+              <TouchableOpacity disabled={!!busyAction || processingReviewIds.has(selected.id) || !selected.canReject} style={[styles.reviewButton, styles.rejectButton, !selected.canReject && styles.disabledButton]} onPress={() => confirmReview("reject")}><Ionicons name="close-circle-outline" size={21} color="#B42318" /><Text style={styles.rejectText}>Отклонить</Text></TouchableOpacity>
+              <TouchableOpacity disabled={!!busyAction || processingReviewIds.has(selected.id) || !selected.canApprove} style={[styles.reviewButton, styles.approveButton, !selected.canApprove && styles.disabledApprove]} onPress={() => confirmReview("approve")}><Ionicons name="checkmark-circle-outline" size={21} color="#fff" /><Text style={styles.approveText}>Подтвердить</Text></TouchableOpacity>
             </View>
           </>}
 
@@ -443,24 +568,44 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14 },
   filterButton: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E5EC", alignItems: "center", justifyContent: "center" },
   filterButtonActive: { backgroundColor: "#6D45FF", borderColor: "#6D45FF" },
+  swipeHint: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingBottom: 7, backgroundColor: "#F5F6FA" },
+  swipeHintApprove: { fontSize: 10.5, color: "#168044", fontWeight: "800" },
+  swipeHintReject: { fontSize: 10.5, color: "#B42318", fontWeight: "800" },
+  swipeHintDot: { color: "#A0A7B5" },
   list: { flex: 1 },
   listContent: { paddingHorizontal: 10, paddingBottom: 90 },
   listLoader: { height: 54, alignItems: "center", justifyContent: "center" },
-  orderRow: { minHeight: 78, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#ECEEF3", paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center" },
-  avatar: { width: 42, height: 42, borderRadius: 13, backgroundColor: "#071536", alignItems: "center", justifyContent: "center", marginRight: 11 },
-  avatarLost: { backgroundColor: "#8A4B08" },
-  avatarText: { color: "#fff", fontSize: 17, fontWeight: "900" },
-  orderMain: { flex: 1 },
+  orderCardWrap: { marginBottom: 8 },
+  orderCard: { minHeight: 112, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E6E9EF", borderRadius: 18, paddingHorizontal: 12, paddingVertical: 11, flexDirection: "row", alignItems: "flex-start" },
+  avatar: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center", marginRight: 11, overflow: "hidden" },
+  avatarLost: { backgroundColor: "#FFF3E8" },
+  orderCardBody: { flex: 1 },
+  orderCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  orderIdentity: { flex: 1, minWidth: 0 },
   nameLine: { flexDirection: "row", alignItems: "center", gap: 6 },
-  customerName: { maxWidth: "72%", fontSize: 14.5, fontWeight: "800", color: "#17213C" },
+  customerName: { maxWidth: "78%", fontSize: 15, fontWeight: "900", color: "#17213C" },
+  valueCardMark: { width: 18, height: 18, resizeMode: "contain" },
   lostBadge: { borderRadius: 99, backgroundColor: "#FFF3E8", paddingHorizontal: 7, paddingVertical: 2 },
   lostBadgeText: { color: "#B54708", fontSize: 9.5, fontWeight: "800" },
-  orderMeta: { fontSize: 11.5, color: "#737C90", marginTop: 3 },
+  personMeta: { fontSize: 11.5, color: "#737C90", marginTop: 3 },
   phone: { fontSize: 11.5, color: "#60708A", marginTop: 2 },
-  blockedText: { fontSize: 10.5, color: "#B54708", marginTop: 4 },
-  orderEnd: { alignItems: "flex-end", minWidth: 72 },
-  amount: { fontSize: 13.5, fontWeight: "900", color: "#17213C" },
-  age: { fontSize: 10, color: "#9AA1B0", marginTop: 5, marginBottom: 2 },
+  cityRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 3, minWidth: 0 },
+  cityText: { flexShrink: 1, fontSize: 10.5, color: "#7B8498" },
+  socialRow: { flexDirection: "row", flexWrap: "nowrap", gap: 4, marginTop: 6, width: "100%" },
+  socialChip: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, borderRadius: 99, backgroundColor: "#F5F6FA", paddingHorizontal: 4, paddingVertical: 4 },
+  socialChipText: { flexShrink: 1, fontSize: 8.8, color: "#4E5668", fontWeight: "700" },
+  blockedText: { fontSize: 10.5, color: "#B54708", marginTop: 7 },
+  orderEnd: { alignItems: "flex-end", minWidth: 78, marginLeft: 8 },
+  amount: { fontSize: 14, fontWeight: "900", color: "#17213C" },
+  age: { fontSize: 10, color: "#9AA1B0", marginTop: 4, marginBottom: 2 },
+  attributionBadge: { alignSelf: "flex-start", maxWidth: "100%", marginTop: 8, borderRadius: 12, backgroundColor: "#F3F0FF", paddingHorizontal: 9, paddingVertical: 6, flexDirection: "row", alignItems: "center", gap: 7 },
+  attributionCopy: { flexShrink: 1 },
+  attributionLabel: { fontSize: 10.5, color: "#3E2AA8", fontWeight: "800" },
+  attributionDetail: { fontSize: 9.5, color: "#7B6EB7", marginTop: 1 },
+  ticketStrip: { marginTop: 8, flexDirection: "row", alignItems: "center", gap: 7 },
+  ticketType: { flexShrink: 1, fontSize: 11.5, color: "#17213C", fontWeight: "700" },
+  ticketCountPill: { borderRadius: 99, backgroundColor: "#EEF2FF", paddingHorizontal: 8, paddingVertical: 3 },
+  ticketCountText: { color: "#4E3AC5", fontSize: 9.5, fontWeight: "800" },
   empty: { padding: 42, alignItems: "center" },
   emptyTitle: { fontSize: 17, fontWeight: "900", color: "#17213C" },
   emptyText: { color: "#8A92A3", marginTop: 6, textAlign: "center" },
@@ -472,11 +617,16 @@ const styles = StyleSheet.create({
   filterSheet: { backgroundColor: "#fff", borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, paddingBottom: 28 },
   handle: { width: 42, height: 5, borderRadius: 3, backgroundColor: "#DDE1E9", alignSelf: "center", marginBottom: 14 },
   sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+  sheetIdentity: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  sheetAvatarFallback: { width: 48, height: 48, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "#EEF2FF" },
   sheetTitle: { fontSize: 21, fontWeight: "900", color: "#17213C" },
   sheetId: { color: "#8A92A3", marginTop: 3 },
-  contactRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
+  contactRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
   contactButton: { flex: 1, minHeight: 54, borderRadius: 14, backgroundColor: "#F4F6FA", alignItems: "center", justifyContent: "center", gap: 4 },
   contactText: { fontSize: 10.5, fontWeight: "700", color: "#17213C" },
+  profileLinks: { flexDirection: "row", gap: 8, marginBottom: 14 },
+  profileLinkButton: { flex: 1, minHeight: 44, borderRadius: 13, backgroundColor: "#F7F7FA", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
+  profileLinkText: { fontSize: 11, fontWeight: "800", color: "#17213C" },
   detailCard: { borderWidth: 1, borderColor: "#E6E9EF", borderRadius: 16, paddingHorizontal: 14, marginBottom: 14 },
   detailRow: { minHeight: 45, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#ECEEF3" },
   detailLabel: { color: "#7B8498", fontSize: 12 },

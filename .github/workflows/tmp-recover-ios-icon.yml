@@ -1,0 +1,55 @@
+name: Recover Atlas iOS Icon
+
+on:
+  push:
+    branches:
+      - integration/mobile-event-editor-aligned-20260809
+    paths:
+      - ".github/workflows/tmp-recover-ios-icon.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    runs-on: macos-latest
+    environment: Production
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: integration/mobile-event-editor-aligned-20260809
+          fetch-depth: 0
+      - name: Download last successful Atlas 0.1.6 IPA
+        run: |
+          curl -fL 'https://expo.dev/artifacts/eas/8nKMNrpSH1bdrVsSFhA_2Bn9gBcjhbvjI96mwgCc4kQ.ipa' -o /tmp/atlas.ipa
+          rm -rf /tmp/atlas-ipa && mkdir -p /tmp/atlas-ipa
+          unzip -q /tmp/atlas.ipa -d /tmp/atlas-ipa
+          find /tmp/atlas-ipa/Payload -maxdepth 2 -type f -name 'AppIcon*.png' -print
+      - name: Revert Apple PNG optimization and restore exact icon
+        shell: bash
+        run: |
+          APP_DIR=$(find /tmp/atlas-ipa/Payload -maxdepth 1 -type d -name '*.app' | head -1)
+          SRC="$APP_DIR/AppIcon76x76@2x~ipad.png"
+          if [ ! -f "$SRC" ]; then SRC="$APP_DIR/AppIcon60x60@2x.png"; fi
+          test -f "$SRC"
+          PNGCRUSH=$(xcrun --find pngcrush)
+          "$PNGCRUSH" -q -revert-iphone-optimizations "$SRC" /tmp/atlas-icon-normal.png
+          sips -z 1024 1024 /tmp/atlas-icon-normal.png --out assets/atlas-one-app-icon.png >/dev/null
+          sips -g pixelWidth -g pixelHeight assets/atlas-one-app-icon.png
+          file assets/atlas-one-app-icon.png
+      - name: Commit recovered Atlas icon
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add assets/atlas-one-app-icon.png
+          if git diff --cached --quiet; then
+            echo 'Recovered Atlas icon is already current'
+          else
+            git commit -m 'Recover exact Atlas app icon from successful iOS build'
+            git push origin HEAD:integration/mobile-event-editor-aligned-20260809
+          fi

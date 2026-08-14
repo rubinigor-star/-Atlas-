@@ -1,0 +1,28 @@
+name: Inspect EAS iOS Build
+
+on:
+  push:
+    branches:
+      - integration/mobile-event-editor-aligned-20260809
+    paths:
+      - ".github/workflows/tmp-eas-build-inspect.yml"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: Production
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+      - name: Inspect latest EAS build
+        run: npx eas-cli@latest build:view d401bd08-626f-4525-ba64-5f83770b609e --json
+      # status recheck 2026-08-14T20:29Z

@@ -1,20 +1,25 @@
 {
   "expo": {
-    "name": "Atlas Office",
+    "name": "Atlas One",
     "slug": "atlas-office",
-    "version": "0.1.4",
+    "version": "0.1.6",
     "orientation": "portrait",
     "scheme": "atlasoffice",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
+    "icon": "./assets/atlas-one-app-icon.png",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "il.co.atlas.office"
+      "bundleIdentifier": "il.co.atlas.office",
+      "buildNumber": "6",
+      "icon": "./assets/atlas-one-app-icon.png"
     },
     "android": {
       "package": "il.co.atlas.office",
+      "versionCode": 6,
       "adaptiveIcon": {
-        "backgroundColor": "#F3F5F7"
+        "foregroundImage": "./assets/atlas-one-app-icon.png",
+        "backgroundColor": "#081426"
       }
     },
     "plugins": [
@@ -22,7 +27,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Разрешите Atlas Office использовать камеру для сканирования QR-кодов билетов.",
+          "cameraPermission": "Разрешите Atlas One использовать камеру для сканирования QR-кодов билетов.",
           "recordAudioAndroid": false
         }
       ]
@@ -33,9 +38,7 @@
     "updates": {
       "enabled": false
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "0.1.6",
     "extra": {
       "apiBaseUrl": "https://www.atlas-one.co",
       "eas": {

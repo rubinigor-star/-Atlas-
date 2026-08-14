@@ -1,7 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 
 const TOKEN_KEY = "atlas-office-session";
-const API_BASE_URL = "https://www.atlas-one.co";
+const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || "https://www.atlas-one.co").replace(/\/$/, "");
 
 export type MobileUser = {
   id: string;
@@ -47,8 +47,41 @@ export type DashboardPayload = {
   }>;
 };
 
+export type EventEditorBasics = {
+  id: string;
+  title: string;
+  description: string;
+  posterUrl: string;
+  startsAt: string;
+  status: string;
+  salesMode: string;
+  mapEnabled: boolean;
+  venue: { name: string; city: string; address: string };
+};
+
+export type EventEditorPayload = {
+  event: EventEditorBasics;
+  permissions: string[];
+};
+
+export type EventEditorBasicsInput = {
+  title: string;
+  description: string;
+  posterUrl: string;
+  startsAt: string;
+  venueName: string;
+  city: string;
+  address: string;
+};
+
 export type OperationGroup = "pending" | "approved" | "cancelled" | "abandoned";
 export type OperationSort = "newest" | "oldest" | "amount_desc" | "amount_asc";
+
+export type OrderAttribution = {
+  kind: "DIRECT" | "PROMOTER" | "REFERRAL";
+  label: string;
+  detail: string | null;
+};
 
 export type EventOperationOrder = {
   id: string;
@@ -56,6 +89,12 @@ export type EventOperationOrder = {
   customerName: string;
   customerPhone: string;
   customerEmail: string;
+  customerBirthDate?: string | null;
+  customerInstagram?: string | null;
+  customerFacebook?: string | null;
+  socialProfileImageUrl?: string | null;
+  socialProfileImageSource?: "INSTAGRAM" | "FACEBOOK" | null;
+  attribution?: OrderAttribution | null;
   totalMinor: number;
   currency: string;
   status: string;
@@ -199,6 +238,21 @@ export async function getDashboard() {
   return request<DashboardPayload>("/api/mobile/dashboard");
 }
 
+export async function createEventDraft() {
+  return request<{ id: string }>("/api/mobile/events/draft", { method: "POST" });
+}
+
+export async function getEventEditor(eventId: string) {
+  return request<EventEditorPayload>(`/api/mobile/events/${encodeURIComponent(eventId)}/editor`);
+}
+
+export async function updateEventEditorBasics(eventId: string, input: EventEditorBasicsInput) {
+  return request<{ event: EventEditorBasics }>(`/api/mobile/events/${encodeURIComponent(eventId)}/editor`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
 export async function getEventOperations(eventId: string, group: OperationGroup = "pending", query: EventOperationsQuery = {}) {
   const params = new URLSearchParams({
     status: group,
@@ -208,7 +262,26 @@ export async function getEventOperations(eventId: string, group: OperationGroup 
   });
   if (query.search?.trim()) params.set("q", query.search.trim());
   if (query.category?.trim() && query.category !== "all") params.set("category", query.category.trim());
-  return request<EventOperationsPayload>(`/api/mobile/events/${encodeURIComponent(eventId)}/operations?${params.toString()}`);
+
+  const payload = await request<EventOperationsPayload>(`/api/mobile/events/${encodeURIComponent(eventId)}/operations?${params.toString()}`);
+  const orderIds = payload.orders.filter((order) => order.source === "ORDER").map((order) => order.id);
+  if (!orderIds.length) return payload;
+
+  try {
+    const meta = await request<{
+      orders: Record<string, { customerBirthDate: string | null; attribution: OrderAttribution }>;
+    }>(`/api/mobile/events/${encodeURIComponent(eventId)}/order-card-meta?ids=${encodeURIComponent(orderIds.join(","))}`);
+
+    return {
+      ...payload,
+      orders: payload.orders.map((order) => ({
+        ...order,
+        ...(meta.orders[order.id] || {}),
+      })),
+    };
+  } catch {
+    return payload;
+  }
 }
 
 export async function reviewEventOrder(publicId: string, action: "approve" | "reject", note?: string) {
