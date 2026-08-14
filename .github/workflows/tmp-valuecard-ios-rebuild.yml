@@ -27,5 +27,8 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+
       - name: Inspect failed EAS build
         run: npx eas-cli@latest build:view 32243094-9e8a-4532-a1b0-081ca808f135 --json
