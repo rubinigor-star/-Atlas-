@@ -4,12 +4,15 @@ type SocialKind = "INSTAGRAM" | "FACEBOOK";
 export type SocialProfileInput = { kind: SocialKind; value: string | null | undefined };
 export type SocialProfileResult = { url: string; imageUrl: string | null; kind: SocialKind };
 
+const RESOLVER_VERSION = 2;
+
 type CacheRow = {
   socialUrl: string;
   kind: SocialKind;
   imageUrl: string | null;
   status: string;
   attemptedAt: Date;
+  resolverVersion: number;
 };
 
 let runtimeReady: Promise<void> | undefined;
@@ -22,8 +25,10 @@ async function ensureRuntime() {
       "imageUrl" TEXT,
       "status" TEXT NOT NULL DEFAULT 'PENDING',
       "attemptedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "resolverVersion" INTEGER NOT NULL DEFAULT 1
     )`);
+    await db.$executeRawUnsafe(`ALTER TABLE "SocialProfileCache" ADD COLUMN IF NOT EXISTS "resolverVersion" INTEGER NOT NULL DEFAULT 1`);
     await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SocialProfileCache_attemptedAt_idx" ON "SocialProfileCache"("attemptedAt")`);
   })().catch((error) => {
     runtimeReady = undefined;
@@ -192,21 +197,23 @@ async function resolveOne(profile: { kind: SocialKind; url: string }) {
     if (!imageUrl) imageUrl = await resolverProfileImage(profile);
 
     await db.$executeRawUnsafe(
-      `INSERT INTO "SocialProfileCache" ("socialUrl","kind","imageUrl","status","attemptedAt","updatedAt")
-       VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-       ON CONFLICT ("socialUrl") DO UPDATE SET "kind"=EXCLUDED."kind","imageUrl"=EXCLUDED."imageUrl","status"=EXCLUDED."status","attemptedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP`,
+      `INSERT INTO "SocialProfileCache" ("socialUrl","kind","imageUrl","status","attemptedAt","updatedAt","resolverVersion")
+       VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,$5)
+       ON CONFLICT ("socialUrl") DO UPDATE SET "kind"=EXCLUDED."kind","imageUrl"=EXCLUDED."imageUrl","status"=EXCLUDED."status","attemptedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP,"resolverVersion"=EXCLUDED."resolverVersion"`,
       profile.url,
       profile.kind,
       imageUrl,
       imageUrl ? "FOUND" : "NOT_FOUND",
+      RESOLVER_VERSION,
     );
   } catch (error) {
     await db.$executeRawUnsafe(
-      `INSERT INTO "SocialProfileCache" ("socialUrl","kind","imageUrl","status","attemptedAt","updatedAt")
-       VALUES ($1,$2,NULL,'FAILED',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-       ON CONFLICT ("socialUrl") DO UPDATE SET "kind"=EXCLUDED."kind","imageUrl"=NULL,"status"='FAILED',"attemptedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP`,
+      `INSERT INTO "SocialProfileCache" ("socialUrl","kind","imageUrl","status","attemptedAt","updatedAt","resolverVersion")
+       VALUES ($1,$2,NULL,'FAILED',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,$3)
+       ON CONFLICT ("socialUrl") DO UPDATE SET "kind"=EXCLUDED."kind","imageUrl"=NULL,"status"='FAILED',"attemptedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP,"resolverVersion"=EXCLUDED."resolverVersion"`,
       profile.url,
       profile.kind,
+      RESOLVER_VERSION,
     ).catch(() => undefined);
     console.info("social_profile_image.resolve_failed", {
       kind: profile.kind,
@@ -223,7 +230,7 @@ export async function getCachedSocialProfiles(inputs: SocialProfileInput[]) {
   if (!urls.length) return new Map<string, SocialProfileResult>();
   const placeholders = urls.map((_, index) => `$${index + 1}`).join(",");
   const rows = await db.$queryRawUnsafe<CacheRow[]>(
-    `SELECT "socialUrl","kind","imageUrl","status","attemptedAt" FROM "SocialProfileCache" WHERE "socialUrl" IN (${placeholders})`,
+    `SELECT "socialUrl","kind","imageUrl","status","attemptedAt","resolverVersion" FROM "SocialProfileCache" WHERE "socialUrl" IN (${placeholders})`,
     ...urls,
   );
   return new Map(rows.map((row) => [row.socialUrl, { url: row.socialUrl, imageUrl: row.imageUrl, kind: row.kind }]));
@@ -237,7 +244,7 @@ export async function refreshSocialProfiles(inputs: SocialProfileInput[]) {
   const urls = unique.map((item) => item.url);
   const placeholders = urls.map((_, index) => `$${index + 1}`).join(",");
   const rows = await db.$queryRawUnsafe<CacheRow[]>(
-    `SELECT "socialUrl","kind","imageUrl","status","attemptedAt" FROM "SocialProfileCache" WHERE "socialUrl" IN (${placeholders})`,
+    `SELECT "socialUrl","kind","imageUrl","status","attemptedAt","resolverVersion" FROM "SocialProfileCache" WHERE "socialUrl" IN (${placeholders})`,
     ...urls,
   );
   const byUrl = new Map(rows.map((row) => [row.socialUrl, row]));
@@ -246,7 +253,7 @@ export async function refreshSocialProfiles(inputs: SocialProfileInput[]) {
   const now = Date.now();
   const targets = unique.filter((item) => {
     const cached = byUrl.get(item.url);
-    if (!cached) return true;
+    if (!cached || cached.resolverVersion < RESOLVER_VERSION) return true;
     const ageMs = now - new Date(cached.attemptedAt).getTime();
     return cached.imageUrl ? ageMs >= foundTtlMs : ageMs >= missRetryMs;
   }).slice(0, 10);
