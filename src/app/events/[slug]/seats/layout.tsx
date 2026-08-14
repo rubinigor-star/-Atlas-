@@ -29,6 +29,34 @@ export default function SeatSelectionLayout({ children }: { children: ReactNode 
         }
       }
 
+      /* Price labels and slider handles must share the exact same physical X anchor.
+         The button itself is reduced to a zero-width anchor at its percentage stop,
+         while the visible price is centered around that anchor. This avoids optical
+         and RTL/intrinsic-width drift at intermediate and endpoint stations. */
+      [class*="priceStops"] > button {
+        width: 0 !important;
+        min-width: 0 !important;
+        padding-inline: 0 !important;
+        overflow: visible !important;
+        transform: none !important;
+        text-align: center !important;
+      }
+
+      [class*="priceStops"] > button:hover {
+        transform: none !important;
+      }
+
+      [class*="priceStops"] > button > b {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: max-content !important;
+        transform: translateX(-50%) !important;
+        text-align: center !important;
+        direction: ltr !important;
+        unicode-bidi: isolate !important;
+      }
+
       @media (max-width: 900px) {
         aside:has(> .atlas-checkout-button) {
           display: flex !important;
