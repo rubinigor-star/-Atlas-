@@ -32,9 +32,8 @@ jobs:
           node-version: 20
 
       - name: Restore real app icon
-        shell: bash
         run: |
-          base64 --decode assets/atlas-one-app-icon.png.base64 > assets/atlas-one-app-icon.png
+          node -e 'const fs=require("fs"); let s=fs.readFileSync("assets/atlas-one-app-icon.png.base64","utf8").trim(); s=s.replace(/^data:image\/png;base64,/, "").replace(/[^A-Za-z0-9+/=]/g, ""); fs.writeFileSync("assets/atlas-one-app-icon.png", Buffer.from(s,"base64"));'
           file assets/atlas-one-app-icon.png
           test -s assets/atlas-one-app-icon.png
 
