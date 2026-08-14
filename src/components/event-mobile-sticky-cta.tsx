@@ -1,32 +1,33 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { LiveViewerPressure } from "@/components/live-viewer-pressure";
 import styles from "./event-mobile-sticky-cta.module.css";
 
 type Props = {
-  label: string;
+  priceLabel: string;
+  actionLabel: string;
+  locale: "ru" | "en" | "he";
   targetId?: string;
+  actionHref?: string;
 };
 
-export function EventMobileStickyCta({ label, targetId = "tickets" }: Props) {
+export function EventMobileStickyCta({ priceLabel, actionLabel, locale, targetId = "tickets", actionHref }: Props) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const primaryButton = document.querySelector<HTMLAnchorElement>('a[href="#tickets"]');
-    const footer = document.querySelector<HTMLElement>("footer");
+    const primaryButton = document.querySelector<HTMLAnchorElement>("[data-event-primary-cta]");
+    const footer = document.querySelector<HTMLElement>("footer.atlas-footer") ?? document.querySelector<HTMLElement>("footer");
     if (!primaryButton) return;
 
     let passedPrimaryButton = false;
     let footerVisible = false;
-
     const sync = () => setVisible(passedPrimaryButton && !footerVisible);
 
     const primaryObserver = new IntersectionObserver(([entry]) => {
       passedPrimaryButton = !entry.isIntersecting && entry.boundingClientRect.bottom < 0;
       sync();
     }, { threshold: 0 });
-
     primaryObserver.observe(primaryButton);
 
     let footerObserver: IntersectionObserver | null = null;
@@ -44,14 +45,19 @@ export function EventMobileStickyCta({ label, targetId = "tickets" }: Props) {
     };
   }, []);
 
-  function goToTickets() {
+  function act() {
+    if (actionHref) {
+      window.location.assign(actionHref);
+      return;
+    }
     document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   return <div className={`${styles.wrap} ${visible ? styles.visible : ""}`} aria-hidden={!visible}>
-    <button type="button" className={styles.button} onClick={goToTickets} tabIndex={visible ? 0 : -1}>
-      <span className={styles.icon}><ArrowUpRight size={22}/></span>
-      <span className={styles.label}>{label}</span>
-    </button>
+    <div className={styles.viewer}><LiveViewerPressure locale={locale} /></div>
+    <div className={styles.bar}>
+      <strong className={styles.price}>{priceLabel}</strong>
+      <button type="button" className={styles.button} onClick={act} tabIndex={visible ? 0 : -1}>{actionLabel}</button>
+    </div>
   </div>;
 }

@@ -1,0 +1,125 @@
+.headerBack{
+  position:fixed!important;
+  z-index:10000!important;
+  top:0!important;
+  right:28px!important;
+  height:76px!important;
+  padding:0 6px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  font-size:14px!important;
+  font-weight:700!important;
+  color:#111827!important;
+  background:transparent!important;
+  text-decoration:none!important;
+  opacity:1!important;
+  visibility:visible!important;
+  pointer-events:auto!important;
+}
+.headerBack:hover{color:#ff6f00!important}
+.sidebar{padding:20px 18px 18px!important;box-sizing:border-box!important;overflow:visible!important}
+.eventInfo{grid-template-columns:64px minmax(0,1fr)!important;gap:10px!important;align-items:start!important;width:100%!important;min-width:0!important}
+.poster{width:64px!important;height:64px!important;aspect-ratio:1/1!important;border-radius:5px!important;object-fit:cover!important;box-shadow:none!important}
+.eventDetails{min-width:0!important;width:100%!important;max-width:100%!important;overflow:visible!important}
+.title{margin:0 0 8px!important;font-family:inherit!important;font-size:18px!important;line-height:1.15!important;font-weight:850!important;letter-spacing:-.016em!important;text-transform:none!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;word-break:normal!important;color:#071226!important}
+.quantityRow{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;direction:inherit}
+.quantityLabel{display:inline-flex;align-items:center;gap:4px;min-width:0;color:#111827}
+.quantityLabel>strong{font-size:12.5px;line-height:1.2;font-weight:800;white-space:nowrap}
+.infoHint{position:relative;display:inline-flex;align-items:center}
+.infoButton{width:20px;height:20px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:transparent;color:#8993a0;cursor:pointer}
+.infoButton:hover,.infoButton:focus-visible{background:#f0f2f5;color:#39475a;outline:none}
+.quantityControl{display:inline-flex;align-items:center;gap:9px;direction:ltr}
+.quantityControl button{width:32px;height:32px;display:grid;place-items:center;padding:0;border:1px solid #d6dce5;border-radius:50%;background:#fff;color:#111827;cursor:pointer}
+.quantityControl button:disabled{opacity:.35;cursor:default}
+.quantityControl strong{min-width:14px;font-size:13px;line-height:1;text-align:center;color:#111827}
+.modalBackdrop{position:fixed;inset:0;z-index:5000;background:rgba(19,24,31,.42);display:grid;place-items:center;padding:24px;backdrop-filter:blur(1px)}
+.quantityModal{position:relative;isolation:isolate;width:min(390px,calc(100vw - 32px));box-sizing:border-box;padding:22px 24px 24px;border-radius:18px;background:#fff;box-shadow:0 22px 60px rgba(0,0,0,.28);color:#0b1220;text-align:center;overflow:visible}
+.quantityModal h2{margin:0;padding:0 34px;font-size:20px;line-height:1.2;font-weight:850;letter-spacing:-.02em;text-align:center;text-transform:none}
+.quantityModal p{max-width:320px;margin:12px auto 22px;color:#667085;font-size:13px;line-height:1.45;font-weight:500;text-align:center!important}
+.modalClose{position:absolute;top:16px;inset-inline-end:16px;width:30px;height:30px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:#f3f4f6;color:#4b5563;cursor:pointer}
+.modalQuantityControl{display:grid;grid-template-columns:44px minmax(100px,1fr) 44px;align-items:center;gap:14px;width:min(250px,100%);margin:0 auto 20px;direction:ltr}
+.modalQuantityControl button{width:44px;height:44px;display:grid;place-items:center;padding:0;border:1px solid #d8dde5;border-radius:50%;background:#fff;color:#111827;cursor:pointer}
+.modalQuantityControl button:disabled{opacity:.35;cursor:default}
+.modalQuantityControl strong{font-size:16px;line-height:1;text-align:center}
+:global(body.atlas-seat-selection-active) :global(.mapViewport){padding:0!important;overflow:hidden!important;background:#dfe3e7!important}
+:global(body.atlas-seat-selection-active) :global(.mapFrame){margin:0 auto!important}
+
+/* Selected ticket layout: remove icon on its own row, then title/price and details/fee aligned horizontally. */
+:global(.atlas-selected-ticket){padding-top:16px!important}
+:global(.atlas-selected-head){
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  grid-template-rows:auto auto auto!important;
+  column-gap:12px!important;
+  row-gap:4px!important;
+  align-items:start!important;
+}
+:global(.atlas-selected-head)>div:first-child{
+  display:contents!important;
+}
+:global(.atlas-remove-ticket){
+  grid-column:2!important;
+  grid-row:1!important;
+  justify-self:end!important;
+  align-self:start!important;
+  margin:0 0 2px 0!important;
+}
+:global(.atlas-selected-title){
+  grid-column:1!important;
+  grid-row:2!important;
+  align-self:start!important;
+  margin:0!important;
+}
+:global(.atlas-selected-desc){
+  grid-column:1!important;
+  grid-row:3!important;
+  align-self:start!important;
+  margin-top:0!important;
+}
+:global(.atlas-selected-price){
+  grid-column:2!important;
+  grid-row:2 / 4!important;
+  justify-self:end!important;
+  align-self:start!important;
+  text-align:right!important;
+  margin:0!important;
+}
+:global(.atlas-selected-fee){
+  max-width:118px!important;
+  margin-top:4px!important;
+  white-space:normal!important;
+  text-align:right!important;
+}
+
+@media(max-width:1100px){
+  .sidebar{padding-inline:16px!important}
+  .eventInfo{grid-template-columns:56px minmax(0,1fr)!important;gap:9px!important}
+  .poster{width:56px!important;height:56px!important}
+  .title{font-size:17px!important}
+  .quantityLabel>strong{font-size:12px}
+  .quantityControl{gap:7px}
+  .quantityControl button{width:30px;height:30px}
+}
+@media(max-width:900px){
+  .headerBack{display:none!important}
+  .sidebar{padding:7px 16px max(12px,env(safe-area-inset-bottom))!important;overflow:hidden!important}
+  .eventInfo{grid-template-columns:48px minmax(0,1fr)!important;gap:8px!important}
+  .poster{width:48px!important;height:48px!important}
+  .title{font-size:14px!important;margin-bottom:6px!important}
+  .quantityLabel>strong{font-size:11px}
+  .quantityControl button{width:28px;height:28px}
+  :global(.atlas-selected-head){column-gap:9px!important;row-gap:3px!important}
+  .quantityModal{padding:20px}
+  .quantityModal h2{font-size:18px}
+  .quantityModal p{font-size:12.5px}
+  .modalClose{top:14px;inset-inline-end:14px}
+  :global(body.atlas-seat-selection-active) :global(.mapViewport){padding:0!important;overflow:hidden!important;background:#dfe3e7!important}
+  :global(body.atlas-seat-selection-active) :global(.mapFrame){margin:0 auto!important}
+  :global(.atlas-selected-ticket){padding:13px 2px 14px!important}
+  :global(.atlas-selected-ticket:first-child){border-top:0!important}
+  :global(.atlas-selected-title){font-size:18px!important;line-height:1.1!important}
+  :global(.atlas-selected-desc){font-size:13px!important;line-height:1.3!important;margin-top:4px!important}
+  :global(.atlas-selected-price){font-size:16px!important}
+  :global(.atlas-remove-ticket){width:28px!important;height:28px!important}
+}

@@ -56,12 +56,15 @@
   font-weight: 750;
 }
 
-.title {
+:global(#event-public-page) .title {
   max-width: 610px;
   margin: 0;
-  font-size: clamp(40px, 4vw, 64px);
-  line-height: .98;
-  letter-spacing: -2px;
+  font-family: var(--atlas-heading-font);
+  font-size: 30px !important;
+  font-weight: 700;
+  line-height: 1.08 !important;
+  letter-spacing: 0 !important;
+  text-transform: uppercase;
 }
 
 .summary {
@@ -307,8 +310,9 @@
     gap: 30px;
   }
 
-  .title {
-    font-size: 42px;
+  :global(#event-public-page) .title {
+    font-size: 30px !important;
+    line-height: 1.08 !important;
   }
 
   .summary {
