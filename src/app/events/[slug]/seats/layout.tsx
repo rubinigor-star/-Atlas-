@@ -5,7 +5,27 @@ export default function SeatSelectionLayout({ children }: { children: ReactNode 
     <style>{`
       @media (min-width: 901px) {
         aside:has(> .atlas-checkout-button) {
-          padding-bottom: 34px !important;
+          position: relative !important;
+          height: 100% !important;
+          min-height: 0 !important;
+          padding-bottom: 88px !important;
+          overflow: hidden !important;
+        }
+
+        aside:has(> .atlas-checkout-button) > .atlas-checkout-button {
+          position: absolute !important;
+          z-index: 20 !important;
+          left: 18px !important;
+          right: 18px !important;
+          bottom: 18px !important;
+          width: auto !important;
+          margin: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          flex: 0 0 auto !important;
+          visibility: visible !important;
+          opacity: 1 !important;
         }
       }
 
