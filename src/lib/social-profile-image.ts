@@ -93,19 +93,26 @@ function ogImage(html: string) {
   return null;
 }
 
-function instagramUsername(profileUrl: string) {
+function profileKey(profile: { kind: SocialKind; url: string }) {
   try {
-    const url = new URL(profileUrl);
+    const url = new URL(profile.url);
+    if (profile.kind === "FACEBOOK") {
+      const id = url.searchParams.get("id")?.trim();
+      if (id && /^[a-zA-Z0-9._-]+$/.test(id)) return id;
+    }
     const first = url.pathname.split("/").filter(Boolean)[0] || "";
-    if (!first || ["p", "reel", "reels", "stories", "explore", "accounts"].includes(first.toLowerCase())) return null;
-    return /^[a-zA-Z0-9._]+$/.test(first) ? first : null;
+    const blocked = profile.kind === "INSTAGRAM"
+      ? ["p", "reel", "reels", "stories", "explore", "accounts"]
+      : ["profile.php", "pages", "groups", "watch"];
+    if (!first || blocked.includes(first.toLowerCase())) return null;
+    return /^[a-zA-Z0-9._-]+$/.test(first) ? first : null;
   } catch {
     return null;
   }
 }
 
 async function instagramProfileImage(profileUrl: string) {
-  const username = instagramUsername(profileUrl);
+  const username = profileKey({ kind: "INSTAGRAM", url: profileUrl });
   if (!username) return null;
   try {
     const response = await fetch(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`, {
@@ -154,11 +161,35 @@ async function htmlProfileImage(profile: { kind: SocialKind; url: string }) {
   return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : null;
 }
 
+async function resolverProfileImage(profile: { kind: SocialKind; url: string }) {
+  const key = profileKey(profile);
+  if (!key) return null;
+  const provider = profile.kind === "INSTAGRAM" ? "instagram" : "facebook";
+  const endpoint = `https://unavatar.io/${provider}/${encodeURIComponent(key)}?fallback=false&ttl=28d`;
+  const apiKey = process.env.UNAVATAR_API_KEY?.trim();
+  try {
+    const response = await fetch(endpoint, {
+      headers: apiKey ? { "x-api-key": apiKey } : undefined,
+      cache: "no-store",
+      redirect: "follow",
+      signal: AbortSignal.timeout(7000),
+    });
+    if (!response.ok) return null;
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.toLowerCase().startsWith("image/")) return null;
+    await response.body?.cancel().catch(() => undefined);
+    return endpoint;
+  } catch {
+    return null;
+  }
+}
+
 async function resolveOne(profile: { kind: SocialKind; url: string }) {
   try {
     let imageUrl: string | null = null;
     if (profile.kind === "INSTAGRAM") imageUrl = await instagramProfileImage(profile.url);
-    if (!imageUrl) imageUrl = await htmlProfileImage(profile);
+    if (!imageUrl) imageUrl = await htmlProfileImage(profile).catch(() => null);
+    if (!imageUrl) imageUrl = await resolverProfileImage(profile);
 
     await db.$executeRawUnsafe(
       `INSERT INTO "SocialProfileCache" ("socialUrl","kind","imageUrl","status","attemptedAt","updatedAt")
@@ -210,10 +241,14 @@ export async function refreshSocialProfiles(inputs: SocialProfileInput[]) {
     ...urls,
   );
   const byUrl = new Map(rows.map((row) => [row.socialUrl, row]));
-  const staleBefore = Date.now() - 6 * 60 * 60 * 1000;
+  const foundTtlMs = 28 * 24 * 60 * 60 * 1000;
+  const missRetryMs = 30 * 60 * 1000;
+  const now = Date.now();
   const targets = unique.filter((item) => {
     const cached = byUrl.get(item.url);
-    return !cached || !cached.imageUrl || new Date(cached.attemptedAt).getTime() < staleBefore;
+    if (!cached) return true;
+    const ageMs = now - new Date(cached.attemptedAt).getTime();
+    return cached.imageUrl ? ageMs >= foundTtlMs : ageMs >= missRetryMs;
   }).slice(0, 10);
   await Promise.allSettled(targets.map(resolveOne));
 }
