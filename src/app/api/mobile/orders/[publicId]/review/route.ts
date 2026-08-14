@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getMobileStaff } from "@/lib/mobile-auth";
-import { reviewOrder } from "@/lib/order-review-service";
+import { enqueueOrderReview, processOrderReviewJobs } from "@/lib/order-review-queue";
 
 const reviewSchema = z.object({
   action: z.enum(["approve", "reject"]),
@@ -32,25 +32,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
     const input = reviewSchema.parse(await request.json());
     const order = await db.order.findUnique({
       where: { publicId },
-      select: { eventId: true, event: { select: { organizationId: true } } },
+      select: { id: true, eventId: true, event: { select: { organizationId: true } } },
     });
     if (!order) return NextResponse.json({ error: "Заявка не найдена" }, { status: 404 });
     if (!canAccessEvent(user, order.eventId, order.event.organizationId)) {
       return NextResponse.json({ error: "EVENT_ACCESS_DENIED" }, { status: 403 });
     }
 
-    const result = await reviewOrder(publicId, input, user);
-    return NextResponse.json(result);
+    const job = await enqueueOrderReview(publicId, input, user);
+    after(async () => {
+      try {
+        await processOrderReviewJobs(3);
+      } catch (error) {
+        console.error("mobile.request.background_queue_failed", {
+          publicId,
+          message: error instanceof Error ? error.message : "Unknown queue error",
+        });
+      }
+    });
+    return NextResponse.json({ queued: true, processing: true, jobId: job.id, action: job.action }, { status: 202 });
   } catch (error) {
     const current = await db.order.findUnique({ where: { publicId }, select: { status: true } }).catch(() => null);
-    console.error("mobile.request.review_failed", {
+    console.error("mobile.request.review_enqueue_failed", {
       publicId,
       userId: user.id,
       message: error instanceof Error ? error.message : "Unknown error",
       status: current?.status || null,
     });
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Ошибка проверки заявки", status: current?.status },
+      { error: error instanceof Error ? error.message : "Ошибка постановки заявки в очередь", status: current?.status },
       { status: 400 },
     );
   }
