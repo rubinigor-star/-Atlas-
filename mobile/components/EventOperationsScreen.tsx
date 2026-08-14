@@ -106,7 +106,8 @@ export default function EventOperationsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<EventOperationOrder | null>(null);
-  const [busyAction, setBusyAction] = useState<"approve" | "reject" | "resend" | "refund" | null>(null);
+  const [processingReviewIds, setProcessingReviewIds] = useState<Set<string>>(() => new Set());
+  const [busyAction, setBusyAction] = useState<"resend" | "refund" | null>(null);
   const [refundInfo, setRefundInfo] = useState<RefundAvailability | null>(null);
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
@@ -160,8 +161,16 @@ export default function EventOperationsScreen() {
     setSortMode("newest");
   }
 
+  function setReviewProcessing(orderId: string, active: boolean) {
+    setProcessingReviewIds((current) => {
+      const next = new Set(current);
+      if (active) next.add(orderId); else next.delete(orderId);
+      return next;
+    });
+  }
+
   function confirmReview(action: "approve" | "reject", order: EventOperationOrder | null = selected) {
-    if (!order || busyAction) return;
+    if (!order || busyAction || processingReviewIds.has(order.id)) return;
     if (action === "approve" && !order.canApprove) {
       Alert.alert("Подтверждение недоступно", order.reviewBlockedReason || "Оплата не готова к подтверждению.");
       return;
@@ -184,19 +193,33 @@ export default function EventOperationsScreen() {
   }
 
   async function runReview(action: "approve" | "reject", order: EventOperationOrder) {
-    setBusyAction(action);
+    if (processingReviewIds.has(order.id)) return;
+    setReviewProcessing(order.id, true);
+    if (selected?.id === order.id) resetOrderState();
+
+    setData((current) => {
+      if (!current) return current;
+      const wasVisiblePending = group === "pending" && current.orders.some((item) => item.id === order.id);
+      return {
+        ...current,
+        counts: wasVisiblePending
+          ? { ...current.counts, pending: Math.max(0, current.counts.pending - 1) }
+          : current.counts,
+        orders: current.orders.filter((item) => item.id !== order.id),
+      };
+    });
+
     try {
-      const result = await reviewEventOrder(order.publicId, action);
-      if (selected?.id === order.id) resetOrderState();
+      await reviewEventOrder(order.publicId, action);
+      await load(group, true);
+    } catch (error) {
       await load(group, true);
       Alert.alert(
-        action === "approve" ? "Заказ подтверждён" : "Заказ отклонён",
-        result.emailSent ? "Клиенту отправлено уведомление." : (result.emailError || "Статус заказа обновлён."),
+        action === "approve" ? "Не удалось подтвердить заявку" : "Не удалось отклонить заявку",
+        `${order.customerName}: ${error instanceof Error ? error.message : "Неизвестная ошибка"}`,
       );
-    } catch (error) {
-      Alert.alert("Не удалось выполнить действие", error instanceof Error ? error.message : "Неизвестная ошибка");
     } finally {
-      setBusyAction(null);
+      setReviewProcessing(order.id, false);
     }
   }
 
@@ -278,23 +301,24 @@ export default function EventOperationsScreen() {
     const pending = group === "pending";
     const approved = group === "approved";
     const blocked = pending && !order.canApprove;
+    const reviewProcessing = processingReviewIds.has(order.id);
     const age = ageFromBirthDate(order.customerBirthDate);
     const ticketLabel = order.categories.map((item) => item.name).filter(Boolean).join(", ") || "Билет";
 
     const rightSwipe = pending
-      ? (order.canApprove ? { label: "Подтвердить", icon: "checkmark-circle" as const, backgroundColor: "#168044", onPress: () => confirmReview("approve", order) } : null)
+      ? (order.canApprove ? { label: "Подтвердить", icon: "checkmark-circle" as const, backgroundColor: "#168044", onPress: () => void runReview("approve", order) } : null)
       : approved
         ? { label: "WhatsApp", icon: "logo-whatsapp" as const, backgroundColor: "#168044", onPress: () => order.customerPhone && void Linking.openURL(whatsappUrl(order.customerPhone)) }
         : null;
     const leftSwipe = pending
-      ? (order.canReject ? { label: "Отклонить", icon: "close-circle" as const, backgroundColor: "#B42318", onPress: () => confirmReview("reject", order) } : null)
+      ? (order.canReject ? { label: "Отклонить", icon: "close-circle" as const, backgroundColor: "#B42318", onPress: () => void runReview("reject", order) } : null)
       : approved
         ? { label: "Билет", icon: "mail-unread" as const, backgroundColor: "#17213C", onPress: () => confirmResend(order) }
         : null;
 
     return (
       <View style={styles.orderCardWrap}>
-        <SwipeOrderRow enabled={!busyAction} rightSwipe={rightSwipe} leftSwipe={leftSwipe}>
+        <SwipeOrderRow enabled={!busyAction && !reviewProcessing} rightSwipe={rightSwipe} leftSwipe={leftSwipe}>
           <TouchableOpacity style={styles.orderCard} activeOpacity={0.82} onPress={() => { setSelected(order); setRefundInfo(null); }}>
             <View style={[styles.avatar, order.source === "ABANDONED_CHECKOUT" && styles.avatarLost]}>
               <Ionicons name={order.source === "ABANDONED_CHECKOUT" ? "cart-outline" : "person-outline"} size={27} color="#17213C" />
@@ -442,8 +466,8 @@ export default function EventOperationsScreen() {
           {group === "pending" && <>
             {selected.reviewBlockedReason && !selected.canApprove && <View style={styles.warningBox}><Ionicons name="warning-outline" size={20} color="#B54708" /><Text style={styles.warningText}>{selected.reviewBlockedReason}</Text></View>}
             <View style={styles.reviewActions}>
-              <TouchableOpacity disabled={!!busyAction || !selected.canReject} style={[styles.reviewButton, styles.rejectButton, !selected.canReject && styles.disabledButton]} onPress={() => confirmReview("reject")}><Ionicons name="close-circle-outline" size={21} color="#B42318" /><Text style={styles.rejectText}>Отклонить</Text></TouchableOpacity>
-              <TouchableOpacity disabled={!!busyAction || !selected.canApprove} style={[styles.reviewButton, styles.approveButton, !selected.canApprove && styles.disabledApprove]} onPress={() => confirmReview("approve")}><Ionicons name="checkmark-circle-outline" size={21} color="#fff" /><Text style={styles.approveText}>Подтвердить</Text></TouchableOpacity>
+              <TouchableOpacity disabled={!!busyAction || processingReviewIds.has(selected.id) || !selected.canReject} style={[styles.reviewButton, styles.rejectButton, !selected.canReject && styles.disabledButton]} onPress={() => confirmReview("reject")}><Ionicons name="close-circle-outline" size={21} color="#B42318" /><Text style={styles.rejectText}>Отклонить</Text></TouchableOpacity>
+              <TouchableOpacity disabled={!!busyAction || processingReviewIds.has(selected.id) || !selected.canApprove} style={[styles.reviewButton, styles.approveButton, !selected.canApprove && styles.disabledApprove]} onPress={() => confirmReview("approve")}><Ionicons name="checkmark-circle-outline" size={21} color="#fff" /><Text style={styles.approveText}>Подтвердить</Text></TouchableOpacity>
             </View>
           </>}
 
