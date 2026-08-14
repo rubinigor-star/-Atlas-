@@ -8,7 +8,7 @@ export default function SeatSelectionLayout({ children }: { children: ReactNode 
           position: relative !important;
           height: 100% !important;
           min-height: 0 !important;
-          padding-bottom: 88px !important;
+          padding-bottom: 136px !important;
           overflow: hidden !important;
         }
 
@@ -17,7 +17,7 @@ export default function SeatSelectionLayout({ children }: { children: ReactNode 
           z-index: 20 !important;
           left: 18px !important;
           right: 18px !important;
-          bottom: 18px !important;
+          bottom: 66px !important;
           width: auto !important;
           margin: 0 !important;
           display: flex !important;
