@@ -10,9 +10,13 @@ import { PublicSoldOutDecorator } from "@/components/public-sold-out-decorator";
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const office = pathname.startsWith("/office") || pathname.startsWith("/admin") || pathname.startsWith("/platform") || pathname.startsWith("/scanner");
+  const seatSelectionPage = /^\/events\/[^/]+\/seats(?:\/|$)/.test(pathname);
   const home = pathname === "/";
-  const eventPage = pathname.startsWith("/events/");
+  const eventPage = pathname.startsWith("/events/") && !seatSelectionPage;
   const immersiveHeader = home || eventPage;
+  const showPublicHeader = !office;
+  const showPublicFooter = !office && !seatSelectionPage;
+  const showPolicyBar = !office && !seatSelectionPage;
 
   useEffect(() => {
     const body = document.body;
@@ -33,12 +37,12 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   }, [eventPage, home, immersiveHeader]);
 
   return <>
-    {!office && <SiteHeader/>}
-    {!office && <div className="atlas-cancellation-policy-bar"><Link href="/cancellation-policy">מדיניות ביטול · Отмена и возврат билетов</Link></div>}
-    {!office && <GlobalSearch/>}
-    {!office && <PublicSoldOutDecorator/>}
-    {!office && !immersiveHeader && <div className="atlas-header-spacer" aria-hidden="true"/>}
+    {showPublicHeader && <SiteHeader/>}
+    {showPolicyBar && <div className="atlas-cancellation-policy-bar"><Link href="/cancellation-policy">מדיניות ביטול · Отмена и возврат билетов</Link></div>}
+    {showPublicHeader && <GlobalSearch/>}
+    {showPublicHeader && <PublicSoldOutDecorator/>}
+    {showPublicHeader && !immersiveHeader && <div className="atlas-header-spacer" aria-hidden="true"/>}
     {children}
-    {!office && <SiteFooter/>}
+    {showPublicFooter && <SiteFooter/>}
   </>;
 }
