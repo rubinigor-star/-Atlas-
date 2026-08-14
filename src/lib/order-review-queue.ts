@@ -129,7 +129,7 @@ async function completeJob(job: JobRow, result: unknown) {
 
 async function failJob(job: JobRow, error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown order review error";
-  const terminal = job.attempts >= 5 || /уже рассмотрена|already reviewed|FORBIDDEN/i.test(message);
+  const terminal = job.attempts >= 5 || /FORBIDDEN/i.test(message);
   const delaySeconds = Math.min(60, Math.max(2, 2 ** Math.max(0, job.attempts - 1)));
   await db.$executeRawUnsafe(
     `UPDATE "OrderReviewJob"
@@ -143,6 +143,11 @@ async function failJob(job: JobRow, error: unknown) {
     delaySeconds,
   );
   console.error("order_review_queue.job_failed", { jobId: job.id, publicId: job.publicId, action: job.action, attempts: job.attempts, terminal, message });
+}
+
+async function alreadyReachedFinalState(job: JobRow) {
+  const order = await db.order.findUnique({ where: { id: job.orderId }, select: { status: true } });
+  return (job.action === "approve" && order?.status === "PAID") || (job.action === "reject" && order?.status === "REJECTED");
 }
 
 export async function processOrderReviewJobs(limit = 10) {
@@ -174,6 +179,11 @@ export async function processOrderReviewJobs(limit = 10) {
       await completeJob(job, { ...result, smsSent, smsError });
       completed++;
     } catch (error) {
+      if (await alreadyReachedFinalState(job)) {
+        await completeJob(job, { status: job.action === "approve" ? "PAID" : "REJECTED", recoveredAfterWorkerRestart: true });
+        completed++;
+        continue;
+      }
       await failJob(job, error);
       failed++;
     }
@@ -184,9 +194,19 @@ export async function processOrderReviewJobs(limit = 10) {
 export async function getActiveOrderReviewJobIds(orderIds: string[]) {
   if (!orderIds.length) return new Set<string>();
   await ensureOrderReviewQueueRuntime();
+  const placeholders = orderIds.map((_, index) => `$${index + 1}`).join(",");
   const rows = await db.$queryRawUnsafe<Array<{ orderId: string }>>(
-    `SELECT "orderId" FROM "OrderReviewJob" WHERE "orderId" = ANY($1::text[]) AND "status" IN ('QUEUED','PROCESSING')`,
-    orderIds,
+    `SELECT "orderId" FROM "OrderReviewJob" WHERE "orderId" IN (${placeholders}) AND "status" IN ('QUEUED','PROCESSING')`,
+    ...orderIds,
+  );
+  return new Set(rows.map((row) => row.orderId));
+}
+
+export async function getActiveOrderReviewJobIdsForEvent(eventId: string) {
+  await ensureOrderReviewQueueRuntime();
+  const rows = await db.$queryRawUnsafe<Array<{ orderId: string }>>(
+    `SELECT j."orderId" FROM "OrderReviewJob" j JOIN "Order" o ON o."id"=j."orderId" WHERE o."eventId"=$1 AND j."status" IN ('QUEUED','PROCESSING')`,
+    eventId,
   );
   return new Set(rows.map((row) => row.orderId));
 }
