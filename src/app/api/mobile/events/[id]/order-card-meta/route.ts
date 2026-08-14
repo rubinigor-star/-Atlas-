@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getMobileStaff } from "@/lib/mobile-auth";
+import { getOrderDemographicsForOrders } from "@/lib/customer-demographics";
 
 function canAccessEvent(
   user: NonNullable<Awaited<ReturnType<typeof getMobileStaff>>>,
@@ -53,6 +54,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     },
   });
 
+  const demographics = await getOrderDemographicsForOrders(orders.map((order) => order.id));
   const result = Object.fromEntries(orders.map((order) => {
     const attribution = order.promoterLink
       ? {
@@ -72,8 +74,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
             detail: null,
           };
 
+    const demographic = demographics.get(order.id);
     return [order.id, {
-      customerBirthDate: order.customerBirthDate?.toISOString() ?? null,
+      customerBirthDate: order.customerBirthDate?.toISOString() ?? demographic?.birthDate?.toISOString() ?? null,
+      customerGender: demographic?.gender ?? null,
       attribution,
     }];
   }));
