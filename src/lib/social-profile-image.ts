@@ -68,6 +68,8 @@ export function normalizeSocialProfile(input: SocialProfileInput): { kind: Socia
 
 function decodeHtml(value: string) {
   return value
+    .replace(/\\u0026/g, "&")
+    .replace(/\\\//g, "/")
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
@@ -81,6 +83,8 @@ function ogImage(html: string) {
     /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i,
     /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
     /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["'][^>]*>/i,
+    /["']profile_pic_url_hd["']\s*:\s*["']([^"']+)["']/i,
+    /["']profile_pic_url["']\s*:\s*["']([^"']+)["']/i,
   ];
   for (const pattern of patterns) {
     const match = html.match(pattern);
@@ -89,28 +93,73 @@ function ogImage(html: string) {
   return null;
 }
 
-async function resolveOne(profile: { kind: SocialKind; url: string }) {
+function instagramUsername(profileUrl: string) {
   try {
-    const response = await fetch(profile.url, {
+    const url = new URL(profileUrl);
+    const first = url.pathname.split("/").filter(Boolean)[0] || "";
+    if (!first || ["p", "reel", "reels", "stories", "explore", "accounts"].includes(first.toLowerCase())) return null;
+    return /^[a-zA-Z0-9._]+$/.test(first) ? first : null;
+  } catch {
+    return null;
+  }
+}
+
+async function instagramProfileImage(profileUrl: string) {
+  const username = instagramUsername(profileUrl);
+  if (!username) return null;
+  try {
+    const response = await fetch(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`, {
       headers: {
         "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1",
-        accept: "text/html,application/xhtml+xml",
+        accept: "application/json,text/plain,*/*",
         "accept-language": "en-US,en;q=0.8",
+        "x-ig-app-id": "936619743392459",
+        referer: profileUrl,
       },
       cache: "no-store",
       redirect: "follow",
       signal: AbortSignal.timeout(4500),
     });
-    const finalUrl = new URL(response.url || profile.url);
-    if (!allowedHost(finalUrl.hostname, profile.kind)) throw new Error("SOCIAL_REDIRECT_NOT_ALLOWED");
-    if (!response.ok) throw new Error(`SOCIAL_HTTP_${response.status}`);
-    const html = (await response.text()).slice(0, 1_500_000);
-    const image = ogImage(html);
+    if (!response.ok) return null;
+    const json = await response.json() as {
+      data?: { user?: { profile_pic_url_hd?: string | null; profile_pic_url?: string | null } | null } | null;
+    };
+    const image = json.data?.user?.profile_pic_url_hd || json.data?.user?.profile_pic_url || null;
+    if (!image) return null;
+    const parsed = new URL(image);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function htmlProfileImage(profile: { kind: SocialKind; url: string }) {
+  const response = await fetch(profile.url, {
+    headers: {
+      "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1",
+      accept: "text/html,application/xhtml+xml",
+      "accept-language": "en-US,en;q=0.8",
+    },
+    cache: "no-store",
+    redirect: "follow",
+    signal: AbortSignal.timeout(4500),
+  });
+  const finalUrl = new URL(response.url || profile.url);
+  if (!allowedHost(finalUrl.hostname, profile.kind)) throw new Error("SOCIAL_REDIRECT_NOT_ALLOWED");
+  if (!response.ok) throw new Error(`SOCIAL_HTTP_${response.status}`);
+  const html = (await response.text()).slice(0, 1_500_000);
+  const image = ogImage(html);
+  if (!image) return null;
+  const parsed = new URL(image, finalUrl);
+  return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : null;
+}
+
+async function resolveOne(profile: { kind: SocialKind; url: string }) {
+  try {
     let imageUrl: string | null = null;
-    if (image) {
-      const parsed = new URL(image, finalUrl);
-      if (parsed.protocol === "https:" || parsed.protocol === "http:") imageUrl = parsed.toString();
-    }
+    if (profile.kind === "INSTAGRAM") imageUrl = await instagramProfileImage(profile.url);
+    if (!imageUrl) imageUrl = await htmlProfileImage(profile);
+
     await db.$executeRawUnsafe(
       `INSERT INTO "SocialProfileCache" ("socialUrl","kind","imageUrl","status","attemptedAt","updatedAt")
        VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
@@ -124,7 +173,7 @@ async function resolveOne(profile: { kind: SocialKind; url: string }) {
     await db.$executeRawUnsafe(
       `INSERT INTO "SocialProfileCache" ("socialUrl","kind","imageUrl","status","attemptedAt","updatedAt")
        VALUES ($1,$2,NULL,'FAILED',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-       ON CONFLICT ("socialUrl") DO UPDATE SET "kind"=EXCLUDED."kind","status"='FAILED',"attemptedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP`,
+       ON CONFLICT ("socialUrl") DO UPDATE SET "kind"=EXCLUDED."kind","imageUrl"=NULL,"status"='FAILED',"attemptedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP`,
       profile.url,
       profile.kind,
     ).catch(() => undefined);
@@ -161,10 +210,10 @@ export async function refreshSocialProfiles(inputs: SocialProfileInput[]) {
     ...urls,
   );
   const byUrl = new Map(rows.map((row) => [row.socialUrl, row]));
-  const staleBefore = Date.now() - 24 * 60 * 60 * 1000;
+  const staleBefore = Date.now() - 6 * 60 * 60 * 1000;
   const targets = unique.filter((item) => {
     const cached = byUrl.get(item.url);
-    return !cached || new Date(cached.attemptedAt).getTime() < staleBefore;
+    return !cached || !cached.imageUrl || new Date(cached.attemptedAt).getTime() < staleBefore;
   }).slice(0, 10);
   await Promise.allSettled(targets.map(resolveOne));
 }
