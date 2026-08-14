@@ -115,7 +115,7 @@ function resolverProfileImageUrl(profile: { kind: SocialKind; url: string }) {
   const key = profileKey(profile);
   if (!key) return null;
   const provider = profile.kind === "INSTAGRAM" ? "instagram" : "facebook";
-  return `https://www.atlas-one.co/api/social-avatar/${provider}/${encodeURIComponent(key)}`;
+  return `https://www.atlas-one.co/api/social-avatar/${provider}/${encodeURIComponent(key)}?v=4`;
 }
 
 async function instagramProfileImage(profileUrl: string) {
@@ -169,23 +169,19 @@ async function htmlProfileImage(profile: { kind: SocialKind; url: string }) {
 }
 
 async function resolverProfileImage(profile: { kind: SocialKind; url: string }) {
-  const key = profileKey(profile);
-  if (!key) return null;
-  const provider = profile.kind === "INSTAGRAM" ? "instagram" : "facebook";
-  const endpoint = `https://unavatar.io/${provider}/${encodeURIComponent(key)}?fallback=false&ttl=28d`;
-  const apiKey = process.env.UNAVATAR_API_KEY?.trim();
+  const endpoint = resolverProfileImageUrl(profile);
+  if (!endpoint) return null;
   try {
     const response = await fetch(endpoint, {
-      headers: apiKey ? { "x-api-key": apiKey } : undefined,
       cache: "no-store",
       redirect: "follow",
-      signal: AbortSignal.timeout(7000),
+      signal: AbortSignal.timeout(12000),
     });
     if (!response.ok) return null;
     const contentType = response.headers.get("content-type") || "";
     if (!contentType.toLowerCase().startsWith("image/")) return null;
     await response.body?.cancel().catch(() => undefined);
-    return resolverProfileImageUrl(profile);
+    return endpoint;
   } catch {
     return null;
   }
@@ -236,9 +232,10 @@ export async function getCachedSocialProfiles(inputs: SocialProfileInput[]) {
   const byUrl = new Map(rows.map((row) => [row.socialUrl, row]));
   return new Map(normalized.map((profile) => {
     const cached = byUrl.get(profile.url);
+    const currentProxy = resolverProfileImageUrl(profile);
     return [profile.url, {
       url: profile.url,
-      imageUrl: cached?.imageUrl || resolverProfileImageUrl(profile),
+      imageUrl: currentProxy || cached?.imageUrl || null,
       kind: profile.kind,
     } satisfies SocialProfileResult];
   }));
