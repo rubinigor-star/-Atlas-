@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Linking,
   Modal,
   RefreshControl,
@@ -98,6 +99,7 @@ function attributionIcon(kind?: string | null): React.ComponentProps<typeof Ioni
 
 type GenderedOrder = EventOperationOrder & { customerGender?: "MALE" | "FEMALE" | null };
 type CityOrder = EventOperationOrder & { customerCity?: string | null };
+type ValueCardOrder = EventOperationOrder & { valueCardMember?: boolean };
 
 function customerGender(order: EventOperationOrder | null) {
   return order ? (order as GenderedOrder).customerGender ?? null : null;
@@ -107,6 +109,10 @@ function customerCity(order: EventOperationOrder | null) {
   if (!order) return null;
   const city = (order as CityOrder).customerCity?.trim();
   return city || null;
+}
+
+function hasValueCardMembership(order: EventOperationOrder | null) {
+  return Boolean(order && (order as ValueCardOrder).valueCardMember);
 }
 
 function customerAvatarIcon(order: EventOperationOrder): React.ComponentProps<typeof Ionicons>["name"] {
@@ -351,6 +357,7 @@ export default function EventOperationsScreen() {
                 <View style={styles.orderIdentity}>
                   <View style={styles.nameLine}>
                     <Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text>
+                    {hasValueCardMembership(order) && <Image source={{ uri: "https://www.atlas-one.co/branding/valuecard-mark.png" }} style={styles.valueCardMark} accessibilityLabel="ValueCard member" />}
                     {order.source === "ABANDONED_CHECKOUT" && <View style={styles.lostBadge}><Text style={styles.lostBadgeText}>Брошено</Text></View>}
                   </View>
                   {age !== null && <Text style={styles.personMeta}>{age} лет</Text>}
@@ -577,6 +584,7 @@ const styles = StyleSheet.create({
   orderIdentity: { flex: 1, minWidth: 0 },
   nameLine: { flexDirection: "row", alignItems: "center", gap: 6 },
   customerName: { maxWidth: "78%", fontSize: 15, fontWeight: "900", color: "#17213C" },
+  valueCardMark: { width: 18, height: 18, resizeMode: "contain" },
   lostBadge: { borderRadius: 99, backgroundColor: "#FFF3E8", paddingHorizontal: 7, paddingVertical: 2 },
   lostBadgeText: { color: "#B54708", fontSize: 9.5, fontWeight: "800" },
   personMeta: { fontSize: 11.5, color: "#737C90", marginTop: 3 },
