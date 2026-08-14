@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Linking,
   Modal,
   RefreshControl,
@@ -321,7 +322,9 @@ export default function EventOperationsScreen() {
         <SwipeOrderRow enabled={!busyAction && !reviewProcessing} rightSwipe={rightSwipe} leftSwipe={leftSwipe}>
           <TouchableOpacity style={styles.orderCard} activeOpacity={0.82} onPress={() => { setSelected(order); setRefundInfo(null); }}>
             <View style={[styles.avatar, order.source === "ABANDONED_CHECKOUT" && styles.avatarLost]}>
-              <Ionicons name={order.source === "ABANDONED_CHECKOUT" ? "cart-outline" : "person-outline"} size={27} color="#17213C" />
+              {order.socialProfileImageUrl
+                ? <Image source={{ uri: order.socialProfileImageUrl }} style={styles.avatarImage} />
+                : <Ionicons name={order.source === "ABANDONED_CHECKOUT" ? "cart-outline" : "person-outline"} size={27} color="#17213C" />}
             </View>
 
             <View style={styles.orderCardBody}>
@@ -333,6 +336,10 @@ export default function EventOperationsScreen() {
                   </View>
                   {age !== null && <Text style={styles.personMeta}>{age} лет</Text>}
                   {!!order.customerPhone && <Text style={styles.phone}>{order.customerPhone}</Text>}
+                  {(order.customerInstagram || order.customerFacebook) && <View style={styles.socialRow}>
+                    {!!order.customerInstagram && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(order.customerInstagram!)}><Ionicons name="logo-instagram" size={14} color="#C13584" /><Text style={styles.socialChipText}>Instagram</Text></TouchableOpacity>}
+                    {!!order.customerFacebook && <TouchableOpacity style={styles.socialChip} onPress={() => void Linking.openURL(order.customerFacebook!)}><Ionicons name="logo-facebook" size={14} color="#1877F2" /><Text style={styles.socialChipText}>Facebook</Text></TouchableOpacity>}
+                  </View>}
                 </View>
                 <View style={styles.orderEnd}>
                   <Text style={styles.amount}>{money(order.totalMinor)}</Text>
@@ -446,12 +453,24 @@ export default function EventOperationsScreen() {
       <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => !busyAction && resetOrderState()}>
         <View style={styles.modalRoot}><TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => !busyAction && resetOrderState()} /><View style={styles.sheet}>{selected && <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.handle} />
-          <View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{selected.customerName}</Text><Text style={styles.sheetId}>{selected.source === "ABANDONED_CHECKOUT" ? "Брошенное оформление" : `#${selected.publicId}`}</Text></View><TouchableOpacity disabled={!!busyAction} onPress={resetOrderState}><Ionicons name="close" size={25} color="#17213C" /></TouchableOpacity></View>
+          <View style={styles.sheetHeader}>
+            <View style={styles.sheetIdentity}>
+              {selected.socialProfileImageUrl
+                ? <Image source={{ uri: selected.socialProfileImageUrl }} style={styles.sheetAvatar} />
+                : <View style={styles.sheetAvatarFallback}><Ionicons name="person-outline" size={24} color="#17213C" /></View>}
+              <View><Text style={styles.sheetTitle}>{selected.customerName}</Text><Text style={styles.sheetId}>{selected.source === "ABANDONED_CHECKOUT" ? "Брошенное оформление" : `#${selected.publicId}`}</Text></View>
+            </View>
+            <TouchableOpacity disabled={!!busyAction} onPress={resetOrderState}><Ionicons name="close" size={25} color="#17213C" /></TouchableOpacity>
+          </View>
           <View style={styles.contactRow}>
             {!!selected.customerPhone && <TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`tel:${selected.customerPhone}`)}><Ionicons name="call-outline" size={20} color="#17213C" /><Text style={styles.contactText}>Позвонить</Text></TouchableOpacity>}
             {!!selected.customerPhone && <TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(whatsappUrl(selected.customerPhone))}><Ionicons name="logo-whatsapp" size={20} color="#168044" /><Text style={styles.contactText}>WhatsApp</Text></TouchableOpacity>}
             {!!selected.customerEmail && <TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`mailto:${selected.customerEmail}`)}><Ionicons name="mail-outline" size={20} color="#17213C" /><Text style={styles.contactText}>Email</Text></TouchableOpacity>}
           </View>
+          {(selected.customerInstagram || selected.customerFacebook) && <View style={styles.profileLinks}>
+            {!!selected.customerInstagram && <TouchableOpacity style={styles.profileLinkButton} onPress={() => void Linking.openURL(selected.customerInstagram!)}><Ionicons name="logo-instagram" size={19} color="#C13584" /><Text style={styles.profileLinkText}>Открыть Instagram</Text></TouchableOpacity>}
+            {!!selected.customerFacebook && <TouchableOpacity style={styles.profileLinkButton} onPress={() => void Linking.openURL(selected.customerFacebook!)}><Ionicons name="logo-facebook" size={19} color="#1877F2" /><Text style={styles.profileLinkText}>Открыть Facebook</Text></TouchableOpacity>}
+          </View>}
           <View style={styles.detailCard}>
             {!!selected.customerPhone && <Detail label="Телефон" value={selected.customerPhone} />}
             {!!selected.customerEmail && <Detail label="Email" value={selected.customerEmail} />}
@@ -530,7 +549,8 @@ const styles = StyleSheet.create({
   listLoader: { height: 54, alignItems: "center", justifyContent: "center" },
   orderCardWrap: { marginBottom: 8 },
   orderCard: { minHeight: 112, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E6E9EF", borderRadius: 18, paddingHorizontal: 12, paddingVertical: 11, flexDirection: "row", alignItems: "flex-start" },
-  avatar: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center", marginRight: 11 },
+  avatar: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center", marginRight: 11, overflow: "hidden" },
+  avatarImage: { width: "100%", height: "100%" },
   avatarLost: { backgroundColor: "#FFF3E8" },
   orderCardBody: { flex: 1 },
   orderCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
@@ -541,6 +561,9 @@ const styles = StyleSheet.create({
   lostBadgeText: { color: "#B54708", fontSize: 9.5, fontWeight: "800" },
   personMeta: { fontSize: 11.5, color: "#737C90", marginTop: 3 },
   phone: { fontSize: 11.5, color: "#60708A", marginTop: 2 },
+  socialRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 5 },
+  socialChip: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 99, backgroundColor: "#F5F6FA", paddingHorizontal: 7, paddingVertical: 4 },
+  socialChipText: { fontSize: 9.5, color: "#4E5668", fontWeight: "700" },
   blockedText: { fontSize: 10.5, color: "#B54708", marginTop: 7 },
   orderEnd: { alignItems: "flex-end", minWidth: 78, marginLeft: 8 },
   amount: { fontSize: 14, fontWeight: "900", color: "#17213C" },
@@ -564,11 +587,17 @@ const styles = StyleSheet.create({
   filterSheet: { backgroundColor: "#fff", borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, paddingBottom: 28 },
   handle: { width: 42, height: 5, borderRadius: 3, backgroundColor: "#DDE1E9", alignSelf: "center", marginBottom: 14 },
   sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+  sheetIdentity: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  sheetAvatar: { width: 48, height: 48, borderRadius: 15 },
+  sheetAvatarFallback: { width: 48, height: 48, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "#EEF2FF" },
   sheetTitle: { fontSize: 21, fontWeight: "900", color: "#17213C" },
   sheetId: { color: "#8A92A3", marginTop: 3 },
-  contactRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
+  contactRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
   contactButton: { flex: 1, minHeight: 54, borderRadius: 14, backgroundColor: "#F4F6FA", alignItems: "center", justifyContent: "center", gap: 4 },
   contactText: { fontSize: 10.5, fontWeight: "700", color: "#17213C" },
+  profileLinks: { flexDirection: "row", gap: 8, marginBottom: 14 },
+  profileLinkButton: { flex: 1, minHeight: 44, borderRadius: 13, backgroundColor: "#F7F7FA", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
+  profileLinkText: { fontSize: 11, fontWeight: "800", color: "#17213C" },
   detailCard: { borderWidth: 1, borderColor: "#E6E9EF", borderRadius: 16, paddingHorizontal: 14, marginBottom: 14 },
   detailRow: { minHeight: 45, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#ECEEF3" },
   detailLabel: { color: "#7B8498", fontSize: 12 },
