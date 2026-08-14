@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { AdminShell } from "@/components/admin-shell";
 import { RequestInbox } from "@/components/request-inbox";
 import { requirePermission } from "@/lib/auth";
+import { getActiveOrderReviewJobIds } from "@/lib/order-review-queue";
 
 export const dynamic = "force-dynamic";
 
@@ -32,16 +33,20 @@ export default async function RequestsPage() {
       })
     : [];
 
-  const recoveryRows = await db.$queryRaw<Array<{ orderId: string }>>`
-    SELECT pa."orderId"
-    FROM "PaymentAuthorization" pa
-    JOIN "Order" o ON o."id"=pa."orderId"
-    WHERE o."salesFlow"='APPROVAL'
-      AND pa.provider = 'HYP'
-      AND pa.status = 'CAPTURED'
-      AND pa."hypCaptureTransId" IS NULL
-  `;
+  const [recoveryRows, activeReviewIds] = await Promise.all([
+    db.$queryRaw<Array<{ orderId: string }>>`
+      SELECT pa."orderId"
+      FROM "PaymentAuthorization" pa
+      JOIN "Order" o ON o."id"=pa."orderId"
+      WHERE o."salesFlow"='APPROVAL'
+        AND pa.provider = 'HYP'
+        AND pa.status = 'CAPTURED'
+        AND pa."hypCaptureTransId" IS NULL
+    `,
+    getActiveOrderReviewJobIds(requests.map((request) => request.id)),
+  ]);
   const recoveryIds = new Set(recoveryRows.map((row) => row.orderId));
+  const visibleRequests = requests.filter((request) => !activeReviewIds.has(request.id));
 
   return (
     <AdminShell>
@@ -54,7 +59,7 @@ export default async function RequestsPage() {
         <span className="office-live"><i />Обновляется автоматически</span>
       </div>
       <RequestInbox
-        initialRequests={requests.map((request) => {
+        initialRequests={visibleRequests.map((request) => {
           const previous = request.guest?.orders.filter((order) => order.id !== request.id) ?? [];
           const visits = previous.flatMap((order) => order.tickets).filter((ticket) => ticket.scans.length > 0).length;
           const paymentRecovery = request.status === "PAID" && recoveryIds.has(request.id);
