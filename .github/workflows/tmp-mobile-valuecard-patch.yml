@@ -1,0 +1,82 @@
+name: Temporary Mobile ValueCard Patch
+
+on:
+  push:
+    branches:
+      - fix/mobile-valuecard-badge-20260814
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/mobile-valuecard-badge-20260814
+          fetch-depth: 0
+
+      - name: Patch ValueCard badge into mobile request cards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('mobile/components/EventOperationsScreen.tsx')
+          text = path.read_text()
+
+          text = text.replace(
+              '  FlatList,\n  Linking,',
+              '  FlatList,\n  Image,\n  Linking,',
+              1,
+          )
+
+          marker = 'type CityOrder = EventOperationOrder & { customerCity?: string | null };\n'
+          addition = marker + 'type ValueCardOrder = EventOperationOrder & { valueCardMember?: boolean };\n'
+          if 'type ValueCardOrder' not in text:
+              text = text.replace(marker, addition, 1)
+
+          marker = '''function customerCity(order: EventOperationOrder | null) {
+            if (!order) return null;
+            const city = (order as CityOrder).customerCity?.trim();
+            return city || null;
+          }
+          '''
+          addition = marker + '''\nfunction hasValueCardMembership(order: EventOperationOrder | null) {
+            return Boolean(order && (order as ValueCardOrder).valueCardMember);
+          }
+          '''
+          if 'function hasValueCardMembership' not in text:
+              text = text.replace(marker, addition, 1)
+
+          old = '''                    <Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text>
+                    {order.source === "ABANDONED_CHECKOUT" && <View style={styles.lostBadge}><Text style={styles.lostBadgeText}>Брошено</Text></View>}'''
+          new = '''                    <Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text>
+                    {hasValueCardMembership(order) && <Image source={{ uri: "https://www.atlas-one.co/branding/valuecard-mark.png" }} style={styles.valueCardMark} accessibilityLabel="ValueCard member" />}
+                    {order.source === "ABANDONED_CHECKOUT" && <View style={styles.lostBadge}><Text style={styles.lostBadgeText}>Брошено</Text></View>}'''
+          if 'accessibilityLabel="ValueCard member"' not in text:
+              if old not in text:
+                  raise SystemExit('Name-line patch anchor not found')
+              text = text.replace(old, new, 1)
+
+          old = '  customerName: { maxWidth: "78%", fontSize: 15, fontWeight: "900", color: "#17213C" },\n'
+          new = old + '  valueCardMark: { width: 18, height: 18, resizeMode: "contain" },\n'
+          if 'valueCardMark:' not in text:
+              if old not in text:
+                  raise SystemExit('Style patch anchor not found')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Commit patch when changed
+        run: |
+          if git diff --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mobile/components/EventOperationsScreen.tsx
+          git commit -m "Show ValueCard mark in mobile requests"
+          git push origin HEAD:fix/mobile-valuecard-badge-20260814
