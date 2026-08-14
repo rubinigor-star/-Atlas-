@@ -1,0 +1,13 @@
+body.atlas-seat-selection-active button[class*="filtered"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Seats that are unavailable/reserved use the neutral fallback color in the
+   public map. Make that neutral state clearly readable instead of almost
+   disappearing against the white venue canvas. */
+body.atlas-seat-selection-active button[class*="seat"][style*="#e3e7eb"]::before,
+body.atlas-seat-selection-active button[class*="seat"][style*="#E3E7EB"]::before {
+  background: #c5cbd3 !important;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, .10) !important;
+}

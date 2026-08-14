@@ -10,6 +10,8 @@ import "./globals.css";
 import "./platform.css";
 import "./event-experience.css";
 import "./event-detail-sticky.css";
+import "./seat-map-assignment-visibility.css";
+import "./seat-map-public-match-admin.css";
 import "./logo.css";
 import "./logo-variants.css";
 import "./site-header.css";
@@ -55,7 +57,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     {"@type":"WebSite","@id":`${BASE}/#website`,url:BASE,name:"Atlas One",publisher:{"@id":`${BASE}/#organization`},inLanguage:["ru","he","en"]}
   ]};
   return <html lang={locale} dir={dir} suppressHydrationWarning><body>
-    <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(schema).replace(/</g,"\u003c")}}/>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(schema).replace(/</g,"\\u003c")}}/>
     <MarketingTracker/><PromoterChannelTracker/><LocaleProvider initialLocale={locale}><PwaRegister/><AppChrome>{children}</AppChrome></LocaleProvider><SpeedInsights/>
   </body></html>;
 }
