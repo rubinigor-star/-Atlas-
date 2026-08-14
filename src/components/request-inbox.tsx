@@ -18,6 +18,8 @@ export type RequestRecord = {
   city: string | null;
   facebook: string | null;
   instagram: string | null;
+  profileImageUrl?: string | null;
+  profileImageSource?: "INSTAGRAM" | "FACEBOOK" | null;
   guestStatus: string | null;
   previousOrders: number;
   previousVisits: number;
@@ -232,11 +234,15 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
                 : { label:text.statuses[item.status] || item.status, ...color };
         const customerAge = age(item.birthDate);
         return <article className="request-card" key={item.id} style={item.inactive ? {opacity:.78,borderStyle:"dashed"} : undefined}>
-          <header><div className="request-avatar">{item.customerName.split(" ").map((part) => part[0]).slice(0,2).join("")}</div><div><strong>{item.customerName}</strong><a href={`tel:${item.customerPhone}`}>{item.customerPhone}</a></div><span className="request-status" style={{background:meta.background,color:meta.color}}>{meta.label}</span></header>
+          <header>
+            <div className="request-avatar" style={{overflow:"hidden"}}>{item.profileImageUrl ? <img src={item.profileImageUrl} alt="" referrerPolicy="no-referrer" style={{width:"100%",height:"100%",objectFit:"cover"}} /> : item.customerName.split(" ").map((part) => part[0]).slice(0,2).join("")}</div>
+            <div><strong>{item.customerName}</strong><a href={`tel:${item.customerPhone}`}>{item.customerPhone}</a><div style={{display:"flex",gap:8,marginTop:5,flexWrap:"wrap"}}>{item.instagram && <a href={item.instagram} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#C13584"}}>Instagram</a>}{item.facebook && <a href={item.facebook} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#1877F2"}}>Facebook</a>}</div></div>
+            <span className="request-status" style={{background:meta.background,color:meta.color}}>{meta.label}</span>
+          </header>
           {item.paymentRecovery && <div className="toast" style={{background:"#fff8e8",color:"#8a5a00",marginBottom:12}}>Atlas пометил заказ оплаченным до подтверждения HYP. Билет не должен считаться завершённым, пока HYP не подтвердит списание.</div>}
           {item.inactive && <div className="toast" style={{background:"#f8fafc",color:"#475569",marginBottom:12}}>{text.expiredNotice(new Date(item.expiresAt).toLocaleString(dateLocale(locale)))}</div>}
           <div className="request-event"><small>{item.eventTitle}</small><strong>{item.items.map((ticket) => `${ticket.name} × ${ticket.quantity}`).join(", ")}</strong><span>{money(item.totalMinor)}</span></div>
-          {!compact && <div className="panel" style={{background:"#f8fafc"}}><strong>{item.guestStatus || "REGULAR"}</strong><p className="muted">{customerAge !== null ? `${customerAge} ${text.years} · ` : ""}{item.city || text.cityMissing}</p><p className="muted">{text.previous(item.previousOrders,item.previousVisits)}</p><p className="muted">{item.instagram || text.instagramMissing} · {item.facebook || text.facebookMissing}</p></div>}
+          {!compact && <div className="panel" style={{background:"#f8fafc"}}><strong>{item.guestStatus || "REGULAR"}</strong><p className="muted">{customerAge !== null ? `${customerAge} ${text.years} · ` : ""}{item.city || text.cityMissing}</p><p className="muted">{text.previous(item.previousOrders,item.previousVisits)}</p><p className="muted">{item.instagram ? <a href={item.instagram} target="_blank" rel="noreferrer">Instagram</a> : text.instagramMissing} · {item.facebook ? <a href={item.facebook} target="_blank" rel="noreferrer">Facebook</a> : text.facebookMissing}</p></div>}
           {item.answer && <blockquote><small>{text.customerAnswer}</small>{item.answer}</blockquote>}
           <footer><small>{text.received} {new Date(item.createdAt).toLocaleString(dateLocale(locale))}</small><div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}><a className="btn secondary" style={{color:"#128C7E"}} target="_blank" rel="noreferrer" href={whatsapp(item.customerPhone,text.whatsappMessage(item.customerName,item.eventTitle))} aria-label={text.whatsappLabel(item.customerName)}><WhatsAppIcon size={18}/> WhatsApp</a><Link className="btn secondary" href={`/office/orders/${item.publicId}?returnTo=${encodeURIComponent("/office/requests")}`}>{text.details}</Link></div></footer>
           {item.paymentRecovery && !item.inactive && <div className="request-actions"><button disabled={isProcessing} className="approve" onClick={() => void decide(item,"approve")}><Check size={18}/>{isProcessing ? text.processing : text.recoveryAction}</button></div>}
