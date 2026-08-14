@@ -97,6 +97,20 @@ function attributionIcon(kind?: string | null): React.ComponentProps<typeof Ioni
   return "navigate-outline";
 }
 
+type GenderedOrder = EventOperationOrder & { customerGender?: "MALE" | "FEMALE" | null };
+
+function customerGender(order: EventOperationOrder | null) {
+  return order ? (order as GenderedOrder).customerGender ?? null : null;
+}
+
+function customerAvatarIcon(order: EventOperationOrder): React.ComponentProps<typeof Ionicons>["name"] {
+  if (order.source === "ABANDONED_CHECKOUT") return "cart-outline";
+  const gender = customerGender(order);
+  if (gender === "MALE") return "man-outline";
+  if (gender === "FEMALE") return "woman-outline";
+  return "person-outline";
+}
+
 export default function EventOperationsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -324,7 +338,7 @@ export default function EventOperationsScreen() {
             <View style={[styles.avatar, order.source === "ABANDONED_CHECKOUT" && styles.avatarLost]}>
               {order.socialProfileImageUrl
                 ? <Image source={{ uri: order.socialProfileImageUrl }} style={styles.avatarImage} />
-                : <Ionicons name={order.source === "ABANDONED_CHECKOUT" ? "cart-outline" : "person-outline"} size={27} color="#17213C" />}
+                : <Ionicons name={customerAvatarIcon(order)} size={27} color="#17213C" />}
             </View>
 
             <View style={styles.orderCardBody}>
@@ -457,7 +471,7 @@ export default function EventOperationsScreen() {
             <View style={styles.sheetIdentity}>
               {selected.socialProfileImageUrl
                 ? <Image source={{ uri: selected.socialProfileImageUrl }} style={styles.sheetAvatar} />
-                : <View style={styles.sheetAvatarFallback}><Ionicons name="person-outline" size={24} color="#17213C" /></View>}
+                : <View style={styles.sheetAvatarFallback}><Ionicons name={customerAvatarIcon(selected)} size={24} color="#17213C" /></View>}
               <View><Text style={styles.sheetTitle}>{selected.customerName}</Text><Text style={styles.sheetId}>{selected.source === "ABANDONED_CHECKOUT" ? "Брошенное оформление" : `#${selected.publicId}`}</Text></View>
             </View>
             <TouchableOpacity disabled={!!busyAction} onPress={resetOrderState}><Ionicons name="close" size={25} color="#17213C" /></TouchableOpacity>
@@ -475,6 +489,7 @@ export default function EventOperationsScreen() {
             {!!selected.customerPhone && <Detail label="Телефон" value={selected.customerPhone} />}
             {!!selected.customerEmail && <Detail label="Email" value={selected.customerEmail} />}
             {selected.customerBirthDate && <Detail label="Возраст" value={`${ageFromBirthDate(selected.customerBirthDate) ?? "-"}`} />}
+            {customerGender(selected) && <Detail label="Пол" value={customerGender(selected) === "MALE" ? "Мужчина" : "Женщина"} />}
             {selected.attribution && <Detail label="Источник" value={selected.attribution.detail ? `${selected.attribution.label} · ${selected.attribution.detail}` : selected.attribution.label} />}
             <Detail label="Билеты" value={`${selected.ticketCount}`} />
             <Detail label="Сумма" value={money(selected.totalMinor)} />
