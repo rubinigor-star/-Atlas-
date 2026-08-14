@@ -5,6 +5,7 @@ import { RequestInbox } from "@/components/request-inbox";
 import { requirePermission } from "@/lib/auth";
 import { getActiveOrderReviewJobIds } from "@/lib/order-review-queue";
 import { getCachedSocialProfiles, normalizeSocialProfile, refreshSocialProfiles, type SocialProfileInput } from "@/lib/social-profile-image";
+import { searchValueCardMembers } from "@/lib/valuecard";
 
 export const dynamic = "force-dynamic";
 
@@ -50,11 +51,18 @@ export default async function RequestsPage() {
   const recoveryIds = new Set(recoveryRows.map((row) => row.orderId));
   const visibleRequests = requests.filter((request) => !activeReviewIds.has(request.id));
 
+  const [valueCardMembers, socialCache] = await Promise.all([
+    searchValueCardMembers(staff.organizationId!, visibleRequests.map((request) => request.customerPhone)),
+    getCachedSocialProfiles(visibleRequests.flatMap((request) => [
+      { kind: "INSTAGRAM" as const, value: request.customerInstagram ?? request.guest?.instagram ?? null },
+      { kind: "FACEBOOK" as const, value: request.customerFacebook ?? request.guest?.facebook ?? null },
+    ])),
+  ]);
+
   const socialInputs: SocialProfileInput[] = visibleRequests.flatMap((request) => [
     { kind: "INSTAGRAM" as const, value: request.customerInstagram ?? request.guest?.instagram ?? null },
     { kind: "FACEBOOK" as const, value: request.customerFacebook ?? request.guest?.facebook ?? null },
   ]);
-  const socialCache = await getCachedSocialProfiles(socialInputs);
   after(async () => {
     await refreshSocialProfiles(socialInputs).catch((error) => {
       console.info("admin.requests.social_profile_refresh_failed", { message: error instanceof Error ? error.message : "Unknown error" });
@@ -88,6 +96,7 @@ export default async function RequestsPage() {
             customerName: request.customerName,
             customerEmail: request.customerEmail,
             customerPhone: request.customerPhone,
+            valueCardMember: Boolean(valueCardMembers.get(request.customerPhone)),
             birthDate: request.customerBirthDate?.toISOString() ?? request.guest?.birthDate.toISOString() ?? null,
             city: request.customerCity ?? request.guest?.city ?? null,
             facebook: facebook?.url ?? null,
