@@ -25,46 +25,37 @@ jobs:
           path = Path('mobile/components/EventOperationsScreen.tsx')
           text = path.read_text()
 
-          text = text.replace(
-              '  FlatList,\n  Linking,',
-              '  FlatList,\n  Image,\n  Linking,',
-              1,
-          )
+          if '  Image,\n' not in text:
+              anchor = '  FlatList,\n  Linking,'
+              if anchor not in text:
+                  raise SystemExit('Image import anchor not found')
+              text = text.replace(anchor, '  FlatList,\n  Image,\n  Linking,', 1)
 
-          marker = 'type CityOrder = EventOperationOrder & { customerCity?: string | null };\n'
-          addition = marker + 'type ValueCardOrder = EventOperationOrder & { valueCardMember?: boolean };\n'
           if 'type ValueCardOrder' not in text:
-              text = text.replace(marker, addition, 1)
+              anchor = 'type CityOrder = EventOperationOrder & { customerCity?: string | null };\n'
+              if anchor not in text:
+                  raise SystemExit('ValueCard type anchor not found')
+              text = text.replace(anchor, anchor + 'type ValueCardOrder = EventOperationOrder & { valueCardMember?: boolean };\n', 1)
 
-          marker = '''function customerCity(order: EventOperationOrder | null) {
-            if (!order) return null;
-            const city = (order as CityOrder).customerCity?.trim();
-            return city || null;
-          }
-          '''
-          addition = marker + '''\nfunction hasValueCardMembership(order: EventOperationOrder | null) {
-            return Boolean(order && (order as ValueCardOrder).valueCardMember);
-          }
-          '''
           if 'function hasValueCardMembership' not in text:
-              text = text.replace(marker, addition, 1)
+              anchor = '  return city || null;\n}\n\nfunction customerAvatarIcon'
+              replacement = '  return city || null;\n}\n\nfunction hasValueCardMembership(order: EventOperationOrder | null) {\n  return Boolean(order && (order as ValueCardOrder).valueCardMember);\n}\n\nfunction customerAvatarIcon'
+              if anchor not in text:
+                  raise SystemExit('ValueCard helper anchor not found')
+              text = text.replace(anchor, replacement, 1)
 
-          old = '''                    <Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text>
-                    {order.source === "ABANDONED_CHECKOUT" && <View style={styles.lostBadge}><Text style={styles.lostBadgeText}>Брошено</Text></View>}'''
-          new = '''                    <Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text>
-                    {hasValueCardMembership(order) && <Image source={{ uri: "https://www.atlas-one.co/branding/valuecard-mark.png" }} style={styles.valueCardMark} accessibilityLabel="ValueCard member" />}
-                    {order.source === "ABANDONED_CHECKOUT" && <View style={styles.lostBadge}><Text style={styles.lostBadgeText}>Брошено</Text></View>}'''
           if 'accessibilityLabel="ValueCard member"' not in text:
-              if old not in text:
-                  raise SystemExit('Name-line patch anchor not found')
-              text = text.replace(old, new, 1)
+              anchor = '<Text style={styles.customerName} numberOfLines={1}>{order.customerName}</Text>'
+              replacement = anchor + '\n                    {hasValueCardMembership(order) && <Image source={{ uri: "https://www.atlas-one.co/branding/valuecard-mark.png" }} style={styles.valueCardMark} accessibilityLabel="ValueCard member" />}'
+              if anchor not in text:
+                  raise SystemExit('Customer name anchor not found')
+              text = text.replace(anchor, replacement, 1)
 
-          old = '  customerName: { maxWidth: "78%", fontSize: 15, fontWeight: "900", color: "#17213C" },\n'
-          new = old + '  valueCardMark: { width: 18, height: 18, resizeMode: "contain" },\n'
           if 'valueCardMark:' not in text:
-              if old not in text:
-                  raise SystemExit('Style patch anchor not found')
-              text = text.replace(old, new, 1)
+              anchor = '  customerName: { maxWidth: "78%", fontSize: 15, fontWeight: "900", color: "#17213C" },\n'
+              if anchor not in text:
+                  raise SystemExit('ValueCard style anchor not found')
+              text = text.replace(anchor, anchor + '  valueCardMark: { width: 18, height: 18, resizeMode: "contain" },\n', 1)
 
           path.write_text(text)
           PY
