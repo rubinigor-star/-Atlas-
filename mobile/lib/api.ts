@@ -90,6 +90,10 @@ export type EventOperationOrder = {
   customerPhone: string;
   customerEmail: string;
   customerBirthDate?: string | null;
+  customerInstagram?: string | null;
+  customerFacebook?: string | null;
+  socialProfileImageUrl?: string | null;
+  socialProfileImageSource?: "INSTAGRAM" | "FACEBOOK" | null;
   attribution?: OrderAttribution | null;
   totalMinor: number;
   currency: string;
