@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/abandoned-checkouts",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/order-review-jobs",
+      "schedule": "* * * * *"
     }
   ]
 }
