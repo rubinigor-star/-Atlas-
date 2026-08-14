@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getMobileStaff } from "@/lib/mobile-auth";
 import { ensureAbandonedCheckoutRuntime } from "@/lib/abandoned-checkout";
+import { ensureOrderReviewQueueRuntime } from "@/lib/order-review-queue";
 
 const STATUS_GROUPS = {
   pending: ["PENDING", "PENDING_APPROVAL"] as const,
@@ -227,6 +228,18 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const query = (url.searchParams.get("q") || "").trim();
   const category = (url.searchParams.get("category") || "").trim();
 
+  await ensureOrderReviewQueueRuntime();
+  const activeReviewRows = await db.$queryRawUnsafe<Array<{ orderId: string }>>(
+    `SELECT j."orderId"
+     FROM "OrderReviewJob" j
+     JOIN "Order" o ON o."id"=j."orderId"
+     WHERE o."eventId"=$1
+       AND o."status"='PENDING_APPROVAL'
+       AND j."status" IN ('QUEUED','PROCESSING')`,
+    id,
+  );
+  const activeReviewIds = new Set(activeReviewRows.map((row) => row.orderId));
+
   const [groupedCounts, revenue, usedTickets, lostCount] = await Promise.all([
     db.order.groupBy({ by: ["status"], where: { eventId: id }, _count: { _all: true } }),
     db.order.aggregate({ where: { eventId: id, status: "PAID" }, _sum: { totalMinor: true } }),
@@ -237,7 +250,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const rawCounts = new Map<string, number>(groupedCounts.map((item) => [item.status, item._count._all]));
   const countGroup = (statuses: readonly string[]) => statuses.reduce((sum, status) => sum + (rawCounts.get(status) ?? 0), 0);
   const counts = {
-    pending: countGroup(STATUS_GROUPS.pending),
+    pending: Math.max(0, countGroup(STATUS_GROUPS.pending) - activeReviewIds.size),
     approved: countGroup(STATUS_GROUPS.approved),
     cancelled: countGroup(STATUS_GROUPS.cancelled),
     abandoned: lostCount,
@@ -291,6 +304,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const orderWhere = {
     eventId: id,
     status: { in: [...statuses] },
+    ...(group === "pending" && activeReviewIds.size ? { id: { notIn: [...activeReviewIds] } } : {}),
     ...(query ? {
       OR: [
         { customerName: { contains: query } },
