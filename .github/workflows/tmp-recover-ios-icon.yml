@@ -1,0 +1,29 @@
+name: Recover Atlas iOS Icon
+
+on:
+  push:
+    branches:
+      - integration/mobile-event-editor-aligned-20260809
+    paths:
+      - ".github/workflows/tmp-recover-ios-icon.yml"
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    environment: Production
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: integration/mobile-event-editor-aligned-20260809
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+      - name: List successful iOS EAS builds
+        run: npx eas-cli@latest build:list --platform ios --status finished --limit 10 --json --non-interactive
