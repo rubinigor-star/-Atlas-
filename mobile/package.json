@@ -4,6 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
+    "postinstall": "node scripts/restore-operations-avatar-and-whatsapp.cjs",
     "start": "expo start",
     "ios": "expo start --ios",
     "android": "expo start --android",
