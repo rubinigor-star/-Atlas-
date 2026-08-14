@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   recover:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     environment: Production
     defaults:
       run:
@@ -24,45 +24,23 @@ jobs:
         with:
           ref: integration/mobile-event-editor-aligned-20260809
           fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Download last successful 0.1.6 IPA
+      - name: Download last successful Atlas 0.1.6 IPA
         run: |
           curl -fL 'https://expo.dev/artifacts/eas/8nKMNrpSH1bdrVsSFhA_2Bn9gBcjhbvjI96mwgCc4kQ.ipa' -o /tmp/atlas.ipa
           rm -rf /tmp/atlas-ipa && mkdir -p /tmp/atlas-ipa
           unzip -q /tmp/atlas.ipa -d /tmp/atlas-ipa
           find /tmp/atlas-ipa/Payload -maxdepth 2 -type f -name 'AppIcon*.png' -print
-      - name: Recover exact compiled Atlas app icon
+      - name: Revert Apple PNG optimization and restore exact icon
         shell: bash
         run: |
-          python -m pip install --quiet Pillow
-          python - <<'PY'
-          from pathlib import Path
-          from PIL import Image
-          candidates=[]
-          for app in Path('/tmp/atlas-ipa/Payload').glob('*.app'):
-              for p in app.glob('AppIcon*.png'):
-                  try:
-                      with Image.open(p) as im:
-                          im.load()
-                          w,h=im.size
-                          if w==h:
-                              candidates.append((w,p))
-                  except Exception:
-                      pass
-          if not candidates:
-              raise SystemExit('No readable AppIcon*.png found in successful Atlas IPA')
-          candidates.sort(key=lambda x:x[0], reverse=True)
-          size, source=candidates[0]
-          print('Selected Atlas system app icon:', source, size)
-          with Image.open(source) as src:
-              img=src.convert('RGB').resize((1024,1024), Image.Resampling.LANCZOS)
-              img.save('assets/atlas-one-app-icon.png', 'PNG', optimize=False, compress_level=6)
-          with Image.open('assets/atlas-one-app-icon.png') as check:
-              check.verify()
-          print('Recovered exact Atlas icon as valid 1024x1024 PNG')
-          PY
+          APP_DIR=$(find /tmp/atlas-ipa/Payload -maxdepth 1 -type d -name '*.app' | head -1)
+          SRC="$APP_DIR/AppIcon76x76@2x~ipad.png"
+          if [ ! -f "$SRC" ]; then SRC="$APP_DIR/AppIcon60x60@2x.png"; fi
+          test -f "$SRC"
+          PNGCRUSH=$(xcrun --find pngcrush)
+          "$PNGCRUSH" -q -revert-iphone-optimizations "$SRC" /tmp/atlas-icon-normal.png
+          sips -z 1024 1024 /tmp/atlas-icon-normal.png --out assets/atlas-one-app-icon.png >/dev/null
+          sips -g pixelWidth -g pixelHeight assets/atlas-one-app-icon.png
           file assets/atlas-one-app-icon.png
       - name: Commit recovered Atlas icon
         run: |
