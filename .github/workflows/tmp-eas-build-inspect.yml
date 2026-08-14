@@ -1,0 +1,25 @@
+name: Inspect EAS iOS Build
+
+on:
+  push:
+    branches:
+      - integration/mobile-event-editor-aligned-20260809
+    paths:
+      - ".github/workflows/tmp-eas-build-inspect.yml"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: Production
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Inspect failed EAS build
+        run: npx eas-cli@latest build:view 32243094-9e8a-4532-a1b0-081ca808f135 --json
