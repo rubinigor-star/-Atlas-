@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getMobileStaff } from "@/lib/mobile-auth";
 import { getOrderDemographicsForOrders } from "@/lib/customer-demographics";
-import { searchValueCardMembers } from "@/lib/valuecard";
+import { searchValueCardMembers, type ValueCardMember } from "@/lib/valuecard";
 
 function canAccessEvent(
   user: NonNullable<Awaited<ReturnType<typeof getMobileStaff>>>,
@@ -57,7 +57,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   });
 
   const demographics = await getOrderDemographicsForOrders(orders.map((order) => order.id));
-  let valueCardMembers = new Map<string, Awaited<ReturnType<typeof searchValueCardMembers>> extends Map<string, infer T> ? T : never>();
+  let valueCardMembers = new Map<string, ValueCardMember | null>();
   try {
     valueCardMembers = await searchValueCardMembers(
       event.organizationId,
