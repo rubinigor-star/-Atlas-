@@ -115,7 +115,7 @@ function resolverProfileImageUrl(profile: { kind: SocialKind; url: string }) {
   const key = profileKey(profile);
   if (!key) return null;
   const provider = profile.kind === "INSTAGRAM" ? "instagram" : "facebook";
-  return `https://unavatar.io/${provider}/${encodeURIComponent(key)}?fallback=false&ttl=28d`;
+  return `https://www.atlas-one.co/api/social-avatar/${provider}/${encodeURIComponent(key)}`;
 }
 
 async function instagramProfileImage(profileUrl: string) {
@@ -169,8 +169,10 @@ async function htmlProfileImage(profile: { kind: SocialKind; url: string }) {
 }
 
 async function resolverProfileImage(profile: { kind: SocialKind; url: string }) {
-  const endpoint = resolverProfileImageUrl(profile);
-  if (!endpoint) return null;
+  const key = profileKey(profile);
+  if (!key) return null;
+  const provider = profile.kind === "INSTAGRAM" ? "instagram" : "facebook";
+  const endpoint = `https://unavatar.io/${provider}/${encodeURIComponent(key)}?fallback=false&ttl=28d`;
   const apiKey = process.env.UNAVATAR_API_KEY?.trim();
   try {
     const response = await fetch(endpoint, {
@@ -183,7 +185,7 @@ async function resolverProfileImage(profile: { kind: SocialKind; url: string }) 
     const contentType = response.headers.get("content-type") || "";
     if (!contentType.toLowerCase().startsWith("image/")) return null;
     await response.body?.cancel().catch(() => undefined);
-    return endpoint;
+    return resolverProfileImageUrl(profile);
   } catch {
     return null;
   }
