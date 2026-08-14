@@ -3,6 +3,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { ValueCardIntegrationForm } from "@/components/valuecard-integration-form";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ensureOrganizationIntegrationsTable } from "@/lib/organization-integrations";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ type IntegrationRow = { enabled: number | boolean; credentialsEncrypted: string 
 
 export default async function ValueCardIntegrationPage() {
   const staff = await requirePermission("TEAM_MANAGE");
+  await ensureOrganizationIntegrationsTable();
   const rows = await db.$queryRaw<IntegrationRow[]>`
     SELECT "enabled", "credentialsEncrypted"
     FROM "OrganizationIntegration"
