@@ -1,10 +1,9 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEventAccess } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
-import { reviewOrder } from "@/lib/order-review-service";
-import { sendOrderTicketSms } from "@/lib/order-sms";
+import { enqueueOrderReview, processOrderReviewJobs } from "@/lib/order-review-queue";
 
 const DISMISSED_EXPIRED_NOTE = "__DISMISSED_EXPIRED__";
 const reviewSchema = z.object({ action: z.enum(["approve", "reject"]), note: z.string().max(500).optional() });
@@ -59,29 +58,29 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ public
     if (!target) throw new Error("Заявка не найдена");
     await assertApprovalOrder(target.id);
     const actor = await requireEventAccess("REQUEST_REVIEW", target.eventId);
-    const result = await reviewOrder(publicId, input, actor);
-    if (input.action === "approve" && result.status === "PAID") {
+    const job = await enqueueOrderReview(publicId, input, actor);
+
+    after(async () => {
       try {
-        await sendOrderTicketSms(publicId, { automatic: true });
-      } catch (smsError) {
-        console.error("admin.request.ticket_sms_failed", {
+        await processOrderReviewJobs(3);
+      } catch (error) {
+        console.error("admin.request.background_queue_failed", {
           publicId,
-          message: smsError instanceof Error ? smsError.message : "Unknown SMS error",
+          message: error instanceof Error ? error.message : "Unknown queue error",
         });
-        return NextResponse.json({ ...result, smsSent: false, smsError: smsError instanceof Error ? smsError.message : "Ошибка SMS" });
       }
-      return NextResponse.json({ ...result, smsSent: true });
-    }
-    return NextResponse.json(result);
+    });
+
+    return NextResponse.json({ queued: true, processing: true, jobId: job.id, action: job.action }, { status: 202 });
   } catch (error) {
     const current = await db.order.findUnique({ where: { publicId }, select: { status: true } }).catch(() => null);
-    console.error("admin.request.review_failed", {
+    console.error("admin.request.review_enqueue_failed", {
       publicId,
       message: error instanceof Error ? error.message : "Unknown error",
       status: current?.status || null,
     });
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Ошибка проверки заявки", status: current?.status },
+      { error: error instanceof Error ? error.message : "Ошибка постановки заявки в очередь", status: current?.status },
       { status: error instanceof Error && error.message === "FORBIDDEN" ? 403 : 400 },
     );
   }
