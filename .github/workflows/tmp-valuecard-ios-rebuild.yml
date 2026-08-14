@@ -30,5 +30,16 @@ jobs:
       - name: Install mobile dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Inspect failed EAS build
-        run: npx eas-cli@latest build:view 32243094-9e8a-4532-a1b0-081ca808f135 --json
+      - name: Download failed EAS build log
+        shell: bash
+        run: |
+          npx eas-cli@latest build:view 32243094-9e8a-4532-a1b0-081ca808f135 --json > /tmp/eas-build.json
+          LOG_URL=$(node -e 'const fs=require("fs"); const x=JSON.parse(fs.readFileSync("/tmp/eas-build.json","utf8")); process.stdout.write(x.logFiles?.[0]||"")')
+          if [ -z "$LOG_URL" ]; then
+            echo "No EAS log URL found"
+            cat /tmp/eas-build.json
+            exit 1
+          fi
+          curl -fsSL "$LOG_URL" -o /tmp/eas-build.log
+          echo "===== EAS BUILD LOG ====="
+          cat /tmp/eas-build.log
