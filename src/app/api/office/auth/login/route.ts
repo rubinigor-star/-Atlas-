@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 import {
   authenticateOfficeUser,
   createOfficeCredential,
-  ensureDemoOrganizerPlatform,
   ensureOfficeAuthTable,
   officeSessionCookie,
   verifyOfficePassword,
@@ -25,6 +24,14 @@ async function bootstrapPlatformOwner(email: string, password: string) {
   await createOfficeCredential(user.id, password, true);
 }
 
+function logAuthResult(email: string, result: Awaited<ReturnType<typeof authenticateOfficeUser>>) {
+  if (result.ok) {
+    console.info("[office-auth] LOGIN_SUCCESS", { email, userId: result.user.id, role: result.user.role });
+    return;
+  }
+  console.warn("[office-auth] LOGIN_FAILED", { email, reason: result.error });
+}
+
 export async function POST(request: Request) {
   const form = await request.formData();
   const email = String(form.get("email") || "").trim().toLowerCase();
@@ -36,8 +43,9 @@ export async function POST(request: Request) {
     result = await authenticateOfficeUser(email, password);
   }
 
+  logAuthResult(email, result);
+
   if (!result.ok) return NextResponse.redirect(new URL(`/office/login?error=${result.error}`, request.url), 303);
-  if (result.user.role === "ADMIN") await ensureDemoOrganizerPlatform();
 
   const response = NextResponse.redirect(new URL(result.user.role === "ADMIN" ? "/platform" : "/office", request.url), 303);
   response.cookies.set(officeSessionCookie, createOfficeSessionToken(result.user.id), {
