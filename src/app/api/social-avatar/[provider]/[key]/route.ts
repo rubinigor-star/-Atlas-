@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
+import chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
 
 const PROVIDERS = new Set(["instagram", "facebook"]);
 const KEY_RE = /^[a-zA-Z0-9._-]{1,100}$/;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1";
 
@@ -106,6 +109,48 @@ async function facebookImageUrl(key: string) {
   return null;
 }
 
+async function headlessProfileImageUrl(provider: string, key: string) {
+  const profileUrl = provider === "instagram"
+    ? `https://www.instagram.com/${encodeURIComponent(key)}/`
+    : `https://www.facebook.com/${encodeURIComponent(key)}`;
+  let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
+  try {
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+      defaultViewport: { width: 1180, height: 900 },
+    });
+    const page = await browser.newPage();
+    await page.setUserAgent(UA);
+    await page.setExtraHTTPHeaders({ "accept-language": "en-US,en;q=0.8" });
+    await page.goto(profileUrl, { waitUntil: "domcontentloaded", timeout: 12000 });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    const imageUrl = await page.evaluate(() => {
+      const meta = document.querySelector('meta[property="og:image"]')?.getAttribute("content")
+        || document.querySelector('meta[name="twitter:image"]')?.getAttribute("content");
+      if (meta) return meta;
+      const images = Array.from(document.querySelectorAll("img"));
+      const profile = images.find((img) => {
+        const alt = (img.getAttribute("alt") || "").toLowerCase();
+        const src = img.getAttribute("src") || "";
+        return Boolean(src) && (alt.includes("profile") || alt.includes("picture") || alt.includes("photo"));
+      });
+      return profile?.getAttribute("src") || null;
+    });
+    return imageUrl;
+  } catch (error) {
+    console.info("social_avatar_proxy.headless_failed", {
+      provider,
+      key,
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+    return null;
+  } finally {
+    if (browser) await browser.close().catch(() => undefined);
+  }
+}
+
 function failure(status = 404) {
   return new NextResponse(null, {
     status,
@@ -113,6 +158,19 @@ function failure(status = 404) {
       "Cache-Control": "private, no-store, max-age=0",
       "CDN-Cache-Control": "no-store",
       "Vercel-CDN-Cache-Control": "no-store",
+    },
+  });
+}
+
+function imageResponse(image: { buffer: ArrayBuffer; contentType: string }, source: string) {
+  return new NextResponse(image.buffer, {
+    status: 200,
+    headers: {
+      "Content-Type": image.contentType,
+      "Content-Length": String(image.buffer.byteLength),
+      "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600",
+      "X-Content-Type-Options": "nosniff",
+      "X-Atlas-Avatar-Source": source,
     },
   });
 }
@@ -136,35 +194,25 @@ export async function GET(
 
     if (directUrl) {
       const directImage = await fetchImageBinary(directUrl, normalizedProvider === "instagram" ? { referer: `https://www.instagram.com/${normalizedKey}/` } : undefined).catch(() => null);
-      if (directImage) {
-        return new NextResponse(directImage.buffer, {
-          status: 200,
-          headers: {
-            "Content-Type": directImage.contentType,
-            "Content-Length": String(directImage.buffer.byteLength),
-            "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600",
-            "X-Content-Type-Options": "nosniff",
-            "X-Atlas-Avatar-Source": "direct",
-          },
-        });
-      }
+      if (directImage) return imageResponse(directImage, "direct");
+      console.info("social_avatar_proxy.direct_binary_failed", { provider: normalizedProvider, key: normalizedKey });
+    } else {
+      console.info("social_avatar_proxy.direct_url_missing", { provider: normalizedProvider, key: normalizedKey });
+    }
+
+    const headlessUrl = await headlessProfileImageUrl(normalizedProvider, normalizedKey);
+    if (headlessUrl) {
+      const headlessImage = await fetchImageBinary(headlessUrl, normalizedProvider === "instagram" ? { referer: `https://www.instagram.com/${normalizedKey}/` } : undefined).catch(() => null);
+      if (headlessImage) return imageResponse(headlessImage, "headless");
+      console.info("social_avatar_proxy.headless_binary_failed", { provider: normalizedProvider, key: normalizedKey });
+    } else {
+      console.info("social_avatar_proxy.headless_url_missing", { provider: normalizedProvider, key: normalizedKey });
     }
 
     const upstream = `https://unavatar.io/${normalizedProvider}/${encodeURIComponent(normalizedKey)}?fallback=false&ttl=28d`;
     const apiKey = process.env.UNAVATAR_API_KEY?.trim();
-    const fallbackImage = await fetchImageBinary(upstream, apiKey ? { "x-api-key": apiKey } : undefined).catch(() => null);
-    if (fallbackImage) {
-      return new NextResponse(fallbackImage.buffer, {
-        status: 200,
-        headers: {
-          "Content-Type": fallbackImage.contentType,
-          "Content-Length": String(fallbackImage.buffer.byteLength),
-          "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600",
-          "X-Content-Type-Options": "nosniff",
-          "X-Atlas-Avatar-Source": "resolver",
-        },
-      });
-    }
+    const resolverImage = await fetchImageBinary(upstream, apiKey ? { "x-api-key": apiKey } : undefined).catch(() => null);
+    if (resolverImage) return imageResponse(resolverImage, "resolver");
 
     console.info("social_avatar_proxy.not_found", { provider: normalizedProvider, key: normalizedKey });
     return failure(404);
