@@ -153,6 +153,8 @@ function whatsapp(phone: string, message: string) {
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
 
+const VALUECARD_ICON = "https://is1-ssl.mzstatic.com/image/thumb/Purple123/v4/e0/05/7e/e0057e34-5731-89c7-dd6e-30500855432e/AppIcon-0-0-1x_U007emarketing-0-0-0-5-0-85-220.png/1200x630wa.jpg";
+
 export function RequestInbox({ initialRequests, compact = false }: { initialRequests: RequestRecord[]; compact?: boolean }) {
   const { locale } = useLocale();
   const text = copy[locale];
@@ -237,7 +239,7 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
         return <article className="request-card" key={item.id} style={item.inactive ? {opacity:.78,borderStyle:"dashed"} : undefined}>
           <header>
             <div className="request-avatar" style={{overflow:"hidden"}}>{item.profileImageUrl ? <img src={item.profileImageUrl} alt="" referrerPolicy="no-referrer" style={{width:"100%",height:"100%",objectFit:"cover"}} /> : item.customerName.split(" ").map((part) => part[0]).slice(0,2).join("")}</div>
-            <div><div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}><strong>{item.customerName}</strong>{item.valueCardMember && <span title="ValueCard member" aria-label="ValueCard member" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:28,height:20,padding:"0 6px",borderRadius:6,background:"#111827",color:"white",fontSize:10,fontWeight:800,letterSpacing:.4}}>VC</span>}</div><a href={`tel:${item.customerPhone}`}>{item.customerPhone}</a><div style={{display:"flex",gap:8,marginTop:5,flexWrap:"wrap"}}>{item.instagram && <a href={item.instagram} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#C13584"}}>Instagram</a>}{item.facebook && <a href={item.facebook} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#1877F2"}}>Facebook</a>}</div></div>
+            <div><div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}><strong>{item.customerName}</strong>{item.valueCardMember && <img src={VALUECARD_ICON} alt="ValueCard member" title="ValueCard member" referrerPolicy="no-referrer" style={{width:24,height:24,borderRadius:6,objectFit:"cover",objectPosition:"center"}} />}</div><a href={`tel:${item.customerPhone}`}>{item.customerPhone}</a><div style={{display:"flex",gap:8,marginTop:5,flexWrap:"wrap"}}>{item.instagram && <a href={item.instagram} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#C13584"}}>Instagram</a>}{item.facebook && <a href={item.facebook} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#1877F2"}}>Facebook</a>}</div></div>
             <span className="request-status" style={{background:meta.background,color:meta.color}}>{meta.label}</span>
           </header>
           {item.paymentRecovery && <div className="toast" style={{background:"#fff8e8",color:"#8a5a00",marginBottom:12}}>Atlas пометил заказ оплаченным до подтверждения HYP. Билет не должен считаться завершённым, пока HYP не подтвердит списание.</div>}
