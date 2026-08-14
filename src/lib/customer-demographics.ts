@@ -25,6 +25,14 @@ export async function getOrderDemographics(orderId:string){
   return rows[0]??null;
 }
 
+export async function getOrderDemographicsForOrders(orderIds:string[]){
+  await ensureCustomerDemographicsRuntime();
+  if(!orderIds.length)return new Map<string,OrderDemographics>();
+  const placeholders=orderIds.map((_,index)=>`$${index+1}`).join(",");
+  const rows=await db.$queryRawUnsafe<OrderDemographics[]>(`SELECT "orderId","gender","birthDate" FROM "OrderDemographics" WHERE "orderId" IN (${placeholders})`,...orderIds);
+  return new Map(rows.map((row)=>[row.orderId,row]));
+}
+
 export async function getAllOrderDemographics(){
   await ensureCustomerDemographicsRuntime();
   return db.$queryRawUnsafe<OrderDemographics[]>(`SELECT "orderId","gender","birthDate" FROM "OrderDemographics"`);
