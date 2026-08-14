@@ -107,7 +107,7 @@ export async function ensureDemoOrganizerPlatform(){
   if(!organization)organization=await db.organization.create({data:{name:DEMO_ORGANIZATION_NAME}});
   const temporaryPassword=`Atlas-${createHmac("sha256",authSecret()).update(`demo-organizer:${organization.id}`).digest("hex").slice(0,10)}!`;
   const demoUser=await db.user.upsert({where:{email:DEMO_ORGANIZER_EMAIL},update:{name:"Demo Organizer",role:"ORGANIZER",staffRole:"OWNER",jobTitle:"Organization Owner",active:true,organizationId:organization.id},create:{name:"Demo Organizer",email:DEMO_ORGANIZER_EMAIL,role:"ORGANIZER",staffRole:"OWNER",jobTitle:"Organization Owner",active:true,organizationId:organization.id},include:{organization:true}});
-  const credential=await credentialForUser(demoUser.id);if(!credential||!verifyOfficePassword(temporaryPassword,credential.passwordHash))await createOfficeCredential(demoUser.id,temporaryPassword,true);
+  const credential=await credentialForUser(demoUser.id);if(!credential)await createOfficeCredential(demoUser.id,temporaryPassword,true);
   for(const permission of rolePermissions.OWNER){await db.permissionGrant.upsert({where:{userId_permission:{userId:demoUser.id,permission}},update:{},create:{userId:demoUser.id,permission}});}
   return{organization,user:demoUser,email:DEMO_ORGANIZER_EMAIL,temporaryPassword,eventCount:await db.event.count({where:{organizationId:organization.id}})};
 }
