@@ -18,8 +18,6 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: integration/mobile-event-editor-aligned-20260809
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -27,3 +25,4 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Inspect latest EAS build
         run: npx eas-cli@latest build:view d401bd08-626f-4525-ba64-5f83770b609e --json
+      # status recheck 2026-08-14T20:29Z
