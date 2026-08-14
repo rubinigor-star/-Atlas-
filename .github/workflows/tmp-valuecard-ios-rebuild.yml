@@ -1,0 +1,55 @@
+name: ValueCard iOS Rebuild
+
+on:
+  push:
+    branches:
+      - integration/mobile-event-editor-aligned-20260809
+    paths:
+      - ".github/workflows/tmp-valuecard-ios-rebuild.yml"
+
+jobs:
+  eas-ios-build:
+    runs-on: ubuntu-latest
+    environment: Production
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: integration/mobile-event-editor-aligned-20260809
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies and generate lock
+        run: npm install --no-audit --no-fund
+
+      - name: Verify dependency tree
+        run: npm ls react react-dom expo expo-router
+
+      - name: Expo dependency check
+        run: npx expo install --check
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Verify Expo token
+        shell: bash
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN is unavailable in the Production environment."
+            exit 2
+          fi
+          echo "EXPO_TOKEN is configured."
+
+      - name: Verify EAS project binding
+        run: npx eas-cli@latest project:info
+
+      - name: Start internal iOS build
+        run: npx eas-cli@latest build --platform ios --profile preview --non-interactive --no-wait
