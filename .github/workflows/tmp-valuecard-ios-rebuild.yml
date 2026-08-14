@@ -31,34 +31,37 @@ jobs:
         with:
           node-version: 20
 
-      - name: Restore and normalize app icon
+      - name: Restore valid Atlas app icon from history
         shell: bash
         run: |
-          node -e 'const fs=require("fs"); let s=fs.readFileSync("assets/atlas-one-app-icon.png.base64","utf8").trim(); s=s.replace(/^data:image\/png;base64,/, "").replace(/[^A-Za-z0-9+/=]/g, ""); fs.writeFileSync("/tmp/atlas-icon-source.png", Buffer.from(s,"base64"));'
+          git show 91a56b8299b54d5f621150fff810652e98bb863f:mobile/assets/atlas-one-app-icon.png.base64 > /tmp/atlas-icon-valid.b64
+          node -e 'const fs=require("fs"); const s=fs.readFileSync("/tmp/atlas-icon-valid.b64","utf8").replace(/\s+/g,""); fs.writeFileSync("/tmp/atlas-icon-source.png", Buffer.from(s,"base64"));'
           python -m pip install --quiet Pillow
           python - <<'PY'
           from PIL import Image
           src = Image.open('/tmp/atlas-icon-source.png')
           src.load()
           img = src.convert('RGBA')
+          if img.size != (1024, 1024):
+              img = img.resize((1024, 1024), Image.Resampling.LANCZOS)
           img.save('assets/atlas-one-app-icon.png', format='PNG', optimize=False, compress_level=6)
           check = Image.open('assets/atlas-one-app-icon.png')
           check.verify()
-          print('Normalized icon:', img.size, img.mode)
+          print('Restored valid Atlas icon:', img.size, img.mode)
           PY
           file assets/atlas-one-app-icon.png
           test -s assets/atlas-one-app-icon.png
 
-      - name: Commit normalized app icon
+      - name: Commit valid app icon
         shell: bash
         run: |
           if git diff --quiet -- assets/atlas-one-app-icon.png; then
-            echo "Normalized app icon already committed"
+            echo "Valid app icon already committed"
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add assets/atlas-one-app-icon.png
-            git commit -m "Normalize Atlas mobile app icon"
+            git commit -m "Restore valid Atlas mobile app icon"
             git push origin HEAD:integration/mobile-event-editor-aligned-20260809
           fi
 
