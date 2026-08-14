@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, Clock3, Search, Trash2, UserRoundCheck, X } from "lucide-react";
+import { Check, Clock3, Search, Trash2, UserRound, UserRoundCheck, X } from "lucide-react";
 import { money } from "@/lib/format";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
 import { useLocale, type Locale } from "@/components/locale-provider";
 
 type RequestItem = { name: string; quantity: number };
+type CustomerGender = "MALE" | "FEMALE";
 export type RequestRecord = {
   id: string;
   publicId: string;
@@ -15,12 +16,11 @@ export type RequestRecord = {
   customerEmail: string;
   customerPhone: string;
   valueCardMember?: boolean;
+  genders?: CustomerGender[];
   birthDate: string | null;
   city: string | null;
   facebook: string | null;
   instagram: string | null;
-  profileImageUrl?: string | null;
-  profileImageSource?: "INSTAGRAM" | "FACEBOOK" | null;
   guestStatus: string | null;
   previousOrders: number;
   previousVisits: number;
@@ -45,13 +45,8 @@ type Copy = {
   approveNote: string;
   rejectNote: string;
   processError: string;
-  approveSuccess: string;
-  approveEmailError: string;
-  rejectSuccess: string;
-  rejectEmailError: string;
   recoveryStatus: string;
   recoveryAction: string;
-  recoverySuccess: string;
   dismissConfirm: string;
   dismissError: string;
   dismissed: string;
@@ -87,9 +82,7 @@ const copy: Record<Locale, Copy> = {
     filters: { PENDING_APPROVAL:"Ожидают", AWAITING_PAYMENT:"Одобрены", PAID:"Оплачены", REJECTED:"Отклонены", CANCELLED:"Отменены", all:"Все" },
     expiredError:"Срок действия заявки истёк. Её больше нельзя одобрить или отклонить - удалите её из очереди.",
     approveNote:"Одобрено в Atlas Office", rejectNote:"Заявка отклонена организатором", processError:"Не удалось обработать заявку",
-    approveSuccess:"Заявка одобрена, оплата завершена, билеты и email отправлены клиенту.", approveEmailError:"Заявка одобрена, но email не отправлен",
-    rejectSuccess:"Заявка отклонена, уведомление отправлено клиенту.", rejectEmailError:"Заявка отклонена, но email не отправлен",
-    recoveryStatus:"Требуется завершить списание", recoveryAction:"Завершить списание", recoverySuccess:"Списание HYP завершено. Билет и email обработаны.",
+    recoveryStatus:"Требуется завершить списание", recoveryAction:"Завершить списание",
     dismissConfirm:"Удалить эту неактивную заявку из очереди? Она останется в журнале действий, но больше не будет отображаться в списке.", dismissError:"Не удалось удалить заявку из очереди", dismissed:"Неактивная заявка удалена из очереди.",
     search:"Имя, телефон, город, мероприятие или статус", inactive:"Неактивна · срок истёк", expiredNotice:(date)=>`Срок резерва истёк ${date}. Места и авторизация оплаты освобождены. Заявку больше нельзя одобрить.`,
     years:"лет", cityMissing:"Город не указан", previous:(orders,visits)=>`Заказов ранее: ${orders} · посещений: ${visits}`, instagramMissing:"Instagram не указан", facebookMissing:"Facebook не указан", customerAnswer:"Ответ клиента", received:"Получена",
@@ -101,9 +94,7 @@ const copy: Record<Locale, Copy> = {
     filters: { PENDING_APPROVAL:"ממתינות לבדיקה", AWAITING_PAYMENT:"אושרו", PAID:"שולמו", REJECTED:"לא אושרו", CANCELLED:"בוטלו", all:"הכול" },
     expiredError:"תוקף הבקשה פג. לא ניתן עוד לאשר או לדחות אותה - אפשר להסיר אותה מהתור.",
     approveNote:"הבקשה אושרה באזור המפיקים", rejectNote:"הבקשה לא אושרה על ידי המפיק", processError:"לא ניתן לעדכן את הבקשה",
-    approveSuccess:"הבקשה אושרה, התשלום הושלם והכרטיסים נשלחו ללקוח במייל.", approveEmailError:"הבקשה אושרה, אך המייל לא נשלח",
-    rejectSuccess:"הבקשה לא אושרה והודעה נשלחה ללקוח.", rejectEmailError:"הבקשה לא אושרה, אך המייל לא נשלח",
-    recoveryStatus:"נדרש להשלים את החיוב", recoveryAction:"השלמת החיוב", recoverySuccess:"החיוב ב-HYP הושלם והכרטיס טופל.",
+    recoveryStatus:"נדרש להשלים את החיוב", recoveryAction:"השלמת החיוב",
     dismissConfirm:"להסיר את הבקשה הלא פעילה מהתור? היא תישאר ביומן הפעילות אך לא תופיע עוד ברשימה.", dismissError:"לא ניתן להסיר את הבקשה מהתור", dismissed:"הבקשה הלא פעילה הוסרה מהתור.",
     search:"שם, טלפון, עיר, אירוע או סטטוס", inactive:"לא פעילה · התוקף פג", expiredNotice:(date)=>`תוקף השריון פג ב־${date}. המקומות ואישור התשלום שוחררו, ולא ניתן עוד לאשר את הבקשה.`,
     years:"שנים", cityMissing:"העיר לא צוינה", previous:(orders,visits)=>`הזמנות קודמות: ${orders} · ביקורים: ${visits}`, instagramMissing:"לא צוין Instagram", facebookMissing:"לא צוין Facebook", customerAnswer:"תשובת הלקוח", received:"התקבלה",
@@ -115,9 +106,7 @@ const copy: Record<Locale, Copy> = {
     filters: { PENDING_APPROVAL:"Pending", AWAITING_PAYMENT:"Approved", PAID:"Paid", REJECTED:"Not approved", CANCELLED:"Cancelled", all:"All" },
     expiredError:"This request has expired and can no longer be approved or declined. Remove it from the queue instead.",
     approveNote:"Approved in Atlas Office", rejectNote:"Request declined by the organizer", processError:"Could not update the request",
-    approveSuccess:"Request approved, payment completed, and tickets emailed to the customer.", approveEmailError:"Request approved, but the email was not sent",
-    rejectSuccess:"Request declined and the customer was notified.", rejectEmailError:"Request declined, but the email was not sent",
-    recoveryStatus:"Payment capture required", recoveryAction:"Complete payment capture", recoverySuccess:"HYP capture completed. Ticket and email were processed.",
+    recoveryStatus:"Payment capture required", recoveryAction:"Complete payment capture",
     dismissConfirm:"Remove this inactive request from the queue? It will remain in the activity log but will no longer appear here.", dismissError:"Could not remove the request from the queue", dismissed:"Inactive request removed from the queue.",
     search:"Name, phone, city, event, or status", inactive:"Inactive · expired", expiredNotice:(date)=>`The reservation expired on ${date}. Seats and payment authorization were released, and the request can no longer be approved.`,
     years:"years old", cityMissing:"City not provided", previous:(orders,visits)=>`Previous orders: ${orders} · visits: ${visits}`, instagramMissing:"Instagram not provided", facebookMissing:"Facebook not provided", customerAnswer:"Customer response", received:"Received",
@@ -146,14 +135,18 @@ function age(value: string | null) {
 }
 
 function dateLocale(locale: Locale) { return locale === "he" ? "he-IL" : locale === "en" ? "en-IL" : "ru-IL"; }
+function whatsapp(phone: string, message: string) { let digits=phone.replace(/\D/g,""); if(digits.startsWith("0"))digits=`972${digits.slice(1)}`; return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`; }
 
-function whatsapp(phone: string, message: string) {
-  let digits = phone.replace(/\D/g, "");
-  if (digits.startsWith("0")) digits = `972${digits.slice(1)}`;
-  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+function GenderIcons({genders}:{genders?:CustomerGender[]}) {
+  const unique=[...new Set(genders||[])].filter((value):value is CustomerGender=>value==="MALE"||value==="FEMALE").slice(0,2);
+  return <div className="request-avatar" aria-label={unique.join(", ")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:2}}>
+    {unique.includes("MALE")&&<UserRound size={20} aria-label="Мужчина"/>}
+    {unique.includes("FEMALE")&&<UserRoundCheck size={20} aria-label="Женщина"/>}
+    {!unique.length&&<UserRound size={20} aria-label="Гость"/>}
+  </div>;
 }
 
-const VALUECARD_ICON = "https://is1-ssl.mzstatic.com/image/thumb/Purple123/v4/e0/05/7e/e0057e34-5731-89c7-dd6e-30500855432e/AppIcon-0-0-1x_U007emarketing-0-0-0-5-0-85-220.png/1200x630wa.jpg";
+function ValueCardMark(){return <img src="/branding/valuecard-mark.svg" alt="ValueCard member" title="ValueCard member" style={{width:22,height:22,objectFit:"contain",display:"block"}}/>;}
 
 export function RequestInbox({ initialRequests, compact = false }: { initialRequests: RequestRecord[]; compact?: boolean }) {
   const { locale } = useLocale();
@@ -169,92 +162,60 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
   const counts = Object.fromEntries(["PENDING_APPROVAL", "AWAITING_PAYMENT", "PAID", "REJECTED", "CANCELLED"].map((status) => [status, requests.filter((item) => item.status === status).length]));
   const visible = useMemo(() => requests.filter((item) => (filter === "all" || item.status === filter) && `${item.customerName} ${item.customerPhone} ${item.eventTitle} ${item.city || ""} ${item.status}`.toLowerCase().includes(query.toLowerCase())).slice(0, compact ? 5 : 999), [requests, filter, query, compact]);
 
-  function markProcessing(id: string, active: boolean) {
-    setProcessing((current) => {
-      const next = new Set(current);
-      if (active) next.add(id); else next.delete(id);
-      return next;
-    });
-  }
+  function markProcessing(id: string, active: boolean) { setProcessing((current)=>{const next=new Set(current);if(active)next.add(id);else next.delete(id);return next;}); }
 
   async function decide(item: RequestRecord, action: "approve" | "reject") {
     if (item.inactive) { setError(text.expiredError); return; }
     if (processing.has(item.id)) return;
-
-    const original = item;
-    markProcessing(item.id, true);
-    setError("");
-    setNotice("");
-    setRequests((current) => current.map((record) => record.id === item.id
-      ? { ...record, status: action === "approve" ? "PROCESSING_APPROVE" : "PROCESSING_REJECT" }
-      : record));
-
+    const original=item; markProcessing(item.id,true); setError(""); setNotice("");
+    setRequests((current)=>current.map((record)=>record.id===item.id?{...record,status:action==="approve"?"PROCESSING_APPROVE":"PROCESSING_REJECT"}:record));
     try {
-      const response = await fetch(`/api/admin/orders/${item.publicId}`, { method:"PATCH", headers:{"content-type":"application/json"}, body:JSON.stringify({ action, note:action === "approve" ? text.approveNote : text.rejectNote }) });
-      const data = await response.json();
-      if (!response.ok) {
-        setRequests((current) => current.map((record) => record.id === item.id ? { ...original, status: data.status || original.status } : record));
-        setError(`${item.customerName}: ${data.error || text.processError}`);
-        return;
-      }
-      setRequests((current) => current.map((record) => record.id === item.id ? { ...record, status:data.status, paymentRecovery:false, inactive:false } : record));
-    } catch (requestError) {
-      setRequests((current) => current.map((record) => record.id === item.id ? original : record));
-      setError(`${item.customerName}: ${requestError instanceof Error ? requestError.message : text.processError}`);
-    } finally {
-      markProcessing(item.id, false);
-    }
+      const response=await fetch(`/api/admin/orders/${item.publicId}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({action,note:action==="approve"?text.approveNote:text.rejectNote})});
+      const data=await response.json();
+      if(!response.ok){setRequests((current)=>current.map((record)=>record.id===item.id?{...original,status:data.status||original.status}:record));setError(`${item.customerName}: ${data.error||text.processError}`);return;}
+      setRequests((current)=>current.map((record)=>record.id===item.id?{...record,status:data.status,paymentRecovery:false,inactive:false}:record));
+    } catch(requestError) {
+      setRequests((current)=>current.map((record)=>record.id===item.id?original:record)); setError(`${item.customerName}: ${requestError instanceof Error?requestError.message:text.processError}`);
+    } finally { markProcessing(item.id,false); }
   }
 
   async function dismiss(item: RequestRecord) {
-    if (!window.confirm(text.dismissConfirm)) return;
-    setBusy(item.id); setError(""); setNotice("");
-    const response = await fetch(`/api/admin/orders/${item.publicId}`, { method:"DELETE" });
-    const data = await response.json();
-    if (!response.ok) { setError(data.error || text.dismissError); setBusy(""); return; }
-    setRequests((current) => current.filter((record) => record.id !== item.id)); setNotice(text.dismissed); setBusy("");
+    if(!window.confirm(text.dismissConfirm))return; setBusy(item.id);setError("");setNotice("");
+    const response=await fetch(`/api/admin/orders/${item.publicId}`,{method:"DELETE"}); const data=await response.json();
+    if(!response.ok){setError(data.error||text.dismissError);setBusy("");return;} setRequests((current)=>current.filter((record)=>record.id!==item.id));setNotice(text.dismissed);setBusy("");
   }
 
-  const filters: Array<[QueueFilter, string]> = (["PENDING_APPROVAL", "AWAITING_PAYMENT", "PAID", "REJECTED", "CANCELLED", "all"] as QueueFilter[]).map((key) => [key, text.filters[key]]);
+  const filters:Array<[QueueFilter,string]>=(["PENDING_APPROVAL","AWAITING_PAYMENT","PAID","REJECTED","CANCELLED","all"] as QueueFilter[]).map((key)=>[key,text.filters[key]]);
 
   return <>
-    <div className="request-kpis">{filters.map(([key,label]) => <button key={key} className={filter === key ? "active" : ""} onClick={() => setFilter(key)}><Clock3/><span>{label}</span><strong>{key === "all" ? requests.length : counts[key] || 0}</strong></button>)}</div>
-    <div className="request-toolbar"><label><Search size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={text.search}/></label></div>
-    {error && <div className="toast" style={{background:"#fff1f0",color:"#b42318"}}>{error}</div>}
-    {notice && <div className="toast" style={{background:"#ecfdf3",color:"#166534"}}>{notice}</div>}
+    <div className="request-kpis">{filters.map(([key,label])=><button key={key} className={filter===key?"active":""} onClick={()=>setFilter(key)}><Clock3/><span>{label}</span><strong>{key==="all"?requests.length:counts[key]||0}</strong></button>)}</div>
+    <div className="request-toolbar"><label><Search size={17}/><input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder={text.search}/></label></div>
+    {error&&<div className="toast" style={{background:"#fff1f0",color:"#b42318"}}>{error}</div>}
+    {notice&&<div className="toast" style={{background:"#ecfdf3",color:"#166534"}}>{notice}</div>}
     <div className="request-grid">
-      {visible.map((item) => {
-        const isProcessing = processing.has(item.id);
-        const color = statusColors[item.status] || { background:"#e5e7eb", color:"#111827" };
-        const meta = item.status === "PROCESSING_APPROVE"
-          ? { label:text.processing, background:"#ecfdf3", color:"#166534" }
-          : item.status === "PROCESSING_REJECT"
-            ? { label:text.processing, background:"#fff1f0", color:"#b42318" }
-            : item.paymentRecovery
-              ? { label:text.recoveryStatus, background:"#fff4cc", color:"#8a5a00" }
-              : item.inactive
-                ? { label:text.inactive, background:"#f3f4f6", color:"#6b7280" }
-                : { label:text.statuses[item.status] || item.status, ...color };
-        const customerAge = age(item.birthDate);
-        return <article className="request-card" key={item.id} style={item.inactive ? {opacity:.78,borderStyle:"dashed"} : undefined}>
+      {visible.map((item)=>{
+        const isProcessing=processing.has(item.id); const color=statusColors[item.status]||{background:"#e5e7eb",color:"#111827"};
+        const meta=item.status==="PROCESSING_APPROVE"?{label:text.processing,background:"#ecfdf3",color:"#166534"}:item.status==="PROCESSING_REJECT"?{label:text.processing,background:"#fff1f0",color:"#b42318"}:item.paymentRecovery?{label:text.recoveryStatus,background:"#fff4cc",color:"#8a5a00"}:item.inactive?{label:text.inactive,background:"#f3f4f6",color:"#6b7280"}:{label:text.statuses[item.status]||item.status,...color};
+        const customerAge=age(item.birthDate);
+        return <article className="request-card" key={item.id} style={item.inactive?{opacity:.78,borderStyle:"dashed"}:undefined}>
           <header>
-            <div className="request-avatar" style={{overflow:"hidden"}}>{item.profileImageUrl ? <img src={item.profileImageUrl} alt="" referrerPolicy="no-referrer" style={{width:"100%",height:"100%",objectFit:"cover"}} /> : item.customerName.split(" ").map((part) => part[0]).slice(0,2).join("")}</div>
-            <div><div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}><strong>{item.customerName}</strong>{item.valueCardMember && <img src={VALUECARD_ICON} alt="ValueCard member" title="ValueCard member" referrerPolicy="no-referrer" style={{width:24,height:24,borderRadius:6,objectFit:"cover",objectPosition:"center"}} />}</div><a href={`tel:${item.customerPhone}`}>{item.customerPhone}</a><div style={{display:"flex",gap:8,marginTop:5,flexWrap:"wrap"}}>{item.instagram && <a href={item.instagram} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#C13584"}}>Instagram</a>}{item.facebook && <a href={item.facebook} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#1877F2"}}>Facebook</a>}</div></div>
+            <GenderIcons genders={item.genders}/>
+            <div><div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}><strong>{item.customerName}</strong>{item.valueCardMember&&<ValueCardMark/>}</div><a href={`tel:${item.customerPhone}`}>{item.customerPhone}</a><div style={{display:"flex",gap:8,marginTop:5,flexWrap:"wrap"}}>{item.instagram&&<a href={item.instagram} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#C13584"}}>Instagram</a>}{item.facebook&&<a href={item.facebook} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#1877F2"}}>Facebook</a>}</div></div>
             <span className="request-status" style={{background:meta.background,color:meta.color}}>{meta.label}</span>
           </header>
-          {item.paymentRecovery && <div className="toast" style={{background:"#fff8e8",color:"#8a5a00",marginBottom:12}}>Atlas пометил заказ оплаченным до подтверждения HYP. Билет не должен считаться завершённым, пока HYP не подтвердит списание.</div>}
-          {item.inactive && <div className="toast" style={{background:"#f8fafc",color:"#475569",marginBottom:12}}>{text.expiredNotice(new Date(item.expiresAt).toLocaleString(dateLocale(locale)))}</div>}
-          <div className="request-event"><small>{item.eventTitle}</small><strong>{item.items.map((ticket) => `${ticket.name} × ${ticket.quantity}`).join(", ")}</strong><span>{money(item.totalMinor)}</span></div>
-          {!compact && <div className="panel" style={{background:"#f8fafc"}}><strong>{item.guestStatus || "REGULAR"}</strong><p className="muted">{customerAge !== null ? `${customerAge} ${text.years} · ` : ""}{item.city || text.cityMissing}</p><p className="muted">{text.previous(item.previousOrders,item.previousVisits)}</p><p className="muted">{item.instagram ? <a href={item.instagram} target="_blank" rel="noreferrer">Instagram</a> : text.instagramMissing} · {item.facebook ? <a href={item.facebook} target="_blank" rel="noreferrer">Facebook</a> : text.facebookMissing}</p></div>}
-          {item.answer && <blockquote><small>{text.customerAnswer}</small>{item.answer}</blockquote>}
+          {item.paymentRecovery&&<div className="toast" style={{background:"#fff8e8",color:"#8a5a00",marginBottom:12}}>Atlas пометил заказ оплаченным до подтверждения HYP. Билет не должен считаться завершённым, пока HYP не подтвердит списание.</div>}
+          {item.inactive&&<div className="toast" style={{background:"#f8fafc",color:"#475569",marginBottom:12}}>{text.expiredNotice(new Date(item.expiresAt).toLocaleString(dateLocale(locale)))}</div>}
+          <div className="request-event"><small>{item.eventTitle}</small><strong>{item.items.map((ticket)=>`${ticket.name} × ${ticket.quantity}`).join(", ")}</strong><span>{money(item.totalMinor)}</span></div>
+          {!compact&&<div className="panel" style={{background:"#f8fafc"}}><strong>{item.guestStatus||"REGULAR"}</strong><p className="muted">{customerAge!==null?`${customerAge} ${text.years} · `:""}{item.city||text.cityMissing}</p><p className="muted">{text.previous(item.previousOrders,item.previousVisits)}</p><p className="muted">{item.instagram?<a href={item.instagram} target="_blank" rel="noreferrer">Instagram</a>:text.instagramMissing} · {item.facebook?<a href={item.facebook} target="_blank" rel="noreferrer">Facebook</a>:text.facebookMissing}</p></div>}
+          {item.answer&&<blockquote><small>{text.customerAnswer}</small>{item.answer}</blockquote>}
           <footer><small>{text.received} {new Date(item.createdAt).toLocaleString(dateLocale(locale))}</small><div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}><a className="btn secondary" style={{color:"#128C7E"}} target="_blank" rel="noreferrer" href={whatsapp(item.customerPhone,text.whatsappMessage(item.customerName,item.eventTitle))} aria-label={text.whatsappLabel(item.customerName)}><WhatsAppIcon size={18}/> WhatsApp</a><Link className="btn secondary" href={`/office/orders/${item.publicId}?returnTo=${encodeURIComponent("/office/requests")}`}>{text.details}</Link></div></footer>
-          {item.paymentRecovery && !item.inactive && <div className="request-actions"><button disabled={isProcessing} className="approve" onClick={() => void decide(item,"approve")}><Check size={18}/>{isProcessing ? text.processing : text.recoveryAction}</button></div>}
-          {item.status === "PENDING_APPROVAL" && !item.paymentRecovery && !item.inactive && <div className="request-actions"><select aria-label={text.changeStatus(item.customerName)} defaultValue="" disabled={isProcessing} onChange={(event) => { const value = event.target.value; event.target.value = ""; if (value === "approve") void decide(item,"approve"); if (value === "reject") void decide(item,"reject"); }}><option value="" disabled>{isProcessing ? text.processing : text.changeStatusPlaceholder}</option><option value="approve">{text.approveFull}</option><option value="reject">{text.reject}</option></select><button disabled={isProcessing} className="approve" onClick={() => void decide(item,"approve")}><Check size={18}/>{isProcessing ? text.processing : text.approve}</button><button disabled={isProcessing} className="reject" onClick={() => void decide(item,"reject")}><X size={18}/>{text.reject}</button></div>}
-          {(item.inactive || item.status === "CANCELLED" || item.status === "REJECTED") && !compact && <div className="request-actions"><button disabled={busy === item.id} className="reject" onClick={() => void dismiss(item)}><Trash2 size={18}/>{busy === item.id ? text.deleting : text.remove}</button></div>}
+          {item.paymentRecovery&&!item.inactive&&<div className="request-actions"><button disabled={isProcessing} className="approve" onClick={()=>void decide(item,"approve")}><Check size={18}/>{isProcessing?text.processing:text.recoveryAction}</button></div>}
+          {item.status==="PENDING_APPROVAL"&&!item.paymentRecovery&&!item.inactive&&<div className="request-actions"><select aria-label={text.changeStatus(item.customerName)} defaultValue="" disabled={isProcessing} onChange={(event)=>{const value=event.target.value;event.target.value="";if(value==="approve")void decide(item,"approve");if(value==="reject")void decide(item,"reject");}}><option value="" disabled>{isProcessing?text.processing:text.changeStatusPlaceholder}</option><option value="approve">{text.approveFull}</option><option value="reject">{text.reject}</option></select><button disabled={isProcessing} className="approve" onClick={()=>void decide(item,"approve")}><Check size={18}/>{isProcessing?text.processing:text.approve}</button><button disabled={isProcessing} className="reject" onClick={()=>void decide(item,"reject")}><X size={18}/>{text.reject}</button></div>}
+          {(item.inactive||item.status==="CANCELLED"||item.status==="REJECTED")&&!compact&&<div className="request-actions"><button disabled={busy===item.id} className="reject" onClick={()=>void dismiss(item)}><Trash2 size={18}/>{busy===item.id?text.deleting:text.remove}</button></div>}
         </article>;
       })}
-      {visible.length === 0 && <div className="office-empty"><UserRoundCheck size={38}/><h3>{text.emptyTitle}</h3><p>{text.emptyText}</p></div>}
+      {visible.length===0&&<div className="office-empty"><UserRoundCheck size={38}/><h3>{text.emptyTitle}</h3><p>{text.emptyText}</p></div>}
     </div>
-    {compact && <Link className="btn secondary" href="/office/requests">{text.openAll}</Link>}
+    {compact&&<Link className="btn secondary" href="/office/requests">{text.openAll}</Link>}
   </>;
 }
