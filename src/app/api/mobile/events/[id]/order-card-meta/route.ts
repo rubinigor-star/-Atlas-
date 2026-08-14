@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getMobileStaff } from "@/lib/mobile-auth";
 import { getOrderDemographicsForOrders } from "@/lib/customer-demographics";
+import { searchValueCardMembers } from "@/lib/valuecard";
 
 function canAccessEvent(
   user: NonNullable<Awaited<ReturnType<typeof getMobileStaff>>>,
@@ -43,6 +44,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     select: {
       id: true,
       customerBirthDate: true,
+      customerPhone: true,
       promoterLink: {
         select: {
           label: true,
@@ -55,6 +57,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   });
 
   const demographics = await getOrderDemographicsForOrders(orders.map((order) => order.id));
+  let valueCardMembers = new Map<string, Awaited<ReturnType<typeof searchValueCardMembers>> extends Map<string, infer T> ? T : never>();
+  try {
+    valueCardMembers = await searchValueCardMembers(
+      event.organizationId,
+      orders.map((order) => order.customerPhone).filter((phone): phone is string => Boolean(phone)),
+    );
+  } catch (error) {
+    console.info("valuecard.mobile_meta.exception", {
+      organizationId: event.organizationId,
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+
   const result = Object.fromEntries(orders.map((order) => {
     const attribution = order.promoterLink
       ? {
@@ -78,6 +93,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return [order.id, {
       customerBirthDate: order.customerBirthDate?.toISOString() ?? demographic?.birthDate?.toISOString() ?? null,
       customerGender: demographic?.gender ?? null,
+      valueCardMember: Boolean(order.customerPhone && valueCardMembers.get(order.customerPhone)),
       attribution,
     }];
   }));
