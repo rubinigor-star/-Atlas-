@@ -82,7 +82,7 @@ const copy: Record<Locale, Copy> = {
   ru: {
     statuses: { PENDING_APPROVAL:"Ожидает решения", AWAITING_PAYMENT:"Одобрена · ждёт оплату", PAID:"Оплачена · билет выдан", REJECTED:"Отклонена", CANCELLED:"Отменена" },
     filters: { PENDING_APPROVAL:"Ожидают", AWAITING_PAYMENT:"Одобрены", PAID:"Оплачены", REJECTED:"Отклонены", CANCELLED:"Отменены", all:"Все" },
-    expiredError:"Срок действия заявки истёк. Её больше нельзя одобрить или отклонить — удалите её из очереди.",
+    expiredError:"Срок действия заявки истёк. Её больше нельзя одобрить или отклонить - удалите её из очереди.",
     approveNote:"Одобрено в Atlas Office", rejectNote:"Заявка отклонена организатором", processError:"Не удалось обработать заявку",
     approveSuccess:"Заявка одобрена, оплата завершена, билеты и email отправлены клиенту.", approveEmailError:"Заявка одобрена, но email не отправлен",
     rejectSuccess:"Заявка отклонена, уведомление отправлено клиенту.", rejectEmailError:"Заявка отклонена, но email не отправлен",
@@ -96,7 +96,7 @@ const copy: Record<Locale, Copy> = {
   he: {
     statuses: { PENDING_APPROVAL:"ממתינה לבדיקה", AWAITING_PAYMENT:"אושרה · ממתינה לתשלום", PAID:"שולמה · הכרטיס הונפק", REJECTED:"לא אושרה", CANCELLED:"בוטלה" },
     filters: { PENDING_APPROVAL:"ממתינות לבדיקה", AWAITING_PAYMENT:"אושרו", PAID:"שולמו", REJECTED:"לא אושרו", CANCELLED:"בוטלו", all:"הכול" },
-    expiredError:"תוקף הבקשה פג. לא ניתן עוד לאשר או לדחות אותה — אפשר להסיר אותה מהתור.",
+    expiredError:"תוקף הבקשה פג. לא ניתן עוד לאשר או לדחות אותה - אפשר להסיר אותה מהתור.",
     approveNote:"הבקשה אושרה באזור המפיקים", rejectNote:"הבקשה לא אושרה על ידי המפיק", processError:"לא ניתן לעדכן את הבקשה",
     approveSuccess:"הבקשה אושרה, התשלום הושלם והכרטיסים נשלחו ללקוח במייל.", approveEmailError:"הבקשה אושרה, אך המייל לא נשלח",
     rejectSuccess:"הבקשה לא אושרה והודעה נשלחה ללקוח.", rejectEmailError:"הבקשה לא אושרה, אך המייל לא נשלח",
@@ -129,6 +129,8 @@ const statusColors: Record<string, { background: string; color: string }> = {
   PAID: { background: "#dcfce7", color: "#166534" },
   REJECTED: { background: "#fee2e2", color: "#b91c1c" },
   CANCELLED: { background: "#e5e7eb", color: "#4b5563" },
+  PROCESSING_APPROVE: { background: "#ecfdf3", color: "#166534" },
+  PROCESSING_REJECT: { background: "#fff1f0", color: "#b42318" },
 };
 
 function age(value: string | null) {
@@ -154,6 +156,7 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
   const [requests, setRequests] = useState(initialRequests);
   const [filter, setFilter] = useState<QueueFilter>("PENDING_APPROVAL");
   const [query, setQuery] = useState("");
+  const [processing, setProcessing] = useState<Set<string>>(() => new Set());
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -161,20 +164,41 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
   const counts = Object.fromEntries(["PENDING_APPROVAL", "AWAITING_PAYMENT", "PAID", "REJECTED", "CANCELLED"].map((status) => [status, requests.filter((item) => item.status === status).length]));
   const visible = useMemo(() => requests.filter((item) => (filter === "all" || item.status === filter) && `${item.customerName} ${item.customerPhone} ${item.eventTitle} ${item.city || ""} ${item.status}`.toLowerCase().includes(query.toLowerCase())).slice(0, compact ? 5 : 999), [requests, filter, query, compact]);
 
+  function markProcessing(id: string, active: boolean) {
+    setProcessing((current) => {
+      const next = new Set(current);
+      if (active) next.add(id); else next.delete(id);
+      return next;
+    });
+  }
+
   async function decide(item: RequestRecord, action: "approve" | "reject") {
     if (item.inactive) { setError(text.expiredError); return; }
-    setBusy(item.id); setError(""); setNotice("");
-    const response = await fetch(`/api/admin/orders/${item.publicId}`, { method:"PATCH", headers:{"content-type":"application/json"}, body:JSON.stringify({ action, note:action === "approve" ? text.approveNote : text.rejectNote }) });
-    const data = await response.json();
-    if (data.status) setRequests((current) => current.map((record) => record.id === item.id ? { ...record, status:data.status, paymentRecovery:false, inactive:false } : record));
-    if (!response.ok) { setError(data.error || text.processError); setBusy(""); return; }
-    if (item.paymentRecovery) setNotice(text.recoverySuccess);
-    else {
-      const suffix = data.emailError ? `: ${data.emailError}` : ".";
-      if (action === "approve") setNotice(data.emailSent ? text.approveSuccess : `${text.approveEmailError}${suffix}`);
-      else setNotice(data.emailSent ? text.rejectSuccess : `${text.rejectEmailError}${suffix}`);
+    if (processing.has(item.id)) return;
+
+    const original = item;
+    markProcessing(item.id, true);
+    setError("");
+    setNotice("");
+    setRequests((current) => current.map((record) => record.id === item.id
+      ? { ...record, status: action === "approve" ? "PROCESSING_APPROVE" : "PROCESSING_REJECT" }
+      : record));
+
+    try {
+      const response = await fetch(`/api/admin/orders/${item.publicId}`, { method:"PATCH", headers:{"content-type":"application/json"}, body:JSON.stringify({ action, note:action === "approve" ? text.approveNote : text.rejectNote }) });
+      const data = await response.json();
+      if (!response.ok) {
+        setRequests((current) => current.map((record) => record.id === item.id ? { ...original, status: data.status || original.status } : record));
+        setError(`${item.customerName}: ${data.error || text.processError}`);
+        return;
+      }
+      setRequests((current) => current.map((record) => record.id === item.id ? { ...record, status:data.status, paymentRecovery:false, inactive:false } : record));
+    } catch (requestError) {
+      setRequests((current) => current.map((record) => record.id === item.id ? original : record));
+      setError(`${item.customerName}: ${requestError instanceof Error ? requestError.message : text.processError}`);
+    } finally {
+      markProcessing(item.id, false);
     }
-    setBusy("");
   }
 
   async function dismiss(item: RequestRecord) {
@@ -195,12 +219,17 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
     {notice && <div className="toast" style={{background:"#ecfdf3",color:"#166534"}}>{notice}</div>}
     <div className="request-grid">
       {visible.map((item) => {
+        const isProcessing = processing.has(item.id);
         const color = statusColors[item.status] || { background:"#e5e7eb", color:"#111827" };
-        const meta = item.paymentRecovery
-          ? { label:text.recoveryStatus, background:"#fff4cc", color:"#8a5a00" }
-          : item.inactive
-            ? { label:text.inactive, background:"#f3f4f6", color:"#6b7280" }
-            : { label:text.statuses[item.status] || item.status, ...color };
+        const meta = item.status === "PROCESSING_APPROVE"
+          ? { label:text.processing, background:"#ecfdf3", color:"#166534" }
+          : item.status === "PROCESSING_REJECT"
+            ? { label:text.processing, background:"#fff1f0", color:"#b42318" }
+            : item.paymentRecovery
+              ? { label:text.recoveryStatus, background:"#fff4cc", color:"#8a5a00" }
+              : item.inactive
+                ? { label:text.inactive, background:"#f3f4f6", color:"#6b7280" }
+                : { label:text.statuses[item.status] || item.status, ...color };
         const customerAge = age(item.birthDate);
         return <article className="request-card" key={item.id} style={item.inactive ? {opacity:.78,borderStyle:"dashed"} : undefined}>
           <header><div className="request-avatar">{item.customerName.split(" ").map((part) => part[0]).slice(0,2).join("")}</div><div><strong>{item.customerName}</strong><a href={`tel:${item.customerPhone}`}>{item.customerPhone}</a></div><span className="request-status" style={{background:meta.background,color:meta.color}}>{meta.label}</span></header>
@@ -210,8 +239,8 @@ export function RequestInbox({ initialRequests, compact = false }: { initialRequ
           {!compact && <div className="panel" style={{background:"#f8fafc"}}><strong>{item.guestStatus || "REGULAR"}</strong><p className="muted">{customerAge !== null ? `${customerAge} ${text.years} · ` : ""}{item.city || text.cityMissing}</p><p className="muted">{text.previous(item.previousOrders,item.previousVisits)}</p><p className="muted">{item.instagram || text.instagramMissing} · {item.facebook || text.facebookMissing}</p></div>}
           {item.answer && <blockquote><small>{text.customerAnswer}</small>{item.answer}</blockquote>}
           <footer><small>{text.received} {new Date(item.createdAt).toLocaleString(dateLocale(locale))}</small><div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}><a className="btn secondary" style={{color:"#128C7E"}} target="_blank" rel="noreferrer" href={whatsapp(item.customerPhone,text.whatsappMessage(item.customerName,item.eventTitle))} aria-label={text.whatsappLabel(item.customerName)}><WhatsAppIcon size={18}/> WhatsApp</a><Link className="btn secondary" href={`/office/orders/${item.publicId}?returnTo=${encodeURIComponent("/office/requests")}`}>{text.details}</Link></div></footer>
-          {item.paymentRecovery && !item.inactive && <div className="request-actions"><button disabled={busy === item.id} className="approve" onClick={() => void decide(item,"approve")}><Check size={18}/>{busy === item.id ? text.processing : text.recoveryAction}</button></div>}
-          {item.status === "PENDING_APPROVAL" && !item.paymentRecovery && !item.inactive && <div className="request-actions"><select aria-label={text.changeStatus(item.customerName)} defaultValue="" disabled={busy === item.id} onChange={(event) => { const value = event.target.value; event.target.value = ""; if (value === "approve") void decide(item,"approve"); if (value === "reject") void decide(item,"reject"); }}><option value="" disabled>{busy === item.id ? text.processing : text.changeStatusPlaceholder}</option><option value="approve">{text.approveFull}</option><option value="reject">{text.reject}</option></select><button disabled={busy === item.id} className="approve" onClick={() => void decide(item,"approve")}><Check size={18}/>{busy === item.id ? text.processing : text.approve}</button><button disabled={busy === item.id} className="reject" onClick={() => void decide(item,"reject")}><X size={18}/>{text.reject}</button></div>}
+          {item.paymentRecovery && !item.inactive && <div className="request-actions"><button disabled={isProcessing} className="approve" onClick={() => void decide(item,"approve")}><Check size={18}/>{isProcessing ? text.processing : text.recoveryAction}</button></div>}
+          {item.status === "PENDING_APPROVAL" && !item.paymentRecovery && !item.inactive && <div className="request-actions"><select aria-label={text.changeStatus(item.customerName)} defaultValue="" disabled={isProcessing} onChange={(event) => { const value = event.target.value; event.target.value = ""; if (value === "approve") void decide(item,"approve"); if (value === "reject") void decide(item,"reject"); }}><option value="" disabled>{isProcessing ? text.processing : text.changeStatusPlaceholder}</option><option value="approve">{text.approveFull}</option><option value="reject">{text.reject}</option></select><button disabled={isProcessing} className="approve" onClick={() => void decide(item,"approve")}><Check size={18}/>{isProcessing ? text.processing : text.approve}</button><button disabled={isProcessing} className="reject" onClick={() => void decide(item,"reject")}><X size={18}/>{text.reject}</button></div>}
           {(item.inactive || item.status === "CANCELLED" || item.status === "REJECTED") && !compact && <div className="request-actions"><button disabled={busy === item.id} className="reject" onClick={() => void dismiss(item)}><Trash2 size={18}/>{busy === item.id ? text.deleting : text.remove}</button></div>}
         </article>;
       })}
