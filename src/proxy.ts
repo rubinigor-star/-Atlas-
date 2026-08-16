@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const CANONICAL_HOST = "www.atlas-one.co";
 const PUBLIC_OFFICE_PATHS = ["/office/login", "/office/register", "/office/forgot-password", "/office/reset-password"];
 const LEGACY_FAVICON_PATHS = new Set(["/favicon.ico", "/favicon.png"]);
+const HYP_CHECKOUT_CSP = "frame-src 'self' https://pay.hyp.co.il https://*.creditguard.co.il;";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -47,7 +48,11 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/api/admin/") ||
     pathname.startsWith("/api/office/session/");
 
-  if (!protectedPath) return NextResponse.next();
+  if (!protectedPath) {
+    const response = NextResponse.next();
+    if (pathname === "/checkout") response.headers.set("Content-Security-Policy", HYP_CHECKOUT_CSP);
+    return response;
+  }
   if (PUBLIC_OFFICE_PATHS.some((path) => pathname.startsWith(path))) return NextResponse.next();
 
   const hasSession = Boolean(request.cookies.get("atlas_office_session")?.value);
