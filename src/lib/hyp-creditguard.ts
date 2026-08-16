@@ -1,5 +1,6 @@
 const HYP_ENDPOINT = "https://pay.hyp.co.il/p/";
 const REQUEST_TIMEOUT_MS = 20_000;
+const HYP_PAYMENT_TEMPLATE = "5";
 
 type RequiredEnv = "HYP_MASOF" | "HYP_API_KEY" | "HYP_PASSP";
 
@@ -8,7 +9,6 @@ function required(name: RequiredEnv) {
   if (!value) throw new Error(`${name} is not configured`);
   return value;
 }
-function optional(name: string) { return process.env[name]?.trim() || ""; }
 function safeText(value: string, max = 120) { return value.replace(/[<>\r\n]/g, " ").trim().slice(0, max); }
 function deploymentOrigin() {
   if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
@@ -100,7 +100,7 @@ export async function createHypApprovalPaymentPage(input: { amountMinor: number;
     SendHesh: "False",
     Postpone: "True",
     J5: "False",
-    tmp: optional("HYP_TEMPLATE") || "1",
+    tmp: HYP_PAYMENT_TEMPLATE,
     ReturnUrl: callbackUrl(input.callbackPath, "success"),
     SuccessUrl: callbackUrl(input.callbackPath, "success"),
     ErrorUrl: callbackUrl(input.callbackPath, "error"),
@@ -111,6 +111,7 @@ export async function createHypApprovalPaymentPage(input: { amountMinor: number;
   if (!signed.get("signature")) throw new Error("HYP APISign response does not contain signature");
   if (signed.get("Postpone") !== "True") throw new Error("HYP did not preserve Postpone=True");
   if (signed.get("J5") === "True") throw new Error("HYP unexpectedly enabled J5 together with Postpone");
+  console.info("hyp.approval.payment_page.created", { orderId, template: HYP_PAYMENT_TEMPLATE });
   return `${HYP_ENDPOINT}?${signed.toString()}`;
 }
 
