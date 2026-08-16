@@ -18,7 +18,18 @@ export default async function RequestsPage() {
      FROM "Order" o
      JOIN "Event" e ON e."id"=o."eventId"
      WHERE o."salesFlow"='APPROVAL'
-       AND e."organizationId"=$1`,
+       AND e."organizationId"=$1
+       AND (
+         o."status" <> 'PENDING_APPROVAL'
+         OR EXISTS (
+           SELECT 1
+           FROM "PaymentAuthorization" pa
+           WHERE pa."orderId"=o."id"
+             AND pa."status"='AUTHORIZED'
+             AND pa."provider" IN ('HYP','ATLAS_TEST')
+             AND pa."amountMinor"=o."totalMinor"
+         )
+       )`,
     staff.organizationId!,
   );
   const approvalOrderIds = approvalOrderRows.map((row) => row.id);

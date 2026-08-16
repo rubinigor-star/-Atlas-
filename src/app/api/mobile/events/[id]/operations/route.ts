@@ -5,7 +5,7 @@ import { ensureAbandonedCheckoutRuntime } from "@/lib/abandoned-checkout";
 import { ensureOrderReviewQueueRuntime } from "@/lib/order-review-queue";
 
 const STATUS_GROUPS = {
-  pending: ["PENDING", "PENDING_APPROVAL"] as const,
+  pending: ["PENDING_APPROVAL"] as const,
   approved: ["PAID"] as const,
   cancelled: ["CANCELLED", "REJECTED"] as const,
 } as const;
@@ -229,16 +229,31 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const category = (url.searchParams.get("category") || "").trim();
 
   await ensureOrderReviewQueueRuntime();
-  const activeReviewRows = await db.$queryRawUnsafe<Array<{ orderId: string }>>(
-    `SELECT j."orderId"
-     FROM "OrderReviewJob" j
-     JOIN "Order" o ON o."id"=j."orderId"
-     WHERE o."eventId"=$1
-       AND o."status"='PENDING_APPROVAL'
-       AND j."status" IN ('QUEUED','PROCESSING')`,
-    id,
-  );
+  const [activeReviewRows, reviewablePendingRows] = await Promise.all([
+    db.$queryRawUnsafe<Array<{ orderId: string }>>(
+      `SELECT j."orderId"
+       FROM "OrderReviewJob" j
+       JOIN "Order" o ON o."id"=j."orderId"
+       WHERE o."eventId"=$1
+         AND o."status"='PENDING_APPROVAL'
+         AND j."status" IN ('QUEUED','PROCESSING')`,
+      id,
+    ),
+    db.$queryRawUnsafe<Array<{ orderId: string }>>(
+      `SELECT DISTINCT o."id" AS "orderId"
+       FROM "Order" o
+       JOIN "PaymentAuthorization" pa ON pa."orderId"=o."id"
+       WHERE o."eventId"=$1
+         AND o."salesFlow"='APPROVAL'
+         AND o."status"='PENDING_APPROVAL'
+         AND pa."status"='AUTHORIZED'
+         AND pa."provider" IN ('HYP','ATLAS_TEST')
+         AND pa."amountMinor"=o."totalMinor"`,
+      id,
+    ),
+  ]);
   const activeReviewIds = new Set(activeReviewRows.map((row) => row.orderId));
+  const reviewablePendingIds = reviewablePendingRows.map((row) => row.orderId).filter((orderId) => !activeReviewIds.has(orderId));
 
   const [groupedCounts, revenue, usedTickets, lostCount] = await Promise.all([
     db.order.groupBy({ by: ["status"], where: { eventId: id }, _count: { _all: true } }),
@@ -250,7 +265,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const rawCounts = new Map<string, number>(groupedCounts.map((item) => [item.status, item._count._all]));
   const countGroup = (statuses: readonly string[]) => statuses.reduce((sum, status) => sum + (rawCounts.get(status) ?? 0), 0);
   const counts = {
-    pending: Math.max(0, countGroup(STATUS_GROUPS.pending) - activeReviewIds.size),
+    pending: reviewablePendingIds.length,
     approved: countGroup(STATUS_GROUPS.approved),
     cancelled: countGroup(STATUS_GROUPS.cancelled),
     abandoned: lostCount,
@@ -307,7 +322,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const orderWhere = {
     eventId: id,
     status: { in: [...statuses] },
-    ...(group === "pending" && activeReviewIds.size ? { id: { notIn: [...activeReviewIds] } } : {}),
+    ...(group === "pending" ? { id: { in: reviewablePendingIds } } : {}),
     ...(query ? {
       OR: [
         { customerName: { contains: query } },
