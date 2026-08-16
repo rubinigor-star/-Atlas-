@@ -1,5 +1,6 @@
 const HYP_ENDPOINT = "https://pay.hyp.co.il/p/";
 const REQUEST_TIMEOUT_MS = 20_000;
+const HYP_PAYMENT_TEMPLATE = "5";
 
 type RequiredEnv = "HYP_MASOF" | "HYP_API_KEY" | "HYP_PASSP";
 
@@ -8,7 +9,6 @@ function required(name: RequiredEnv) {
   if (!value) throw new Error(`${name} is not configured`);
   return value;
 }
-function optional(name: string) { return process.env[name]?.trim() || ""; }
 function safeText(value: string, max = 120) { return value.replace(/[<>\r\n]/g, " ").trim().slice(0, max); }
 function assertHttps(value: string, label: string) { if (!/^https:\/\//i.test(value)) throw new Error(`${label} must use HTTPS`); }
 function deploymentOrigin() {
@@ -67,13 +67,13 @@ export async function createHypPaymentLink(input: HypPaymentLinkInput) {
   const nameParts = safeText(input.customerName || "Atlas Customer", 100).split(/\s+/).filter(Boolean);
   const firstName = nameParts.shift() || "Atlas";
   const lastName = nameParts.join(" ") || "Customer";
-  const paymentParams = new URLSearchParams({ action: "pay", Masof: required("HYP_MASOF"), Amount: input.amountIls.toFixed(2), Coin: "1", Info: safeText(input.description, 120), Order: orderId, ClientName: firstName, ClientLName: lastName, email: safeText(input.customerEmail || "", 120), cell: safeText(input.customerPhone || "", 30), phone: safeText(input.customerPhone || "", 30), PageLang: input.language || "HEB", UTF8: "True", UTF8out: "True", MoreData: "True", Sign: "True", Tash: "1", FixTash: "True", sendemail: "False", SendHesh: "False", Postpone: "False", J5: "False", tmp: optional("HYP_TEMPLATE") || "1", ReturnUrl: callbackUrl, SuccessUrl: callbackUrl, ErrorUrl: callbackUrl, CancelUrl: callbackUrl });
+  const paymentParams = new URLSearchParams({ action: "pay", Masof: required("HYP_MASOF"), Amount: input.amountIls.toFixed(2), Coin: "1", Info: safeText(input.description, 120), Order: orderId, ClientName: firstName, ClientLName: lastName, email: safeText(input.customerEmail || "", 120), cell: safeText(input.customerPhone || "", 30), phone: safeText(input.customerPhone || "", 30), PageLang: input.language || "HEB", UTF8: "True", UTF8out: "True", MoreData: "True", Sign: "True", Tash: "1", FixTash: "True", sendemail: "False", SendHesh: "False", Postpone: "False", J5: "False", tmp: HYP_PAYMENT_TEMPLATE, ReturnUrl: callbackUrl, SuccessUrl: callbackUrl, ErrorUrl: callbackUrl, CancelUrl: callbackUrl });
   const signed = await callApiSign("SIGN", paymentParams);
   if (signed.get("action") !== "pay") throw new Error("HYP APISign response does not contain action=pay");
   if (!signed.get("signature")) throw new Error("HYP APISign response does not contain signature");
   const paymentUrl = `${HYP_ENDPOINT}?${signed.toString()}`;
   assertHttps(paymentUrl, "HYP payment page URL");
-  console.info("hyp.payment_page.created", { orderId, amount: input.amountIls.toFixed(2), masof: signed.get("Masof") || required("HYP_MASOF"), callbackUrl });
+  console.info("hyp.payment_page.created", { orderId, amount: input.amountIls.toFixed(2), masof: signed.get("Masof") || required("HYP_MASOF"), callbackUrl, template: HYP_PAYMENT_TEMPLATE });
   return paymentUrl;
 }
 
