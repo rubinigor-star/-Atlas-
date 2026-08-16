@@ -22,7 +22,7 @@ export const checkoutSchema = z.object({
     lastName: optionalText(80),
     email: optionalText(160),
     phone: optionalText(30),
-    gender: z.enum(["MALE","FEMALE"]),
+    gender: z.union([z.enum(["MALE","FEMALE"]), z.literal("")]).default(""),
     birthDate: optionalText(20),
     city: optionalText(120),
     facebook: optionalText(250),
@@ -35,6 +35,11 @@ export const checkoutSchema = z.object({
   referralCode: z.string().optional(),
   promoterCode: z.string().optional(),
   idempotencyKey: z.string().uuid(),
+  paymentPreparation: z.boolean().optional().default(false),
+}).superRefine((value, context) => {
+  if (!value.paymentPreparation && !value.customer.gender) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["customer", "gender"], message: "Выберите пол" });
+  }
 });
 
 export const checkinSchema = z.object({ code: z.string().min(8).max(200) });
