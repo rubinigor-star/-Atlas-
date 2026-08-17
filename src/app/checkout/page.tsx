@@ -11,6 +11,7 @@ import { promoterChannelValid, resolvePromoterChannel } from "@/lib/promoter-cha
 
 export const dynamic="force-dynamic";
 type CartItem={categoryId:string;quantity:number;tableId?:string|null;seatIds:string[]};
+type SummaryItem={label:string;amount:number;quantity:number};
 
 function parseCart(value:string|undefined):CartItem[]{
   if(!value)return[];
@@ -60,22 +61,25 @@ export default async function Checkout({searchParams}:{searchParams:Promise<Reco
   const categoryMap=new Map(categories.map(category=>[category.id,category]));
   const tableMap=new Map(tables.map(table=>[table.id,table]));
   const seatMap=new Map(seats.map(seat=>[seat.id,seat]));
-  const labels:string[]=[];let subtotal=0;let quantity=0;
+  const labels:string[]=[];const summaryItems:SummaryItem[]=[];let subtotal=0;let quantity=0;
   for(const item of items){
     const category=categoryMap.get(item.categoryId);if(!category)notFound();
     quantity+=item.quantity;
     if(item.tableId){
       const table=tableMap.get(item.tableId);if(!table?.category)notFound();
-      subtotal+=validLink?.customPriceMinor??effectiveTicketPrice(table.category,now);
-      labels.push(`${table.objectType==="SOFA"?"Диван":"Стол"} ${table.label}, ${table.seats} мест целиком`);
+      const amount=validLink?.customPriceMinor??effectiveTicketPrice(table.category,now);
+      const label=`${table.objectType==="SOFA"?"Диван":"Стол"} ${table.label}, ${table.seats} мест целиком`;
+      subtotal+=amount;labels.push(label);summaryItems.push({label,amount,quantity:item.quantity});
     }else if(item.seatIds.length){
       const itemSeats=item.seatIds.map(id=>seatMap.get(id)).filter(Boolean);if(itemSeats.length!==item.seatIds.length)notFound();
-      subtotal+=itemSeats.reduce((sum,seat)=>sum+(validLink?.customPriceMinor??effectiveTicketPrice(seat!.category!,now)),0);
+      const amount=itemSeats.reduce((sum,seat)=>sum+(validLink?.customPriceMinor??effectiveTicketPrice(seat!.category!,now)),0);
       const table=itemSeats[0]!.table;
-      labels.push(`${table.objectType==="SOFA"?"Диван":"Стол"} ${table.label}, места ${itemSeats.map(seat=>seat!.position).join(", ")}`);
+      const label=`${table.objectType==="SOFA"?"Диван":"Стол"} ${table.label}, места ${itemSeats.map(seat=>seat!.position).join(", ")}`;
+      subtotal+=amount;labels.push(label);summaryItems.push({label,amount,quantity:item.quantity});
     }else{
-      subtotal+=(validLink?.customPriceMinor??effectiveTicketPrice(category,now))*item.quantity;
-      labels.push(`${category.name} × ${item.quantity}`);
+      const amount=(validLink?.customPriceMinor??effectiveTicketPrice(category,now))*item.quantity;
+      const label=category.name;
+      subtotal+=amount;labels.push(`${label} × ${item.quantity}`);summaryItems.push({label,amount,quantity:item.quantity});
     }
   }
   if(quantity>Math.max(1,eventOrderLimit._max.maxPerOrder??1))notFound();
@@ -83,5 +87,5 @@ export default async function Checkout({searchParams}:{searchParams:Promise<Reco
   const pricing=calculateServiceFee(subtotal,{salesFeePercentBps:terms.organizer.salesFeePercentBps,salesFeeFixedMinor:terms.organizer.salesFeeFixedMinor,serviceFeePayer:terms.serviceFeePayer});
   const first=items[0];
   const firstTable=first.tableId?tableMap.get(first.tableId):undefined;
-  return <main className="shell"><AbandonExitTracker eventId={event.id} categoryId={first.categoryId} tableId={firstTable?.id} seatIds={seatIds}/><CheckoutForm eventId={event.id} eventSlug={event.slug} categoryId={first.categoryId} quantity={quantity} tableId={firstTable?.id} items={items} seatIds={seatIds} subtotal={pricing.subtotalMinor} serviceFee={pricing.serviceFeeMinor} total={pricing.buyerTotalMinor} serviceFeePayer={terms.serviceFeePayer} title={event.title} label={labels.join(" · ")} salesMode={event.salesMode} approvalInstructions={event.approvalInstructions} referralCode={validLink?.code} promoterLabel={validLink?`${validLink.promoterName} · ${validLink.label}`:undefined} recoveryToken={query.recovery} guestFields={parseGuestFields(event.description)}/></main>;
+  return <main className="shell"><AbandonExitTracker eventId={event.id} categoryId={first.categoryId} tableId={firstTable?.id} seatIds={seatIds}/><CheckoutForm eventId={event.id} eventSlug={event.slug} categoryId={first.categoryId} quantity={quantity} tableId={firstTable?.id} items={items} seatIds={seatIds} subtotal={pricing.subtotalMinor} serviceFee={pricing.serviceFeeMinor} total={pricing.buyerTotalMinor} serviceFeePayer={terms.serviceFeePayer} title={event.title} label={labels.join(" · ")} posterUrl={event.posterUrl} startsAt={event.startsAt.toISOString()} summaryItems={summaryItems} salesMode={event.salesMode} approvalInstructions={event.approvalInstructions} referralCode={validLink?.code} promoterLabel={validLink?`${validLink.promoterName} · ${validLink.label}`:undefined} recoveryToken={query.recovery} guestFields={parseGuestFields(event.description)}/></main>;
 }
