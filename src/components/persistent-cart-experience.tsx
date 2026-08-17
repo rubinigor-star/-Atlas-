@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ShoppingCart, X, Clock3 } from "lucide-react";
+import { ShoppingCart, X, Clock3, Ticket } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useLocale } from "@/components/locale-provider";
 
-const STORAGE_KEY = "atlas-persistent-cart-v1";
+const STORAGE_KEY = "atlas-persistent-cart-v2";
+const LEGACY_STORAGE_KEY = "atlas-persistent-cart-v1";
 const HOLD_MS = 15 * 60 * 1000;
 
 type PersistedCartItem = {
@@ -17,10 +18,11 @@ type PersistedCartItem = {
   quantity: number;
 };
 
-type PersistedCart = {
+type PersistedCartGroup = {
   eventSlug: string;
   eventTitle: string;
   eventPath: string;
+  posterUrl: string;
   items: PersistedCartItem[];
   totalCount: number;
   createdAt: number;
@@ -29,62 +31,101 @@ type PersistedCart = {
   lastNoticeStage?: number;
 };
 
+type PersistedCart = {
+  version: 2;
+  groups: PersistedCartGroup[];
+};
+
+type LegacyCart = Omit<PersistedCartGroup, "posterUrl"> & { posterUrl?: string };
+
 const copy = {
   ru: {
     cart: "Корзина",
     empty: "Корзина пуста",
     back: "Вернуться к билетам",
     close: "Закрыть корзину",
-    saved: "Выбранные билеты сохранены на 15 минут. Завершите оформление, чтобы не потерять выбранные места.",
-    left: (minutes: number) => `Осталось ${minutes} мин. Завершите оформление билетов, чтобы сохранить выбранные места.`,
-    urgent: "Последние 3 минуты. Завершите оформление сейчас, иначе выбранные билеты будут удалены из корзины.",
-    expired: "Время сохранения билетов истекло. Корзина очищена. Выберите билеты заново.",
-    event: "Мероприятие",
+    saved: (title: string) => `${title}: места сохранены на 15 минут. Завершите оформление, чтобы не потерять их.`,
+    left: (title: string, minutes: number) => `${title}: осталось ${minutes} мин. Завершите оформление билетов.`,
+    urgent: (title: string) => `${title}: последние 3 минуты. После 00:00 эти места вернутся в продажу.`,
+    expired: (title: string) => `${title}: время брони истекло. Эти билеты удалены из корзины и возвращены в продажу.`,
     holdTitle: "Места зарезервированы за вами",
-    holdExplain: "Таймер показывает, сколько времени выбранные билеты остаются в вашей корзине. После 00:00 бронь снимается, и места возвращаются в продажу.",
+    holdExplain: "Эта бронь действует только для данного мероприятия. В 00:00 места вернутся в продажу.",
+    tickets: "Билеты",
   },
   en: {
     cart: "Cart",
     empty: "Your cart is empty",
     back: "Return to tickets",
     close: "Close cart",
-    saved: "Your selected tickets are saved for 15 minutes. Complete checkout to keep your seats.",
-    left: (minutes: number) => `${minutes} minutes left. Complete checkout to keep your selected seats.`,
-    urgent: "Last 3 minutes. Complete checkout now or the selected tickets will be removed from your cart.",
-    expired: "Your ticket hold has expired. The cart was cleared. Please select tickets again.",
-    event: "Event",
+    saved: (title: string) => `${title}: your seats are held for 15 minutes. Complete checkout to keep them.`,
+    left: (title: string, minutes: number) => `${title}: ${minutes} minutes left. Complete checkout to keep your seats.`,
+    urgent: (title: string) => `${title}: last 3 minutes. At 00:00 these seats return to sale.`,
+    expired: (title: string) => `${title}: the hold expired. These tickets were removed from your cart and returned to sale.`,
     holdTitle: "Your seats are reserved",
-    holdExplain: "The timer shows how long the selected tickets remain in your cart. At 00:00 the hold ends and the seats return to sale.",
+    holdExplain: "This hold applies only to this event. At 00:00 the seats return to sale.",
+    tickets: "Tickets",
   },
   he: {
     cart: "סל",
     empty: "הסל ריק",
     back: "חזרה לכרטיסים",
     close: "סגירת הסל",
-    saved: "הכרטיסים שבחרתם נשמרים ל-15 דקות. השלימו את ההזמנה כדי לא לאבד את המקומות.",
-    left: (minutes: number) => `נותרו ${minutes} דקות. השלימו את ההזמנה כדי לשמור את המקומות שבחרתם.`,
-    urgent: "3 דקות אחרונות. השלימו את ההזמנה עכשיו, אחרת הכרטיסים יוסרו מהסל.",
-    expired: "זמן שמירת הכרטיסים הסתיים. הסל נוקה. בחרו כרטיסים מחדש.",
-    event: "אירוע",
+    saved: (title: string) => `${title}: המקומות נשמרים ל-15 דקות. השלימו את ההזמנה כדי לשמור אותם.`,
+    left: (title: string, minutes: number) => `${title}: נותרו ${minutes} דקות. השלימו את ההזמנה.`,
+    urgent: (title: string) => `${title}: 3 דקות אחרונות. ב-00:00 המקומות יחזרו למכירה.`,
+    expired: (title: string) => `${title}: זמן השמירה הסתיים. הכרטיסים הוסרו מהסל וחזרו למכירה.`,
     holdTitle: "המקומות שמורים עבורכם",
-    holdExplain: "הטיימר מציג כמה זמן הכרטיסים שבחרתם נשארים בסל. כשהוא מגיע ל-00:00 השמירה מסתיימת והמקומות חוזרים למכירה.",
+    holdExplain: "השמירה הזו שייכת רק לאירוע הזה. ב-00:00 המקומות יחזרו למכירה.",
+    tickets: "כרטיסים",
   },
 } as const;
+
+function normalizeCart(value: unknown): PersistedCart | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<PersistedCart>;
+  if (candidate.version === 2 && Array.isArray(candidate.groups)) {
+    return { version: 2, groups: candidate.groups.filter(group => group && Array.isArray(group.items) && Boolean(group.eventSlug)) };
+  }
+  const legacy = value as Partial<LegacyCart>;
+  if (legacy.eventSlug && Array.isArray(legacy.items)) {
+    return {
+      version: 2,
+      groups: [{
+        eventSlug: legacy.eventSlug,
+        eventTitle: legacy.eventTitle || legacy.eventSlug.replace(/-/g, " "),
+        eventPath: legacy.eventPath || `/events/${legacy.eventSlug}/seats`,
+        posterUrl: legacy.posterUrl || "",
+        items: legacy.items,
+        totalCount: legacy.totalCount || legacy.items.reduce((sum, item) => sum + (item.quantity || 1), 0),
+        createdAt: legacy.createdAt || Date.now(),
+        updatedAt: legacy.updatedAt || Date.now(),
+        expiresAt: legacy.expiresAt || Date.now() + HOLD_MS,
+        lastNoticeStage: legacy.lastNoticeStage,
+      }],
+    };
+  }
+  return null;
+}
 
 function readCart(): PersistedCart | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const value = JSON.parse(raw) as PersistedCart;
-    if (!value || !Array.isArray(value.items) || !value.eventSlug) return null;
-    return value;
+    if (raw) return normalizeCart(JSON.parse(raw));
+    const legacyRaw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!legacyRaw) return null;
+    const migrated = normalizeCart(JSON.parse(legacyRaw));
+    if (migrated) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    }
+    return migrated;
   } catch {
     return null;
   }
 }
 
 function writeCart(value: PersistedCart | null) {
-  if (!value) window.localStorage.removeItem(STORAGE_KEY);
+  if (!value || value.groups.length === 0) window.localStorage.removeItem(STORAGE_KEY);
   else window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
   window.dispatchEvent(new CustomEvent("atlas-cart-change"));
 }
@@ -95,11 +136,22 @@ function quantityFromTitle(title: string) {
   return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
 }
 
+function capturePosterUrl() {
+  const image = document.querySelector<HTMLImageElement>("aside img[src]") || document.querySelector<HTMLImageElement>("main img[src]");
+  return image?.currentSrc || image?.src || "";
+}
+
+function captureEventTitle(slug: string) {
+  const heading = document.querySelector<HTMLElement>("aside h1")?.innerText.trim();
+  return heading || document.title.split("|")[0]?.trim() || slug.replace(/-/g, " ");
+}
+
 function captureSeatPageCart(pathname: string, previous: PersistedCart | null): PersistedCart | null {
   const match = pathname.match(/^\/events\/([^/]+)\/seats/);
   if (!match) return previous;
+
   const nodes = Array.from(document.querySelectorAll<HTMLElement>(".atlas-selected-ticket"));
-  if (!nodes.length) return null;
+  if (!nodes.length) return previous;
 
   const items = nodes.map(node => {
     const title = node.querySelector<HTMLElement>(".atlas-selected-title")?.innerText.trim() || "Билет";
@@ -109,19 +161,25 @@ function captureSeatPageCart(pathname: string, previous: PersistedCart | null): 
   });
 
   const now = Date.now();
-  const sameActiveCart = previous && previous.eventSlug === match[1] && previous.expiresAt > now;
-  const title = document.title.split("|")[0]?.trim() || match[1].replace(/-/g, " ");
-
-  return {
-    eventSlug: match[1],
-    eventTitle: sameActiveCart ? previous.eventTitle : title,
-    eventPath: `/events/${match[1]}/seats`,
+  const eventSlug = match[1];
+  const current = previous ?? { version: 2 as const, groups: [] };
+  const existing = current.groups.find(group => group.eventSlug === eventSlug && group.expiresAt > now);
+  const nextGroup: PersistedCartGroup = {
+    eventSlug,
+    eventTitle: existing?.eventTitle || captureEventTitle(eventSlug),
+    eventPath: `/events/${eventSlug}/seats`,
+    posterUrl: existing?.posterUrl || capturePosterUrl(),
     items,
     totalCount: items.reduce((sum, item) => sum + item.quantity, 0),
-    createdAt: sameActiveCart ? previous.createdAt : now,
+    createdAt: existing?.createdAt || now,
     updatedAt: now,
-    expiresAt: sameActiveCart ? previous.expiresAt : now + HOLD_MS,
-    lastNoticeStage: sameActiveCart ? previous.lastNoticeStage : undefined,
+    expiresAt: existing?.expiresAt || now + HOLD_MS,
+    lastNoticeStage: existing?.lastNoticeStage,
+  };
+
+  return {
+    version: 2,
+    groups: [...current.groups.filter(group => group.eventSlug !== eventSlug && group.expiresAt > now), nextGroup],
   };
 }
 
@@ -132,6 +190,24 @@ function stageFor(remainingMs: number) {
   if (remainingMs > 6 * 60 * 1000) return 9;
   if (remainingMs > 3 * 60 * 1000) return 6;
   return 3;
+}
+
+function countdownFor(expiresAt: number, now: number) {
+  const remaining = Math.max(0, expiresAt - now);
+  const minutes = Math.floor(remaining / 60000);
+  const seconds = Math.floor((remaining % 60000) / 1000);
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function numericPrice(value: string) {
+  const normalized = value.replace(/\s/g, "").replace(/,/g, "");
+  const match = normalized.match(/\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : 0;
+}
+
+function groupTotal(group: PersistedCartGroup) {
+  const total = group.items.reduce((sum, item) => sum + numericPrice(item.price), 0);
+  return total > 0 ? `${Math.round(total)} ₪` : "";
 }
 
 export function PersistentCartExperience() {
@@ -184,21 +260,18 @@ export function PersistentCartExperience() {
   }, [pathname]);
 
   useEffect(() => {
-    const isSeatPage = /^\/events\/[^/]+\/seats/.test(pathname);
-    if (!isSeatPage) return;
+    if (!/^\/events\/[^/]+\/seats/.test(pathname)) return;
 
     let frame = 0;
     const syncFromDom = () => {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
-        const previous = readCart();
-        const next = captureSeatPageCart(pathname, previous);
+        const next = captureSeatPageCart(pathname, readCart());
         if (next) writeCart(next);
       });
     };
     const syncImmediately = () => {
-      const previous = readCart();
-      const next = captureSeatPageCart(pathname, previous);
+      const next = captureSeatPageCart(pathname, readCart());
       if (next) writeCart(next);
     };
     const syncAfterInteraction = () => {
@@ -215,7 +288,6 @@ export function PersistentCartExperience() {
     window.addEventListener("beforeunload", syncImmediately);
     const onVisibility = () => { if (document.visibilityState === "hidden") syncImmediately(); };
     document.addEventListener("visibilitychange", onVisibility);
-
     const delayed = window.setTimeout(syncFromDom, 100);
     const poll = window.setInterval(syncFromDom, 250);
 
@@ -242,41 +314,43 @@ export function PersistentCartExperience() {
 
     const tick = () => {
       const current = readCart();
-      if (!current) return;
-      const remaining = current.expiresAt - Date.now();
-      const stage = stageFor(remaining);
+      if (!current?.groups.length) return;
+      const now = Date.now();
+      let changed = false;
+      const survivors: PersistedCartGroup[] = [];
 
-      if (stage === 0) {
-        writeCart(null);
-        setPanelOpen(false);
-        show(text.expired);
-        if (/^\/events\/[^/]+\/seats/.test(pathname)) window.setTimeout(() => window.location.reload(), 900);
-        return;
+      for (const group of current.groups) {
+        const remaining = group.expiresAt - now;
+        const stage = stageFor(remaining);
+        if (stage === 0) {
+          changed = true;
+          show(text.expired(group.eventTitle));
+          continue;
+        }
+
+        if (group.lastNoticeStage !== stage) {
+          changed = true;
+          group = { ...group, lastNoticeStage: stage };
+          if (stage === 15) show(text.saved(group.eventTitle));
+          else if (stage === 3) show(text.urgent(group.eventTitle));
+          else show(text.left(group.eventTitle, stage));
+        }
+        survivors.push(group);
       }
 
-      const suppressNotice = pathname.startsWith("/checkout") || /^\/events\/[^/]+\/seats/.test(pathname);
-      if (suppressNotice || current.lastNoticeStage === stage) return;
-
-      const next = { ...current, lastNoticeStage: stage };
-      writeCart(next);
-      if (stage === 15) show(text.saved);
-      else if (stage === 3) show(text.urgent);
-      else show(text.left(stage));
+      if (changed) writeCart(survivors.length ? { version: 2, groups: survivors } : null);
     };
 
     tick();
     const interval = window.setInterval(tick, 1000);
     return () => window.clearInterval(interval);
-  }, [pathname, text]);
+  }, [text]);
 
   useEffect(() => () => {
     if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
   }, []);
 
-  const remainingMs = cart ? Math.max(0, cart.expiresAt - clockNow) : 0;
-  const remainingMinutes = Math.floor(remainingMs / 60000);
-  const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
-  const countdown = `${String(remainingMinutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+  const totalCount = cart?.groups.reduce((sum, group) => sum + group.totalCount, 0) ?? 0;
 
   const headerButton = headerMount ? createPortal(
     <button
@@ -287,7 +361,7 @@ export function PersistentCartExperience() {
       onClick={() => setPanelOpen(true)}
     >
       <ShoppingCart size={23} strokeWidth={1.8} aria-hidden="true"/>
-      {cart?.totalCount ? <span className="atlas-cart-badge">{cart.totalCount > 99 ? "99+" : cart.totalCount}</span> : null}
+      {totalCount ? <span className="atlas-cart-badge">{totalCount > 99 ? "99+" : totalCount}</span> : null}
     </button>,
     headerMount,
   ) : null;
@@ -300,35 +374,45 @@ export function PersistentCartExperience() {
     }}>
       <aside className="atlas-cart-panel" role="dialog" aria-modal="true" aria-label={text.cart}>
         <header className="atlas-cart-panel-head">
-          <div>
-            <span>{text.cart}</span>
-            {cart ? <small><Clock3 size={14}/> {countdown}</small> : null}
-          </div>
+          <div><span>{text.cart}</span></div>
           <button type="button" aria-label={text.close} onClick={() => setPanelOpen(false)}><X size={22}/></button>
         </header>
 
-        {!cart ? <div className="atlas-cart-empty">{text.empty}</div> : <>
-          <div style={{margin:"16px 0 18px",padding:"14px 16px",borderRadius:14,background:"rgba(255,122,0,.08)",border:"1px solid rgba(255,122,0,.18)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:9,fontWeight:800,fontSize:14,color:"#111827"}}>
-              <Clock3 size={18} aria-hidden="true"/>
-              <span>{text.holdTitle}</span>
-              <strong style={{marginLeft:"auto",fontSize:18,fontVariantNumeric:"tabular-nums",letterSpacing:".04em"}}>{countdown}</strong>
-            </div>
-            <p style={{margin:"8px 0 0",fontSize:12.5,lineHeight:1.45,color:"#667085"}}>{text.holdExplain}</p>
-          </div>
-          <div className="atlas-cart-event-label">{text.event}</div>
-          <h2 className="atlas-cart-event-title">{cart.eventTitle}</h2>
-          <div className="atlas-cart-list">
-            {cart.items.map((item, index) => <div className="atlas-cart-item" key={`${item.title}-${index}`}>
-              <div>
-                <strong>{item.title}</strong>
-                {item.description ? <span>{item.description}</span> : null}
+        {!cart?.groups.length ? <div className="atlas-cart-empty">{text.empty}</div> : <div className="atlas-cart-groups">
+          {cart.groups.map(group => {
+            const countdown = countdownFor(group.expiresAt, clockNow);
+            const total = groupTotal(group);
+            return <section className="atlas-cart-group" key={`${group.eventSlug}-${group.createdAt}`}>
+              <div className="atlas-cart-group-head">
+                <div className="atlas-cart-event-media">
+                  {group.posterUrl ? <img src={group.posterUrl} alt=""/> : <span><Ticket size={22}/></span>}
+                </div>
+                <div className="atlas-cart-event-copy">
+                  <h2>{group.eventTitle}</h2>
+                  <div className="atlas-cart-group-timer"><Clock3 size={14}/><span>{countdown}</span></div>
+                </div>
+                {total ? <strong className="atlas-cart-group-total">{total}</strong> : null}
               </div>
-              {item.price ? <b>{item.price}</b> : null}
-            </div>)}
-          </div>
-          <Link className="atlas-cart-return" href={cart.eventPath} onClick={() => setPanelOpen(false)}>{text.back}</Link>
-        </>}
+
+              <div className="atlas-cart-hold-note">
+                <div><Clock3 size={16}/><strong>{text.holdTitle}</strong><b>{countdown}</b></div>
+                <p>{text.holdExplain}</p>
+              </div>
+
+              <div className="atlas-cart-list">
+                {group.items.map((item, index) => <div className="atlas-cart-item" key={`${group.eventSlug}-${item.title}-${index}`}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    {item.description ? <span>{item.description}</span> : null}
+                  </div>
+                  {item.price ? <b>{item.price}</b> : null}
+                </div>)}
+              </div>
+
+              <Link className="atlas-cart-group-link" href={group.eventPath} onClick={() => setPanelOpen(false)}>{text.back}</Link>
+            </section>;
+          })}
+        </div>}
       </aside>
     </div>}
 
