@@ -105,7 +105,7 @@ function currentStoredGroup(): StoredGroup | null {
 
 function clickableForObject(object: HoldObject) {
   const target = normalize(object.label);
-  const candidates = Array.from(document.querySelectorAll<HTMLElement>("button,[role='button'],[tabindex='0']"));
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>("[data-seatmap-selectable='true'],button,[role='button'],[tabindex='0']"));
   return candidates.find(element => {
     const aria = normalize(element.getAttribute("aria-label") || "");
     const text = normalize(element.innerText || "");
@@ -142,7 +142,9 @@ function scheduleRestore(group: StoredGroup, categories: HoldCategory[], objects
 
     const target = clickableForObject(object);
     if (!target) continue;
-    const clicks = object.priceMode === "WHOLE_TABLE" ? 1 : quantity;
+    // A ZONE click creates one cart line using the page's current ticket quantity.
+    // Clicking the zone once per stored ticket would multiply the restored quantity.
+    const clicks = object.priceMode === "WHOLE_TABLE" || object.objectType === "ZONE" ? 1 : quantity;
     for (let index = 0; index < clicks; index += 1) {
       window.setTimeout(() => target.click(), delay);
       delay += 140;
