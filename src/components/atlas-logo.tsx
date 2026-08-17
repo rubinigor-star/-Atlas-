@@ -34,7 +34,7 @@ export function AtlasLogo({
         />
         <img
           className="atlas-brand-logo__image atlas-brand-logo__image--light"
-          src="/brand/atlas-logo-light.svg"
+          src="/brand/atlas-logo-light.svg?v=20260817-3"
           width="270"
           height="80"
           alt=""
