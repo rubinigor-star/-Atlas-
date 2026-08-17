@@ -18,6 +18,7 @@ import "./account-menu-polish.css";
 import "./sticky-header-theme.css";
 import "./header-app-cta-compact.css";
 import "./persistent-cart.css";
+import "./cart-drawer-motion.css";
 import "./cart-reminder-card.css";
 import "./mobile-drawer-fix.css";
 import "./mobile-language-header.css";
