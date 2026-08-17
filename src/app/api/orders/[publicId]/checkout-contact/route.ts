@@ -58,9 +58,10 @@ export async function POST(req:Request,{params}:{params:Promise<{publicId:string
         eligibilityAnswer:input.eligibilityAnswer||null
       }
     });
-    if(order.guestId!==actualGuest.id&&order.guest?.email?.startsWith("checkout-")){
-      const references=await db.order.count({where:{guestId:order.guestId}});
-      if(references===0)await db.guestProfile.delete({where:{id:order.guestId}}).catch(()=>undefined);
+    const oldGuestId=order.guestId;
+    if(oldGuestId&&oldGuestId!==actualGuest.id&&order.guest?.email?.startsWith("checkout-")){
+      const references=await db.order.count({where:{guestId:oldGuestId}});
+      if(references===0)await db.guestProfile.delete({where:{id:oldGuestId}}).catch(()=>undefined);
     }
     return NextResponse.json({ok:true});
   }catch(error){
