@@ -16,6 +16,7 @@ import "./logo.css";
 import "./site-header.css";
 import "./account-menu-polish.css";
 import "./sticky-header-theme.css";
+import "./header-app-cta-compact.css";
 import "./mobile-drawer-fix.css";
 import "./mobile-language-header.css";
 import "./mobile-menu-compact-actions.css";
