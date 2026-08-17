@@ -1,17 +1,21 @@
 .atlas-logo-image {
   position: relative;
-  aspect-ratio: 540 / 159;
+  display: grid;
+  aspect-ratio: 1080 / 318;
+  height: auto;
   overflow: visible;
   background: transparent;
   filter: none;
+  line-height: 0;
 }
 
 .atlas-logo-asset {
-  position: absolute;
-  inset: 0;
+  position: static;
+  grid-area: 1 / 1;
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
+  max-width: 100%;
   object-fit: contain;
   object-position: left center;
   pointer-events: none;
