@@ -46,11 +46,10 @@ const copy = {
     close: "Закрыть корзину",
     saved: (title: string) => `${title}: места сохранены на 15 минут. Завершите оформление, чтобы не потерять их.`,
     left: (title: string, minutes: number) => `${title}: осталось ${minutes} мин. Завершите оформление билетов.`,
-    urgent: (title: string) => `${title}: последние 3 минуты. После 00:00 эти места вернутся в продажу.`,
+    urgent: (title: string) => `${title}: последние 3 минуты. После окончания таймера эти места вернутся в продажу.`,
     expired: (title: string) => `${title}: время брони истекло. Эти билеты удалены из корзины и возвращены в продажу.`,
-    holdTitle: "Места зарезервированы за вами",
-    holdExplain: "Эта бронь действует только для данного мероприятия. В 00:00 места вернутся в продажу.",
-    tickets: "Билеты",
+    holdTitle: "Места временно сохранены за вами",
+    holdExplain: "Мы сохраняем выбранные места, пока вы оформляете заказ. Когда таймер закончится, они снова станут доступны другим покупателям.",
   },
   en: {
     cart: "Cart",
@@ -59,11 +58,10 @@ const copy = {
     close: "Close cart",
     saved: (title: string) => `${title}: your seats are held for 15 minutes. Complete checkout to keep them.`,
     left: (title: string, minutes: number) => `${title}: ${minutes} minutes left. Complete checkout to keep your seats.`,
-    urgent: (title: string) => `${title}: last 3 minutes. At 00:00 these seats return to sale.`,
+    urgent: (title: string) => `${title}: last 3 minutes. When the timer ends, these seats return to sale.`,
     expired: (title: string) => `${title}: the hold expired. These tickets were removed from your cart and returned to sale.`,
-    holdTitle: "Your seats are reserved",
-    holdExplain: "This hold applies only to this event. At 00:00 the seats return to sale.",
-    tickets: "Tickets",
+    holdTitle: "Your seats are temporarily held",
+    holdExplain: "We keep your selected seats while you complete your order. When the timer ends, they become available to other customers again.",
   },
   he: {
     cart: "סל",
@@ -72,13 +70,16 @@ const copy = {
     close: "סגירת הסל",
     saved: (title: string) => `${title}: המקומות נשמרים ל-15 דקות. השלימו את ההזמנה כדי לשמור אותם.`,
     left: (title: string, minutes: number) => `${title}: נותרו ${minutes} דקות. השלימו את ההזמנה.`,
-    urgent: (title: string) => `${title}: 3 דקות אחרונות. ב-00:00 המקומות יחזרו למכירה.`,
+    urgent: (title: string) => `${title}: 3 דקות אחרונות. כשהטיימר יסתיים המקומות יחזרו למכירה.`,
     expired: (title: string) => `${title}: זמן השמירה הסתיים. הכרטיסים הוסרו מהסל וחזרו למכירה.`,
-    holdTitle: "המקומות שמורים עבורכם",
-    holdExplain: "השמירה הזו שייכת רק לאירוע הזה. ב-00:00 המקומות יחזרו למכירה.",
-    tickets: "כרטיסים",
+    holdTitle: "המקומות נשמרים עבורכם זמנית",
+    holdExplain: "אנחנו שומרים את המקומות שבחרתם בזמן השלמת ההזמנה. כשהטיימר יסתיים הם יהיו זמינים שוב לרוכשים אחרים.",
   },
 } as const;
+
+function normalizeText(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
 
 function normalizeCart(value: unknown): PersistedCart | null {
   if (!value || typeof value !== "object") return null;
@@ -143,7 +144,7 @@ function capturePosterUrl() {
 
 function captureEventTitle(slug: string) {
   const heading = document.querySelector<HTMLElement>("aside h1")?.innerText.trim();
-  return heading || document.title.split("|")[0]?.trim() || slug.replace(/-/g, " ");
+  return normalizeText(heading || document.title.split("|")[0]?.trim() || slug.replace(/-/g, " "));
 }
 
 function captureSeatPageCart(pathname: string, previous: PersistedCart | null): PersistedCart | null {
@@ -154,9 +155,9 @@ function captureSeatPageCart(pathname: string, previous: PersistedCart | null): 
   if (!nodes.length) return previous;
 
   const items = nodes.map(node => {
-    const title = node.querySelector<HTMLElement>(".atlas-selected-title")?.innerText.trim() || "Билет";
-    const description = node.querySelector<HTMLElement>(".atlas-selected-desc")?.innerText.trim() || "";
-    const price = node.querySelector<HTMLElement>(".atlas-selected-price")?.innerText.trim() || "";
+    const title = normalizeText(node.querySelector<HTMLElement>(".atlas-selected-title")?.innerText || "Билет");
+    const description = normalizeText(node.querySelector<HTMLElement>(".atlas-selected-desc")?.innerText || "");
+    const price = normalizeText(node.querySelector<HTMLElement>(".atlas-selected-price")?.innerText || "");
     return { title, description, price, quantity: quantityFromTitle(title) };
   });
 
@@ -199,15 +200,11 @@ function countdownFor(expiresAt: number, now: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-function numericPrice(value: string) {
-  const normalized = value.replace(/\s/g, "").replace(/,/g, "");
-  const match = normalized.match(/\d+(?:\.\d+)?/);
-  return match ? Number(match[0]) : 0;
-}
-
-function groupTotal(group: PersistedCartGroup) {
-  const total = group.items.reduce((sum, item) => sum + numericPrice(item.price), 0);
-  return total > 0 ? `${Math.round(total)} ₪` : "";
+function splitPrice(value: string) {
+  const normalized = normalizeText(value);
+  const match = normalized.match(/^(.+?₪)(?:\s+(.+))?$/);
+  if (!match) return { main: normalized, detail: "" };
+  return { main: match[1], detail: match[2] || "" };
 }
 
 export function PersistentCartExperience() {
@@ -382,7 +379,6 @@ export function PersistentCartExperience() {
         {!cart?.groups.length ? <div className="atlas-cart-empty">{text.empty}</div> : <div className="atlas-cart-groups">
           {cart.groups.map(group => {
             const countdown = countdownFor(group.expiresAt, clockNow);
-            const total = groupTotal(group);
             return <section className="atlas-cart-group" key={`${group.eventSlug}-${group.createdAt}`}>
               <div className="atlas-cart-group-head">
                 <div className="atlas-cart-event-media">
@@ -390,9 +386,7 @@ export function PersistentCartExperience() {
                 </div>
                 <div className="atlas-cart-event-copy">
                   <h2>{group.eventTitle}</h2>
-                  <div className="atlas-cart-group-timer"><Clock3 size={14}/><span>{countdown}</span></div>
                 </div>
-                {total ? <strong className="atlas-cart-group-total">{total}</strong> : null}
               </div>
 
               <div className="atlas-cart-hold-note">
@@ -401,13 +395,16 @@ export function PersistentCartExperience() {
               </div>
 
               <div className="atlas-cart-list">
-                {group.items.map((item, index) => <div className="atlas-cart-item" key={`${group.eventSlug}-${item.title}-${index}`}>
-                  <div>
-                    <strong>{item.title}</strong>
-                    {item.description ? <span>{item.description}</span> : null}
-                  </div>
-                  {item.price ? <b>{item.price}</b> : null}
-                </div>)}
+                {group.items.map((item, index) => {
+                  const price = splitPrice(item.price);
+                  return <div className="atlas-cart-item" key={`${group.eventSlug}-${item.title}-${index}`}>
+                    <div className="atlas-cart-item-copy">
+                      <strong>{item.title}</strong>
+                      {item.description ? <span>{item.description}</span> : null}
+                    </div>
+                    {item.price ? <div className="atlas-cart-item-price"><b>{price.main}</b>{price.detail ? <small>{price.detail}</small> : null}</div> : null}
+                  </div>;
+                })}
               </div>
 
               <Link className="atlas-cart-group-link" href={group.eventPath} onClick={() => setPanelOpen(false)}>{text.back}</Link>
