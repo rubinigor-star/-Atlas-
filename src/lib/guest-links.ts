@@ -24,6 +24,7 @@ export function isGuestListPromoter(name: string) {
 }
 
 type GuestLinkSettingsRow = { showAttendees: boolean; seatIdsJson: string | null };
+type ActiveSeatLockRow = { linkId: string; seatIdsJson: string | null };
 let settingsReady: Promise<void> | undefined;
 
 export function ensureGuestLinkSettingsRuntime() {
@@ -54,6 +55,25 @@ export async function getGuestLinkSettings(linkId: string) {
     `SELECT "showAttendees","seatIdsJson" FROM "GuestLinkSettings" WHERE "linkId"=$1 LIMIT 1`, linkId,
   );
   return { showAttendees: Boolean(rows[0]?.showAttendees), seatIds: parseSeatIds(rows[0]?.seatIdsJson) };
+}
+
+export async function getActiveGuestSeatLocks(eventId: string) {
+  await ensureGuestLinkSettingsRuntime();
+  const rows = await db.$queryRawUnsafe<ActiveSeatLockRow[]>(
+    `SELECT gls."linkId", gls."seatIdsJson"
+     FROM "GuestLinkSettings" gls
+     JOIN "PromoterLink" pl ON pl."id"=gls."linkId"
+     JOIN "Promoter" p ON p."id"=pl."promoterId"
+     WHERE pl."eventId"=$1
+       AND pl."active"=TRUE
+       AND (pl."startsAt" IS NULL OR pl."startsAt"<=CURRENT_TIMESTAMP)
+       AND (pl."endsAt" IS NULL OR pl."endsAt">=CURRENT_TIMESTAMP)
+       AND (p."name" LIKE '__GUEST_LIST__:%' OR p."name" LIKE '__CHANNEL__:GUEST:%')`,
+    eventId,
+  );
+  const locks = new Map<string,string>();
+  for (const row of rows) for (const seatId of parseSeatIds(row.seatIdsJson)) if (!locks.has(seatId)) locks.set(seatId,row.linkId);
+  return locks;
 }
 
 export async function setGuestLinkSettings(linkId: string, input: { showAttendees: boolean; seatIds?: string[] }) {
