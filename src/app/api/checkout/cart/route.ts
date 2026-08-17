@@ -4,6 +4,7 @@ import { checkoutSchema } from "@/lib/schemas";
 import { effectiveTicketPrice, orderNumber } from "@/lib/ticketing";
 import { guestFieldKeys, parseGuestFields } from "@/lib/event-guest-fields";
 import { assertInventoryAvailable, createReservation, type ReservationItemInput } from "@/lib/reservation";
+import { CART_SESSION_COOKIE, releaseCartHold } from "@/lib/cart-hold";
 import { createHypPaymentLink } from "@/lib/hyp-yaadpay";
 import { createHypApprovalPaymentPage } from "@/lib/hyp-creditguard";
 import { ensureMarketingRuntime, parseMarketingCookie, saveOrderAttribution } from "@/lib/marketing-runtime";
@@ -13,6 +14,7 @@ import { calculateServiceFee } from "@/lib/service-fee";
 const APP_URL="https://www.atlas-one.co";
 function phone(value:string){const digits=value.replace(/\D/g,"");if(!digits)return"";if(digits.startsWith("972"))return`+${digits}`;if(digits.startsWith("0"))return`+972${digits.slice(1)}`;return`+972${digits}`;}
 function launch(value:string){return `/payments/hyp/launch?target=${encodeURIComponent(value)}`;}
+function cookieValue(req:Request,name:string){const raw=req.headers.get("cookie")||"";for(const part of raw.split(";")){const[key,...rest]=part.trim().split("=");if(key===name)return decodeURIComponent(rest.join("="));}return"";}
 async function paymentUrl(input:{mode:"INSTANT"|"APPROVAL_REQUIRED";total:number;id:string;title:string;name:string;email:string;phone:string;language:"HEB"|"ENG"}){
   if(input.mode==="APPROVAL_REQUIRED")return createHypApprovalPaymentPage({amountMinor:input.total,orderId:input.id,callbackPath:"/api/payments/hyp/approval",language:input.language,customerName:input.name,customerEmail:input.email,customerPhone:input.phone});
   return createHypPaymentLink({amountIls:input.total/100,orderId:input.id,description:input.title,customerName:input.name,customerEmail:input.email,customerPhone:input.phone,returnUrl:`${APP_URL}/api/payments/hyp/order`,language:input.language});
@@ -22,6 +24,7 @@ export async function POST(req:Request){
   try{
     await ensureMarketingRuntime();
     const attribution=parseMarketingCookie(req.headers.get("cookie"));
+    const cartSessionId=cookieValue(req,CART_SESSION_COOKIE);
     const input=checkoutSchema.parse(await req.json());
     const items=input.items;if(!items?.length)throw new Error("Корзина пуста");
     const language=input.locale==="he"?"HEB" as const:"ENG" as const;
@@ -77,7 +80,13 @@ export async function POST(req:Request){
       const maxOrderQuantity=Math.max(1,eventOrderLimit._max.maxPerOrder??1);if(totalQuantity>maxOrderQuantity)throw new Error(`В одном заказе можно купить не более ${maxOrderQuantity} билетов`);
       if(promoter&&totalQuantity>promoter.maxPerOrder)throw new Error(`По этой ссылке можно купить не более ${promoter.maxPerOrder} билетов за заказ`);
       if(promoter?.guestLimit){const allocated=promoter.orders.flatMap(order=>order.items).reduce((sum,item)=>sum+item.quantity,0);if(allocated+totalQuantity>promoter.guestLimit)throw new Error("Квота этой персональной ссылки исчерпана");}
-      const capacities=new Map([...requested].map(([id,value])=>[id,{sold:value.sold,capacity:value.capacity,name:value.name}]));await assertInventoryAvailable({items:reservationItems,capacities,executor:tx});
+      const capacities=new Map([...requested].map(([id,value])=>[id,{sold:value.sold,capacity:value.capacity,name:value.name}]));
+      // The browser already owns these claims while the tickets sit in its cart.
+      // Release that exact cart hold inside the same transaction, then immediately
+      // verify inventory and create the order reservation below. Other buyers never
+      // observe a successful checkout without an active claim.
+      if(cartSessionId)await releaseCartHold({sessionId:cartSessionId,eventId:event.id,executor:tx});
+      await assertInventoryAvailable({items:reservationItems,capacities,executor:tx});
       let discount=0;if(input.promoCode){const promo=await tx.promoCode.findUnique({where:{eventId_code:{eventId:event.id,code:input.promoCode.toUpperCase()}}});if(promo?.active)discount=promo.discountPercent;}subtotal=Math.round(subtotal*(100-discount)/100);
       const terms=await getEffectiveEventTerms(event.id,event.organizationId);const pricing=calculateServiceFee(subtotal,{salesFeePercentBps:terms.organizer.salesFeePercentBps,salesFeeFixedMinor:terms.organizer.salesFeeFixedMinor,serviceFeePayer:terms.serviceFeePayer});
       const firstName=input.customer.firstName.trim()||"Гость";const lastName=input.customer.lastName.trim();const name=`${firstName} ${lastName}`.trim();const email=(input.customer.email||`guest-${crypto.randomUUID()}@guest.atlas.local`).toLowerCase();const rawPhone=input.customer.phone.trim();const normalized=phone(rawPhone)||`guest-${crypto.randomUUID()}`;const birthDate=input.customer.birthDate?new Date(input.customer.birthDate):new Date("1900-01-01T00:00:00.000Z");
