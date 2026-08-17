@@ -4,15 +4,15 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEventAccess } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
-import { guestManagementToken, isGuestListPromoter, setGuestLinkSettings } from "@/lib/guest-links";
+import { getGuestLinkSettings, guestManagementToken, isGuestListPromoter, setGuestLinkSettings } from "@/lib/guest-links";
 
 const createSchema=z.object({action:z.literal("create").optional(),eventId:z.string().min(1),displayName:z.string().min(2).max(120),allocationType:z.enum(["EVENT","CATEGORY","TABLE","SEATS"]),seatIds:z.array(z.string().min(1)).max(500).optional(),categoryId:z.string().optional().nullable(),tableId:z.string().optional().nullable(),priceMode:z.enum(["FULL","FREE","CUSTOM"]),customPriceMinor:z.number().int().min(0).optional().nullable(),guestLimit:z.number().int().min(1).max(10000),maxPerOrder:z.number().int().min(1).max(100),showAttendees:z.boolean().optional().default(false),startsAt:z.string().optional().nullable(),endsAt:z.string().optional().nullable(),code:z.string().regex(/^[A-Za-z0-9_-]{3,40}$/).optional()});
 const toggleSchema=z.object({action:z.literal("toggle"),linkId:z.string().min(1),active:z.boolean()});
-const updateSchema=z.object({action:z.literal("update"),linkId:z.string().min(1),displayName:z.string().min(2).max(120),guestLimit:z.number().int().min(1).max(10000),maxPerOrder:z.number().int().min(1).max(100),showAttendees:z.boolean(),startsAt:z.string().optional().nullable(),endsAt:z.string().optional().nullable()});
+const updateSchema=z.object({action:z.literal("update"),linkId:z.string().min(1),displayName:z.string().min(2).max(120),guestLimit:z.number().int().min(1).max(10000).optional().nullable(),maxPerOrder:z.number().int().min(1).max(100),showAttendees:z.boolean().optional(),startsAt:z.string().optional().nullable(),endsAt:z.string().optional().nullable()});
 const deleteSchema=z.object({action:z.literal("delete"),linkId:z.string().min(1)});
 
 async function guestLinkOrThrow(linkId:string){
- const link=await db.promoterLink.findUnique({where:{id:linkId},include:{promoter:true,table:true}});
+ const link=await db.promoterLink.findUnique({where:{id:linkId},include:{promoter:true,table:true,category:true}});
  if(!link||!isGuestListPromoter(link.promoter.name))throw new Error("Гостевая ссылка не найдена");
  return link;
 }
@@ -28,12 +28,16 @@ export async function POST(req:Request){
   }
   if(body.action==="update"){
    const input=updateSchema.parse(body);const link=await guestLinkOrThrow(input.linkId);const actor=await requireEventAccess("EVENT_MANAGE",link.eventId);
+   const settings=await getGuestLinkSettings(link.id);
    if(input.startsAt&&input.endsAt&&new Date(input.startsAt)>=new Date(input.endsAt))throw new Error("Дата окончания должна быть позже даты начала");
-   if(link.table&&input.guestLimit>link.table.seats)throw new Error(`У этого стола только ${link.table.seats} мест`);
    const used=await db.order.findMany({where:{promoterLinkId:link.id,status:{notIn:["CANCELLED","REJECTED"]}},select:{items:{select:{quantity:true}}}}).then(rows=>rows.flatMap(r=>r.items).reduce((s,i)=>s+i.quantity,0));
-   if(input.guestLimit<used)throw new Error(`По ссылке уже зарегистрировано ${used}, лимит нельзя уменьшить ниже этого числа`);
-   await db.promoterLink.update({where:{id:link.id},data:{label:input.displayName,guestLimit:input.guestLimit,maxPerOrder:input.maxPerOrder,startsAt:input.startsAt?new Date(input.startsAt):null,endsAt:input.endsAt?new Date(input.endsAt):null}});
-   await setGuestLinkSettings(link.id,{showAttendees:input.showAttendees});
+   const currentLimit=link.guestLimit??link.table?.seats??link.category?.capacity??Math.max(used,1);
+   const nextLimit=input.guestLimit??currentLimit;
+   if(settings.seatIds.length&&nextLimit!==settings.seatIds.length)throw new Error("Для ссылки с выбранными местами лимит равен количеству мест и не изменяется отдельно");
+   if(link.table&&nextLimit>link.table.seats)throw new Error(`У этого стола только ${link.table.seats} мест`);
+   if(nextLimit<used)throw new Error(`По ссылке уже зарегистрировано ${used}, лимит нельзя уменьшить ниже этого числа`);
+   await db.promoterLink.update({where:{id:link.id},data:{label:input.displayName,guestLimit:nextLimit,maxPerOrder:input.maxPerOrder,startsAt:input.startsAt?new Date(input.startsAt):null,endsAt:input.endsAt?new Date(input.endsAt):null}});
+   await setGuestLinkSettings(link.id,{showAttendees:input.showAttendees??settings.showAttendees});
    await writeAudit(actor,{action:"GUEST_LIST_UPDATE",entityType:"PromoterLink",entityId:link.id,summary:`Обновлена гостевая ссылка ${input.displayName}`});
    return NextResponse.json({ok:true});
   }
@@ -41,6 +45,7 @@ export async function POST(req:Request){
    const input=deleteSchema.parse(body);const link=await guestLinkOrThrow(input.linkId);const actor=await requireEventAccess("EVENT_MANAGE",link.eventId);
    const orderCount=await db.order.count({where:{promoterLinkId:link.id}});
    if(orderCount===0){
+    await db.$executeRawUnsafe(`DELETE FROM "GuestLinkSettings" WHERE "linkId"=$1`,link.id).catch(()=>undefined);
     await db.promoterLink.delete({where:{id:link.id}});
     const remaining=await db.promoterLink.count({where:{promoterId:link.promoterId}});
     if(remaining===0)await db.promoter.delete({where:{id:link.promoterId}}).catch(()=>undefined);
