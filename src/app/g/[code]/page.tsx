@@ -13,12 +13,13 @@ export const metadata: Metadata = {
 
 export default async function GuestPage({params,searchParams}:{params:Promise<{code:string}>;searchParams:Promise<Record<string,string|undefined>>}){
   const {code}=await params;const query=await searchParams;
-  const link=await db.promoterLink.findUnique({where:{code:code.toUpperCase()},include:{promoter:true,event:true,category:true,table:true,orders:{where:{status:{notIn:["CANCELLED","REJECTED"]}},orderBy:{createdAt:"asc"},include:{items:true,tickets:true}}}});
+  const link=await db.promoterLink.findUnique({where:{code:code.toUpperCase()},include:{promoter:true,event:{include:{categories:true}},category:true,table:true,orders:{where:{status:{in:["PAID","PENDING_APPROVAL"]}},orderBy:{createdAt:"asc"},include:{items:true,tickets:true}}}});
   const now=new Date();
   if(!link||!link.active||!isGuestListPromoter(link.promoter.name)||(link.startsAt&&link.startsAt>now)||(link.endsAt&&link.endsAt<now))notFound();
   const token=query.token||"";const canManage=verifyGuestManagementToken(link.id,token);const settings=await getGuestLinkSettings(link.id);const limit=link.guestLimit??link.table?.seats??link.category?.capacity??0;const allocation=link.table?`Стол ${link.table.label}`:link.category?`Билет: ${link.category.name}`:"Гостевой список";
   const guestCount=link.orders.reduce((sum,order)=>sum+order.items.reduce((n,item)=>n+item.quantity,0),0);
   const showRoster=canManage||settings.showAttendees;
   const guests=showRoster?link.orders.map(order=>({id:order.id,name:order.customerName,phone:canManage?order.customerPhone:null,ticketStatus:order.status==="PENDING_APPROVAL"?"PENDING_APPROVAL":order.tickets[0]?.status??order.status})):[];
-  return <GuestListPage code={link.code} token={token} title={link.label} eventTitle={link.event.title} allocation={allocation} limit={limit} guestCount={guestCount} canManage={canManage} showAttendees={settings.showAttendees} fields={parseGuestFields(link.event.description)} guests={guests}/>;
+  const checkoutCategory=link.category??(link.table?.categoryId?link.event.categories.find(item=>item.id===link.table?.categoryId):null)??link.event.categories.find(item=>!item.hidden)??null;
+  return <GuestListPage code={link.code} token={token} title={link.label} eventTitle={link.event.title} eventId={link.eventId} categoryId={checkoutCategory?.id??null} tableId={link.tableId} requiresPayment={link.customPriceMinor!==0} allocation={allocation} limit={limit} guestCount={guestCount} canManage={canManage} showAttendees={settings.showAttendees} fields={parseGuestFields(link.event.description)} guests={guests}/>;
 }
