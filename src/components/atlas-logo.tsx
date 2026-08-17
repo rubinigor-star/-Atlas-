@@ -36,6 +36,11 @@ export function AtlasLogo({
       const element = anchorRef.current;
       if (!element) return;
 
+      if (element.closest('[class*="loginTopbar"]')) {
+        setRenderedSurface("dark");
+        return;
+      }
+
       if (element.closest(".atlas-mobile-drawer")) {
         setRenderedSurface("light");
         return;
