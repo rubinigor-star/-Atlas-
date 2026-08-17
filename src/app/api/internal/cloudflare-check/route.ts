@@ -35,23 +35,17 @@ export async function GET() {
     return NextResponse.json(
       {
         connected: false,
-        env: {
-          token: Boolean(token),
-          accountId: Boolean(accountId),
-        },
+        env: { token: Boolean(token), accountId: Boolean(accountId) },
         reason: "missing_environment_variables",
       },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
 
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
+  const headers = { Authorization: `Bearer ${token}` };
 
   try {
-    const verifyResponse = await fetch(`${CF_API}/user/tokens/verify`, {
+    const verifyResponse = await fetch(`${CF_API}/accounts/${accountId}/tokens/verify`, {
       headers,
       cache: "no-store",
     });
@@ -71,13 +65,9 @@ export async function GET() {
     }
 
     const zonesUrl = new URL(`${CF_API}/zones`);
-    zonesUrl.searchParams.set("account.id", accountId);
     zonesUrl.searchParams.set("per_page", "50");
 
-    const zonesResponse = await fetch(zonesUrl, {
-      headers,
-      cache: "no-store",
-    });
+    const zonesResponse = await fetch(zonesUrl, { headers, cache: "no-store" });
     const zonesPayload = (await zonesResponse.json().catch(() => null)) as CfEnvelope<ZoneResult[]> | null;
 
     if (!zonesResponse.ok || !zonesPayload?.success) {
@@ -97,14 +87,14 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        connected: true,
+        connected: zones.length > 0,
         env: { token: true, accountId: true },
         tokenStatus: verifyPayload.result?.status ?? "active",
-        zoneAccess: zones.length > 0,
+        zoneAccess: true,
         zoneCount: zones.length,
         zones: zones.map((zone) => ({ name: zone.name, status: zone.status ?? null })),
       },
-      { status: 200, headers: { "Cache-Control": "no-store" } },
+      { status: zones.length > 0 ? 200 : 502, headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
     console.error("Cloudflare connectivity check failed", error);
