@@ -15,12 +15,17 @@ type HoldObject = {
 };
 
 type CartHoldItem = { categoryId: string; quantity: number; tableId: string | null; seatIds: string[] };
+type StoredItem = { title: string; description: string; quantity?: number };
+type StoredGroup = { eventSlug: string; expiresAt: number; items: StoredItem[] };
+type StoredCart = { version?: number; groups?: StoredGroup[] };
 
 type HoldState = {
   heldSeatIds?: string[];
   heldTableIds?: string[];
   heldByCategory?: Record<string, number>;
 };
+
+const CART_STORAGE_KEY = "atlas-persistent-cart-v2";
 
 function normalize(value: string) {
   return value.replace(/\s+/g, " ").trim().toLocaleLowerCase();
@@ -84,6 +89,70 @@ function captureCart(categories: HoldCategory[], objects: HoldObject[]): CartHol
   });
 }
 
+function currentStoredGroup(): StoredGroup | null {
+  try {
+    const slug = window.location.pathname.match(/^\/events\/([^/]+)\/seats/)?.[1];
+    if (!slug) return null;
+    const raw = window.localStorage.getItem(CART_STORAGE_KEY);
+    if (!raw) return null;
+    const cart = JSON.parse(raw) as StoredCart;
+    const group = cart.groups?.find(candidate => candidate.eventSlug === slug && candidate.expiresAt > Date.now());
+    return group && Array.isArray(group.items) ? group : null;
+  } catch {
+    return null;
+  }
+}
+
+function clickableForObject(object: HoldObject) {
+  const target = normalize(object.label);
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>("button,[role='button'],[tabindex='0']"));
+  return candidates.find(element => {
+    const aria = normalize(element.getAttribute("aria-label") || "");
+    const text = normalize(element.innerText || "");
+    return aria === target || text === target || aria.includes(target) || text === target;
+  }) || null;
+}
+
+function clickableForSeat(seat: HoldSeat) {
+  const target = normalize(seat.label);
+  return Array.from(document.querySelectorAll<HTMLButtonElement>("button[aria-label]")).find(button => normalize(button.getAttribute("aria-label") || "") === target) || null;
+}
+
+function scheduleRestore(group: StoredGroup, categories: HoldCategory[], objects: HoldObject[]) {
+  let delay = 0;
+  let scheduled = 0;
+
+  for (const item of group.items) {
+    const quantity = item.quantity || quantityFromTitle(item.title || "");
+    const category = findCategory(item.title || "", categories);
+    const object = findObject(item.description || "", objects);
+    if (!category || !object) continue;
+
+    if (object.priceMode === "PER_SEAT" && object.objectType !== "ZONE") {
+      const ids = seatIdsFromDescription(item.description || "", object, quantity);
+      for (const id of ids) {
+        const seat = object.seatItems.find(candidate => candidate.id === id);
+        if (!seat) continue;
+        window.setTimeout(() => clickableForSeat(seat)?.click(), delay);
+        delay += 110;
+        scheduled += 1;
+      }
+      continue;
+    }
+
+    const target = clickableForObject(object);
+    if (!target) continue;
+    const clicks = object.priceMode === "WHOLE_TABLE" ? 1 : quantity;
+    for (let index = 0; index < clicks; index += 1) {
+      window.setTimeout(() => target.click(), delay);
+      delay += 140;
+      scheduled += 1;
+    }
+  }
+
+  return { scheduled, duration: delay };
+}
+
 function applyRemoteHolds(state: HoldState, seatLabelById: Map<string, string>, tableLabelById: Map<string, string>) {
   const heldSeatLabels = new Set((state.heldSeatIds ?? []).map(id => seatLabelById.get(id)).filter((label): label is string => Boolean(label)));
   const heldTableLabels = new Set((state.heldTableIds ?? []).map(id => tableLabelById.get(id)).filter((label): label is string => Boolean(label)));
@@ -102,8 +171,6 @@ function applyRemoteHolds(state: HoldState, seatLabelById: Map<string, string>, 
     }
   });
 
-  // Whole-table objects do not expose stable data ids in the public map, so use
-  // their visible label and block pointer interaction when another buyer holds them.
   document.querySelectorAll<HTMLElement>("div[class*='object']").forEach(element => {
     const text = normalize(element.innerText || "");
     const held = [...heldTableLabels].some(label => text.includes(normalize(label)));
@@ -126,6 +193,8 @@ export function SeatHoldBridge({ eventId, categories, objects }: {
 }) {
   const signatureRef = useRef("");
   const syncingRef = useRef(false);
+  const restoreStartedRef = useRef(false);
+  const restoringUntilRef = useRef(0);
   const seatLabelById = useMemo(() => new Map(objects.flatMap(object => object.seatItems.map(seat => [seat.id, seat.label] as const))), [objects]);
   const tableLabelById = useMemo(() => new Map(objects.map(object => [object.id, object.label] as const)), [objects]);
 
@@ -141,9 +210,25 @@ export function SeatHoldBridge({ eventId, categories, objects }: {
       } catch {/* next poll retries */}
     };
 
+    const restorePersistentSelection = () => {
+      if (restoreStartedRef.current || document.querySelector(".atlas-selected-ticket")) return;
+      const group = currentStoredGroup();
+      if (!group) return;
+      const restored = scheduleRestore(group, categories, objects);
+      if (!restored.scheduled) return;
+      restoreStartedRef.current = true;
+      restoringUntilRef.current = Date.now() + restored.duration + 900;
+      window.setTimeout(() => window.dispatchEvent(new CustomEvent("atlas-cart-restore-complete")), restored.duration + 250);
+    };
+
     const syncCart = async () => {
-      if (syncingRef.current || stopped) return;
+      if (syncingRef.current || stopped || Date.now() < restoringUntilRef.current) return;
       const items = captureCart(categories, objects);
+      const persisted = currentStoredGroup();
+      if (!items.length && persisted && !restoreStartedRef.current) {
+        restorePersistentSelection();
+        return;
+      }
       const signature = JSON.stringify(items);
       if (signature === signatureRef.current) return;
       syncingRef.current = true;
@@ -156,8 +241,6 @@ export function SeatHoldBridge({ eventId, categories, objects }: {
         });
         const data = await response.json().catch(() => ({})) as { error?: string; expiresAt?: string | null };
         if (!response.ok) {
-          // Another buyer won a race for the same claim. Reloading clears the
-          // optimistic local selection and immediately paints the winning hold.
           window.alert(data.error || "Одно из выбранных мест уже временно забронировано другим покупателем");
           window.location.reload();
           return;
@@ -170,12 +253,16 @@ export function SeatHoldBridge({ eventId, categories, objects }: {
       }
     };
 
-    const observer = new MutationObserver(() => window.setTimeout(syncCart, 0));
+    const observer = new MutationObserver(() => {
+      window.setTimeout(restorePersistentSelection, 0);
+      window.setTimeout(syncCart, 0);
+    });
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     const polling = window.setInterval(refreshRemote, 2500);
     const cartPolling = window.setInterval(syncCart, 350);
     void refreshRemote();
-    window.setTimeout(syncCart, 100);
+    window.setTimeout(restorePersistentSelection, 180);
+    window.setTimeout(syncCart, 850);
 
     return () => {
       stopped = true;
