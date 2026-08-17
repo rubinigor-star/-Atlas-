@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
@@ -18,7 +17,6 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const immersiveHeader = home || eventPage;
   const showPublicHeader = !standaloneAuth;
   const showPublicFooter = !standaloneAuth && !seatSelectionPage;
-  const showPolicyBar = !standaloneAuth && !seatSelectionPage;
 
   useEffect(() => {
     const body = document.body;
@@ -40,7 +38,6 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
   return <>
     {showPublicHeader && <SiteHeader/>}
-    {showPolicyBar && <div className="atlas-cancellation-policy-bar"><Link href="/cancellation-policy">מדיניות ביטול · Отмена и возврат билетов</Link></div>}
     {showPublicHeader && <GlobalSearch/>}
     {showPublicHeader && <PublicSoldOutDecorator/>}
     {showPublicHeader && !immersiveHeader && <div className="atlas-header-spacer" aria-hidden="true"/>}
