@@ -54,10 +54,11 @@ export async function replaceCartHold(params: {
   const executor = params.executor ?? db;
   await expireReservations(executor);
   const orderId = cartHoldOrderId(params.sessionId, params.eventId);
-  const rows = await executor.$queryRaw<Array<{ id: string }>>`
-    SELECT id FROM Reservation WHERE orderId = ${orderId} LIMIT 1
+  const rows = await executor.$queryRaw<Array<{ id: string; status: string; expiresAt: Date }>>`
+    SELECT id, status, expiresAt FROM Reservation WHERE orderId = ${orderId} LIMIT 1
   `;
-  const existingId = rows[0]?.id;
+  const existing = rows[0];
+  const existingId = existing?.id;
 
   // Temporarily remove this browser's own previous claims while recalculating the
   // replacement hold. API callers run this inside a transaction, so failures roll back.
@@ -76,7 +77,10 @@ export async function replaceCartHold(params: {
 
   await assertInventoryAvailable({ items: params.items, capacities: params.capacities, executor });
 
-  const expiresAt = new Date(Date.now() + CART_HOLD_TTL_MINUTES * 60 * 1000);
+  const previousExpiry = existing?.status === "ACTIVE" && new Date(existing.expiresAt).getTime() > Date.now()
+    ? new Date(existing.expiresAt)
+    : null;
+  const expiresAt = previousExpiry ?? new Date(Date.now() + CART_HOLD_TTL_MINUTES * 60 * 1000);
   const reservationId = existingId ?? `res_${randomUUID().replace(/-/g, "")}`;
   if (existingId) {
     await executor.$executeRaw`
