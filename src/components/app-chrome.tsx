@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { GlobalSearch } from "@/components/global-search";
 import { PublicSoldOutDecorator } from "@/components/public-sold-out-decorator";
+import { PersistentCartExperience } from "@/components/persistent-cart-experience";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -38,6 +39,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
   return <>
     {showPublicHeader && <SiteHeader/>}
+    {showPublicHeader && <PersistentCartExperience/>}
     {showPublicHeader && <GlobalSearch/>}
     {showPublicHeader && <PublicSoldOutDecorator/>}
     {showPublicHeader && !immersiveHeader && <div className="atlas-header-spacer" aria-hidden="true"/>}
