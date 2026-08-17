@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ShoppingCart, X, Clock3, Ticket } from "lucide-react";
+import { ShoppingCart, X, Clock3, Ticket, AlertTriangle } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useLocale } from "@/components/locale-provider";
 
@@ -41,6 +41,7 @@ type LegacyCart = Omit<PersistedCartGroup, "posterUrl"> & { posterUrl?: string }
 const copy = {
   ru: {
     cart: "Корзина",
+    cartTitle: "Ваша корзина",
     empty: "Корзина пуста",
     back: "Вернуться к билетам",
     close: "Закрыть корзину",
@@ -50,9 +51,15 @@ const copy = {
     expired: (title: string) => `${title}: время брони истекло. Эти билеты удалены из корзины и возвращены в продажу.`,
     holdTitle: "Места временно сохранены за вами",
     holdExplain: "Мы сохраняем выбранные места, пока вы оформляете заказ. Когда таймер закончится, они снова станут доступны другим покупателям.",
+    remove: "Удалить билеты",
+    removeTitle: "Удалить билеты из корзины?",
+    removeExplain: "Вы собираетесь отказаться от выбранных билетов. После подтверждения бронь будет снята, и эти места снова станут доступны другим покупателям.",
+    removeConfirm: "Да, вернуть билеты в продажу",
+    removeCancel: "Оставить билеты",
   },
   en: {
     cart: "Cart",
+    cartTitle: "Your cart",
     empty: "Your cart is empty",
     back: "Return to tickets",
     close: "Close cart",
@@ -62,9 +69,15 @@ const copy = {
     expired: (title: string) => `${title}: the hold expired. These tickets were removed from your cart and returned to sale.`,
     holdTitle: "Your seats are temporarily held",
     holdExplain: "We keep your selected seats while you complete your order. When the timer ends, they become available to other customers again.",
+    remove: "Remove tickets",
+    removeTitle: "Remove these tickets?",
+    removeExplain: "You are about to release these selected tickets. After confirmation, the hold will be removed and the seats will become available to other customers again.",
+    removeConfirm: "Yes, release the tickets",
+    removeCancel: "Keep my tickets",
   },
   he: {
     cart: "סל",
+    cartTitle: "הסל שלכם",
     empty: "הסל ריק",
     back: "חזרה לכרטיסים",
     close: "סגירת הסל",
@@ -74,6 +87,11 @@ const copy = {
     expired: (title: string) => `${title}: זמן השמירה הסתיים. הכרטיסים הוסרו מהסל וחזרו למכירה.`,
     holdTitle: "המקומות נשמרים עבורכם זמנית",
     holdExplain: "אנחנו שומרים את המקומות שבחרתם בזמן השלמת ההזמנה. כשהטיימר יסתיים הם יהיו זמינים שוב לרוכשים אחרים.",
+    remove: "הסרת כרטיסים",
+    removeTitle: "להסיר את הכרטיסים מהסל?",
+    removeExplain: "אישור הפעולה ישחרר את ההזמנה הזמנית והמקומות יהיו זמינים שוב לרוכשים אחרים.",
+    removeConfirm: "כן, להחזיר למכירה",
+    removeCancel: "להשאיר את הכרטיסים",
   },
 } as const;
 
@@ -216,6 +234,8 @@ export function PersistentCartExperience() {
   const [notice, setNotice] = useState("");
   const [headerMount, setHeaderMount] = useState<HTMLElement | null>(null);
   const [clockNow, setClockNow] = useState(() => Date.now());
+  const [removeTarget, setRemoveTarget] = useState<PersistedCartGroup | null>(null);
+  const [removing, setRemoving] = useState(false);
   const noticeTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -228,6 +248,21 @@ export function PersistentCartExperience() {
       window.removeEventListener("storage", sync);
     };
   }, []);
+
+  useEffect(() => {
+    const onServerHold = (event: Event) => {
+      const custom = event as CustomEvent<{ expiresAt?: string | null }>;
+      const match = pathname.match(/^\/events\/([^/]+)\/seats/);
+      const expiresAt = custom.detail?.expiresAt ? new Date(custom.detail.expiresAt).getTime() : 0;
+      if (!match || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) return;
+      const current = readCart();
+      if (!current) return;
+      const next = { ...current, groups: current.groups.map(group => group.eventSlug === match[1] ? { ...group, expiresAt } : group) };
+      writeCart(next);
+    };
+    window.addEventListener("atlas-server-hold", onServerHold as EventListener);
+    return () => window.removeEventListener("atlas-server-hold", onServerHold as EventListener);
+  }, [pathname]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setClockNow(Date.now()), 1000);
@@ -348,6 +383,25 @@ export function PersistentCartExperience() {
     if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
   }, []);
 
+  const removeGroup = async () => {
+    if (!removeTarget || removing) return;
+    setRemoving(true);
+    try {
+      const response = await fetch("/api/cart/hold/release", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ eventSlug: removeTarget.eventSlug }),
+      });
+      if (!response.ok) throw new Error("release_failed");
+      const current = readCart();
+      const groups = current?.groups.filter(group => group.eventSlug !== removeTarget.eventSlug) ?? [];
+      writeCart(groups.length ? { version: 2, groups } : null);
+      setRemoveTarget(null);
+    } finally {
+      setRemoving(false);
+    }
+  };
+
   const totalCount = cart?.groups.reduce((sum, group) => sum + group.totalCount, 0) ?? 0;
 
   const headerButton = headerMount ? createPortal(
@@ -372,7 +426,10 @@ export function PersistentCartExperience() {
     }}>
       <aside className="atlas-cart-panel" role="dialog" aria-modal="true" aria-label={text.cart}>
         <header className="atlas-cart-panel-head">
-          <div><span>{text.cart}</span></div>
+          <div className="atlas-cart-panel-brand">
+            <span className="atlas-cart-panel-brand-icon"><ShoppingCart size={18} strokeWidth={2.2}/></span>
+            <span>{text.cartTitle}</span>
+          </div>
           <button type="button" aria-label={text.close} onClick={() => setPanelOpen(false)}><X size={22}/></button>
         </header>
 
@@ -387,10 +444,14 @@ export function PersistentCartExperience() {
                 <div className="atlas-cart-event-copy">
                   <h2>{group.eventTitle}</h2>
                 </div>
+                <button className="atlas-cart-group-remove" type="button" aria-label={text.remove} title={text.remove} onClick={() => setRemoveTarget(group)}><X size={18}/></button>
               </div>
 
               <div className="atlas-cart-hold-note">
-                <div><Clock3 size={16}/><strong>{text.holdTitle}</strong><b>{countdown}</b></div>
+                <div className="atlas-cart-hold-row">
+                  <strong>{text.holdTitle}</strong>
+                  <span className="atlas-cart-timer-pill"><Clock3 size={14}/><b>{countdown}</b></span>
+                </div>
                 <p>{text.holdExplain}</p>
               </div>
 
@@ -413,6 +474,19 @@ export function PersistentCartExperience() {
         </div>}
       </aside>
     </div>}
+
+    {removeTarget ? <div className="atlas-cart-confirm-overlay" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target && !removing) setRemoveTarget(null); }}>
+      <div className="atlas-cart-confirm" role="dialog" aria-modal="true" aria-labelledby="atlas-cart-remove-title">
+        <button className="atlas-cart-confirm-close" type="button" aria-label={text.close} disabled={removing} onClick={() => setRemoveTarget(null)}><X size={20}/></button>
+        <div className="atlas-cart-confirm-icon"><AlertTriangle size={22}/></div>
+        <h3 id="atlas-cart-remove-title">{text.removeTitle}</h3>
+        <p>{text.removeExplain}</p>
+        <div className="atlas-cart-confirm-actions">
+          <button type="button" className="atlas-cart-confirm-danger" disabled={removing} onClick={removeGroup}>{text.removeConfirm}</button>
+          <button type="button" className="atlas-cart-confirm-cancel" disabled={removing} onClick={() => setRemoveTarget(null)}>{text.removeCancel}</button>
+        </div>
+      </div>
+    </div> : null}
 
     {notice ? <div className="atlas-cart-notice" role="status" aria-live="polite">
       <Clock3 size={22} aria-hidden="true"/>
