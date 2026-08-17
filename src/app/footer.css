@@ -8,8 +8,11 @@
 .atlas-footer .atlas-footer-shell {
   width: min(100%, 1240px);
   max-width: 1240px;
+  min-height: 460px;
   margin: 0 auto;
-  padding: 58px 24px 24px;
+  padding: 62px 24px 26px;
+  display: flex;
+  flex-direction: column;
 }
 
 .atlas-footer-main {
@@ -125,7 +128,7 @@
 }
 
 .atlas-footer-bottom {
-  margin-top: 58px;
+  margin-top: auto;
   padding-top: 22px;
   border-top: 1px solid rgba(255,255,255,.14);
   display: flex;
@@ -181,6 +184,7 @@
 
 @media (max-width: 860px) {
   .atlas-footer .atlas-footer-shell {
+    min-height: 0;
     padding-top: 46px;
   }
 
@@ -206,6 +210,7 @@
 
 @media (max-width: 560px) {
   .atlas-footer .atlas-footer-shell {
+    min-height: 0;
     padding: 38px 18px 22px;
   }
 
