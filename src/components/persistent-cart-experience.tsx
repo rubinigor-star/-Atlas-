@@ -136,7 +136,6 @@ export function PersistentCartExperience() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [notice, setNotice] = useState<string>("");
   const [headerMount, setHeaderMount] = useState<HTMLElement | null>(null);
-  const seenNonEmptyOnSeatPage = useRef(false);
   const noticeTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -174,33 +173,30 @@ export function PersistentCartExperience() {
 
   useEffect(() => {
     const isSeatPage = /^\/events\/[^/]+\/seats/.test(pathname);
-    if (!isSeatPage) {
-      seenNonEmptyOnSeatPage.current = false;
-      return;
-    }
+    if (!isSeatPage) return;
 
     let frame = 0;
     const syncFromDom = () => {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
+        if (window.location.pathname !== pathname) return;
         const previous = readCart();
         const nodes = document.querySelectorAll(".atlas-selected-ticket");
         if (nodes.length > 0) {
-          seenNonEmptyOnSeatPage.current = true;
           const next = captureSeatPageCart(pathname, previous);
           if (next) writeCart(next);
-          return;
         }
-        if (seenNonEmptyOnSeatPage.current && previous?.eventPath === pathname) writeCart(null);
       });
     };
 
     const observer = new MutationObserver(syncFromDom);
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     const delayed = window.setTimeout(syncFromDom, 300);
+    const poll = window.setInterval(syncFromDom, 500);
     return () => {
       observer.disconnect();
       window.clearTimeout(delayed);
+      window.clearInterval(poll);
       window.cancelAnimationFrame(frame);
     };
   }, [pathname]);
