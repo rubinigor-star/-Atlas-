@@ -1,7 +1,44 @@
-.atlas-logo-dark .atlas-logo-image {
+.atlas-logo-image {
+  position: relative;
+  aspect-ratio: 540 / 159;
+  overflow: visible;
   background: transparent;
   filter: none;
+}
+
+.atlas-logo-asset {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+  object-position: left center;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 140ms ease;
+}
+
+.atlas-logo-adaptive .atlas-logo-on-light,
+.atlas-logo-dark .atlas-logo-on-dark {
+  opacity: 1;
+}
+
+.atlas-logo-adaptive .atlas-logo-on-dark,
+.atlas-logo-dark .atlas-logo-on-light {
+  opacity: 0;
+}
+
+/* Match the exact immersive-header state used by sticky-header-theme.css:
+   dark-background logo at the top, light-background logo after scrolling. */
+body:has(.home-page):not(.atlas-header-scrolled) .atlas-site-header .atlas-logo-adaptive .atlas-logo-on-light,
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-site-header .atlas-logo-adaptive .atlas-logo-on-light {
+  opacity: 0;
+}
+
+body:has(.home-page):not(.atlas-header-scrolled) .atlas-site-header .atlas-logo-adaptive .atlas-logo-on-dark,
+body:is(.atlas-header-home, .atlas-header-event):not(.atlas-header-scrolled) .atlas-site-header .atlas-logo-adaptive .atlas-logo-on-dark {
+  opacity: 1;
 }
 
 .footer .atlas-logo {
@@ -28,5 +65,11 @@
 
   .footer .atlas-logo-image {
     width: 150px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-logo-asset {
+    transition: none;
   }
 }
