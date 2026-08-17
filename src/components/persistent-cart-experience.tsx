@@ -53,9 +53,10 @@ const copy = {
     holdExplain: "Мы сохраняем выбранные места, пока вы оформляете заказ. Когда таймер закончится, они снова станут доступны другим покупателям.",
     remove: "Удалить билеты",
     removeTitle: "Удалить билеты из корзины?",
-    removeExplain: "Вы собираетесь отказаться от выбранных билетов. После подтверждения бронь будет снята, и эти места снова станут доступны другим покупателям.",
-    removeConfirm: "Да, вернуть билеты в продажу",
-    removeCancel: "Оставить билеты",
+    removeExplain: "Вы можете сразу перейти к оплате и завершить покупку. Если вернуть билеты в продажу, бронь будет снята и эти места снова станут доступны другим покупателям.",
+    checkout: "Перейти к оплате билетов",
+    release: "Вернуть билеты в продажу",
+    fee: "Сборы",
   },
   en: {
     cart: "Cart",
@@ -71,9 +72,10 @@ const copy = {
     holdExplain: "We keep your selected seats while you complete your order. When the timer ends, they become available to other customers again.",
     remove: "Remove tickets",
     removeTitle: "Remove these tickets?",
-    removeExplain: "You are about to release these selected tickets. After confirmation, the hold will be removed and the seats will become available to other customers again.",
-    removeConfirm: "Yes, release the tickets",
-    removeCancel: "Keep my tickets",
+    removeExplain: "You can continue directly to checkout and complete your purchase. If you release the tickets, the hold will be removed and the seats will become available to other customers again.",
+    checkout: "Continue to checkout",
+    release: "Return tickets to sale",
+    fee: "Fees",
   },
   he: {
     cart: "סל",
@@ -89,9 +91,10 @@ const copy = {
     holdExplain: "אנחנו שומרים את המקומות שבחרתם בזמן השלמת ההזמנה. כשהטיימר יסתיים הם יהיו זמינים שוב לרוכשים אחרים.",
     remove: "הסרת כרטיסים",
     removeTitle: "להסיר את הכרטיסים מהסל?",
-    removeExplain: "אישור הפעולה ישחרר את ההזמנה הזמנית והמקומות יהיו זמינים שוב לרוכשים אחרים.",
-    removeConfirm: "כן, להחזיר למכירה",
-    removeCancel: "להשאיר את הכרטיסים",
+    removeExplain: "אפשר לעבור מיד לתשלום ולהשלים את הרכישה. אם תחזירו את הכרטיסים למכירה, השמירה תבוטל והמקומות יהיו זמינים שוב לאחרים.",
+    checkout: "מעבר לתשלום",
+    release: "החזרת הכרטיסים למכירה",
+    fee: "עמלות",
   },
 } as const;
 
@@ -223,6 +226,17 @@ function splitPrice(value: string) {
   const match = normalized.match(/^(.+?₪)(?:\s+(.+))?$/);
   if (!match) return { main: normalized, detail: "" };
   return { main: match[1], detail: match[2] || "" };
+}
+
+function resumeHref(group: PersistedCartGroup, checkout = false) {
+  const qty = Math.max(1, group.items[0]?.quantity || group.totalCount || 1);
+  const separator = group.eventPath.includes("?") ? "&" : "?";
+  return `${group.eventPath}${separator}qty=${encodeURIComponent(String(qty))}${checkout ? "&checkout=1" : ""}`;
+}
+
+function feeLine(detail: string, label: string) {
+  const match = normalizeText(detail).match(/(\d+(?:[.,]\d+)?)\s*₪/);
+  return match ? `${label} ${match[1]} ₪` : detail;
 }
 
 export function PersistentCartExperience() {
@@ -458,17 +472,18 @@ export function PersistentCartExperience() {
               <div className="atlas-cart-list">
                 {group.items.map((item, index) => {
                   const price = splitPrice(item.price);
+                  const detail = price.detail ? feeLine(price.detail, text.fee) : "";
                   return <div className="atlas-cart-item" key={`${group.eventSlug}-${item.title}-${index}`}>
                     <div className="atlas-cart-item-copy">
                       <strong>{item.title}</strong>
                       {item.description ? <span>{item.description}</span> : null}
                     </div>
-                    {item.price ? <div className="atlas-cart-item-price"><b>{price.main}</b>{price.detail ? <small>{price.detail}</small> : null}</div> : null}
+                    {item.price ? <div className="atlas-cart-item-price"><b>{price.main}</b>{detail ? <small>{detail}</small> : null}</div> : null}
                   </div>;
                 })}
               </div>
 
-              <Link className="atlas-cart-group-link" href={group.eventPath} onClick={() => setPanelOpen(false)}>{text.back}</Link>
+              <Link className="atlas-cart-group-link" href={resumeHref(group)} onClick={() => setPanelOpen(false)}>{text.back}</Link>
             </section>;
           })}
         </div>}
@@ -482,8 +497,8 @@ export function PersistentCartExperience() {
         <h3 id="atlas-cart-remove-title">{text.removeTitle}</h3>
         <p>{text.removeExplain}</p>
         <div className="atlas-cart-confirm-actions">
-          <button type="button" className="atlas-cart-confirm-danger" disabled={removing} onClick={removeGroup}>{text.removeConfirm}</button>
-          <button type="button" className="atlas-cart-confirm-cancel" disabled={removing} onClick={() => setRemoveTarget(null)}>{text.removeCancel}</button>
+          <button type="button" className="atlas-cart-confirm-primary" disabled={removing} onClick={() => window.location.assign(resumeHref(removeTarget, true))}>{text.checkout}</button>
+          <button type="button" className="atlas-cart-confirm-release" disabled={removing} onClick={removeGroup}>{text.release}</button>
         </div>
       </div>
     </div> : null}
