@@ -30,7 +30,7 @@ export async function POST(req:Request){
   if(input.priceMode==="CUSTOM"&&input.customPriceMinor==null)throw new Error("Укажите специальную цену");
   if(input.startsAt&&input.endsAt&&new Date(input.startsAt)>=new Date(input.endsAt))throw new Error("Дата окончания должна быть позже даты начала");
   const raw=input.code?.toUpperCase()||`${input.displayName.replace(/[^A-Za-zА-Яа-я0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,20)}-${randomBytes(3).toString("hex")}`.toUpperCase();const code=raw.replace(/[^A-Z0-9_-]/g,"-");
-  const customPriceMinor=input.kind==="GUEST"||input.priceMode==="FREE"?0:input.priceMode==="CUSTOM"?input.customPriceMinor:null;
+  const customPriceMinor=input.priceMode==="FREE"?0:input.priceMode==="CUSTOM"?input.customPriceMinor:null;
   const result=await db.$transaction(async tx=>{const promoter=await tx.promoter.create({data:{organizationId:actor.organizationId!,name:`__CHANNEL__:${input.kind}:${input.displayName}:${randomBytes(4).toString("hex")}`,active:true,defaultCommissionBps:0}});return tx.promoterLink.create({data:{eventId:input.eventId,promoterId:promoter.id,label:input.displayName,code,allocationType:input.allocationType,categoryId:input.allocationType==="CATEGORY"?input.categoryId:null,tableId:input.allocationType==="TABLE"?input.tableId:null,guestLimit:input.guestLimit,maxPerOrder:input.maxPerOrder,customPriceMinor,commissionBps:0,exclusive:true,startsAt:input.startsAt?new Date(input.startsAt):null,endsAt:input.endsAt?new Date(input.endsAt):null}})});
   if(input.kind==="GUEST")await setGuestLinkSettings(result.id,{showAttendees:input.showAttendees});
   await writeAudit(actor,{action:"SALES_CHANNEL_CREATE",entityType:"PromoterLink",entityId:result.id,summary:`Создан канал ${input.displayName}`});
