@@ -56,7 +56,6 @@ const copy = {
     removeExplain: "Вы можете сразу перейти к оплате и завершить покупку. Если вернуть билеты в продажу, бронь будет снята и эти места снова станут доступны другим покупателям.",
     checkout: "Перейти к оплате билетов",
     release: "Вернуть билеты в продажу",
-    fee: "Сборы",
   },
   en: {
     cart: "Cart",
@@ -75,7 +74,6 @@ const copy = {
     removeExplain: "You can continue directly to checkout and complete your purchase. If you release the tickets, the hold will be removed and the seats will become available to other customers again.",
     checkout: "Continue to checkout",
     release: "Return tickets to sale",
-    fee: "Fees",
   },
   he: {
     cart: "סל",
@@ -94,7 +92,6 @@ const copy = {
     removeExplain: "אפשר לעבור מיד לתשלום ולהשלים את הרכישה. אם תחזירו את הכרטיסים למכירה, השמירה תבוטל והמקומות יהיו זמינים שוב לאחרים.",
     checkout: "מעבר לתשלום",
     release: "החזרת הכרטיסים למכירה",
-    fee: "עמלות",
   },
 } as const;
 
@@ -232,11 +229,6 @@ function resumeHref(group: PersistedCartGroup, checkout = false) {
   const qty = Math.max(1, group.items[0]?.quantity || group.totalCount || 1);
   const separator = group.eventPath.includes("?") ? "&" : "?";
   return `${group.eventPath}${separator}qty=${encodeURIComponent(String(qty))}${checkout ? "&checkout=1" : ""}`;
-}
-
-function feeLine(detail: string, label: string) {
-  const match = normalizeText(detail).match(/(\d+(?:[.,]\d+)?)\s*₪/);
-  return match ? `${label} ${match[1]} ₪` : detail;
 }
 
 export function PersistentCartExperience() {
@@ -472,13 +464,12 @@ export function PersistentCartExperience() {
               <div className="atlas-cart-list">
                 {group.items.map((item, index) => {
                   const price = splitPrice(item.price);
-                  const detail = price.detail ? feeLine(price.detail, text.fee) : "";
                   return <div className="atlas-cart-item" key={`${group.eventSlug}-${item.title}-${index}`}>
                     <div className="atlas-cart-item-copy">
                       <strong>{item.title}</strong>
                       {item.description ? <span>{item.description}</span> : null}
                     </div>
-                    {item.price ? <div className="atlas-cart-item-price"><b>{price.main}</b>{detail ? <small>{detail}</small> : null}</div> : null}
+                    {item.price ? <div className="atlas-cart-item-price"><b>{price.main}</b>{price.detail ? <small>{price.detail}</small> : null}</div> : null}
                   </div>;
                 })}
               </div>
