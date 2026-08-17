@@ -7,6 +7,7 @@ import { GlobalSearch } from "@/components/global-search";
 import { PublicSoldOutDecorator } from "@/components/public-sold-out-decorator";
 import { PersistentCartExperience } from "@/components/persistent-cart-experience";
 import { CartReminderCard } from "@/components/cart-reminder-card";
+import { CartStateReconciler } from "@/components/cart-state-reconciler";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -41,6 +42,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   return <>
     {showPublicHeader && <SiteHeader/>}
     {showPublicHeader && <PersistentCartExperience/>}
+    {showPublicHeader && <CartStateReconciler/>}
     {showPublicHeader && <CartReminderCard/>}
     {showPublicHeader && <GlobalSearch/>}
     {showPublicHeader && <PublicSoldOutDecorator/>}
