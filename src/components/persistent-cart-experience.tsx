@@ -319,7 +319,8 @@ export function PersistentCartExperience() {
       let changed = false;
       const survivors: PersistedCartGroup[] = [];
 
-      for (const group of current.groups) {
+      for (const sourceGroup of current.groups) {
+        let group = sourceGroup;
         const remaining = group.expiresAt - now;
         const stage = stageFor(remaining);
         if (stage === 0) {
