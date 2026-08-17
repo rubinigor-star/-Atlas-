@@ -75,7 +75,7 @@ export function AtlasLogo({
 
   const imageSrc = renderedSurface === "dark"
     ? "/brand/atlas-logo-dark.svg"
-    : "/brand/atlas-logo-light-current.svg";
+    : "/brand/atlas-logo-light-exact.svg";
 
   return (
     <Link ref={anchorRef} href={href} className={classes} aria-label="Atlas One - главная">
