@@ -26,7 +26,7 @@
     "@vercel/blob": "2.6.1",
     "@vercel/speed-insights": "2.0.0",
     "@zxing/browser": "0.1.5",
-    "@zxing/library": "0.21.5",
+    "@zxing/library": "0.21.3",
     "lucide-react": "0.468.0",
     "next": "16.2.11",
     "passkit-generator": "^3.5.5",
@@ -43,7 +43,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "3.3.1",
     "@types/node": "22.18.6",
-    "@types/pngjs": "^7.0.3",
+    "@types/pngjs": "^6.0.5",
     "@types/qrcode": "^1.5.6",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
