@@ -1,0 +1,269 @@
+.footer.atlas-footer {
+  padding: 0;
+  border-top: 1px solid rgba(255,255,255,.08);
+  color: #aab2c0;
+  font-size: 14px;
+}
+
+.atlas-footer .atlas-footer-shell {
+  width: min(100%, 1240px);
+  max-width: 1240px;
+  min-height: 460px;
+  margin: 0 auto;
+  padding: 62px 24px 26px;
+  display: flex;
+  flex-direction: column;
+}
+
+.atlas-footer-main {
+  display: grid;
+  grid-template-columns: minmax(360px, 1.5fr) minmax(180px, .65fr) minmax(180px, .65fr);
+  gap: clamp(42px, 7vw, 100px);
+  align-items: start;
+}
+
+.atlas-footer-brand {
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: 24px;
+}
+
+.atlas-footer .atlas-brand-logo {
+  display: inline-flex;
+  width: max-content;
+}
+
+.atlas-footer .atlas-brand-logo__mark {
+  width: 168px;
+}
+
+.store-badges {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.store-badge {
+  width: 150px;
+  height: 48px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255,255,255,.27);
+  border-radius: 9px;
+  display: grid;
+  grid-template-columns: 28px minmax(0,1fr);
+  align-items: center;
+  gap: 8px;
+  background: #05070b;
+  color: #fff;
+  line-height: 1;
+  overflow: hidden;
+}
+
+.store-badge-icon {
+  width: 28px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.store-badge-icon svg {
+  display: block !important;
+  width: 28px !important;
+  height: 30px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  min-height: 30px !important;
+  max-height: 30px !important;
+}
+
+.store-badge-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.store-badge-copy small {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: .02em;
+}
+
+.store-badge-copy strong {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -.03em;
+}
+
+.atlas-footer-column {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.atlas-footer-column h2 {
+  margin: 0 0 3px;
+  color: #fff;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+.atlas-footer-column a {
+  width: max-content;
+  max-width: 100%;
+  color: #aeb5c2;
+  font-size: 14px;
+  line-height: 1.35;
+  transition: color 150ms ease;
+}
+
+.atlas-footer-column a:hover,
+.atlas-footer-column a:focus-visible {
+  color: #fff;
+}
+
+.atlas-footer-bottom {
+  margin-top: auto;
+  padding-top: 22px;
+  border-top: 1px solid rgba(255,255,255,.14);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.footer-socials {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex: 0 0 auto;
+}
+
+.footer-social-link {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  overflow: hidden;
+}
+
+.footer-social-link svg {
+  display: block !important;
+  width: 19px !important;
+  height: 19px !important;
+  min-width: 19px !important;
+  max-width: 19px !important;
+  min-height: 19px !important;
+  max-height: 19px !important;
+}
+
+.footer-legal {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 22px;
+  flex-wrap: wrap;
+  color: #a7afbd;
+  font-size: 13px;
+}
+
+.footer-legal a {
+  transition: color 150ms ease;
+}
+
+.footer-legal a:hover,
+.footer-legal a:focus-visible {
+  color: #fff;
+}
+
+@media (max-width: 860px) {
+  .atlas-footer .atlas-footer-shell {
+    min-height: 0;
+    padding-top: 46px;
+  }
+
+  .atlas-footer-main {
+    grid-template-columns: 1fr 1fr;
+    gap: 38px 26px;
+  }
+
+  .atlas-footer-brand {
+    grid-column: 1 / -1;
+  }
+
+  .atlas-footer-bottom {
+    margin-top: 42px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .footer-legal {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .atlas-footer .atlas-footer-shell {
+    min-height: 0;
+    padding: 38px 18px 22px;
+  }
+
+  .atlas-footer-main {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+
+  .atlas-footer-brand {
+    grid-column: auto;
+    gap: 18px;
+  }
+
+  .atlas-footer .atlas-brand-logo__mark {
+    width: 148px;
+  }
+
+  .store-badges {
+    gap: 9px;
+  }
+
+  .store-badge {
+    width: 138px;
+    height: 44px;
+    grid-template-columns: 25px minmax(0,1fr);
+    padding: 5px 8px;
+  }
+
+  .store-badge-icon,
+  .store-badge-icon svg {
+    width: 25px !important;
+    min-width: 25px !important;
+    max-width: 25px !important;
+    height: 27px !important;
+    min-height: 27px !important;
+    max-height: 27px !important;
+  }
+
+  .store-badge-copy strong {
+    font-size: 15px;
+  }
+
+  .atlas-footer-column h2 {
+    font-size: 18px;
+  }
+
+  .atlas-footer-bottom {
+    margin-top: 34px;
+    padding-top: 18px;
+  }
+
+  .footer-legal {
+    gap: 11px 18px;
+    font-size: 12px;
+  }
+}
