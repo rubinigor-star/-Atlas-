@@ -142,8 +142,6 @@ function scheduleRestore(group: StoredGroup, categories: HoldCategory[], objects
 
     const target = clickableForObject(object);
     if (!target) continue;
-    // A ZONE click creates one cart line using the page's current ticket quantity.
-    // Clicking the zone once per stored ticket would multiply the restored quantity.
     const clicks = object.priceMode === "WHOLE_TABLE" || object.objectType === "ZONE" ? 1 : quantity;
     for (let index = 0; index < clicks; index += 1) {
       window.setTimeout(() => target.click(), delay);
@@ -197,6 +195,7 @@ export function SeatHoldBridge({ eventId, categories, objects }: {
   const syncingRef = useRef(false);
   const restoreStartedRef = useRef(false);
   const restoringUntilRef = useRef(0);
+  const checkoutResumeRef = useRef(false);
   const seatLabelById = useMemo(() => new Map(objects.flatMap(object => object.seatItems.map(seat => [seat.id, seat.label] as const))), [objects]);
   const tableLabelById = useMemo(() => new Map(objects.map(object => [object.id, object.label] as const)), [objects]);
 
@@ -212,6 +211,17 @@ export function SeatHoldBridge({ eventId, categories, objects }: {
       } catch {/* next poll retries */}
     };
 
+    const finishRestore = () => {
+      window.dispatchEvent(new CustomEvent("atlas-cart-restore-complete"));
+      const wantsCheckout = new URLSearchParams(window.location.search).get("checkout") === "1";
+      if (!wantsCheckout || checkoutResumeRef.current) return;
+      checkoutResumeRef.current = true;
+      window.setTimeout(() => {
+        const button = document.querySelector<HTMLButtonElement>(".atlas-checkout-button:not(:disabled)");
+        if (button) button.click();
+      }, 220);
+    };
+
     const restorePersistentSelection = () => {
       if (restoreStartedRef.current || document.querySelector(".atlas-selected-ticket")) return;
       const group = currentStoredGroup();
@@ -220,7 +230,7 @@ export function SeatHoldBridge({ eventId, categories, objects }: {
       if (!restored.scheduled) return;
       restoreStartedRef.current = true;
       restoringUntilRef.current = Date.now() + restored.duration + 900;
-      window.setTimeout(() => window.dispatchEvent(new CustomEvent("atlas-cart-restore-complete")), restored.duration + 250);
+      window.setTimeout(finishRestore, restored.duration + 250);
     };
 
     const syncCart = async () => {
