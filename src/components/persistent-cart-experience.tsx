@@ -40,6 +40,8 @@ const copy = {
     urgent: "Последние 3 минуты. Завершите оформление сейчас, иначе выбранные билеты будут удалены из корзины.",
     expired: "Время сохранения билетов истекло. Корзина очищена. Выберите билеты заново.",
     event: "Мероприятие",
+    holdTitle: "Места зарезервированы за вами",
+    holdExplain: "Таймер показывает, сколько времени выбранные билеты остаются в вашей корзине. После 00:00 бронь снимается, и места возвращаются в продажу.",
   },
   en: {
     cart: "Cart",
@@ -51,6 +53,8 @@ const copy = {
     urgent: "Last 3 minutes. Complete checkout now or the selected tickets will be removed from your cart.",
     expired: "Your ticket hold has expired. The cart was cleared. Please select tickets again.",
     event: "Event",
+    holdTitle: "Your seats are reserved",
+    holdExplain: "The timer shows how long the selected tickets remain in your cart. At 00:00 the hold ends and the seats return to sale.",
   },
   he: {
     cart: "סל",
@@ -62,6 +66,8 @@ const copy = {
     urgent: "3 דקות אחרונות. השלימו את ההזמנה עכשיו, אחרת הכרטיסים יוסרו מהסל.",
     expired: "זמן שמירת הכרטיסים הסתיים. הסל נוקה. בחרו כרטיסים מחדש.",
     event: "אירוע",
+    holdTitle: "המקומות שמורים עבורכם",
+    holdExplain: "הטיימר מציג כמה זמן הכרטיסים שבחרתם נשארים בסל. כשהוא מגיע ל-00:00 השמירה מסתיימת והמקומות חוזרים למכירה.",
   },
 } as const;
 
@@ -136,6 +142,7 @@ export function PersistentCartExperience() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [notice, setNotice] = useState<string>("");
   const [headerMount, setHeaderMount] = useState<HTMLElement | null>(null);
+  const [clockNow, setClockNow] = useState(() => Date.now());
   const noticeTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -147,6 +154,11 @@ export function PersistentCartExperience() {
       window.removeEventListener("atlas-cart-change", sync as EventListener);
       window.removeEventListener("storage", sync);
     };
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setClockNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -241,10 +253,10 @@ export function PersistentCartExperience() {
     if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
   }, []);
 
-  const remainingMinutes = useMemo(() => {
-    if (!cart) return 0;
-    return Math.max(0, Math.ceil((cart.expiresAt - Date.now()) / 60000));
-  }, [cart]);
+  const remainingMs = cart ? Math.max(0, cart.expiresAt - clockNow) : 0;
+  const remainingMinutes = Math.floor(remainingMs / 60000);
+  const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+  const countdown = `${String(remainingMinutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
 
   const headerButton = headerMount ? createPortal(
     <button
@@ -270,12 +282,20 @@ export function PersistentCartExperience() {
         <header className="atlas-cart-panel-head">
           <div>
             <span>{text.cart}</span>
-            {cart ? <small><Clock3 size={14}/> {remainingMinutes} мин</small> : null}
+            {cart ? <small><Clock3 size={14}/> {countdown}</small> : null}
           </div>
           <button type="button" aria-label={text.close} onClick={() => setPanelOpen(false)}><X size={22}/></button>
         </header>
 
         {!cart ? <div className="atlas-cart-empty">{text.empty}</div> : <>
+          <div style={{margin:"16px 0 18px",padding:"14px 16px",borderRadius:14,background:"rgba(255,122,0,.08)",border:"1px solid rgba(255,122,0,.18)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:9,fontWeight:800,fontSize:14,color:"#111827"}}>
+              <Clock3 size={18} aria-hidden="true"/>
+              <span>{text.holdTitle}</span>
+              <strong style={{marginLeft:"auto",fontSize:18,fontVariantNumeric:"tabular-nums",letterSpacing:".04em"}}>{countdown}</strong>
+            </div>
+            <p style={{margin:"8px 0 0",fontSize:12.5,lineHeight:1.45,color:"#667085"}}>{text.holdExplain}</p>
+          </div>
           <div className="atlas-cart-event-label">{text.event}</div>
           <h2 className="atlas-cart-event-title">{cart.eventTitle}</h2>
           <div className="atlas-cart-list">
