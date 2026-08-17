@@ -11,24 +11,32 @@ if (!terminal || !user || !password) {
   process.exit(0);
 }
 
-const endpoint = 'https://pay.hyp.co.il/xpo/Relay';
+const endpoints = [
+  'https://pay.hyp.co.il/xpo/Relay',
+  'https://pps.creditguard.co.il/xpo/Relay',
+  'https://cgmpi.creditguard.co.il/xpo/Relay',
+  'https://cgp.creditguard.co.il/xpo/Relay'
+];
 const esc = value => value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
 const xml = `<ashrait><request><version>2000</version><language>Eng</language><dateTime/><requestId/><command>getSessionId</command><getSessionId><terminalNumber>${esc(terminal)}</terminalNumber></getSessionId></request></ashrait>`;
-const body = new URLSearchParams({ user, password, int_in: xml });
 const extract = (text, tag) => text.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i'))?.[1]?.trim() || '';
 
-try {
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'Atlas-One-HYP-XPO-Probe/1.0' },
-    body,
-    signal: AbortSignal.timeout(15000),
-  });
-  const text = (await response.text()).slice(0, 12000);
-  const result = extract(text, 'result');
-  const message = extract(text, 'message') || extract(text, 'userMessage');
-  const sessionId = extract(text, 'sessionId');
-  console.log('[HYP XPO probe]', JSON.stringify({ endpointHost:'pay.hyp.co.il', httpStatus:response.status, responseType:text.trim().startsWith('<')?'xml':'other', result:result||null, message:message||null, hasSessionId:Boolean(sessionId), credentialsPresent:true }));
-} catch (error) {
-  console.log('[HYP XPO probe]', JSON.stringify({ endpointHost:'pay.hyp.co.il', error:error instanceof Error?error.message:'probe failed', credentialsPresent:true }));
+for (const endpoint of endpoints) {
+  const host = new URL(endpoint).hostname;
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'Atlas-One-HYP-XPO-Probe/1.0' },
+      body: new URLSearchParams({ user, password, int_in: xml }),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(10000),
+    });
+    const text = (await response.text()).slice(0, 12000);
+    const result = extract(text, 'result');
+    const message = extract(text, 'message') || extract(text, 'userMessage');
+    const sessionId = extract(text, 'sessionId');
+    console.log('[HYP XPO probe]', JSON.stringify({ endpointHost:host, httpStatus:response.status, location:response.headers.get('location')||null, responseType:text.trim().startsWith('<')?'xml':text.trim().startsWith('<!DOCTYPE')?'html':'other', result:result||null, message:message||null, hasSessionId:Boolean(sessionId), credentialsPresent:true }));
+  } catch (error) {
+    console.log('[HYP XPO probe]', JSON.stringify({ endpointHost:host, error:error instanceof Error?error.message:'probe failed', credentialsPresent:true }));
+  }
 }
