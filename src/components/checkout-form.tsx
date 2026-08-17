@@ -7,35 +7,281 @@ import { useLocale } from "@/components/locale-provider";
 import { israelCities } from "@/lib/israel-cities";
 import type { GuestFieldConfig, GuestFieldKey } from "@/lib/event-guest-fields";
 import type { Locale } from "@/lib/i18n";
+import styles from "./checkout-form.module.css";
 
-const copy={
- ru:{request:"Заявка на билет",checkout:"Оформление заказа",reviewData:"Данные для рассмотрения",contact:"Данные гостя",promo:"Промокод",extra:"Дополнительная информация для организатора",extraPlaceholder:"Например, номер клубной карты или кто вас пригласил",promoPlaceholder:"Например, ATLAS10",reviewFirst:"Сначала проверка организатором",payment:"Безопасная оплата",reviewHelp:"Данные карты вводятся здесь в защищённой форме Hyp. Списание произойдёт только после одобрения организатором.",paymentHelp:"Форма оплаты Hyp откроется автоматически здесь же после заполнения обязательных данных. Atlas не получает и не хранит данные банковской карты.",sending:"Подготавливаем оплату…",send:"Отправить заявку",confirm:"Продолжить к оплате",requested:"Запрашиваемый билет",order:"Ваш заказ",quantity:"Количество",afterApproval:"К оплате после одобрения",total:"Итого к оплате",error:"Не удалось отправить данные",promoter:"Персональная ссылка",gender:"Пол",male:"Мужчина",female:"Женщина",chooseGender:"Выберите пол",demographicsError:"Не удалось сохранить данные покупателя. Попробуйте ещё раз.",paymentTitle:"Оплата",paymentLoading:"Загружаем защищённую форму оплаты…",paymentWaiting:"Заполните обязательные поля выше - форма оплаты появится автоматически.",paymentFallback:"Если форма оплаты не открылась, открыть её отдельно"},
- he:{request:"בקשה לכרטיס",checkout:"תשלום",reviewData:"פרטים לבדיקת המפיק",contact:"פרטי האורח",promo:"קוד הטבה",extra:"מידע נוסף למפיק",extraPlaceholder:"לדוגמה, מספר כרטיס מועדון או מי הזמין אתכם",promoPlaceholder:"לדוגמה, ATLAS10",reviewFirst:"תחילה בדיקת המפיק",payment:"תשלום מאובטח",reviewHelp:"פרטי הכרטיס מוזנים כאן בטופס המאובטח של Hyp. החיוב יתבצע רק לאחר אישור המפיק.",paymentHelp:"טופס התשלום של Hyp ייפתח כאן אוטומטית לאחר מילוי פרטי החובה. פרטי כרטיס האשראי אינם מתקבלים או נשמרים ב-Atlas.",sending:"מכינים את התשלום…",send:"שליחת הבקשה",confirm:"המשך לתשלום",requested:"הכרטיס המבוקש",order:"ההזמנה שלך",quantity:"כמות",afterApproval:"לתשלום לאחר אישור",total:"סה״כ לתשלום",error:"לא ניתן לשלוח את הנתונים",promoter:"קישור אישי",gender:"מגדר",male:"גבר",female:"אישה",chooseGender:"בחרו מגדר",demographicsError:"לא ניתן לשמור את פרטי הלקוח. נסו שוב.",paymentTitle:"תשלום",paymentLoading:"טוענים טופס תשלום מאובטח…",paymentWaiting:"מלאו את שדות החובה למעלה - טופס התשלום יופיע אוטומטית.",paymentFallback:"אם טופס התשלום לא נפתח, פתחו אותו בנפרד"},
- en:{request:"Ticket request",checkout:"Checkout",reviewData:"Details for organizer review",contact:"Guest details",promo:"Promo code",extra:"Additional information for the organizer",extraPlaceholder:"For example, membership number or who invited you",promoPlaceholder:"For example, ATLAS10",reviewFirst:"Organizer review first",payment:"Secure payment",reviewHelp:"Enter card details here in Hyp's secure form. The card is charged only after organizer approval.",paymentHelp:"Hyp's payment form opens automatically here after the required details are complete. Atlas never receives or stores card details.",sending:"Preparing payment…",send:"Submit request",confirm:"Continue to payment",requested:"Requested ticket",order:"Your order",quantity:"Quantity",afterApproval:"Due after approval",total:"Total to pay",error:"Could not submit the details",promoter:"Personal link",gender:"Gender",male:"Male",female:"Female",chooseGender:"Select gender",demographicsError:"Could not save customer details. Please try again.",paymentTitle:"Payment",paymentLoading:"Loading secure payment form…",paymentWaiting:"Complete the required fields above - the payment form will appear automatically.",paymentFallback:"If the payment form did not open, open it separately"}
+const copy = {
+  ru: {
+    request: "Заявка на билет", checkout: "Оформление заказа", reviewData: "Данные для рассмотрения", contact: "Данные гостя",
+    contactHelp: "Заполните данные один раз. Защищённая форма оплаты активируется здесь автоматически.", promo: "Промокод",
+    extra: "Дополнительная информация для организатора", extraPlaceholder: "Например, номер клубной карты или кто вас пригласил",
+    promoPlaceholder: "Например, ATLAS10", reviewFirst: "Сначала проверка организатором", payment: "Безопасная оплата",
+    reviewHelp: "Данные карты вводятся в защищённой форме HYP. Списание произойдёт только после одобрения организатором.",
+    paymentHelp: "Оплата остаётся частью этого же экрана. Atlas не получает и не хранит данные банковской карты.",
+    sending: "Подготавливаем защищённую оплату…", requested: "Запрашиваемый билет", order: "Ваш заказ", quantity: "Количество",
+    afterApproval: "К оплате после одобрения", total: "Итого к оплате", error: "Не удалось отправить данные", promoter: "Персональная ссылка",
+    gender: "Пол", male: "Мужчина", female: "Женщина", chooseGender: "Выберите пол",
+    demographicsError: "Не удалось сохранить данные покупателя. Попробуйте ещё раз.", paymentTitle: "Оплата",
+    paymentLoading: "Загружаем защищённую форму HYP…", paymentWaiting: "Заполните обязательные поля выше. Оплата активируется автоматически.",
+    paymentFallback: "Если форма оплаты не открылась, открыть её отдельно", secured: "Защищено HYP", readyTitle: "Оплата будет здесь"
+  },
+  he: {
+    request: "בקשה לכרטיס", checkout: "תשלום", reviewData: "פרטים לבדיקת המפיק", contact: "פרטי האורח",
+    contactHelp: "ממלאים את הפרטים פעם אחת. טופס התשלום המאובטח יופעל כאן אוטומטית.", promo: "קוד הטבה",
+    extra: "מידע נוסף למפיק", extraPlaceholder: "לדוגמה, מספר כרטיס מועדון או מי הזמין אתכם", promoPlaceholder: "לדוגמה, ATLAS10",
+    reviewFirst: "תחילה בדיקת המפיק", payment: "תשלום מאובטח",
+    reviewHelp: "פרטי הכרטיס מוזנים בטופס המאובטח של HYP. החיוב יתבצע רק לאחר אישור המפיק.",
+    paymentHelp: "התשלום נשאר חלק מאותו מסך. פרטי כרטיס האשראי אינם מתקבלים או נשמרים ב-Atlas.",
+    sending: "מכינים תשלום מאובטח…", requested: "הכרטיס המבוקש", order: "ההזמנה שלך", quantity: "כמות",
+    afterApproval: "לתשלום לאחר אישור", total: "סה״כ לתשלום", error: "לא ניתן לשלוח את הנתונים", promoter: "קישור אישי",
+    gender: "מגדר", male: "גבר", female: "אישה", chooseGender: "בחרו מגדר",
+    demographicsError: "לא ניתן לשמור את פרטי הלקוח. נסו שוב.", paymentTitle: "תשלום",
+    paymentLoading: "טוענים טופס תשלום מאובטח של HYP…", paymentWaiting: "מלאו את שדות החובה למעלה. התשלום יופעל אוטומטית.",
+    paymentFallback: "אם טופס התשלום לא נפתח, פתחו אותו בנפרד", secured: "מאובטח על ידי HYP", readyTitle: "התשלום יופיע כאן"
+  },
+  en: {
+    request: "Ticket request", checkout: "Checkout", reviewData: "Details for organizer review", contact: "Guest details",
+    contactHelp: "Enter your details once. The secure payment form activates here automatically.", promo: "Promo code",
+    extra: "Additional information for the organizer", extraPlaceholder: "For example, membership number or who invited you",
+    promoPlaceholder: "For example, ATLAS10", reviewFirst: "Organizer review first", payment: "Secure payment",
+    reviewHelp: "Card details are entered in HYP's secure form. The card is charged only after organizer approval.",
+    paymentHelp: "Payment stays on this same screen. Atlas never receives or stores card details.",
+    sending: "Preparing secure payment…", requested: "Requested ticket", order: "Your order", quantity: "Quantity",
+    afterApproval: "Due after approval", total: "Total to pay", error: "Could not submit the details", promoter: "Personal link",
+    gender: "Gender", male: "Male", female: "Female", chooseGender: "Select gender",
+    demographicsError: "Could not save customer details. Please try again.", paymentTitle: "Payment",
+    paymentLoading: "Loading secure HYP payment form…", paymentWaiting: "Complete the required fields above. Payment activates automatically.",
+    paymentFallback: "If the payment form did not open, open it separately", secured: "Secured by HYP", readyTitle: "Payment will appear here"
+  }
 };
-const labels:Record<GuestFieldKey,Record<Locale,string>>={firstName:{ru:"Имя",he:"שם פרטי",en:"First name"},lastName:{ru:"Фамилия",he:"שם משפחה",en:"Last name"},phone:{ru:"Телефон",he:"טלפון",en:"Phone"},email:{ru:"Email",he:"Email",en:"Email"},birthDate:{ru:"Дата рождения",he:"תאריך לידה",en:"Date of birth"},city:{ru:"Город проживания",he:"עיר מגורים",en:"City"},facebook:{ru:"Facebook",he:"Facebook",en:"Facebook"},instagram:{ru:"Instagram",he:"Instagram",en:"Instagram"}};
-const types:Partial<Record<GuestFieldKey,string>>={phone:"tel",email:"email"};
-const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const birthDateError:Record<Locale,string>={ru:"Введите дату в формате ДД.ММ.ГГГГ",he:"יש להזין תאריך בפורמט DD.MM.YYYY",en:"Enter the date as DD.MM.YYYY"};
-function formatBirthDate(value:string){const digits=value.replace(/\D/g,"").slice(0,8);return [digits.slice(0,2),digits.slice(2,4),digits.slice(4,8)].filter(Boolean).join(".");}
-function birthDateToIso(value:string){const match=/^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value);if(!match)return"";const day=Number(match[1]);const month=Number(match[2]);const year=Number(match[3]);const date=new Date(Date.UTC(year,month-1,day));if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day||date.getTime()>Date.now()||year<1900)return"";return`${match[3]}-${match[2]}-${match[1]}`;}
-type CheckoutItem={categoryId:string;quantity:number;tableId?:string|null;seatIds:string[]};
-type CheckoutFormProps={eventId:string;categoryId:string;quantity:number;tableId?:string;seatIds?:string[];items?:CheckoutItem[];subtotal:number;serviceFee:number;total:number;serviceFeePayer:"BUYER"|"ORGANIZER";title:string;label:string;salesMode:"INSTANT"|"APPROVAL_REQUIRED";approvalInstructions?:string|null;referralCode?:string;promoterLabel?:string;recoveryToken?:string;guestFields:GuestFieldConfig};
-type RecoveryCustomer={firstName?:string;lastName?:string;email?:string;phone?:string;gender?:string};
 
-export function CheckoutForm(props:CheckoutFormProps){
- const router=useRouter();const{locale}=useLocale();const text=copy[locale];const[busy,setBusy]=useState(false);const[error,setError]=useState("");const[promo,setPromo]=useState("");const[paymentUrl,setPaymentUrl]=useState("");const[paymentReady,setPaymentReady]=useState(false);const approvalRequired=props.salesMode==="APPROVAL_REQUIRED";const hasOrganizerQuestion=approvalRequired&&Boolean(props.approvalInstructions?.trim());const visible=(Object.keys(props.guestFields) as GuestFieldKey[]).filter(key=>props.guestFields[key].visible);const tokenRef=useRef<string>("");const orderKeyRef=useRef<string>("");const contactTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);const paymentTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);const startingRef=useRef(false);const formRef=useRef<HTMLFormElement|null>(null);const iframeRef=useRef<HTMLIFrameElement|null>(null);
- function token(){if(tokenRef.current)return tokenRef.current;const key=`atlas-abandon-${props.eventId}-${props.categoryId}-${props.tableId||props.seatIds?.join("-")||"general"}`;const recovery=props.recoveryToken&&uuidPattern.test(props.recoveryToken)?props.recoveryToken:"";const existing=sessionStorage.getItem(key);const value=recovery||existing||crypto.randomUUID();sessionStorage.setItem(key,value);tokenRef.current=value;return value;}
- function orderKey(){if(!orderKeyRef.current)orderKeyRef.current=crypto.randomUUID();return orderKeyRef.current;}
- function customerFromForm():RecoveryCustomer{if(!formRef.current)return {};const form=new FormData(formRef.current);return {firstName:String(form.get("firstName")||""),lastName:String(form.get("lastName")||""),email:String(form.get("email")||""),phone:String(form.get("phone")||""),gender:String(form.get("gender")||"")};}
- function capture(stage:"CHECKOUT_OPENED"|"CONTACTS_ENTERED"|"PAYMENT_STARTED",customer:RecoveryCustomer={}){const payload={token:token(),eventId:props.eventId,categoryId:props.categoryId,quantity:props.quantity,amountMinor:props.total,stage,checkoutUrl:window.location.href,customer,metadata:{tableId:props.tableId||null,seatIds:props.seatIds||[],items:props.items||null,label:props.label,referralCode:props.referralCode||null}};void fetch("/api/checkout/abandon",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload),keepalive:true}).catch(()=>undefined);}
- function scheduleContactCapture(){if(contactTimerRef.current)clearTimeout(contactTimerRef.current);contactTimerRef.current=setTimeout(()=>{const customer=customerFromForm();if(customer.email||customer.phone)capture("CONTACTS_ENTERED",customer);},700);}
- function handleBirthDateInput(event:React.FormEvent<HTMLInputElement>){const input=event.currentTarget;const formatted=formatBirthDate(input.value);if(input.value!==formatted)input.value=formatted;input.setCustomValidity(!formatted||birthDateToIso(formatted)?"":birthDateError[locale]);}
- function handlePaymentFrameLoad(){const frame=iframeRef.current;if(!frame)return;setPaymentReady(true);try{const href=frame.contentWindow?.location.href;if(!href)return;const url=new URL(href);if(url.origin===window.location.origin&&(url.pathname.startsWith("/orders/")||url.pathname==="/payments/hyp/result")){window.location.assign(url.toString());}}catch{/* HYP is cross-origin while the customer is entering card details. */}}
- useEffect(()=>{capture("CHECKOUT_OPENED");return()=>{if(contactTimerRef.current)clearTimeout(contactTimerRef.current);if(paymentTimerRef.current)clearTimeout(paymentTimerRef.current);};},[]);
- async function startPayment(formElement:HTMLFormElement){if(paymentUrl||startingRef.current||!formElement.checkValidity())return;startingRef.current=true;setBusy(true);setError("");try{const form=new FormData(formElement);const customer={...Object.fromEntries(visible.map(key=>{const raw=String(form.get(key)||"");return[key,key==="birthDate"&&raw?birthDateToIso(raw):raw];})),gender:String(form.get("gender")||"")};const idempotencyKey=orderKey();capture("PAYMENT_STARTED",customer);const endpoint=props.items?.length?"/api/checkout/cart":"/api/checkout";const response=await fetch(endpoint,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({eventId:props.eventId,categoryId:props.categoryId,quantity:props.quantity,tableId:props.tableId||null,seatIds:props.seatIds||undefined,items:props.items,promoCode:promo||undefined,referralCode:props.referralCode||undefined,eligibilityAnswer:hasOrganizerQuestion?form.get("eligibilityAnswer")||undefined:undefined,customer,payment:{method:"CARD"},locale,idempotencyKey,abandonToken:token()})});const data=await response.json();if(!response.ok){setError(data.error||text.error);return;}const rawBirthDate=String(form.get("birthDate")||"");const demographics=await fetch(`/api/orders/${data.orderId}/demographics`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({idempotencyKey,gender:String(form.get("gender")||""),birthDate:rawBirthDate?birthDateToIso(rawBirthDate):""})});if(!demographics.ok){setError(text.demographicsError);return;}if(data.paymentUrl){setPaymentReady(false);setPaymentUrl(data.paymentUrl);return;}router.push(`/orders/${data.orderId}?locale=${locale}`);}catch{setError(text.error);}finally{setBusy(false);startingRef.current=false;}}
- function scheduleFormWork(){scheduleContactCapture();if(paymentUrl||startingRef.current)return;if(paymentTimerRef.current)clearTimeout(paymentTimerRef.current);paymentTimerRef.current=setTimeout(()=>{const form=formRef.current;if(form&&form.checkValidity())void startPayment(form);},900);}
- async function submit(event:React.FormEvent<HTMLFormElement>){event.preventDefault();if(!paymentUrl&&event.currentTarget.checkValidity())await startPayment(event.currentTarget);}
- const locked=Boolean(paymentUrl)||busy;
- return <form ref={formRef} onInput={paymentUrl?undefined:scheduleFormWork} onChange={paymentUrl?undefined:scheduleFormWork} onSubmit={submit} className={`checkout ${busy?"loading":""}`}><section><span className="eyebrow">{approvalRequired?text.request:text.checkout}</span><h1>{approvalRequired?text.reviewData:text.contact}</h1><div className="panel form">{props.promoterLabel&&<div className="panel" style={{background:"#f8fafc"}}><strong>{text.promoter}</strong><p className="muted">{props.promoterLabel}</p></div>}{visible.map(key=><div className="field" key={key}><label>{labels[key][locale]}{props.guestFields[key].required?" *":""}</label><input className="input" name={key} type={types[key]||"text"} required={props.guestFields[key].required} disabled={locked} minLength={key==="firstName"||key==="lastName"?2:undefined} list={key==="city"?"israel-cities":undefined} autoComplete={key==="firstName"?"given-name":key==="lastName"?"family-name":key==="phone"?"tel":key==="email"?"email":key==="birthDate"?"bday":key==="city"?"address-level2":"off"} inputMode={key==="birthDate"?"numeric":undefined} maxLength={key==="birthDate"?10:undefined} pattern={key==="birthDate"?"\\d{2}\\.\\d{2}\\.\\d{4}":undefined} onInput={key==="birthDate"?handleBirthDateInput:undefined} placeholder={key==="phone"?"054-1234567":key==="instagram"?"@username":key==="birthDate"?(locale==="ru"?"ДД.ММ.ГГГГ":"DD.MM.YYYY"):undefined}/>{key==="city"&&<datalist id="israel-cities">{israelCities.map(city=><option value={city} key={city}/>)}</datalist>}</div>)}{!approvalRequired&&<div className="field"><label>{text.promo}</label><input className="input" value={promo} disabled={locked} onChange={event=>setPromo(event.target.value.toUpperCase())} placeholder={text.promoPlaceholder}/></div>}<div className="field"><label>{text.gender} *</label><select className="input" name="gender" required disabled={locked} defaultValue=""><option value="" disabled>{text.chooseGender}</option><option value="MALE">{text.male}</option><option value="FEMALE">{text.female}</option></select></div>{hasOrganizerQuestion&&<div className="field"><label>{props.approvalInstructions}</label><textarea name="eligibilityAnswer" rows={4} required disabled={locked} placeholder={text.extraPlaceholder}/></div>}<div className="panel" style={{background:"#f8fafc"}}><strong>{approvalRequired?text.reviewFirst:text.payment}</strong><p className="muted" style={{marginBottom:0}}>{approvalRequired?text.reviewHelp:text.paymentHelp}</p></div>{error&&<div className="toast">{error}</div>}{busy&&!paymentUrl&&<div className="muted">{text.sending}</div>}{!paymentUrl&&!busy&&<div className="muted" style={{fontSize:13}}>{text.paymentWaiting}</div>}{paymentUrl&&<div style={{marginTop:6,borderTop:"1px solid #e5e7eb",paddingTop:18}}><div style={{marginBottom:12}}><strong>{text.payment}</strong></div>{!paymentReady&&<div className="muted" style={{padding:"0 0 14px"}}>{text.paymentLoading}</div>}<iframe ref={iframeRef} src={paymentUrl} title={text.paymentTitle} onLoad={handlePaymentFrameLoad} allow="payment" style={{display:"block",width:"100%",minHeight:720,border:0,background:"#fff",borderRadius:12}}/><div style={{paddingTop:10}}><a href={paymentUrl} target="_blank" rel="noopener noreferrer" className="muted" style={{fontSize:12}}>{text.paymentFallback}</a></div></div>}</div></section><aside className="panel summary"><span className="pill">{approvalRequired?text.requested:text.order}</span><h2>{props.title}</h2><p>{props.label}</p><div className="row between"><span className="muted">{text.quantity}</span><strong>{props.quantity}</strong></div><hr style={{border:0,borderTop:"1px solid #e5e7eb",margin:"18px 0"}}/><div className="row between"><strong>{approvalRequired?text.afterApproval:text.total}</strong><strong style={{fontSize:25}}>{money(props.total,"ILS",locale)}</strong></div></aside></form>;
+const labels: Record<GuestFieldKey, Record<Locale, string>> = {
+  firstName: { ru: "Имя", he: "שם פרטי", en: "First name" },
+  lastName: { ru: "Фамилия", he: "שם משפחה", en: "Last name" },
+  phone: { ru: "Телефон", he: "טלפון", en: "Phone" },
+  email: { ru: "Email", he: "Email", en: "Email" },
+  birthDate: { ru: "Дата рождения", he: "תאריך לידה", en: "Date of birth" },
+  city: { ru: "Город проживания", he: "עיר מגורים", en: "City" },
+  facebook: { ru: "Facebook", he: "Facebook", en: "Facebook" },
+  instagram: { ru: "Instagram", he: "Instagram", en: "Instagram" }
+};
+const types: Partial<Record<GuestFieldKey, string>> = { phone: "tel", email: "email" };
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const birthDateError: Record<Locale, string> = { ru: "Введите дату в формате ДД.ММ.ГГГГ", he: "יש להזין תאריך בפורמט DD.MM.YYYY", en: "Enter the date as DD.MM.YYYY" };
+
+function formatBirthDate(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean).join(".");
+}
+function birthDateToIso(value: string) {
+  const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value);
+  if (!match) return "";
+  const day = Number(match[1]); const month = Number(match[2]); const year = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day || date.getTime() > Date.now() || year < 1900) return "";
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+type CheckoutItem = { categoryId: string; quantity: number; tableId?: string | null; seatIds: string[] };
+type CheckoutFormProps = {
+  eventId: string; categoryId: string; quantity: number; tableId?: string; seatIds?: string[]; items?: CheckoutItem[];
+  subtotal: number; serviceFee: number; total: number; serviceFeePayer: "BUYER" | "ORGANIZER"; title: string; label: string;
+  salesMode: "INSTANT" | "APPROVAL_REQUIRED"; approvalInstructions?: string | null; referralCode?: string; promoterLabel?: string;
+  recoveryToken?: string; guestFields: GuestFieldConfig;
+};
+type RecoveryCustomer = { firstName?: string; lastName?: string; email?: string; phone?: string; gender?: string };
+
+export function CheckoutForm(props: CheckoutFormProps) {
+  const router = useRouter();
+  const { locale } = useLocale();
+  const text = copy[locale];
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [promo, setPromo] = useState("");
+  const [paymentUrl, setPaymentUrl] = useState("");
+  const [paymentReady, setPaymentReady] = useState(false);
+  const approvalRequired = props.salesMode === "APPROVAL_REQUIRED";
+  const hasOrganizerQuestion = approvalRequired && Boolean(props.approvalInstructions?.trim());
+  const visible = (Object.keys(props.guestFields) as GuestFieldKey[]).filter(key => props.guestFields[key].visible);
+  const tokenRef = useRef("");
+  const orderKeyRef = useRef("");
+  const contactTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const paymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startingRef = useRef(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  function token() {
+    if (tokenRef.current) return tokenRef.current;
+    const key = `atlas-abandon-${props.eventId}-${props.categoryId}-${props.tableId || props.seatIds?.join("-") || "general"}`;
+    const recovery = props.recoveryToken && uuidPattern.test(props.recoveryToken) ? props.recoveryToken : "";
+    const existing = sessionStorage.getItem(key);
+    const value = recovery || existing || crypto.randomUUID();
+    sessionStorage.setItem(key, value);
+    tokenRef.current = value;
+    return value;
+  }
+  function orderKey() {
+    if (!orderKeyRef.current) orderKeyRef.current = crypto.randomUUID();
+    return orderKeyRef.current;
+  }
+  function customerFromForm(): RecoveryCustomer {
+    if (!formRef.current) return {};
+    const form = new FormData(formRef.current);
+    return { firstName: String(form.get("firstName") || ""), lastName: String(form.get("lastName") || ""), email: String(form.get("email") || ""), phone: String(form.get("phone") || ""), gender: String(form.get("gender") || "") };
+  }
+  function capture(stage: "CHECKOUT_OPENED" | "CONTACTS_ENTERED" | "PAYMENT_STARTED", customer: RecoveryCustomer = {}) {
+    const payload = { token: token(), eventId: props.eventId, categoryId: props.categoryId, quantity: props.quantity, amountMinor: props.total, stage, checkoutUrl: window.location.href, customer, metadata: { tableId: props.tableId || null, seatIds: props.seatIds || [], items: props.items || null, label: props.label, referralCode: props.referralCode || null } };
+    void fetch("/api/checkout/abandon", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), keepalive: true }).catch(() => undefined);
+  }
+  function scheduleContactCapture() {
+    if (contactTimerRef.current) clearTimeout(contactTimerRef.current);
+    contactTimerRef.current = setTimeout(() => {
+      const customer = customerFromForm();
+      if (customer.email || customer.phone) capture("CONTACTS_ENTERED", customer);
+    }, 700);
+  }
+  function handleBirthDateInput(event: React.FormEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const formatted = formatBirthDate(input.value);
+    if (input.value !== formatted) input.value = formatted;
+    input.setCustomValidity(!formatted || birthDateToIso(formatted) ? "" : birthDateError[locale]);
+  }
+  function handlePaymentFrameLoad() {
+    const frame = iframeRef.current;
+    if (!frame) return;
+    setPaymentReady(true);
+    try {
+      const href = frame.contentWindow?.location.href;
+      if (!href) return;
+      const url = new URL(href);
+      if (url.origin === window.location.origin && (url.pathname.startsWith("/orders/") || url.pathname === "/payments/hyp/result")) window.location.assign(url.toString());
+    } catch { /* HYP is cross-origin while the customer is entering card details. */ }
+  }
+
+  useEffect(() => {
+    capture("CHECKOUT_OPENED");
+    return () => {
+      if (contactTimerRef.current) clearTimeout(contactTimerRef.current);
+      if (paymentTimerRef.current) clearTimeout(paymentTimerRef.current);
+    };
+  }, []);
+
+  async function startPayment(formElement: HTMLFormElement) {
+    if (paymentUrl || startingRef.current || !formElement.checkValidity()) return;
+    startingRef.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const form = new FormData(formElement);
+      const customer = {
+        ...Object.fromEntries(visible.map(key => {
+          const raw = String(form.get(key) || "");
+          return [key, key === "birthDate" && raw ? birthDateToIso(raw) : raw];
+        })),
+        gender: String(form.get("gender") || "")
+      };
+      const idempotencyKey = orderKey();
+      capture("PAYMENT_STARTED", customer);
+      const endpoint = props.items?.length ? "/api/checkout/cart" : "/api/checkout";
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ eventId: props.eventId, categoryId: props.categoryId, quantity: props.quantity, tableId: props.tableId || null, seatIds: props.seatIds || undefined, items: props.items, promoCode: promo || undefined, referralCode: props.referralCode || undefined, eligibilityAnswer: hasOrganizerQuestion ? form.get("eligibilityAnswer") || undefined : undefined, customer, payment: { method: "CARD" }, locale, idempotencyKey, abandonToken: token() })
+      });
+      const data = await response.json();
+      if (!response.ok) { setError(data.error || text.error); return; }
+      const rawBirthDate = String(form.get("birthDate") || "");
+      const demographics = await fetch(`/api/orders/${data.orderId}/demographics`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idempotencyKey, gender: String(form.get("gender") || ""), birthDate: rawBirthDate ? birthDateToIso(rawBirthDate) : "" }) });
+      if (!demographics.ok) { setError(text.demographicsError); return; }
+      if (data.paymentUrl) { setPaymentReady(false); setPaymentUrl(data.paymentUrl); return; }
+      router.push(`/orders/${data.orderId}?locale=${locale}`);
+    } catch {
+      setError(text.error);
+    } finally {
+      setBusy(false);
+      startingRef.current = false;
+    }
+  }
+
+  function scheduleFormWork() {
+    scheduleContactCapture();
+    if (paymentUrl || startingRef.current) return;
+    if (paymentTimerRef.current) clearTimeout(paymentTimerRef.current);
+    paymentTimerRef.current = setTimeout(() => {
+      const form = formRef.current;
+      if (form && form.checkValidity()) void startPayment(form);
+    }, 550);
+  }
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!paymentUrl && event.currentTarget.checkValidity()) await startPayment(event.currentTarget);
+  }
+
+  const locked = Boolean(paymentUrl) || busy;
+  return (
+    <form ref={formRef} onInput={paymentUrl ? undefined : scheduleFormWork} onChange={paymentUrl ? undefined : scheduleFormWork} onSubmit={submit} className={`${styles.checkoutShell} ${busy ? "loading" : ""}`}>
+      <main className={styles.mainColumn}>
+        <header className={styles.header}>
+          <span className="eyebrow">{approvalRequired ? text.request : text.checkout}</span>
+          <h1>{approvalRequired ? text.reviewData : text.contact}</h1>
+          <p className="muted">{text.contactHelp}</p>
+        </header>
+
+        <section className={`panel form ${styles.formCard}`}>
+          {props.promoterLabel && <div className={`panel ${styles.promoterBox}`}><strong>{text.promoter}</strong><p className="muted">{props.promoterLabel}</p></div>}
+          {visible.map(key => (
+            <div className="field" key={key}>
+              <label>{labels[key][locale]}{props.guestFields[key].required ? " *" : ""}</label>
+              <input className="input" name={key} type={types[key] || "text"} required={props.guestFields[key].required} disabled={locked}
+                minLength={key === "firstName" || key === "lastName" ? 2 : undefined} list={key === "city" ? "israel-cities" : undefined}
+                autoComplete={key === "firstName" ? "given-name" : key === "lastName" ? "family-name" : key === "phone" ? "tel" : key === "email" ? "email" : key === "birthDate" ? "bday" : key === "city" ? "address-level2" : "off"}
+                inputMode={key === "birthDate" ? "numeric" : undefined} maxLength={key === "birthDate" ? 10 : undefined}
+                pattern={key === "birthDate" ? "\\d{2}\\.\\d{2}\\.\\d{4}" : undefined} onInput={key === "birthDate" ? handleBirthDateInput : undefined}
+                placeholder={key === "phone" ? "054-1234567" : key === "instagram" ? "@username" : key === "birthDate" ? (locale === "ru" ? "ДД.ММ.ГГГГ" : "DD.MM.YYYY") : undefined} />
+              {key === "city" && <datalist id="israel-cities">{israelCities.map(city => <option value={city} key={city} />)}</datalist>}
+            </div>
+          ))}
+          {!approvalRequired && <div className="field"><label>{text.promo}</label><input className="input" value={promo} disabled={locked} onChange={event => setPromo(event.target.value.toUpperCase())} placeholder={text.promoPlaceholder} /></div>}
+          <div className="field"><label>{text.gender} *</label><select className="input" name="gender" required disabled={locked} defaultValue=""><option value="" disabled>{text.chooseGender}</option><option value="MALE">{text.male}</option><option value="FEMALE">{text.female}</option></select></div>
+          {hasOrganizerQuestion && <div className="field"><label>{props.approvalInstructions}</label><textarea name="eligibilityAnswer" rows={4} required disabled={locked} placeholder={text.extraPlaceholder} /></div>}
+        </section>
+
+        <section className={`panel ${styles.paymentCard} ${paymentUrl ? styles.paymentActive : ""}`}>
+          <div className={styles.paymentHeader}>
+            <div className={styles.paymentTitle}><span className={styles.lockBadge}>🔒</span><div><strong>{text.payment}</strong><div className={styles.secureLabel}>{text.secured}</div></div></div>
+          </div>
+          <p className="muted" style={{ margin: 0 }}>{approvalRequired ? text.reviewHelp : text.paymentHelp}</p>
+          <div className={styles.paymentStage}>
+            {!paymentUrl ? (
+              <div className={styles.paymentPlaceholder}>
+                <div className={styles.placeholderInner}>
+                  <span className={styles.placeholderIcon}>💳</span>
+                  <strong>{text.readyTitle}</strong>
+                  <span className="muted">{busy ? text.sending : text.paymentWaiting}</span>
+                  {busy && <div className={styles.progressBar}><span /></div>}
+                </div>
+              </div>
+            ) : (
+              <div className={styles.frameWrap}>
+                {!paymentReady && <div className={`muted ${styles.paymentPlaceholder}`}><div className={styles.placeholderInner}><span className={styles.placeholderIcon}>🔒</span><strong>{text.paymentLoading}</strong><div className={styles.progressBar}><span /></div></div></div>}
+                <iframe ref={iframeRef} src={paymentUrl} title={text.paymentTitle} onLoad={handlePaymentFrameLoad} allow="payment" className={styles.paymentFrame} style={{ display: paymentReady ? "block" : "none" }} />
+              </div>
+            )}
+          </div>
+          {paymentUrl && <a href={paymentUrl} target="_blank" rel="noopener noreferrer" className={`muted ${styles.fallback}`}>{text.paymentFallback}</a>}
+          {error && <div className={`toast ${styles.error}`}>{error}</div>}
+        </section>
+      </main>
+
+      <aside className={`panel ${styles.summary}`}>
+        <span className="pill">{approvalRequired ? text.requested : text.order}</span>
+        <h2>{props.title}</h2>
+        <p className="muted">{props.label}</p>
+        <div className="row between"><span className="muted">{text.quantity}</span><strong>{props.quantity}</strong></div>
+        <hr className={styles.divider} />
+        <div className={styles.totalRow}><strong>{approvalRequired ? text.afterApproval : text.total}</strong><span className={styles.totalPrice}>{money(props.total, "ILS", locale)}</span></div>
+        <div className={styles.stateNote}><strong>{approvalRequired ? text.reviewFirst : text.payment}</strong><span className="muted">{approvalRequired ? text.reviewHelp : text.paymentHelp}</span></div>
+      </aside>
+    </form>
+  );
 }
