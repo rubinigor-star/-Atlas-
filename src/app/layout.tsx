@@ -13,7 +13,6 @@ import "./event-detail-sticky.css";
 import "./seat-map-assignment-visibility.css";
 import "./seat-map-public-match-admin.css";
 import "./logo.css";
-import "./logo-variants.css";
 import "./site-header.css";
 import "./account-menu-polish.css";
 import "./sticky-header-theme.css";
