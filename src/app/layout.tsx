@@ -16,6 +16,12 @@ import "./logo.css";
 import "./site-header.css";
 import "./account-menu-polish.css";
 import "./sticky-header-theme.css";
+import "./header-app-cta-compact.css";
+import "./persistent-cart.css";
+import "./cart-drawer-motion.css";
+import "./cart-ticket-row-grid.css";
+import "./cart-reminder-card.css";
+import "./mobile-cart-header.css";
 import "./mobile-drawer-fix.css";
 import "./mobile-language-header.css";
 import "./mobile-menu-compact-actions.css";
@@ -32,6 +38,7 @@ import { AppChrome } from "@/components/app-chrome";
 import { PwaRegister } from "@/components/pwa-register";
 import { MarketingTracker } from "@/components/marketing-tracker";
 import { PromoterChannelTracker } from "@/components/promoter-channel-tracker";
+import { CartDrawerMotion } from "@/components/cart-drawer-motion";
 import { getServerI18n } from "@/lib/server-locale";
 
 const BASE="https://www.atlas-one.co";
@@ -58,6 +65,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   ]};
   return <html lang={locale} dir={dir} suppressHydrationWarning><body>
     <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(schema).replace(/</g,"\\u003c")}}/>
-    <MarketingTracker/><PromoterChannelTracker/><LocaleProvider initialLocale={locale}><PwaRegister/><AppChrome>{children}</AppChrome></LocaleProvider><SpeedInsights/>
+    <MarketingTracker/><PromoterChannelTracker/><CartDrawerMotion/><LocaleProvider initialLocale={locale}><PwaRegister/><AppChrome>{children}</AppChrome></LocaleProvider><SpeedInsights/>
   </body></html>;
 }

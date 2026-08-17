@@ -1,0 +1,32 @@
+@media (max-width: 980px) {
+  .atlas-site-header .atlas-cart-header-mount {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    order: initial;
+    flex: 0 0 auto;
+  }
+
+  .atlas-site-header .atlas-cart-header-mount .atlas-cart-button {
+    display: grid !important;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    padding: 0 !important;
+    border-radius: 50%;
+  }
+
+  .atlas-site-header .atlas-cart-header-mount .atlas-cart-badge {
+    top: 0;
+    right: -1px;
+  }
+}
+
+@media (max-width: 560px) {
+  .atlas-site-header .atlas-cart-header-mount .atlas-cart-button {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+  }
+}
