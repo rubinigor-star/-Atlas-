@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const CANONICAL_HOST = "www.atlas-one.co";
+const PREVIEW_04_HOST = "atlas-git-preview-04-atlasteam1.vercel.app";
 const PUBLIC_OFFICE_PATHS = ["/office/login", "/office/register", "/office/forgot-password", "/office/reset-password"];
 const LEGACY_FAVICON_PATHS = new Set(["/favicon.ico", "/favicon.png"]);
 const HYP_CHECKOUT_CSP = "frame-src 'self' https://pay.hyp.co.il https://*.creditguard.co.il;";
@@ -10,7 +11,20 @@ export function proxy(request: NextRequest) {
   const host = request.headers.get("host")?.split(":")[0]?.toLowerCase() || "";
   const isVercelHost = host.endsWith(".vercel.app");
   const isProductionDeployment = process.env.VERCEL_ENV === "production";
+  const isPreview04 = process.env.VERCEL_ENV === "preview" && process.env.VERCEL_GIT_COMMIT_REF === "preview-04";
   const isPublicGet = request.method === "GET" && !pathname.startsWith("/api/") && !pathname.startsWith("/_next/");
+
+  // Every Vercel deployment gets a different hostname, which also means a
+  // different browser cookie/localStorage origin. Keep preview-04 on one stable
+  // branch hostname so cart holds remain attached to the same buyer session
+  // while new commits are deployed.
+  if (isPreview04 && isVercelHost && host !== PREVIEW_04_HOST && isPublicGet) {
+    const url = request.nextUrl.clone();
+    url.protocol = "https:";
+    url.hostname = PREVIEW_04_HOST;
+    url.port = "";
+    return NextResponse.redirect(url, 307);
+  }
 
   if (LEGACY_FAVICON_PATHS.has(pathname)) {
     const icon = request.nextUrl.clone();
