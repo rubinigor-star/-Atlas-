@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { db } from "@/lib/db";
 
 function secret() {
   const configured = process.env.GUEST_LINK_SECRET?.trim();
@@ -22,4 +23,40 @@ export function verifyGuestManagementToken(linkId: string, token: string) {
 
 export function isGuestListPromoter(name: string) {
   return name.startsWith("__GUEST_LIST__:") || name.startsWith("__CHANNEL__:GUEST:");
+}
+
+type GuestLinkSettingsRow = { showAttendees: boolean };
+let settingsReady: Promise<void> | undefined;
+
+export function ensureGuestLinkSettingsRuntime() {
+  settingsReady ??= db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "GuestLinkSettings" (
+    "linkId" TEXT PRIMARY KEY,
+    "showAttendees" BOOLEAN NOT NULL DEFAULT FALSE,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`).then(() => undefined).catch((error) => {
+    settingsReady = undefined;
+    throw error;
+  });
+  return settingsReady;
+}
+
+export async function getGuestLinkSettings(linkId: string) {
+  await ensureGuestLinkSettingsRuntime();
+  const rows = await db.$queryRawUnsafe<GuestLinkSettingsRow[]>(
+    `SELECT "showAttendees" FROM "GuestLinkSettings" WHERE "linkId"=$1 LIMIT 1`,
+    linkId,
+  );
+  return { showAttendees: Boolean(rows[0]?.showAttendees) };
+}
+
+export async function setGuestLinkSettings(linkId: string, input: { showAttendees: boolean }) {
+  await ensureGuestLinkSettingsRuntime();
+  await db.$executeRawUnsafe(
+    `INSERT INTO "GuestLinkSettings" ("linkId","showAttendees","createdAt","updatedAt")
+     VALUES ($1,$2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+     ON CONFLICT ("linkId") DO UPDATE SET "showAttendees"=EXCLUDED."showAttendees","updatedAt"=CURRENT_TIMESTAMP`,
+    linkId,
+    input.showAttendees,
+  );
 }
