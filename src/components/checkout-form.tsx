@@ -56,35 +56,41 @@ export function CheckoutForm(props:CheckoutFormProps){
  async function rehold(){if(reholding)return;setReholding(true);setError("");try{const items=props.items?.length?props.items:[{categoryId:props.categoryId,quantity:props.quantity,tableId:props.tableId||null,seatIds:props.seatIds||[]}];const response=await fetch("/api/cart/hold",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({eventId:props.eventId,items})});const data=await response.json();if(!response.ok)throw new Error(data.error||text.error);const next=data.expiresAt?new Date(data.expiresAt).getTime():Date.now()+15*60*1000;writeExpiry(props.eventSlug,props.title,next);setExpiresAt(next);setNow(Date.now());setExpiredOpen(false);}catch(e){setError(e instanceof Error?e.message:text.error);}finally{setReholding(false);}}
  function setExtra(key:string,value:string){setDetailsReady(false);setExtras(prev=>({...prev,[key]:key==="birthDate"?formatBirthDate(value):value}));}
  const singleFeeNote=props.serviceFeePayer==="BUYER"&&props.serviceFee>0&&props.summaryItems.length===1;
+
+ const contactBlock=<div className={styles.contactBlock}><h2 className={styles.sectionTitle}>{text.contact}</h2><div className={styles.contactCard}>
+  <div className={styles.field}><label>{text.fullName}</label><input value={fullName} onChange={e=>setFullName(e.target.value)} autoComplete="name" placeholder={locale==="ru"?"Имя и фамилия":""}/></div>
+  <div className={styles.field}><label>{text.email}</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></div>
+  <div className={styles.phoneRow}><div className={styles.field}><label>{text.country}</label><input value="+972" readOnly aria-label={text.country}/></div><div className={styles.field}><label>{text.phone}</label><input type="tel" value={phone} onChange={e=>setPhone(e.target.value)} autoComplete="tel" placeholder="052-556-5457"/></div></div>
+ </div></div>;
+
+ const extraBlock=paymentUrl?<div className={`${styles.additionalBlock} ${styles.fadeIn}`}><h2 className={styles.sectionTitle}>{text.more}</h2><p className={styles.detailsHint}>{text.moreHint}</p><div className={styles.extraCard}>
+  {extraKeys.map(key=><div className={styles.field} key={key}><label>{labels[key][locale]}{props.guestFields[key].required?" *":""}</label>{key==="city"?<><input list="checkout-cities" value={extras[key]||""} onChange={e=>setExtra(key,e.target.value)}/><datalist id="checkout-cities">{israelCities.map(city=><option value={city} key={city}/>)}</datalist></>:<input value={extras[key]||""} onChange={e=>setExtra(key,e.target.value)} inputMode={key==="birthDate"?"numeric":undefined} maxLength={key==="birthDate"?10:undefined} placeholder={key==="birthDate"?(locale==="ru"?"ДД.ММ.ГГГГ":"DD.MM.YYYY"):key==="instagram"?"@username":""}/>}</div>)}
+  <div className={styles.field}><label>{text.gender} *</label><select value={gender} onChange={e=>{setDetailsReady(false);setGender(e.target.value)}}><option value="">{text.chooseGender}</option><option value="MALE">{text.male}</option><option value="FEMALE">{text.female}</option></select></div>
+  {!approvalRequired&&<div className={`${styles.field} ${styles.promo}`}><label>{text.promo}</label><input value={promo} onChange={e=>setPromo(e.target.value.toUpperCase())} placeholder={text.promoPlaceholder}/></div>}
+  {hasOrganizerQuestion&&<div className={styles.field}><label>{props.approvalInstructions}</label><textarea rows={4}/></div>}
+ </div></div>:null;
+
+ const summaryBlock=<div className={styles.summary}>
+  <div className={styles.summaryTop}><img className={styles.poster} src={props.posterUrl} alt=""/><div className={styles.eventInfo}><h2>{props.title}</h2><p className={styles.eventDate}>{eventDate(new Date(props.startsAt),locale)}</p><p className={styles.ticketCount}>{props.quantity} {ticketWord(props.quantity,locale)}</p></div></div>
+  <div className={styles.delivery}><span>{text.delivery}</span><span className={styles.deliveryValue}>E-tickets</span></div>
+  <div className={styles.summaryItems}>{props.summaryItems.map((item,index)=><div className={styles.summaryItem} key={`${item.label}-${index}`}><div><div className={styles.seatLabel}>{item.label}</div>{item.quantity>1&&<div className={styles.seatMeta}>{item.quantity} {ticketWord(item.quantity,locale)}</div>}</div><div className={styles.itemPrice}>{money(item.amount,"ILS",locale)}{singleFeeNote&&<span className={styles.feeNote}>{locale==="ru"?`включая сервисный сбор ${money(props.serviceFee,"ILS",locale)}`:locale==="he"?`כולל עמלת שירות ${money(props.serviceFee,"ILS",locale)}`:`incl. ${money(props.serviceFee,"ILS",locale)} service fee`}</span>}</div></div>)}</div>
+  {props.serviceFeePayer==="BUYER"&&props.serviceFee>0&&props.summaryItems.length>1&&<div className={`${styles.line} ${styles.serviceFee}`}><span>{text.serviceFee}</span><strong>{money(props.serviceFee,"ILS",locale)}</strong></div>}
+  <div className={`${styles.line} ${styles.total}`}><strong>{text.total}</strong><strong>{money(props.total,"ILS",locale)}</strong></div>
+ </div>;
+
+ const paymentBlock=<div className={styles.paymentWrap}><h2 className={styles.sectionTitle}>{text.payment}</h2>{!contactReady&&!paymentUrl?<div className={styles.wait}>{text.paymentWaiting}</div>:<div className={`${styles.paymentCard} ${styles.fadeIn}`}><div className={styles.paymentHeader}><span>{text.payment}</span><span className={styles.secure}>{text.secure}</span></div>{busy&&!paymentUrl&&<div className={styles.paymentLoading}>{text.paymentLoading}</div>}{paymentUrl&&<iframe ref={iframeRef} src={paymentUrl} title={text.payment} allow="payment" onLoad={handleFrameLoad} className={styles.paymentFrame}/>}</div>}</div>;
+
  return <div className={styles.checkout}>
-  <section className={styles.left}>
+  <section className={styles.leftColumn}>
    <h1 className={styles.title}>{text.checkout}</h1>
-   <div><h2 className={styles.sectionTitle}>{text.contact}</h2><div className={styles.contactCard}>
-    <div className={styles.field}><label>{text.fullName}</label><input value={fullName} onChange={e=>setFullName(e.target.value)} autoComplete="name" placeholder={locale==="ru"?"Имя и фамилия":""}/></div>
-    <div className={styles.field}><label>{text.email}</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></div>
-    <div className={styles.phoneRow}><div className={styles.field}><label>{text.country}</label><input value="+972" readOnly aria-label={text.country}/></div><div className={styles.field}><label>{text.phone}</label><input type="tel" value={phone} onChange={e=>setPhone(e.target.value)} autoComplete="tel" placeholder="052-556-5457"/></div></div>
-   </div></div>
-   <div className={styles.paymentWrap}><h2 className={styles.sectionTitle}>{text.payment}</h2>{!contactReady&&!paymentUrl?<div className={styles.wait}>{text.paymentWaiting}</div>:<div className={`${styles.paymentCard} ${styles.fadeIn}`}><div className={styles.paymentHeader}><span>{text.payment}</span><span className={styles.secure}>{text.secure}</span></div>{busy&&!paymentUrl&&<div className={styles.paymentLoading}>{text.paymentLoading}</div>}{paymentUrl&&<iframe ref={iframeRef} src={paymentUrl} title={text.payment} allow="payment" onLoad={handleFrameLoad} className={styles.paymentFrame}/>}</div>}</div>
-   {paymentUrl&&<div className={styles.fadeIn}><h2 className={styles.sectionTitle}>{text.more}</h2><p className={styles.detailsHint}>{text.moreHint}</p><div className={styles.extraCard}>
-    {extraKeys.map(key=><div className={styles.field} key={key}><label>{labels[key][locale]}{props.guestFields[key].required?" *":""}</label>{key==="city"?<><input list="checkout-cities" value={extras[key]||""} onChange={e=>setExtra(key,e.target.value)}/><datalist id="checkout-cities">{israelCities.map(city=><option value={city} key={city}/>)}</datalist></>:<input value={extras[key]||""} onChange={e=>setExtra(key,e.target.value)} inputMode={key==="birthDate"?"numeric":undefined} maxLength={key==="birthDate"?10:undefined} placeholder={key==="birthDate"?(locale==="ru"?"ДД.ММ.ГГГГ":"DD.MM.YYYY"):key==="instagram"?"@username":""}/>}</div>)}
-    <div className={styles.field}><label>{text.gender} *</label><select value={gender} onChange={e=>{setDetailsReady(false);setGender(e.target.value)}}><option value="">{text.chooseGender}</option><option value="MALE">{text.male}</option><option value="FEMALE">{text.female}</option></select></div>
-    {!approvalRequired&&<div className={`${styles.field} ${styles.promo}`}><label>{text.promo}</label><input value={promo} onChange={e=>setPromo(e.target.value.toUpperCase())} placeholder={text.promoPlaceholder}/></div>}
-    {hasOrganizerQuestion&&<div className={styles.field}><label>{props.approvalInstructions}</label><textarea rows={4}/></div>}
-   </div></div>}
+   {contactBlock}
+   {extraBlock}
    {error&&<div className={styles.error}>{error}</div>}
   </section>
-  <aside className={styles.summaryWrap}>
-   <div className={styles.timer}>Held for <strong>{clock(remaining)}</strong></div>
-   <div className={styles.summary}>
-    <div className={styles.summaryTop}>
-     <img className={styles.poster} src={props.posterUrl} alt=""/>
-     <div className={styles.eventInfo}><h2>{props.title}</h2><p className={styles.eventDate}>{eventDate(new Date(props.startsAt),locale)}</p><p className={styles.ticketCount}>{props.quantity} {ticketWord(props.quantity,locale)}</p></div>
-    </div>
-    <div className={styles.delivery}><span>{text.delivery}</span><span className={styles.deliveryValue}>E-tickets</span></div>
-    <div className={styles.summaryItems}>{props.summaryItems.map((item,index)=><div className={styles.summaryItem} key={`${item.label}-${index}`}><div><div className={styles.seatLabel}>{item.label}</div>{item.quantity>1&&<div className={styles.seatMeta}>{item.quantity} {ticketWord(item.quantity,locale)}</div>}</div><div className={styles.itemPrice}>{money(item.amount,"ILS",locale)}{singleFeeNote&&<span className={styles.feeNote}>{locale==="ru"?`включая сервисный сбор ${money(props.serviceFee,"ILS",locale)}`:locale==="he"?`כולל עמלת שירות ${money(props.serviceFee,"ILS",locale)}`:`incl. ${money(props.serviceFee,"ILS",locale)} service fee`}</span>}</div></div>)}</div>
-    {props.serviceFeePayer==="BUYER"&&props.serviceFee>0&&props.summaryItems.length>1&&<div className={`${styles.line} ${styles.serviceFee}`}><span>{text.serviceFee}</span><strong>{money(props.serviceFee,"ILS",locale)}</strong></div>}
-    <div className={`${styles.line} ${styles.total}`}><strong>{text.total}</strong><strong>{money(props.total,"ILS",locale)}</strong></div>
-   </div>
+  <aside className={styles.rightColumn}>
+   <div className={styles.timer}><strong>{clock(remaining)}</strong></div>
+   {summaryBlock}
+   {paymentBlock}
   </aside>
   {expiredOpen&&<div className={styles.modalBackdrop} role="dialog" aria-modal="true" aria-label={text.expired}><div className={styles.modal}><div className={styles.modalHead}>{text.expired}<button type="button" className={styles.close} onClick={()=>setExpiredOpen(false)} aria-label={text.close}>×</button></div><div className={styles.modalBody}><p>{text.expiredBody}</p><button type="button" className={styles.primary} onClick={rehold} disabled={reholding}>{reholding?"…":text.rehold}</button><button type="button" className={styles.secondary} onClick={()=>setExpiredOpen(false)}>{text.cancel}</button></div></div></div>}
  </div>;
