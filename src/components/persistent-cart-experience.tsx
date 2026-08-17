@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ShoppingCart, X, Clock3 } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -140,7 +140,7 @@ export function PersistentCartExperience() {
   const text = copy[locale];
   const [cart, setCart] = useState<PersistedCart | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [notice, setNotice] = useState<string>("");
+  const [notice, setNotice] = useState("");
   const [headerMount, setHeaderMount] = useState<HTMLElement | null>(null);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const noticeTimer = useRef<number | null>(null);
@@ -191,22 +191,42 @@ export function PersistentCartExperience() {
     const syncFromDom = () => {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
-        if (window.location.pathname !== pathname) return;
         const previous = readCart();
-        const nodes = document.querySelectorAll(".atlas-selected-ticket");
-        if (nodes.length > 0) {
-          const next = captureSeatPageCart(pathname, previous);
-          if (next) writeCart(next);
-        }
+        const next = captureSeatPageCart(pathname, previous);
+        if (next) writeCart(next);
       });
+    };
+    const syncImmediately = () => {
+      const previous = readCart();
+      const next = captureSeatPageCart(pathname, previous);
+      if (next) writeCart(next);
+    };
+    const syncAfterInteraction = () => {
+      window.setTimeout(syncFromDom, 0);
+      window.setTimeout(syncFromDom, 80);
+      window.setTimeout(syncFromDom, 180);
     };
 
     const observer = new MutationObserver(syncFromDom);
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-    const delayed = window.setTimeout(syncFromDom, 300);
-    const poll = window.setInterval(syncFromDom, 500);
+    document.addEventListener("pointerup", syncAfterInteraction, true);
+    document.addEventListener("click", syncAfterInteraction, true);
+    window.addEventListener("pagehide", syncImmediately);
+    window.addEventListener("beforeunload", syncImmediately);
+    const onVisibility = () => { if (document.visibilityState === "hidden") syncImmediately(); };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    const delayed = window.setTimeout(syncFromDom, 100);
+    const poll = window.setInterval(syncFromDom, 250);
+
     return () => {
+      syncImmediately();
       observer.disconnect();
+      document.removeEventListener("pointerup", syncAfterInteraction, true);
+      document.removeEventListener("click", syncAfterInteraction, true);
+      window.removeEventListener("pagehide", syncImmediately);
+      window.removeEventListener("beforeunload", syncImmediately);
+      document.removeEventListener("visibilitychange", onVisibility);
       window.clearTimeout(delayed);
       window.clearInterval(poll);
       window.cancelAnimationFrame(frame);
