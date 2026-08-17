@@ -21,6 +21,7 @@ import "./persistent-cart.css";
 import "./cart-drawer-motion.css";
 import "./cart-ticket-row-grid.css";
 import "./cart-reminder-card.css";
+import "./mobile-cart-header.css";
 import "./mobile-drawer-fix.css";
 import "./mobile-language-header.css";
 import "./mobile-menu-compact-actions.css";
