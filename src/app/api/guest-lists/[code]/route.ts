@@ -12,7 +12,7 @@ import { saveCustomerDemographics } from "@/lib/customer-demographics";
 const addSchema=z.object({action:z.literal("add"),customer:z.record(z.string(),z.string().max(250))});
 const removeSchema=z.object({action:z.literal("remove"),token:z.string().min(10),orderId:z.string().min(1)});
 const visitSchema=z.object({action:z.literal("visit"),sessionId:z.string().min(8).max(100)});
-function normalizePhone(value:string){const digits=value.replace(/\D/g,"");if(digits.startsWith("972"))return `+${digits}`;if(digits.startsWith("0"))return `+972${digits.slice(1)}`;return `+972${digits}`;}
+function normalizePhone(value:string){const digits=value.replace(/\D/g,"");if(!digits)return "";if(digits.startsWith("972"))return `+${digits}`;if(digits.startsWith("0"))return `+972${digits.slice(1)}`;return `+972${digits}`;}
 
 export async function POST(req:Request,{params}:{params:Promise<{code:string}>}){
   try{
@@ -29,7 +29,7 @@ export async function POST(req:Request,{params}:{params:Promise<{code:string}>})
       if(!z.string().email().safeParse(email).success)throw new Error("Укажите корректный email для отправки билета");
       const category=link.category??link.table?.category??link.event.categories.find(item=>!item.hidden&&item.sold<item.capacity)??null;
       if(!category)throw new Error("Для списка нет доступной категории билета");
-      const firstName=(customer.firstName||"").trim();const lastName=(customer.lastName||"").trim();const fullName=`${firstName} ${lastName}`.trim();const phone=normalizePhone(customer.phone||"");const birthDate=customer.birthDate?new Date(customer.birthDate):new Date("1900-01-01T00:00:00.000Z");
+      const firstName=(customer.firstName||"").trim();const lastName=(customer.lastName||"").trim();const fullName=`${firstName} ${lastName}`.trim();const phone=normalizePhone(customer.phone||"");const profilePhone=phone||`guest:${randomUUID()}`;const birthDate=customer.birthDate?new Date(customer.birthDate):new Date("1900-01-01T00:00:00.000Z");
       const requiresApproval=link.event.salesMode==="APPROVAL_REQUIRED";
       const order=await db.$transaction(async tx=>{
         await tx.$queryRawUnsafe(`SELECT "id" FROM "PromoterLink" WHERE "id"=$1 FOR UPDATE`,link.id);
@@ -42,8 +42,8 @@ export async function POST(req:Request,{params}:{params:Promise<{code:string}>})
         if(used>=limit)throw new Error("Лимит гостей исчерпан");
         if(!requiresApproval){const capacityClaim=await tx.ticketCategory.updateMany({where:{id:category.id,sold:{lt:category.capacity}},data:{sold:{increment:1}}});if(capacityClaim.count!==1)throw new Error("Бесплатные билеты закончились");}
         else {const latestCategory=await tx.ticketCategory.findUnique({where:{id:category.id},select:{sold:true,capacity:true}});if(!latestCategory||latestCategory.sold>=latestCategory.capacity)throw new Error("Свободных билетов больше нет");}
-        const guest=await tx.guestProfile.upsert({where:{organizationId_phone:{organizationId:link.event.organizationId,phone}},create:{organizationId:link.event.organizationId,firstName,lastName,phone,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""},update:{firstName,lastName,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""}});
-        return tx.order.create({data:{publicId:orderNumber(),idempotencyKey:randomUUID(),customerName:fullName,customerFirstName:firstName,customerLastName:lastName,customerPhone:phone,customerEmail:email,customerBirthDate:customer.birthDate?birthDate:null,customerCity:customer.city||null,customerFacebook:customer.facebook||null,customerInstagram:customer.instagram||null,guestId:guest.id,totalMinor:0,currency:category.currency,status:requiresApproval?"PENDING_APPROVAL":"PAID",salesFlow:requiresApproval?"APPROVAL":"DIRECT",eventId:link.eventId,promoterLinkId:link.id,items:{create:[{quantity:1,unitPriceMinor:0,categoryName:category.name,tableId:link.tableId}]},...(requiresApproval?{}:{tickets:{create:[{publicCode:ticketCode(),holderName:fullName,categoryId:category.id}]}})},include:{tickets:true}});
+        const guest=await tx.guestProfile.upsert({where:{organizationId_phone:{organizationId:link.event.organizationId,phone:profilePhone}},create:{organizationId:link.event.organizationId,firstName,lastName,phone:profilePhone,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""},update:{firstName,lastName,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""}});
+        return tx.order.create({data:{publicId:orderNumber(),idempotencyKey:randomUUID(),customerName:fullName,customerFirstName:firstName,customerLastName:lastName,customerPhone:phone,customerEmail:email,customerBirthDate:customer.birthDate?birthDate:null,customerCity:customer.city||null,customerFacebook:customer.facebook||null,customerInstagram:customer.instagram||null,guestId:guest.id,totalMinor:0,currency:category.currency,status:requiresApproval?"PENDING_APPROVAL":"PAID",salesFlow:requiresApproval?"APPROVAL":"DIRECT",eventId:link.eventId,promoterLinkId:link.id,items:{create:[{quantity:1,unitPriceMinor:0,categoryName:category.name,tableId:null}]},...(requiresApproval?{}:{tickets:{create:[{publicCode:ticketCode(),holderName:fullName,categoryId:category.id}]}})},include:{tickets:true}});
       });
       await saveCustomerDemographics({orderId:order.id,guestId:order.guestId,gender,birthDate:customer.birthDate?birthDate:null});
       after(async()=>{
