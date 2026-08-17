@@ -2,12 +2,13 @@ import { randomUUID } from "node:crypto";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { isGuestListPromoter, verifyGuestManagementToken } from "@/lib/guest-links";
+import { getGuestLinkSettings, isGuestListPromoter, verifyGuestManagementToken } from "@/lib/guest-links";
 import { orderNumber, ticketCode } from "@/lib/ticketing";
 import { guestFieldKeys, parseGuestFields } from "@/lib/event-guest-fields";
 import { sendOrderTicketEmail } from "@/lib/order-email";
 import { sendApprovalRequestReceivedEmail } from "@/lib/order-status-email";
 import { saveCustomerDemographics } from "@/lib/customer-demographics";
+import { assertInventoryAvailable, createReservation, releaseReservation } from "@/lib/reservation";
 
 const addSchema=z.object({action:z.literal("add"),customer:z.record(z.string(),z.string().max(250))});
 const removeSchema=z.object({action:z.literal("remove"),token:z.string().min(10),orderId:z.string().min(1)});
@@ -15,52 +16,34 @@ const visitSchema=z.object({action:z.literal("visit"),sessionId:z.string().min(8
 function normalizePhone(value:string){const digits=value.replace(/\D/g,"");if(!digits)return "";if(digits.startsWith("972"))return `+${digits}`;if(digits.startsWith("0"))return `+972${digits.slice(1)}`;return `+972${digits}`;}
 
 export async function POST(req:Request,{params}:{params:Promise<{code:string}>}){
-  try{
-    const {code}=await params;const body=await req.json();
-    const link=await db.promoterLink.findUnique({where:{code:code.toUpperCase()},include:{promoter:true,event:{include:{categories:true}},category:true,table:{include:{category:true}},orders:{where:{status:{notIn:["CANCELLED","REJECTED"]}},include:{items:true,tickets:true}}}});
-    const now=new Date();
-    if(!link||!link.active||!isGuestListPromoter(link.promoter.name)||(link.startsAt&&link.startsAt>now)||(link.endsAt&&link.endsAt<now))throw new Error("Гостевой список не найден или сейчас недоступен");
-    if(body.action==="visit"){const input=visitSchema.parse(body);await db.promoterLinkVisit.upsert({where:{linkId_sessionId:{linkId:link.id,sessionId:input.sessionId}},update:{},create:{linkId:link.id,sessionId:input.sessionId,userAgent:req.headers.get("user-agent")}});return NextResponse.json({ok:true});}
-    if(body.action==="add"){
-      const input=addSchema.parse(body);const fields=parseGuestFields(link.event.description);const customer=input.customer;
-      for(const key of guestFieldKeys)if(fields[key].visible&&fields[key].required&&!String(customer[key]||"").trim())throw new Error(`Заполните обязательное поле: ${key}`);
-      const gender=z.enum(["MALE","FEMALE"]).parse(customer.gender);
-      const email=String(customer.email||"").trim().toLowerCase();
-      if(!z.string().email().safeParse(email).success)throw new Error("Укажите корректный email для отправки билета");
-      const category=link.category??link.table?.category??link.event.categories.find(item=>!item.hidden&&item.sold<item.capacity)??null;
-      if(!category)throw new Error("Для списка нет доступной категории билета");
-      const firstName=(customer.firstName||"").trim();const lastName=(customer.lastName||"").trim();const fullName=`${firstName} ${lastName}`.trim();const phone=normalizePhone(customer.phone||"");const profilePhone=phone||`guest:${randomUUID()}`;const birthDate=customer.birthDate?new Date(customer.birthDate):new Date("1900-01-01T00:00:00.000Z");
-      const requiresApproval=link.event.salesMode==="APPROVAL_REQUIRED";
-      const order=await db.$transaction(async tx=>{
-        await tx.$queryRawUnsafe(`SELECT "id" FROM "PromoterLink" WHERE "id"=$1 FOR UPDATE`,link.id);
-        const fresh=await tx.promoterLink.findUnique({where:{id:link.id},select:{active:true,startsAt:true,endsAt:true,guestLimit:true}});
-        const txNow=new Date();
-        if(!fresh||!fresh.active||(fresh.startsAt&&fresh.startsAt>txNow)||(fresh.endsAt&&fresh.endsAt<txNow))throw new Error("Гостевой список сейчас недоступен");
-        const activeOrders=await tx.order.findMany({where:{promoterLinkId:link.id,status:{notIn:["CANCELLED","REJECTED"]}},select:{items:{select:{quantity:true}}}});
-        const used=activeOrders.flatMap(item=>item.items).reduce((sum,item)=>sum+item.quantity,0);
-        const limit=fresh.guestLimit??link.table?.seats??category.capacity;
-        if(used>=limit)throw new Error("Лимит гостей исчерпан");
-        if(!requiresApproval){const capacityClaim=await tx.ticketCategory.updateMany({where:{id:category.id,sold:{lt:category.capacity}},data:{sold:{increment:1}}});if(capacityClaim.count!==1)throw new Error("Бесплатные билеты закончились");}
-        else {const latestCategory=await tx.ticketCategory.findUnique({where:{id:category.id},select:{sold:true,capacity:true}});if(!latestCategory||latestCategory.sold>=latestCategory.capacity)throw new Error("Свободных билетов больше нет");}
-        const guest=await tx.guestProfile.upsert({where:{organizationId_phone:{organizationId:link.event.organizationId,phone:profilePhone}},create:{organizationId:link.event.organizationId,firstName,lastName,phone:profilePhone,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""},update:{firstName,lastName,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""}});
-        return tx.order.create({data:{publicId:orderNumber(),idempotencyKey:randomUUID(),customerName:fullName,customerFirstName:firstName,customerLastName:lastName,customerPhone:phone,customerEmail:email,customerBirthDate:customer.birthDate?birthDate:null,customerCity:customer.city||null,customerFacebook:customer.facebook||null,customerInstagram:customer.instagram||null,guestId:guest.id,totalMinor:0,currency:category.currency,status:requiresApproval?"PENDING_APPROVAL":"PAID",salesFlow:requiresApproval?"APPROVAL":"DIRECT",eventId:link.eventId,promoterLinkId:link.id,items:{create:[{quantity:1,unitPriceMinor:0,categoryName:category.name,tableId:null}]},...(requiresApproval?{}:{tickets:{create:[{publicCode:ticketCode(),holderName:fullName,categoryId:category.id}]}})},include:{tickets:true}});
-      });
-      await saveCustomerDemographics({orderId:order.id,guestId:order.guestId,gender,birthDate:customer.birthDate?birthDate:null});
-      after(async()=>{
-        try{
-          if(requiresApproval){await sendApprovalRequestReceivedEmail(order.publicId);console.info("[guest-approval-email] sent",{orderId:order.publicId,recipient:email});}
-          else {const delivery=await sendOrderTicketEmail(order.publicId);console.info("[guest-ticket-email] sent",{orderId:order.publicId,recipient:email,resendId:delivery.id});}
-        }catch(error){
-          const message=error instanceof Error?error.message:"Ошибка отправки письма";
-          console.error(requiresApproval?"[guest-approval-email] failed":"[guest-ticket-email] failed",{orderId:order.publicId,recipient:email,message});
-        }
-      });
-      return NextResponse.json({ok:true,orderId:order.id,publicId:order.publicId,status:order.status,emailQueued:true},{status:201});
+ try{
+  const {code}=await params;const body=await req.json();
+  const link=await db.promoterLink.findUnique({where:{code:code.toUpperCase()},include:{promoter:true,event:{include:{categories:true}},category:true,table:{include:{category:true}},orders:{where:{status:{notIn:["CANCELLED","REJECTED"]}},include:{items:true,tickets:true}}}});
+  const now=new Date();if(!link||!link.active||!isGuestListPromoter(link.promoter.name)||(link.startsAt&&link.startsAt>now)||(link.endsAt&&link.endsAt<now))throw new Error("Гостевой список не найден или сейчас недоступен");
+  if(body.action==="visit"){const input=visitSchema.parse(body);await db.promoterLinkVisit.upsert({where:{linkId_sessionId:{linkId:link.id,sessionId:input.sessionId}},update:{},create:{linkId:link.id,sessionId:input.sessionId,userAgent:req.headers.get("user-agent")}});return NextResponse.json({ok:true});}
+  if(body.action==="add"){
+   const input=addSchema.parse(body);const settings=await getGuestLinkSettings(link.id);const fields=parseGuestFields(link.event.description);const customer=input.customer;for(const key of guestFieldKeys)if(fields[key].visible&&fields[key].required&&!String(customer[key]||"").trim())throw new Error(`Заполните обязательное поле: ${key}`);
+   const gender=z.enum(["MALE","FEMALE"]).parse(customer.gender);const email=String(customer.email||"").trim().toLowerCase();if(!z.string().email().safeParse(email).success)throw new Error("Укажите корректный email для отправки билета");
+   const firstName=(customer.firstName||"").trim();const lastName=(customer.lastName||"").trim();const fullName=`${firstName} ${lastName}`.trim();const phone=normalizePhone(customer.phone||"");const profilePhone=phone||`guest:${randomUUID()}`;const birthDate=customer.birthDate?new Date(customer.birthDate):new Date("1900-01-01T00:00:00.000Z");const requiresApproval=link.event.salesMode==="APPROVAL_REQUIRED";
+   const order=await db.$transaction(async tx=>{
+    await tx.$queryRawUnsafe(`SELECT "id" FROM "PromoterLink" WHERE "id"=$1 FOR UPDATE`,link.id);const fresh=await tx.promoterLink.findUnique({where:{id:link.id},select:{active:true,startsAt:true,endsAt:true,guestLimit:true}});const txNow=new Date();if(!fresh||!fresh.active||(fresh.startsAt&&fresh.startsAt>txNow)||(fresh.endsAt&&fresh.endsAt<txNow))throw new Error("Гостевой список сейчас недоступен");
+    const activeOrders=await tx.order.findMany({where:{promoterLinkId:link.id,status:{notIn:["CANCELLED","REJECTED"]}},select:{items:{select:{quantity:true,seatId:true}}}});const used=activeOrders.flatMap(item=>item.items).reduce((sum,item)=>sum+item.quantity,0);const limit=fresh.guestLimit??link.table?.seats??link.category?.capacity??link.event.categories[0]?.capacity??0;if(used>=limit)throw new Error("Лимит гостей исчерпан");
+    let selectedSeat:null|{id:string;tableId:string;categoryId:string}=null;let category=link.category??link.table?.category??link.event.categories.find(item=>!item.hidden&&item.sold<item.capacity)??null;
+    if(settings.seatIds.length){
+      const assigned=new Set(activeOrders.flatMap(order=>order.items.map(item=>item.seatId).filter((id):id is string=>Boolean(id))));const seats=await tx.seat.findMany({where:{id:{in:settings.seatIds},status:"AVAILABLE"},include:{table:true},orderBy:{position:"asc"}});const claims=await tx.$queryRawUnsafe<Array<{seatId:string|null}>>(`SELECT "seatId" FROM "ReservationClaim" WHERE "seatId" = ANY($1::text[])`,settings.seatIds).catch(()=>[]);const claimed=new Set(claims.map(item=>item.seatId).filter((id):id is string=>Boolean(id)));const candidate=seats.find(seat=>!assigned.has(seat.id)&&!claimed.has(seat.id)&&Boolean(seat.categoryId??seat.table.categoryId));if(!candidate)throw new Error("Выбранные для этой ссылки места закончились");const categoryId=(candidate.categoryId??candidate.table.categoryId)!;category=link.event.categories.find(item=>item.id===categoryId)??null;if(!category)throw new Error("Категория выбранного места не найдена");selectedSeat={id:candidate.id,tableId:candidate.tableId,categoryId};
     }
-    if(body.action==="remove"){
-      if(!verifyGuestManagementToken(link.id,String(body.token||"")))throw new Error("Ссылка управления недействительна");
-      const input=removeSchema.parse(body);const order=link.orders.find(item=>item.id===input.orderId);if(!order)throw new Error("Гость не найден");if(order.tickets.some(ticket=>ticket.status==="USED"))throw new Error("Нельзя удалить гостя после прохода");const quantity=order.items.reduce((sum,item)=>sum+item.quantity,0);const categoryId=order.tickets[0]?.categoryId;await db.$transaction(async tx=>{await tx.ticket.updateMany({where:{orderId:order.id},data:{status:"CANCELLED"}});await tx.order.update({where:{id:order.id},data:{status:"CANCELLED"}});if(categoryId)await tx.ticketCategory.updateMany({where:{id:categoryId,sold:{gte:quantity}},data:{sold:{decrement:quantity}}});});return NextResponse.json({ok:true});
+    if(!category)throw new Error("Для списка нет доступной категории билета");
+    if(requiresApproval){const latestCategory=await tx.ticketCategory.findUnique({where:{id:category.id},select:{sold:true,capacity:true,name:true}});if(!latestCategory)throw new Error("Категория билета не найдена");const reservationItems=[{categoryId:category.id,quantity:1,seatId:selectedSeat?.id??null,tableId:null}];await assertInventoryAvailable({items:reservationItems,capacities:new Map([[category.id,{sold:latestCategory.sold,capacity:latestCategory.capacity,name:latestCategory.name}]]),executor:tx});
+      const guest=await tx.guestProfile.upsert({where:{organizationId_phone:{organizationId:link.event.organizationId,phone:profilePhone}},create:{organizationId:link.event.organizationId,firstName,lastName,phone:profilePhone,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""},update:{firstName,lastName,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""}});const created=await tx.order.create({data:{publicId:orderNumber(),idempotencyKey:randomUUID(),customerName:fullName,customerFirstName:firstName,customerLastName:lastName,customerPhone:phone,customerEmail:email,customerBirthDate:customer.birthDate?birthDate:null,customerCity:customer.city||null,customerFacebook:customer.facebook||null,customerInstagram:customer.instagram||null,guestId:guest.id,totalMinor:0,currency:category.currency,status:"PENDING_APPROVAL",salesFlow:"APPROVAL",eventId:link.eventId,promoterLinkId:link.id,items:{create:[{quantity:1,unitPriceMinor:0,categoryName:category.name,tableId:selectedSeat?.tableId??null,seatId:selectedSeat?.id??null}]}},include:{tickets:true}});await createReservation({orderId:created.id,items:reservationItems,ttlMinutes:24*60,executor:tx});return created;
     }
-    throw new Error("Неизвестное действие");
-  }catch(error){const message=error instanceof Error?error.message:"Ошибка";console.error("[guest-list-api]",{message});return NextResponse.json({error:message},{status:400});}
+    if(selectedSeat){const claimedSeat=await tx.seat.updateMany({where:{id:selectedSeat.id,status:"AVAILABLE"},data:{status:"RESERVED"}});if(claimedSeat.count!==1)throw new Error("Это место только что занял другой покупатель");}
+    const capacityClaim=await tx.ticketCategory.updateMany({where:{id:category.id,sold:{lt:category.capacity}},data:{sold:{increment:1}}});if(capacityClaim.count!==1)throw new Error("Бесплатные билеты закончились");const guest=await tx.guestProfile.upsert({where:{organizationId_phone:{organizationId:link.event.organizationId,phone:profilePhone}},create:{organizationId:link.event.organizationId,firstName,lastName,phone:profilePhone,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""},update:{firstName,lastName,email,birthDate,city:customer.city||"",facebook:customer.facebook||"",instagram:customer.instagram||""}});return tx.order.create({data:{publicId:orderNumber(),idempotencyKey:randomUUID(),customerName:fullName,customerFirstName:firstName,customerLastName:lastName,customerPhone:phone,customerEmail:email,customerBirthDate:customer.birthDate?birthDate:null,customerCity:customer.city||null,customerFacebook:customer.facebook||null,customerInstagram:customer.instagram||null,guestId:guest.id,totalMinor:0,currency:category.currency,status:"PAID",salesFlow:"DIRECT",eventId:link.eventId,promoterLinkId:link.id,items:{create:[{quantity:1,unitPriceMinor:0,categoryName:category.name,tableId:selectedSeat?.tableId??null,seatId:selectedSeat?.id??null}]},tickets:{create:[{publicCode:ticketCode(),holderName:fullName,categoryId:category.id}]}},include:{tickets:true}});
+   });
+   await saveCustomerDemographics({orderId:order.id,guestId:order.guestId,gender,birthDate:customer.birthDate?birthDate:null});after(async()=>{try{if(requiresApproval){await sendApprovalRequestReceivedEmail(order.publicId);console.info("[guest-approval-email] sent",{orderId:order.publicId,recipient:email});}else{const delivery=await sendOrderTicketEmail(order.publicId);console.info("[guest-ticket-email] sent",{orderId:order.publicId,recipient:email,resendId:delivery.id});}}catch(error){const message=error instanceof Error?error.message:"Ошибка отправки письма";console.error(requiresApproval?"[guest-approval-email] failed":"[guest-ticket-email] failed",{orderId:order.publicId,recipient:email,message});}});return NextResponse.json({ok:true,orderId:order.id,publicId:order.publicId,status:order.status,emailQueued:true},{status:201});
+  }
+  if(body.action==="remove"){
+   if(!verifyGuestManagementToken(link.id,String(body.token||"")))throw new Error("Ссылка управления недействительна");const input=removeSchema.parse(body);const order=link.orders.find(item=>item.id===input.orderId);if(!order)throw new Error("Гость не найден");if(order.tickets.some(ticket=>ticket.status==="USED"))throw new Error("Нельзя удалить гостя после прохода");const quantity=order.items.reduce((sum,item)=>sum+item.quantity,0);const seatIds=order.items.map(item=>item.seatId).filter((id):id is string=>Boolean(id));const categoryId=order.tickets[0]?.categoryId;await db.$transaction(async tx=>{await releaseReservation(order.id,tx);await tx.ticket.updateMany({where:{orderId:order.id},data:{status:"CANCELLED"}});await tx.order.update({where:{id:order.id},data:{status:"CANCELLED"}});if(categoryId)await tx.ticketCategory.updateMany({where:{id:categoryId,sold:{gte:quantity}},data:{sold:{decrement:quantity}}});if(seatIds.length)await tx.seat.updateMany({where:{id:{in:seatIds},status:"RESERVED"},data:{status:"AVAILABLE"}});});return NextResponse.json({ok:true});
+  }
+  throw new Error("Неизвестное действие");
+ }catch(error){const message=error instanceof Error?error.message:"Ошибка";console.error("[guest-list-api]",{message});return NextResponse.json({error:message},{status:400});}
 }
