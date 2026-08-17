@@ -36,13 +36,11 @@ export function AtlasLogo({
       const element = anchorRef.current;
       if (!element) return;
 
-      // White mobile drawer always uses the light-background logo.
       if (element.closest(".atlas-mobile-drawer")) {
         setRenderedSurface("light");
         return;
       }
 
-      // Only the public site header changes surface while scrolling.
       if (element.closest(".atlas-site-header")) {
         const body = document.body;
         const immersive = body.classList.contains("atlas-header-home") || body.classList.contains("atlas-header-event");
@@ -51,7 +49,6 @@ export function AtlasLogo({
         return;
       }
 
-      // All other unspecified placements are light surfaces by default.
       setRenderedSurface("light");
     };
 
@@ -78,7 +75,7 @@ export function AtlasLogo({
 
   const imageSrc = renderedSurface === "dark"
     ? "/brand/atlas-logo-dark.svg"
-    : "/brand/atlas-logo-light.png?v=20260817-4";
+    : "/brand/atlas-logo-light-final.png";
 
   return (
     <Link ref={anchorRef} href={href} className={classes} aria-label="Atlas One - главная">
