@@ -6,6 +6,7 @@ if(!terminal||!user||!password){console.log('[HYP host probe] missing HYP vars')
 const xml=`<ashrait><request><version>2000</version><language>ENG</language><command>getSessionId</command><getSessionId><terminalNumber>${terminal.replace(/[^0-9]/g,'')}</terminalNumber></getSessionId></request></ashrait>`;
 const targets=[];
 for(let i=1;i<=10;i++) for(const path of ['/xpo/Relay','/xpo/services/Relay']) targets.push(`https://cgpay${i}.creditguard.co.il${path}`);
+console.log('[HYP host probe] probing',targets.length,'production endpoints');
 for(const url of targets){
   try{
     const body=new URLSearchParams({user,password,int_in:xml});
