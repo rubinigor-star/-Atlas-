@@ -29,6 +29,16 @@ export default async function RequestsPage() {
              AND pa."provider" IN ('HYP','ATLAS_TEST')
              AND pa."amountMinor"=o."totalMinor"
          )
+         OR (
+           o."totalMinor"=0
+           AND EXISTS (
+             SELECT 1
+             FROM "PromoterLink" pl
+             JOIN "Promoter" p ON p."id"=pl."promoterId"
+             WHERE pl."id"=o."promoterLinkId"
+               AND (p."name" LIKE '__GUEST_LIST__:%' OR p."name" LIKE '__CHANNEL__:GUEST:%')
+           )
+         )
        )`,
     staff.organizationId!,
   );

@@ -8,6 +8,7 @@ import { TicketActions } from "@/components/ticket-actions";
 import { ApprovalActions } from "@/components/approval-actions";
 import { ResendTicketButton } from "@/components/resend-ticket-button";
 import { OrderRefundManager } from "@/components/order-refund-manager";
+import { OrderCancelButton } from "@/components/order-cancel-button";
 import { requireEventAccess } from "@/lib/auth";
 import { ageAt, getOrderDemographics } from "@/lib/customer-demographics";
 import { searchValueCardMember } from "@/lib/valuecard";
@@ -27,6 +28,8 @@ export default async function OrderAdmin({params,searchParams}:{params:Promise<{
     searchValueCardMember(order.event.organizationId,order.customerPhone),
   ]);
   const canRefund=staff.permissionSet.has("ORDER_MANAGE");const refunded=authorization?.status==="REFUNDED"||authorization?.status==="PARTIALLY_REFUNDED"||order.status==="CANCELLED";const gender=demographics?.gender??null;const age=ageAt(demographics?.birthDate??order.customerBirthDate);
+  const hasUsedTicket=order.tickets.some(ticket=>ticket.status==="USED");
+  const canCancelWithoutRefund=canRefund&&!hasUsedTicket&&!['CANCELLED','REJECTED'].includes(order.status)&&(order.totalMinor===0||(!authorization?.capturedAt&&order.status!=="PAID"));
   return <AdminShell>
     <Link className="btn secondary" href={returnTo}>← Вернуться</Link><span className="eyebrow">{order.status==="PENDING_APPROVAL"?"Заявка на вход":"Order"}</span>
     <div className="row between"><h1>{order.publicId}</h1><span className="pill">{order.status}</span></div>
@@ -38,6 +41,7 @@ export default async function OrderAdmin({params,searchParams}:{params:Promise<{
     {order.status==="PENDING_APPROVAL"&&staff.permissionSet.has("REQUEST_REVIEW")&&<><h2>Решение организатора</h2><ApprovalActions publicId={order.publicId} returnTo={returnTo}/></>}
     {order.reviewNote&&<div className="toast">Комментарий: {order.reviewNote}</div>}
     {order.status==="PAID"&&order.tickets.length>0&&canRefund&&<div className="panel" style={{marginTop:20}}><h2 style={{marginTop:0}}>Отправка билетов</h2><p className="muted" style={{marginBottom:0}}>Получатель: <strong>{order.customerEmail}</strong>. Письмо будет отправлено повторно со всеми билетами заказа и PDF-вложением.</p><ResendTicketButton publicId={order.publicId}/></div>}
+    {canCancelWithoutRefund&&<div className="panel" style={{marginTop:20}}><h2 style={{marginTop:0}}>Отмена заказа</h2><p className="muted">По этому заказу нет проведённого денежного списания. Отмена аннулирует билеты, освободит зарезервированные места и вернёт доступный остаток.</p><OrderCancelButton publicId={order.publicId}/></div>}
     {canRefund&&order.status==="PAID"&&authorization?.provider==="HYP"&&<OrderRefundManager orderId={order.publicId} totalMinor={order.totalMinor} alreadyRefunded={refunded}/>} 
     {order.tickets.length>0&&<h2>Билеты</h2>}{order.tickets.map(ticket=><div className="panel row between" style={{marginBottom:12}} key={ticket.id}><div><span className="pill">{ticket.status}</span><h3>{ticket.category.name}</h3><code>{ticket.publicCode}</code></div><div>{canRefund&&<TicketActions id={ticket.id} status={ticket.status}/>}<Link className="btn secondary" style={{marginTop:8}} href={`/api/tickets/${ticket.id}/pdf`}>PDF</Link></div></div>)}
   </AdminShell>;
