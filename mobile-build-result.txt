@@ -1,0 +1,2 @@
+STATUS=failed
+ERROR=Neither EXPO_TOKEN nor EXPO_ACCESS_TOKEN is configured in GitHub Secrets
