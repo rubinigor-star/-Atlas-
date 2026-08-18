@@ -45,6 +45,28 @@
   overflow: visible !important;
 }
 
+/* Search thumbnails are much smaller than event-grid cards, so the status tab must scale with them. */
+:global(.atlas-search-event-card).availabilityLink {
+  overflow: visible !important;
+}
+
+:global(.atlas-search-event-card).availabilityLink::before {
+  top: -11px;
+  height: 19px;
+  padding: 0 4px 9px;
+  border-radius: 8px 8px 0 0;
+  font-size: 6px;
+  line-height: .95;
+  letter-spacing: .025em;
+  box-shadow: 0 2px 5px rgba(229, 31, 43, .14);
+}
+
+:global(.atlas-search-event-card).lastTickets::before {
+  animation: none;
+  font-size: 6px;
+  letter-spacing: .025em;
+}
+
 /* Marquee uses the same back-layer treatment without increasing the card width. */
 :global(.live-event-preview).availabilityLink {
   overflow: visible !important;
@@ -108,6 +130,20 @@
     border-radius: 15px 15px 0 0;
     font-size: 9px;
     letter-spacing: .045em;
+  }
+
+  :global(.atlas-search-event-card).availabilityLink::before {
+    top: -10px;
+    height: 18px;
+    padding: 0 4px 8px;
+    border-radius: 7px 7px 0 0;
+    font-size: 5.5px;
+    letter-spacing: .02em;
+  }
+
+  :global(.atlas-search-event-card).lastTickets::before {
+    font-size: 5.5px;
+    letter-spacing: .02em;
   }
 
   :global(.live-event-preview).availabilityLink::before {
