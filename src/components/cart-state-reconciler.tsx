@@ -4,9 +4,22 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 const STORAGE_KEY = "atlas-persistent-cart-v2";
+const MIGRATION_KEY = "atlas-cart-storage-v3-migrated";
 
 export function CartStateReconciler() {
   const pathname = usePathname();
+
+  useEffect(() => {
+    try {
+      if (!window.localStorage.getItem(MIGRATION_KEY)) {
+        window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.setItem(MIGRATION_KEY, "1");
+        window.dispatchEvent(new CustomEvent("atlas-cart-change"));
+      }
+    } catch {
+      // Storage can be unavailable in hardened/private browser contexts.
+    }
+  }, []);
 
   useEffect(() => {
     const match = pathname.match(/^\/events\/([^/]+)\/seats(?:\/|$)/);
