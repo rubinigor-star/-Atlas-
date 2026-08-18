@@ -34,10 +34,10 @@ type RecoveryCustomer={firstName?:string;lastName?:string;email?:string;phone?:s
 
 export function CheckoutForm(props:CheckoutFormProps){
  const router=useRouter();const{locale}=useLocale();const text=copy[locale];
- const[fullName,setFullName]=useState("");const[email,setEmail]=useState("");const[phone,setPhone]=useState("");const[promo,setPromo]=useState("");const[gender,setGender]=useState("");
+ const[fullName,setFullName]=useState("");const[email,setEmail]=useState("");const[phone,setPhone]=useState("");const[promo,setPromo]=useState("");const[gender,setGender]=useState("");const[genderOpen,setGenderOpen]=useState(false);
  const[extras,setExtras]=useState<Record<string,string>>({});const[paymentUrl,setPaymentUrl]=useState("");const[orderId,setOrderId]=useState("");const[,setPaymentReady]=useState(false);const[,setDetailsReady]=useState(false);const[busy,setBusy]=useState(false);const[error,setError]=useState("");const[now,setNow]=useState(()=>Date.now());const[expiresAt,setExpiresAt]=useState(0);const[expiredOpen,setExpiredOpen]=useState(false);const[reholding,setReholding]=useState(false);const[cancelling,setCancelling]=useState(false);const[cancelled,setCancelled]=useState(false);
  const approvalRequired=props.salesMode==="APPROVAL_REQUIRED";const hasOrganizerQuestion=approvalRequired&&Boolean(props.approvalInstructions?.trim());const visible=(Object.keys(props.guestFields) as GuestFieldKey[]).filter(k=>props.guestFields[k].visible);const extraKeys=visible.filter(k=>!["firstName","lastName","email","phone"].includes(k));const otherExtraKeys=extraKeys.filter(k=>k!=="birthDate");const showBirthDate=extraKeys.includes("birthDate");
- const tokenRef=useRef("");const orderKeyRef=useRef("");const startingRef=useRef(false);const iframeRef=useRef<HTMLIFrameElement|null>(null);const contactCaptureRef=useRef<number|null>(null);const detailsTimerRef=useRef<number|null>(null);
+ const tokenRef=useRef("");const orderKeyRef=useRef("");const startingRef=useRef(false);const iframeRef=useRef<HTMLIFrameElement|null>(null);const contactCaptureRef=useRef<number|null>(null);const detailsTimerRef=useRef<number|null>(null);const genderRef=useRef<HTMLDivElement|null>(null);
  function token(){if(tokenRef.current)return tokenRef.current;const key=`atlas-abandon-${props.eventId}-${props.categoryId}-${props.tableId||props.seatIds?.join("-")||"general"}`;const recovery=props.recoveryToken&&uuidPattern.test(props.recoveryToken)?props.recoveryToken:"";const existing=sessionStorage.getItem(key);const value=recovery||existing||crypto.randomUUID();sessionStorage.setItem(key,value);tokenRef.current=value;return value;}
  function orderKey(){if(!orderKeyRef.current)orderKeyRef.current=crypto.randomUUID();return orderKeyRef.current;}
  function customer():RecoveryCustomer{const name=splitName(fullName);return{...name,email,phone,gender};}
@@ -46,6 +46,7 @@ export function CheckoutForm(props:CheckoutFormProps){
  const requiredExtrasReady=useMemo(()=>extraKeys.every(key=>{if(!props.guestFields[key].required)return true;const value=extras[key]||"";return key==="birthDate"?Boolean(birthDateToIso(value)):value.trim().length>0;})&&Boolean(gender),[extraKeys,extras,gender,props.guestFields]);
  const remaining=Math.max(0,(expiresAt||now)-now);
  useEffect(()=>{capture("CHECKOUT_OPENED");const stored=readExpiry(props.eventSlug,props.title);setExpiresAt(stored||Date.now()+15*60*1000);const id=window.setInterval(()=>setNow(Date.now()),1000);return()=>{clearInterval(id);if(contactCaptureRef.current)clearTimeout(contactCaptureRef.current);if(detailsTimerRef.current)clearTimeout(detailsTimerRef.current);};},[]);
+ useEffect(()=>{if(!genderOpen)return;const close=(event:MouseEvent)=>{if(genderRef.current&&!genderRef.current.contains(event.target as Node))setGenderOpen(false)};const esc=(event:KeyboardEvent)=>{if(event.key==="Escape")setGenderOpen(false)};document.addEventListener("mousedown",close);document.addEventListener("keydown",esc);return()=>{document.removeEventListener("mousedown",close);document.removeEventListener("keydown",esc);};},[genderOpen]);
  useEffect(()=>{if(!cancelled&&expiresAt&&now>=expiresAt)setExpiredOpen(true);},[now,expiresAt,cancelled]);
  useEffect(()=>{if(cancelled||!contactReady||paymentUrl||startingRef.current||expiredOpen)return;const id=window.setTimeout(()=>void startPayment(),500);return()=>clearTimeout(id);},[contactReady,paymentUrl,expiredOpen,cancelled]);
  useEffect(()=>{if(!contactReady||cancelled)return;if(contactCaptureRef.current)clearTimeout(contactCaptureRef.current);contactCaptureRef.current=window.setTimeout(()=>capture("CONTACTS_ENTERED",customer()),500);},[fullName,email,phone,contactReady,cancelled]);
@@ -56,24 +57,25 @@ export function CheckoutForm(props:CheckoutFormProps){
  async function rehold(){if(reholding||cancelling)return;setReholding(true);setError("");try{const items=props.items?.length?props.items:[{categoryId:props.categoryId,quantity:props.quantity,tableId:props.tableId||null,seatIds:props.seatIds||[]}];const response=await fetch("/api/cart/hold",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({eventId:props.eventId,items})});const data=await response.json();if(!response.ok)throw new Error(data.error||text.error);const next=data.expiresAt?new Date(data.expiresAt).getTime():Date.now()+15*60*1000;writeExpiry(props.eventSlug,props.title,next);setCancelled(false);setExpiresAt(next);setNow(Date.now());setExpiredOpen(false);}catch(e){setError(e instanceof Error?e.message:text.error);}finally{setReholding(false);}}
  async function cancelExpired(){if(cancelling||reholding)return;setCancelling(true);setCancelled(true);setExpiredOpen(false);setExpiresAt(0);removeCartGroup(props.eventSlug,props.title);try{await fetch("/api/cart/hold/release",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({eventSlug:props.eventSlug}),keepalive:true});}catch{/* navigation still clears local checkout state */}finally{router.replace(`/events/${props.eventSlug}`);}}
  function setExtra(key:string,value:string){setDetailsReady(false);setExtras(prev=>({...prev,[key]:value}));}
+ function chooseGender(value:"MALE"|"FEMALE"){setDetailsReady(false);setGender(value);setGenderOpen(false);}
  const singleFeeNote=props.serviceFeePayer==="BUYER"&&props.serviceFee>0&&props.summaryItems.length===1;
  const maxBirthDate=new Date().toISOString().slice(0,10);
+ const genderLabel=gender==="MALE"?text.male:gender==="FEMALE"?text.female:text.chooseGender;
 
  const contactBlock=<div className={styles.contactBlock}><h2 className={styles.sectionTitle}>{text.contact}</h2><div className={styles.contactCard}>
   <div className={styles.field}><label>{text.fullName}</label><input value={fullName} onChange={e=>setFullName(e.target.value)} autoComplete="name" placeholder={locale==="ru"?"Имя и фамилия":""}/></div>
   <div className={styles.field}><label>{text.email}</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></div>
   <div className={styles.phoneRow}><div className={styles.field}><label>{text.country}</label><input value="+972" readOnly aria-label={text.country}/></div><div className={styles.field}><label>{text.phone}</label><input type="tel" value={phone} onChange={e=>setPhone(e.target.value)} autoComplete="tel" placeholder="052-556-5457"/></div></div>
+  {paymentUrl&&<div className={styles.fadeIn}>
+   <div className={styles.detailsRow}>
+    {showBirthDate?<div className={styles.field}><label>{labels.birthDate[locale]}{props.guestFields.birthDate?.required?" *":""}</label><input type="date" min="1900-01-01" max={maxBirthDate} value={extras.birthDate||""} onChange={e=>setExtra("birthDate",e.target.value)} aria-label={labels.birthDate[locale]}/></div>:<div className={styles.field}/>} 
+    <div className={`${styles.field} ${styles.genderField}`} ref={genderRef}><label>{text.gender} *</label><button type="button" className={`${styles.genderTrigger}${genderOpen?` ${styles.genderTriggerOpen}`:""}`} onClick={()=>setGenderOpen(open=>!open)} aria-haspopup="listbox" aria-expanded={genderOpen}><span>{genderLabel}</span><span className={styles.genderChevron}>⌄</span></button>{genderOpen&&<div className={styles.genderMenu} role="listbox"><button type="button" className={`${styles.genderOption}${gender==="MALE"?` ${styles.genderOptionActive}`:""}`} onClick={()=>chooseGender("MALE")} role="option" aria-selected={gender==="MALE"}>{text.male}</button><button type="button" className={`${styles.genderOption}${gender==="FEMALE"?` ${styles.genderOptionActive}`:""}`} onClick={()=>chooseGender("FEMALE")} role="option" aria-selected={gender==="FEMALE"}>{text.female}</button></div>}</div>
+   </div>
+   {otherExtraKeys.map(key=><div className={styles.field} key={key}><label>{labels[key][locale]}{props.guestFields[key].required?" *":""}</label>{key==="city"?<><input list="checkout-cities" value={extras[key]||""} onChange={e=>setExtra(key,e.target.value)}/><datalist id="checkout-cities">{israelCities.map(city=><option value={city} key={city}/>)}</datalist></>:<input value={extras[key]||""} onChange={e=>setExtra(key,e.target.value)} placeholder={key==="instagram"?"@username":""}/>}</div>)}
+   {!approvalRequired&&<div className={`${styles.field} ${styles.promo}`}><label>{text.promo}</label><input value={promo} onChange={e=>setPromo(e.target.value.toUpperCase())} placeholder={text.promoPlaceholder}/></div>}
+   {hasOrganizerQuestion&&<div className={styles.field}><label>{props.approvalInstructions}</label><textarea rows={4}/></div>}
+  </div>}
  </div></div>;
-
- const extraBlock=paymentUrl?<div className={`${styles.additionalBlock} ${styles.fadeIn}`}><h2 className={styles.sectionTitle}>{text.more}</h2><p className={styles.detailsHint}>{text.moreHint}</p><div className={styles.extraCard}>
-  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
-   {showBirthDate?<div className={styles.field} style={{borderRight:"1px solid #dfe2e8",borderBottom:"1px solid #dfe2e8"}}><label>{labels.birthDate[locale]}{props.guestFields.birthDate?.required?" *":""}</label><input type="date" min="1900-01-01" max={maxBirthDate} value={extras.birthDate||""} onChange={e=>setExtra("birthDate",e.target.value)} aria-label={labels.birthDate[locale]}/></div>:<div className={styles.field} style={{borderRight:"1px solid #dfe2e8",borderBottom:"1px solid #dfe2e8"}}/>}
-   <div className={styles.field} style={{borderBottom:"1px solid #dfe2e8"}}><label>{text.gender} *</label><select value={gender} onChange={e=>{setDetailsReady(false);setGender(e.target.value)}}><option value="">{text.chooseGender}</option><option value="MALE">{text.male}</option><option value="FEMALE">{text.female}</option></select></div>
-  </div>
-  {otherExtraKeys.map(key=><div className={styles.field} key={key}><label>{labels[key][locale]}{props.guestFields[key].required?" *":""}</label>{key==="city"?<><input list="checkout-cities" value={extras[key]||""} onChange={e=>setExtra(key,e.target.value)}/><datalist id="checkout-cities">{israelCities.map(city=><option value={city} key={city}/>)}</datalist></>:<input value={extras[key]||""} onChange={e=>setExtra(key,e.target.value)} placeholder={key==="instagram"?"@username":""}/>}</div>)}
-  {!approvalRequired&&<div className={`${styles.field} ${styles.promo}`}><label>{text.promo}</label><input value={promo} onChange={e=>setPromo(e.target.value.toUpperCase())} placeholder={text.promoPlaceholder}/></div>}
-  {hasOrganizerQuestion&&<div className={styles.field}><label>{props.approvalInstructions}</label><textarea rows={4}/></div>}
- </div></div>:null;
 
  const summaryBlock=<div className={styles.summary}>
   <div className={styles.summaryTop}><img className={styles.poster} src={props.posterUrl} alt=""/><div className={styles.eventInfo}><h2>{props.title}</h2><p className={styles.eventDate}>{eventDate(new Date(props.startsAt),locale)}</p><p className={styles.ticketCount}>{props.quantity} {ticketWord(props.quantity,locale)}</p></div></div>
@@ -82,13 +84,12 @@ export function CheckoutForm(props:CheckoutFormProps){
   <div className={`${styles.line} ${styles.total}`}><strong>{text.total}</strong><strong>{money(props.total,"ILS",locale)}</strong></div>
  </div>;
 
- const paymentBlock=<div className={styles.paymentWrap}><h2 className={styles.sectionTitle}>{text.payment}</h2>{!contactReady&&!paymentUrl?<div className={styles.wait}>{text.paymentWaiting}</div>:<div className={`${styles.paymentCard} ${styles.fadeIn}`}><div className={styles.paymentHeader}><span>{text.payment}</span><span className={styles.secure}>{text.secure}</span></div>{busy&&!paymentUrl&&<div className={styles.paymentLoading}>{text.paymentLoading}</div>}{paymentUrl&&<iframe ref={iframeRef} src={paymentUrl} title={text.payment} allow="payment" onLoad={handleFrameLoad} className={styles.paymentFrame}/>}</div>}</div>;
+ const paymentBlock=<div className={styles.paymentWrap}><h2 className={styles.sectionTitle}>{text.payment}</h2>{!contactReady&&!paymentUrl?<div className={styles.wait}>{text.paymentWaiting}</div>:<div className={`${styles.paymentCard} ${styles.fadeIn}`}>{busy&&!paymentUrl&&<div className={styles.paymentLoading}>{text.paymentLoading}</div>}{paymentUrl&&<iframe ref={iframeRef} src={paymentUrl} title={text.payment} allow="payment" onLoad={handleFrameLoad} className={styles.paymentFrame}/>}</div>}</div>;
 
  return <div className={styles.checkout}>
   <section className={styles.leftColumn}>
    <h1 className={styles.title}>{text.checkout}</h1>
    {contactBlock}
-   {extraBlock}
    {error&&<div className={styles.error}>{error}</div>}
   </section>
   <aside className={styles.rightColumn}>
