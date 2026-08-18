@@ -82,6 +82,11 @@ function cartDrawerOpen() {
   return typeof document !== "undefined" && Boolean(document.querySelector(".atlas-cart-overlay"));
 }
 
+function onCheckoutPage() {
+  if (typeof window === "undefined") return false;
+  return window.location.pathname.includes("/checkout");
+}
+
 export function CartReminderCard() {
   const { locale } = useLocale();
   const text = copy[locale];
@@ -96,7 +101,7 @@ export function CartReminderCard() {
       const currentNow = Date.now();
       setNow(currentNow);
 
-      if (cartDrawerOpen()) {
+      if (cartDrawerOpen() || onCheckoutPage()) {
         setReminder(null);
         setClosing(false);
         return;
@@ -121,11 +126,13 @@ export function CartReminderCard() {
     observer.observe(document.body, { childList: true, subtree: true });
     window.addEventListener("atlas-cart-change", tick as EventListener);
     window.addEventListener("storage", tick);
+    window.addEventListener("popstate", tick);
     return () => {
       window.clearInterval(interval);
       observer.disconnect();
       window.removeEventListener("atlas-cart-change", tick as EventListener);
       window.removeEventListener("storage", tick);
+      window.removeEventListener("popstate", tick);
     };
   }, []);
 
@@ -152,7 +159,7 @@ export function CartReminderCard() {
     setClosing(false);
   };
 
-  if (!reminder || cartDrawerOpen()) return null;
+  if (!reminder || cartDrawerOpen() || onCheckoutPage()) return null;
 
   return <aside className={`atlas-cart-reminder${closing ? " is-closing" : ""}`} role="status" aria-live="polite">
     <button type="button" className="atlas-cart-reminder-close" aria-label={text.close} onClick={close}><X size={18}/></button>
