@@ -9,8 +9,9 @@ if(!src.includes('ATLAS_HEBREW_CHECKOUT_POLISH')){
   src='/* ATLAS_HEBREW_CHECKOUT_POLISH */\n'+src;
   src=src.replace('total:"סה״כ",serviceFee:"עמלת שירות"','total:"סה״כ לתשלום",serviceFee:"עמלת שירות"');
   src=src.replace('locale==="he"?`כולל עמלת שירות ${money(props.serviceFee,"ILS",locale)}`','locale==="he"?`+ עמלת שירות ${money(props.serviceFee,"ILS",locale)}`');
-  src=src.replace('locale==="he"?"יום.חודש.שנה":"DD.MM.YYYY"','locale==="he"?"תאריך לידה":"DD.MM.YYYY"');
 }
+// Always normalize the closed Hebrew date placeholder, even when this patch already ran before.
+src=src.replaceAll('יום.חודש.שנה','תאריך לידה');
 if(!src.includes('ATLAS_PHONE_LTR_ORDER')){
   src=src.replace('className={`${styles.phoneControl}${phoneInvalid?` ${styles.phoneControlInvalid}`:""}`}>','className={`${styles.phoneControl}${phoneInvalid?` ${styles.phoneControlInvalid}`:""}`} dir="ltr" data-atlas-phone-ltr="true">');
   src='/* ATLAS_PHONE_LTR_ORDER */\n'+src;
