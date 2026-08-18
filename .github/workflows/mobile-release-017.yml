@@ -1,0 +1,100 @@
+name: Atlas Mobile Release 0.1.7
+
+on:
+  push:
+    branches:
+      - mobile/rebuild-20260818-icon-testflight
+    paths:
+      - ".github/workflows/mobile-release-017.yml"
+      - "mobile/app.json"
+      - "mobile/assets/atlas-one-app-icon.png"
+
+permissions:
+  contents: read
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verify Expo token
+        shell: bash
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN is unavailable in the Production environment."
+            exit 2
+          fi
+          echo "EXPO_TOKEN is configured."
+
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify EAS project
+        run: npx eas-cli@latest project:info
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Build Android preview APK
+        shell: bash
+        run: |
+          npx eas-cli@latest build --platform android --profile preview --non-interactive --wait --json | tee ../android-build.json
+
+      - name: Build iOS production
+        shell: bash
+        run: |
+          npx eas-cli@latest build --platform ios --profile production --non-interactive --wait --json | tee ../ios-build.json
+
+      - name: Submit iOS to TestFlight
+        shell: bash
+        run: |
+          IOS_BUILD_ID=$(node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('../ios-build.json','utf8'));const b=Array.isArray(d)?d[0]:d;process.stdout.write(b.id||'')")
+          if [ -z "$IOS_BUILD_ID" ]; then
+            echo "Could not determine iOS EAS build ID"
+            exit 3
+          fi
+          npx eas-cli@latest submit --platform ios --id "$IOS_BUILD_ID" --non-interactive --wait
+
+      - name: Publish links
+        shell: bash
+        working-directory: .
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const one = (p) => { const d = JSON.parse(fs.readFileSync(p,'utf8')); return Array.isArray(d) ? d[0] : d; };
+          const android = one('android-build.json');
+          const ios = one('ios-build.json');
+          const androidUrl = android?.artifacts?.applicationArchiveUrl || android?.buildUrl || android?.artifacts?.buildUrl || '';
+          const iosUrl = ios?.buildUrl || ios?.artifacts?.buildUrl || '';
+          const lines = [
+            '# Atlas One 0.1.7 release',
+            '',
+            `Android APK: ${androidUrl || android.id || 'completed'}`,
+            `iOS EAS build: ${iosUrl || ios.id || 'completed'}`,
+            'iOS submission: sent to TestFlight',
+          ];
+          fs.writeFileSync('mobile-release-links.txt', lines.join('\n') + '\n');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
+          console.log(lines.join('\n'));
+          NODE
+
+      - name: Upload release links
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-mobile-release-017-links
+          path: mobile-release-links.txt
