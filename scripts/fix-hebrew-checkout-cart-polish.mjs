@@ -8,10 +8,11 @@ let src=fs.readFileSync(tsxPath,'utf8');
 if(!src.includes('ATLAS_HEBREW_CHECKOUT_POLISH')){
   src='/* ATLAS_HEBREW_CHECKOUT_POLISH */\n'+src;
   src=src.replace('total:"סה״כ",serviceFee:"עמלת שירות"','total:"סה״כ לתשלום",serviceFee:"עמלת שירות"');
-  src=src.replace('locale==="he"?`כולל עמלת שירות ${money(props.serviceFee,"ILS",locale)}`','locale==="he"?`+ עמלת שירות ${money(props.serviceFee,"ILS",locale)}`');
 }
-// Always normalize the closed Hebrew date placeholder, even when this patch already ran before.
+// Always normalize Hebrew checkout copy, even when this patch already ran before.
 src=src.replaceAll('יום.חודש.שנה','תאריך לידה');
+src=src.replaceAll('כולל עמלת שירות','+ עמלת שירות');
+src=src.replaceAll('כולל עמלת שרות','+ עמלת שירות');
 if(!src.includes('ATLAS_PHONE_LTR_ORDER')){
   src=src.replace('className={`${styles.phoneControl}${phoneInvalid?` ${styles.phoneControlInvalid}`:""}`}>','className={`${styles.phoneControl}${phoneInvalid?` ${styles.phoneControlInvalid}`:""}`} dir="ltr" data-atlas-phone-ltr="true">');
   src='/* ATLAS_PHONE_LTR_ORDER */\n'+src;
