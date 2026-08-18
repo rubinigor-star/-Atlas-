@@ -63,8 +63,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     {"@type":"Organization","@id":`${BASE}/#organization`,name:"Atlas One",url:BASE,logo:`${BASE}/atlas-app-icon.svg`,email:"support@atlas-one.co",areaServed:{"@type":"Country",name:"Israel"}},
     {"@type":"WebSite","@id":`${BASE}/#website`,url:BASE,name:"Atlas One",publisher:{"@id":`${BASE}/#organization`},inLanguage:["ru","he","en"]}
   ]};
+  const applePayIframeBootstrap=`(()=>{const enable=()=>{document.querySelectorAll('iframe').forEach((frame)=>{try{const src=frame.getAttribute('src')||'';if(src.includes('/payments/hyp/')||src.includes('hyp.co.il')||src.includes('creditguard.co.il')){frame.setAttribute('allow','payment');frame.allowPaymentRequest=true;}}catch{}})};enable();new MutationObserver(enable).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});})();`;
   return <html lang={locale} dir={dir} suppressHydrationWarning><body>
     <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(schema).replace(/</g,"\\u003c")}}/>
+    <script src="https://pps.creditguard.co.il/plugins/applePayOnIframe.js" defer></script>
+    <script dangerouslySetInnerHTML={{__html:applePayIframeBootstrap}}/>
     <MarketingTracker/><PromoterChannelTracker/><CartDrawerMotion/><LocaleProvider initialLocale={locale}><PwaRegister/><AppChrome>{children}</AppChrome></LocaleProvider><SpeedInsights/>
   </body></html>;
 }
