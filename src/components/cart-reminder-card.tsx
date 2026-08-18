@@ -78,6 +78,10 @@ function countdown(expiresAt: number, now: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function cartDrawerOpen() {
+  return Boolean(document.querySelector(".atlas-cart-overlay"));
+}
+
 export function CartReminderCard() {
   const { locale } = useLocale();
   const text = copy[locale];
@@ -91,8 +95,14 @@ export function CartReminderCard() {
     const tick = () => {
       const currentNow = Date.now();
       setNow(currentNow);
-      const groups = readGroups();
 
+      if (cartDrawerOpen()) {
+        setReminder(null);
+        setClosing(false);
+        return;
+      }
+
+      const groups = readGroups();
       for (const group of groups) {
         const stage = reminderStage(group.expiresAt - currentNow);
         if (stage === 15 || stage === 0) continue;
@@ -107,10 +117,13 @@ export function CartReminderCard() {
 
     tick();
     const interval = window.setInterval(tick, 1000);
+    const observer = new MutationObserver(tick);
+    observer.observe(document.body, { childList: true, subtree: true });
     window.addEventListener("atlas-cart-change", tick as EventListener);
     window.addEventListener("storage", tick);
     return () => {
       window.clearInterval(interval);
+      observer.disconnect();
       window.removeEventListener("atlas-cart-change", tick as EventListener);
       window.removeEventListener("storage", tick);
     };
@@ -135,10 +148,11 @@ export function CartReminderCard() {
   const openCart = () => {
     const cartButton = document.querySelector<HTMLButtonElement>(".atlas-cart-button");
     cartButton?.click();
-    close();
+    setReminder(null);
+    setClosing(false);
   };
 
-  if (!reminder) return null;
+  if (!reminder || cartDrawerOpen()) return null;
 
   return <aside className={`atlas-cart-reminder${closing ? " is-closing" : ""}`} role="status" aria-live="polite">
     <button type="button" className="atlas-cart-reminder-close" aria-label={text.close} onClick={close}><X size={18}/></button>
