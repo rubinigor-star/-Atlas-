@@ -27,22 +27,93 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
       - name: Verify Expo token
         run: |
           test -n "$EXPO_TOKEN"
           echo "EXPO_TOKEN is configured"
+
       - name: Install mobile dependencies
         run: npm install --no-audit --no-fund
+
+      - name: Repair and validate app icon PNG
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct, zlib
+
+          p = Path('assets/atlas-one-app-icon.png')
+          data = p.read_bytes()
+          sig = b'\x89PNG\r\n\x1a\n'
+          if not data.startswith(sig):
+              raise SystemExit('App icon is not a PNG')
+
+          out = bytearray(sig)
+          i = len(sig)
+          seen_iend = False
+          while i < len(data):
+              if i + 8 > len(data):
+                  raise SystemExit('Truncated PNG chunk header')
+              n = struct.unpack('>I', data[i:i+4])[0]
+              typ = data[i+4:i+8]
+              start = i + 8
+              end = start + n
+              if end + 4 > len(data):
+                  raise SystemExit(f'Truncated PNG chunk {typ!r}')
+              payload = data[start:end]
+              crc = zlib.crc32(typ)
+              crc = zlib.crc32(payload, crc) & 0xffffffff
+              out += struct.pack('>I', n) + typ + payload + struct.pack('>I', crc)
+              i = end + 4
+              if typ == b'IEND':
+                  seen_iend = True
+                  break
+          if not seen_iend:
+              raise SystemExit('PNG is missing IEND')
+          p.write_bytes(out)
+          print(f'Rewrote PNG CRCs: {len(out)} bytes')
+          PY
+
+          # Expo/Jimp must be able to decode the exact file that will be uploaded.
+          node - <<'NODE'
+          const Jimp = require('jimp-compact');
+          Jimp.read('assets/atlas-one-app-icon.png')
+            .then(img => {
+              if (img.bitmap.width !== 1024 || img.bitmap.height !== 1024) {
+                throw new Error(`Expected 1024x1024 icon, got ${img.bitmap.width}x${img.bitmap.height}`);
+              }
+              console.log(`Jimp decoded icon: ${img.bitmap.width}x${img.bitmap.height}`);
+            })
+            .catch(err => { console.error(err); process.exit(1); });
+          NODE
+
+      - name: Set iOS export compliance flag
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const p = 'app.json';
+          const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+          cfg.expo.ios = cfg.expo.ios || {};
+          cfg.expo.ios.infoPlist = {
+            ...(cfg.expo.ios.infoPlist || {}),
+            ITSAppUsesNonExemptEncryption: false,
+          };
+          fs.writeFileSync(p, JSON.stringify(cfg, null, 2) + '\n');
+          NODE
+
       - name: Verify EAS project and app config
         run: |
           npx eas-cli@latest project:info
           npx expo config --type public > /dev/null
           npx expo-doctor
           npm run typecheck
+
       - name: Build iOS production
         shell: bash
         run: |
           npx eas-cli@latest build --platform ios --profile production --non-interactive --wait --json | tee ../ios-build.json
+
       - name: Submit iOS to TestFlight
         shell: bash
         run: |
@@ -50,6 +121,7 @@ jobs:
           test -n "$IOS_BUILD_ID"
           echo "Submitting EAS build $IOS_BUILD_ID to TestFlight"
           npx eas-cli@latest submit --platform ios --id "$IOS_BUILD_ID" --non-interactive --wait
+
       - name: Publish iOS release info
         if: always()
         shell: bash
@@ -65,6 +137,7 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,lines.join('\n')+'\n');
           console.log(lines.join('\n'));
           NODE
+
       - name: Upload iOS release info
         if: always()
         uses: actions/upload-artifact@v4
