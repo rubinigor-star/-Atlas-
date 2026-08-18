@@ -1,4 +1,4 @@
-name: Build Atlas EAS Release 0.1.7
+name: Build Atlas iOS 0.1.7 TestFlight
 
 on:
   pull_request:
@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  build-release:
+  ios-release:
     runs-on: ubuntu-latest
     environment: Production
     timeout-minutes: 120
@@ -45,10 +45,6 @@ jobs:
           npx expo-doctor
       - name: TypeScript check
         run: npm run typecheck
-      - name: Build Android preview APK
-        shell: bash
-        run: |
-          npx eas-cli@latest build --platform android --profile preview --non-interactive --wait --json | tee ../android-build.json
       - name: Build iOS production
         shell: bash
         run: |
@@ -62,36 +58,32 @@ jobs:
             exit 3
           fi
           npx eas-cli@latest submit --platform ios --id "$IOS_BUILD_ID" --non-interactive --wait
-      - name: Publish release links
+      - name: Publish iOS release info
         if: always()
         shell: bash
         working-directory: .
         run: |
           node <<'NODE'
           const fs = require('fs');
-          const one = (p) => {
-            if (!fs.existsSync(p)) return null;
-            const d = JSON.parse(fs.readFileSync(p,'utf8'));
-            return Array.isArray(d) ? d[0] : d;
-          };
-          const android = one('android-build.json');
-          const ios = one('ios-build.json');
-          const androidUrl = android?.artifacts?.applicationArchiveUrl || android?.artifacts?.buildUrl || android?.buildUrl || '';
+          let ios = null;
+          if (fs.existsSync('ios-build.json')) {
+            const d = JSON.parse(fs.readFileSync('ios-build.json','utf8'));
+            ios = Array.isArray(d) ? d[0] : d;
+          }
           const iosUrl = ios?.artifacts?.applicationArchiveUrl || ios?.artifacts?.buildUrl || ios?.buildUrl || '';
           const lines = [
-            '# Atlas One 0.1.7 release',
+            '# Atlas One 0.1.7 iOS release',
             '',
-            `Android APK: ${androidUrl || android?.id || 'not completed'}`,
             `iOS EAS build: ${iosUrl || ios?.id || 'not completed'}`,
-            'iOS submission target: TestFlight',
+            'Submission target: TestFlight',
           ];
-          fs.writeFileSync('mobile-release-links.txt', lines.join('\n') + '\n');
+          fs.writeFileSync('ios-release-info.txt', lines.join('\n') + '\n');
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
           console.log(lines.join('\n'));
           NODE
-      - name: Upload release links
+      - name: Upload iOS release info
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: atlas-mobile-release-017-links
-          path: mobile-release-links.txt
+          name: atlas-ios-017-release-info
+          path: ios-release-info.txt
