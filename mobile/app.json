@@ -2,9 +2,10 @@
   "expo": {
     "name": "Atlas Office",
     "slug": "atlas-office",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "portrait",
     "scheme": "atlasoffice",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -13,8 +14,10 @@
     },
     "android": {
       "package": "il.co.atlas.office",
+      "icon": "./assets/icon.png",
       "adaptiveIcon": {
-        "backgroundColor": "#F3F5F7"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#FFFFFF"
       }
     },
     "plugins": [
