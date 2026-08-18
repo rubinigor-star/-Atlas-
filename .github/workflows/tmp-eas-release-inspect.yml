@@ -1,0 +1,41 @@
+name: Inspect Atlas EAS Release
+
+on:
+  pull_request:
+    branches:
+      - integration/mobile-event-editor-aligned-20260809
+    paths:
+      - ".github/workflows/tmp-eas-release-inspect.yml"
+      - "mobile/app.json"
+      - "mobile/assets/atlas-one-app-icon.png"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-eas:
+    runs-on: ubuntu-latest
+    environment: Production
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify Expo token
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN is unavailable"
+            exit 2
+          fi
+          echo "EXPO_TOKEN is configured"
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+      - name: Verify EAS project
+        run: npx eas-cli@latest project:info
+      - name: List latest EAS builds
+        run: npx eas-cli@latest build:list --platform all --limit 10 --json --non-interactive
