@@ -77,11 +77,11 @@ function captureCart(categories: HoldCategory[], objects: HoldObject[]): CartHol
     if (!category) return [];
 
     if (!object) return [{ categoryId: category.id, quantity, tableId: null, seatIds: [] }];
-    if (object.priceMode === "WHOLE_TABLE") {
-      return [{ categoryId: category.id, quantity, tableId: object.id, seatIds: [] }];
-    }
     if (object.objectType === "ZONE") {
       return [{ categoryId: category.id, quantity, tableId: null, seatIds: [] }];
+    }
+    if (object.priceMode === "WHOLE_TABLE") {
+      return [{ categoryId: category.id, quantity, tableId: object.id, seatIds: [] }];
     }
     const seatIds = seatIdsFromDescription(description, object, quantity);
     if (seatIds.length !== quantity) return [];
