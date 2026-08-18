@@ -97,7 +97,7 @@ const categories: Array<{ key: CategoryKey; Icon: typeof Baby }> = [
 ];
 
 function EventGrid({ events, onNavigate }: { events: SearchEvent[]; onNavigate: () => void }) {
-  return <div className="atlas-search-event-grid">
+  return <div className="atlas-search-event-grid" style={{ marginTop: 14, marginBottom: 12 }}>
     {events.map(event => <Link className="atlas-search-event-card" href={event.href} onClick={onNavigate} key={event.id}>
       <Image
         src={event.posterUrl}
