@@ -48,10 +48,7 @@ jobs:
           if (!url) process.exit(3);
           fs.writeFileSync('../failed-log-url.txt',url);
           NODE
-          curl -fsSL "$(cat ../failed-log-url.txt)" -o ../failed-log.bin
-          file ../failed-log.bin
-          if gzip -t ../failed-log.bin 2>/dev/null; then
-            gzip -dc ../failed-log.bin | tail -n 300
-          else
-            tail -n 300 ../failed-log.bin
-          fi
+          curl --compressed -fsSL "$(cat ../failed-log-url.txt)" -o ../failed-log.txt
+          file ../failed-log.txt
+          echo '--- readable log tail ---'
+          strings ../failed-log.txt | tail -n 350
