@@ -37,5 +37,16 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Verify EAS project
         run: npx eas-cli@latest project:info
-      - name: List latest EAS builds
-        run: npx eas-cli@latest build:list --platform all --limit 10 --json --non-interactive
+      - name: Inspect failed Android build
+        shell: bash
+        run: |
+          npx eas-cli@latest build:view b0c62c40-cb0a-4357-b7ef-6c1cd0e86d8d --json > ../failed-build.json
+          node <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('../failed-build.json','utf8'));
+          console.log(JSON.stringify({id:d.id,status:d.status,error:d.error,logFiles:d.logFiles},null,2));
+          const url=(d.logFiles||[])[0];
+          if (!url) process.exit(3);
+          fs.writeFileSync('../failed-log-url.txt',url);
+          NODE
+          curl -fsSL "$(cat ../failed-log-url.txt)" | tail -n 250
