@@ -9,7 +9,7 @@ if (!css.includes('ATLAS_UNIFIED_PAYMENT_CARD')) {
 .paymentWrap .voucherCard{
   margin-bottom:0!important;
   border-radius:18px 18px 0 0!important;
-  border-bottom:1px solid #edf0f3!important;
+  border-bottom:0!important;
   box-shadow:none!important;
 }
 .paymentWrap .paymentCard{
@@ -21,8 +21,8 @@ if (!css.includes('ATLAS_UNIFIED_PAYMENT_CARD')) {
   margin-top:0!important;
 }
 @media(max-width:640px){
-  .paymentWrap .voucherCard{border-radius:18px 18px 0 0!important}
-  .paymentWrap .paymentCard{border-radius:0 0 18px 18px!important}
+  .paymentWrap .voucherCard{border-radius:18px 18px 0 0!important;border-bottom:0!important}
+  .paymentWrap .paymentCard{border-radius:0 0 18px 18px!important;border-top:0!important}
 }
 `;
   fs.writeFileSync(cssPath, css);
