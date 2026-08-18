@@ -31,11 +31,17 @@ if(!src.includes('ATLAS_POPOVER_SMOOTH_CLOSE')){
   src=src.replaceAll('className={styles.countryMenu} role="listbox">','className={`${styles.countryMenu}${countryClosing?` ${styles.popoverClosing}`:""}`} role="listbox">');
   src=src.replace('className={styles.birthCancel} onClick={()=>setBirthOpen(false)}','className={styles.birthCancel} onClick={closeBirth}');
   src='/* ATLAS_POPOVER_SMOOTH_CLOSE */\n'+src;
-  fs.writeFileSync(tsxPath,src);
 }
+
+// Hebrew checkout action follows RTL direction. Keep RU/EN unchanged.
+src=src.replaceAll('<span aria-hidden="true">→</span>','<span aria-hidden="true">{locale==="he"?"←":"→"}</span>');
+fs.writeFileSync(tsxPath,src);
 
 let css=fs.readFileSync(cssPath,'utf8');
 if(!css.includes('ATLAS_POPOVER_TRANSITIONS_FINAL')){
   css+=`\n/* ATLAS_POPOVER_TRANSITIONS_FINAL */\n.contactBlock{position:relative}\n.contactBlock:has(.birthMenu),.contactBlock:has(.genderMenu),.contactBlock:has(.countryMenu){z-index:5000!important}\n.birthField:has(.birthMenu),.genderField:has(.genderMenu),.phoneField:has(.countryMenu){z-index:6000!important;isolation:isolate!important}\n.birthMenu,.genderMenu,.countryMenu{z-index:7000!important;background:#fff!important;opacity:1!important;transform-origin:top center!important;animation:atlasPopoverOpen .2s cubic-bezier(.2,.8,.2,1) both!important;will-change:transform,opacity!important}\n.popoverClosing{pointer-events:none!important;animation:atlasPopoverClose .18s cubic-bezier(.4,0,1,1) both!important}\n.contactContinue{position:relative!important;z-index:1!important}\n@keyframes atlasPopoverOpen{0%{opacity:0;transform:translateY(-10px) scale(.975)}100%{opacity:1;transform:translateY(0) scale(1)}}\n@keyframes atlasPopoverClose{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-9px) scale(.985)}}\n@media(prefers-reduced-motion:reduce){.birthMenu,.genderMenu,.countryMenu,.popoverClosing{animation-duration:.01ms!important}}\n`;
-  fs.writeFileSync(cssPath,css);
 }
+if(!css.includes('ATLAS_POPOVER_ABOVE_CTA_FINAL')){
+  css+=`\n/* ATLAS_POPOVER_ABOVE_CTA_FINAL */\n.contactCard:has(.birthMenu),.contactCard:has(.genderMenu),.contactCard:has(.countryMenu){position:relative!important;z-index:12000!important;overflow:visible!important}\n.contactBlock:has(.birthMenu),.contactBlock:has(.genderMenu),.contactBlock:has(.countryMenu){position:relative!important;z-index:11000!important;overflow:visible!important}\n.birthField:has(.birthMenu),.genderField:has(.genderMenu),.phoneField:has(.countryMenu){position:relative!important;z-index:13000!important}\n.birthMenu,.genderMenu,.countryMenu{z-index:14000!important}\n.contactContinue{z-index:0!important}\n`;
+}
+fs.writeFileSync(cssPath,css);
