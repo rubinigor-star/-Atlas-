@@ -79,7 +79,7 @@ function countdown(expiresAt: number, now: number) {
 }
 
 function cartDrawerOpen() {
-  return Boolean(document.querySelector(".atlas-cart-overlay"));
+  return typeof document !== "undefined" && Boolean(document.querySelector(".atlas-cart-overlay"));
 }
 
 export function CartReminderCard() {
