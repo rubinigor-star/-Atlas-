@@ -36,46 +36,21 @@ jobs:
       - name: Install mobile dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Repair and validate app icon PNG
+      - name: Generate and validate clean app icon
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import struct, zlib
-
-          p = Path('assets/atlas-one-app-icon.png')
-          data = p.read_bytes()
-          sig = b'\x89PNG\r\n\x1a\n'
-          if not data.startswith(sig):
-              raise SystemExit('App icon is not a PNG')
-
-          out = bytearray(sig)
-          i = len(sig)
-          seen_iend = False
-          while i < len(data):
-              if i + 8 > len(data):
-                  raise SystemExit('Truncated PNG chunk header')
-              n = struct.unpack('>I', data[i:i+4])[0]
-              typ = data[i+4:i+8]
-              start = i + 8
-              end = start + n
-              if end + 4 > len(data):
-                  raise SystemExit(f'Truncated PNG chunk {typ!r}')
-              payload = data[start:end]
-              crc = zlib.crc32(typ)
-              crc = zlib.crc32(payload, crc) & 0xffffffff
-              out += struct.pack('>I', n) + typ + payload + struct.pack('>I', crc)
-              i = end + 4
-              if typ == b'IEND':
-                  seen_iend = True
-                  break
-          if not seen_iend:
-              raise SystemExit('PNG is missing IEND')
-          p.write_bytes(out)
-          print(f'Rewrote PNG CRCs: {len(out)} bytes')
-          PY
-
-          # Expo/Jimp must be able to decode the exact file that will be uploaded.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq imagemagick
+          cat > /tmp/atlas-icon.svg <<'SVG'
+          <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+            <rect width="1024" height="1024" fill="#ffffff"/>
+            <path fill="#ff8200" d="M281 767 L433 300 Q439 282 459 282 H565 Q587 282 594 302 L744 767 Q751 790 729 790 H666 Q650 790 645 775 L616 684 H420 L390 776 Q385 790 367 790 H296 Q274 790 281 767 Z M469 573 H569 L519 426 Z"/>
+            <path fill="#0b4775" d="M282 785 L497 654 Q512 645 520 658 L492 765 Q486 786 462 786 Z"/>
+          </svg>
+          SVG
+          convert -background white /tmp/atlas-icon.svg -resize 1024x1024! -alpha off -strip PNG24:assets/atlas-one-app-icon.png
+          file assets/atlas-one-app-icon.png
+          identify assets/atlas-one-app-icon.png
           node - <<'NODE'
           const Jimp = require('jimp-compact');
           Jimp.read('assets/atlas-one-app-icon.png')
