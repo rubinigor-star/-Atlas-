@@ -38,7 +38,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq imagemagick
-          magick assets/atlas-one-app-icon.png -resize 1024x1024! -background white -alpha remove -alpha off -strip PNG24:/tmp/atlas-icon-clean.png
+          convert assets/atlas-one-app-icon.png -resize 1024x1024! -background white -alpha remove -alpha off -strip PNG24:/tmp/atlas-icon-clean.png
           mv /tmp/atlas-icon-clean.png assets/atlas-one-app-icon.png
           file assets/atlas-one-app-icon.png
           identify assets/atlas-one-app-icon.png
