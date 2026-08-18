@@ -44,70 +44,26 @@
 .modalQuantityControl strong{font-size:16px;line-height:1;text-align:center}
 :global(body.atlas-seat-selection-active) :global(.mapViewport){padding:0!important;overflow:hidden!important;background:#dfe3e7!important}
 :global(body.atlas-seat-selection-active) :global(.mapFrame){margin:0 auto!important}
-
-/* Selected ticket layout: remove icon on its own row, then title/price and details/fee aligned horizontally. */
 :global(.atlas-selected-ticket){padding-top:16px!important}
-:global(.atlas-selected-head){
-  display:grid!important;
-  grid-template-columns:minmax(0,1fr) auto!important;
-  grid-template-rows:auto auto auto!important;
-  column-gap:12px!important;
-  row-gap:4px!important;
-  align-items:start!important;
-}
-:global(.atlas-selected-head)>div:first-child{
-  display:contents!important;
-}
-:global(.atlas-remove-ticket){
-  grid-column:2!important;
-  grid-row:1!important;
-  justify-self:end!important;
-  align-self:start!important;
-  margin:0 0 2px 0!important;
-}
-:global(.atlas-selected-title){
-  grid-column:1!important;
-  grid-row:2!important;
-  align-self:start!important;
-  margin:0!important;
-}
-:global(.atlas-selected-desc){
-  grid-column:1!important;
-  grid-row:3!important;
-  align-self:start!important;
-  margin-top:0!important;
-}
-:global(.atlas-selected-price){
-  grid-column:2!important;
-  grid-row:2 / 4!important;
-  justify-self:end!important;
-  align-self:start!important;
-  text-align:right!important;
-  margin:0!important;
-}
-:global(.atlas-selected-fee){
-  max-width:118px!important;
-  margin-top:4px!important;
-  white-space:normal!important;
-  text-align:right!important;
-}
+:global(.atlas-selected-head){display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;grid-template-rows:auto auto auto!important;column-gap:12px!important;row-gap:4px!important;align-items:start!important}
+:global(.atlas-selected-head)>div:first-child{display:contents!important}
+:global(.atlas-remove-ticket){grid-column:2!important;grid-row:1!important;justify-self:end!important;align-self:start!important;margin:0 0 2px 0!important}
+:global(.atlas-selected-title){grid-column:1!important;grid-row:2!important;align-self:start!important;margin:0!important}
+:global(.atlas-selected-desc){grid-column:1!important;grid-row:3!important;align-self:start!important;margin-top:0!important}
+:global(.atlas-selected-price){grid-column:2!important;grid-row:2 / 4!important;justify-self:end!important;align-self:start!important;text-align:right!important;margin:0!important}
+:global(.atlas-selected-fee){max-width:118px!important;margin-top:4px!important;white-space:normal!important;text-align:right!important}
 
 @media(min-width:901px){
-  .sidebar{
-    height:100%!important;
-    min-height:0!important;
-    overflow:hidden!important;
-  }
+  .sidebar{height:100%!important;min-height:0!important;overflow:hidden!important}
   .eventInfo{flex:0 0 auto!important}
-  :global(.cartItems){min-height:0!important}
-  .continue{flex:0 0 auto!important}
+  :global(body.atlas-seat-selection-active) .sidebar :global(div[class*="cartItems"]){flex:1 1 auto!important;min-height:0!important;max-height:none!important;overflow-y:auto!important;overscroll-behavior:contain!important}
+  :global(body.atlas-seat-selection-active) .sidebar :global(button[class*="continue"]){flex:0 0 auto!important;display:block!important;width:100%!important;visibility:visible!important;opacity:1!important}
+  :global(body.atlas-seat-selection-active) .sidebar :global(div[class*="summary"]),
+  :global(body.atlas-seat-selection-active) .sidebar :global(div[class*="total"]){flex:0 0 auto!important}
 }
 
 @media(min-width:901px) and (max-width:1600px){
-  :global(body.atlas-seat-selection-active) :global(.mapFrame){
-    transform:scale(.94)!important;
-    transform-origin:center center!important;
-  }
+  :global(body.atlas-seat-selection-active) :global(div[class*="mapFrame"]){transform:scale(.94)!important;transform-origin:center center!important}
 }
 
 @media(max-width:1100px){
