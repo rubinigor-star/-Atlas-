@@ -1,4 +1,4 @@
-name: Build Atlas iOS 0.1.7 TestFlight
+name: Inspect iOS EAS Prebuild Failure
 
 on:
   pull_request:
@@ -6,17 +6,14 @@ on:
       - integration/mobile-event-editor-aligned-20260809
     paths:
       - ".github/workflows/tmp-eas-release-inspect.yml"
-      - "mobile/app.json"
-      - "mobile/assets/atlas-one-app-icon.png"
 
 permissions:
   contents: read
 
 jobs:
-  ios-release:
+  inspect-ios:
     runs-on: ubuntu-latest
     environment: Production
-    timeout-minutes: 120
     defaults:
       run:
         working-directory: mobile
@@ -27,63 +24,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Verify Expo token
-        run: |
-          if [ -z "$EXPO_TOKEN" ]; then
-            echo "EXPO_TOKEN is unavailable"
-            exit 2
-          fi
-          echo "EXPO_TOKEN is configured"
       - name: Install mobile dependencies
         run: npm install --no-audit --no-fund
-      - name: Verify EAS project
-        run: npx eas-cli@latest project:info
-      - name: Verify Expo config and icon
-        run: |
-          test -s assets/atlas-one-app-icon.png
-          npx expo config --type public > /dev/null
-          npx expo-doctor
-      - name: TypeScript check
-        run: npm run typecheck
-      - name: Build iOS production
+      - name: Inspect failed iOS EAS build
         shell: bash
         run: |
-          npx eas-cli@latest build --platform ios --profile production --non-interactive --wait --json | tee ../ios-build.json
-      - name: Submit iOS to TestFlight
-        shell: bash
-        run: |
-          IOS_BUILD_ID=$(node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('../ios-build.json','utf8'));const b=Array.isArray(d)?d[0]:d;process.stdout.write(b.id||'')")
-          if [ -z "$IOS_BUILD_ID" ]; then
-            echo "Could not determine iOS EAS build ID"
-            exit 3
-          fi
-          npx eas-cli@latest submit --platform ios --id "$IOS_BUILD_ID" --non-interactive --wait
-      - name: Publish iOS release info
-        if: always()
-        shell: bash
-        working-directory: .
-        run: |
+          npx eas-cli@latest build:view aede49fc-0c00-4741-a103-5c2c8f08dfeb --json > ../failed-ios-build.json
           node <<'NODE'
-          const fs = require('fs');
-          let ios = null;
-          if (fs.existsSync('ios-build.json')) {
-            const d = JSON.parse(fs.readFileSync('ios-build.json','utf8'));
-            ios = Array.isArray(d) ? d[0] : d;
-          }
-          const iosUrl = ios?.artifacts?.applicationArchiveUrl || ios?.artifacts?.buildUrl || ios?.buildUrl || '';
-          const lines = [
-            '# Atlas One 0.1.7 iOS release',
-            '',
-            `iOS EAS build: ${iosUrl || ios?.id || 'not completed'}`,
-            'Submission target: TestFlight',
-          ];
-          fs.writeFileSync('ios-release-info.txt', lines.join('\n') + '\n');
-          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
-          console.log(lines.join('\n'));
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('../failed-ios-build.json','utf8'));
+          const url=(d.logFiles||[])[0];
+          if (!url) process.exit(3);
+          fs.writeFileSync('../failed-ios-log-url.txt',url);
           NODE
-      - name: Upload iOS release info
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: atlas-ios-017-release-info
-          path: ios-release-info.txt
+          curl --compressed -fsSL "$(cat ../failed-ios-log-url.txt)" -o ../failed-ios-log.txt
+          echo '--- iOS prebuild failure ---'
+          strings ../failed-ios-log.txt | tail -n 260
