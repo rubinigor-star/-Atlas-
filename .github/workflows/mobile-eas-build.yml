@@ -9,12 +9,12 @@ on:
       - .github/mobile-build-trigger
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-mobile:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN || secrets.EXPO_ACCESS_TOKEN }}
     defaults:
@@ -25,75 +25,95 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Initialize result file
+        shell: bash
+        run: |
+          cat > ../mobile-build-result.txt <<'EOF'
+          STATUS=started
+          APP=Atlas Office
+          VERSION=0.1.3
+          IOS_TESTFLIGHT=pending
+          ANDROID_INSTALL=pending
+          EOF
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
 
       - name: Verify Expo token
         shell: bash
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "Neither EXPO_TOKEN nor EXPO_ACCESS_TOKEN is configured in GitHub Secrets."
+            echo "STATUS=failed" > ../mobile-build-result.txt
+            echo "ERROR=Neither EXPO_TOKEN nor EXPO_ACCESS_TOKEN is configured in GitHub Secrets" >> ../mobile-build-result.txt
             exit 1
           fi
 
       - name: Install dependencies
-        run: npm ci
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
 
       - name: Verify Expo account
-        run: npx eas-cli@latest whoami
+        shell: bash
+        run: |
+          WHOAMI=$(npx eas-cli@latest whoami)
+          echo "EXPO_ACCOUNT=$WHOAMI" >> ../mobile-build-result.txt
 
       - name: Build iOS for TestFlight
         shell: bash
         run: |
           npx eas-cli@latest build --platform ios --profile production --non-interactive --wait --json | tee ../ios-build.json
+          node <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('../ios-build.json','utf8'));
+          const b=Array.isArray(d)?d[0]:d;
+          fs.appendFileSync('../mobile-build-result.txt',`IOS_BUILD_ID=${b.id||''}\nIOS_BUILD_URL=${b.buildUrl||b?.artifacts?.buildUrl||''}\n`);
+          NODE
 
       - name: Submit iOS build to TestFlight
         shell: bash
         run: |
           IOS_BUILD_ID=$(node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('../ios-build.json','utf8'));const b=Array.isArray(d)?d[0]:d;process.stdout.write(b.id||'')")
-          if [ -z "$IOS_BUILD_ID" ]; then
-            echo "Could not determine iOS EAS build ID"
-            exit 1
-          fi
           npx eas-cli@latest submit --platform ios --id "$IOS_BUILD_ID" --non-interactive --wait
+          echo "IOS_TESTFLIGHT=submitted" >> ../mobile-build-result.txt
 
       - name: Build Android installable APK
         shell: bash
         run: |
           npx eas-cli@latest build --platform android --profile preview --non-interactive --wait --json | tee ../android-build.json
+          node <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('../android-build.json','utf8'));
+          const b=Array.isArray(d)?d[0]:d;
+          const url=b?.artifacts?.applicationArchiveUrl||b?.artifacts?.buildUrl||b.buildUrl||'';
+          fs.appendFileSync('../mobile-build-result.txt',`ANDROID_BUILD_ID=${b.id||''}\nANDROID_INSTALL=${url}\n`);
+          NODE
 
-      - name: Publish build links
+      - name: Mark success
+        shell: bash
+        run: |
+          sed -i 's/^STATUS=.*/STATUS=success/' ../mobile-build-result.txt
+
+      - name: Persist build result to branch
+        if: always()
         shell: bash
         working-directory: .
         run: |
-          node <<'NODE'
-          const fs = require('fs');
-          function one(path) {
-            const d = JSON.parse(fs.readFileSync(path, 'utf8'));
-            return Array.isArray(d) ? d[0] : d;
-          }
-          const ios = one('ios-build.json');
-          const android = one('android-build.json');
-          const androidUrl = android?.artifacts?.applicationArchiveUrl || android?.artifacts?.buildUrl || android?.buildUrl || '';
-          const iosUrl = ios?.buildUrl || ios?.artifacts?.buildUrl || '';
-          const lines = [
-            '# Atlas Office mobile build',
-            '',
-            `iOS EAS build: ${iosUrl || ios.id || 'completed'}`,
-            'iOS submission: sent to TestFlight',
-            `Android install: ${androidUrl || android.id || 'see EAS build page'}`,
-          ];
-          fs.writeFileSync('mobile-build-links.txt', lines.join('\n') + '\n');
-          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
-          console.log(lines.join('\n'));
-          NODE
+          if grep -q '^STATUS=started' mobile-build-result.txt; then
+            sed -i 's/^STATUS=.*/STATUS=failed/' mobile-build-result.txt
+            echo "ERROR=Workflow stopped before completion. Check GitHub Actions logs." >> mobile-build-result.txt
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mobile-build-result.txt
+          git commit -m "ci(mobile): record EAS build result" || true
+          git push origin HEAD:mobile/app-build-20260818-new-icon || true
 
-      - name: Upload build links
+      - name: Upload build result
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: atlas-mobile-build-links
-          path: mobile-build-links.txt
+          name: atlas-mobile-build-result
+          path: mobile-build-result.txt
