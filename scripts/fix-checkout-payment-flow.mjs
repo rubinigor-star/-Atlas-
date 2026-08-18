@@ -39,8 +39,25 @@ if(!src.includes('ATLAS_MANUAL_PAYMENT_FLOW')){
   fs.writeFileSync(tsxPath,src);
 }
 
+// Windows renders regional-indicator emoji as IL/US/etc. Replace emoji flags with real flag images.
+if(!src.includes('ATLAS_REAL_COUNTRY_FLAGS')){
+  src=fs.readFileSync(tsxPath,'utf8');
+  src=src.replace(
+    '<span>{selectedCountry.flag}</span><span className={styles.flagChevron}>⌄</span>',
+    '<span className={styles.flagImageWrap}>{/* ATLAS_REAL_COUNTRY_FLAGS */}<img src={`https://flagcdn.com/20x15/${selectedCountry.iso.toLowerCase()}.png`} alt={selectedCountry.name}/></span><span className={styles.flagChevron}>⌄</span>'
+  );
+  src=src.replace(
+    '<span>{c.flag}</span><span>{c.name}</span><span>{c.dial}</span>',
+    '<span className={styles.countryFlag}><img src={`https://flagcdn.com/20x15/${c.iso.toLowerCase()}.png`} alt=""/></span><span>{c.name}</span><span>{c.dial}</span>'
+  );
+  fs.writeFileSync(tsxPath,src);
+}
+
 let css=fs.readFileSync(cssPath,'utf8');
 if(!css.includes('ATLAS_MANUAL_PAYMENT_STYLES')){
   css+=`\n/* ATLAS_MANUAL_PAYMENT_STYLES */\n.checkoutActionCard{background:#fff;border:1px solid #d8dce4;border-radius:18px;padding:18px}.couponLabel{display:block;font-size:12px;font-weight:800;margin-bottom:7px;color:#171b35}.couponInput{width:100%;height:46px;border:1px solid #d8dce4;border-radius:12px;padding:0 13px;font-size:15px;outline:0;background:#fff;color:#11152f}.couponInput:focus{border-color:#ff7b66;box-shadow:0 0 0 2px rgba(255,107,0,.08)}.couponStatus{min-height:22px;padding-top:7px;font-size:12px;color:#72798a}.couponOk{color:#15803d}.couponBad{color:#c62828}.priceBreakdown{margin-top:10px;border-top:1px solid #e6e8ed;padding-top:8px}.priceBreakdown>div{display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:13px}.discountLine{color:#15803d}.priceFinal{border-top:1px solid #e6e8ed;margin-top:4px;padding-top:12px!important;font-size:17px!important;font-weight:850}.continueButton{width:100%;min-height:48px;border:0;border-radius:999px;background:linear-gradient(90deg,#ff6b00,#ff007a);color:#fff;font-size:15px;font-weight:850;cursor:pointer;margin-top:14px}.continueButton:disabled{opacity:.42;cursor:not-allowed}\n`;
-  fs.writeFileSync(cssPath,css);
 }
+if(!css.includes('ATLAS_PHONE_ROW_VISUAL_FIX')){
+  css+=`\n/* ATLAS_PHONE_ROW_VISUAL_FIX */\n.contactCard{background:#fff;border:1px solid #d8dce4;border-radius:18px;overflow:visible}.contactCard .field,.contactCard .phoneField{background:transparent}.contactCard>.field:first-child{border-radius:17px 17px 0 0}.phoneField{padding:13px 20px 12px;background:transparent}.phoneControl{min-height:24px;border:0!important;border-radius:0!important;padding:0!important;background:transparent!important;box-shadow:none!important}.phoneControl:focus-within,.phoneControlInvalid{border:0!important;box-shadow:none!important}.flagButton{padding:0 8px 0 0;gap:6px}.flagImageWrap,.countryFlag{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}.flagImageWrap img,.countryFlag img{display:block;width:20px;height:15px;object-fit:cover;border-radius:2px}.dialCode{font-size:16px;font-weight:650;padding-right:8px}.phoneControl input{font-size:16px}.countryOption{grid-template-columns:28px 1fr auto}.countryMenu{border-radius:16px}.contactCard>.fadeIn:last-child{border-radius:0 0 17px 17px;overflow:visible}\n`;
+}
+fs.writeFileSync(cssPath,css);
