@@ -7,6 +7,7 @@ on:
       - integration/mobile-event-editor-aligned-20260809
     paths:
       - ".github/workflows/tmp-eas-release-inspect.yml"
+      - "mobile/eas.json"
 
 permissions:
   contents: read
@@ -31,64 +32,11 @@ jobs:
       - name: Install mobile dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Verify Expo project
+      - name: Verify Expo project and submit config
         run: |
           test -n "$EXPO_TOKEN"
           npx eas-cli@latest project:info
-
-      - name: Read App Store Connect link status
-        shell: bash
-        run: |
-          set -o pipefail
-          npx eas-cli@latest integrations:asc:status --json --non-interactive 2>&1 | tee ../asc-status.log
-
-      - name: Configure submit profile from linked Apple ID
-        shell: bash
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const text = fs.readFileSync('../asc-status.log', 'utf8');
-          const ids = new Set();
-          for (const re of [
-            /"ascAppId"\s*:\s*"?(\d{6,})"?/g,
-            /"appleAppId"\s*:\s*"?(\d{6,})"?/g,
-            /"appStoreConnectAppId"\s*:\s*"?(\d{6,})"?/g,
-            /Apple ID[^0-9]*(\d{6,})/gi,
-          ]) {
-            for (const m of text.matchAll(re)) ids.add(m[1]);
-          }
-          for (const line of text.split(/\r?\n/)) {
-            const t = line.trim();
-            if (!t.startsWith('{') && !t.startsWith('[')) continue;
-            try {
-              const obj = JSON.parse(t);
-              const walk = v => {
-                if (!v) return;
-                if (Array.isArray(v)) return v.forEach(walk);
-                if (typeof v !== 'object') return;
-                for (const [k,val] of Object.entries(v)) {
-                  if (/(ascAppId|appleAppId|appStoreConnectAppId)/i.test(k) && /^\d{6,}$/.test(String(val))) ids.add(String(val));
-                  walk(val);
-                }
-              };
-              walk(obj);
-            } catch {}
-          }
-          const candidates = [...ids];
-          if (candidates.length !== 1) {
-            console.error('Could not determine linked App Store Connect app ID. Candidates:', candidates);
-            console.error(text);
-            process.exit(1);
-          }
-          const ascAppId = candidates[0];
-          const p = 'eas.json';
-          const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
-          cfg.submit = cfg.submit || {};
-          cfg.submit.production = cfg.submit.production || {};
-          cfg.submit.production.ios = { ...(cfg.submit.production.ios || {}), ascAppId };
-          fs.writeFileSync(p, JSON.stringify(cfg, null, 2) + '\n');
-          console.log(`Configured ascAppId=${ascAppId}`);
-          NODE
+          node -e "const c=require('./eas.json'); if(c.submit?.production?.ios?.ascAppId!=='6801675263') process.exit(1); console.log('ascAppId configured:', c.submit.production.ios.ascAppId)"
 
       - name: Submit existing iOS build to TestFlight
         shell: bash
@@ -108,4 +56,5 @@ jobs:
         run: |
           echo "Atlas One 0.1.7 build 8" >> "$GITHUB_STEP_SUMMARY"
           echo "EAS build: $IOS_BUILD_ID" >> "$GITHUB_STEP_SUMMARY"
+          echo "App Store Connect Apple ID: 6801675263" >> "$GITHUB_STEP_SUMMARY"
           echo "Target: TestFlight" >> "$GITHUB_STEP_SUMMARY"
