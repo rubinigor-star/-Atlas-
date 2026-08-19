@@ -1,4 +1,4 @@
-name: Build Atlas iOS 0.1.7 TestFlight
+name: Submit Atlas iOS 0.1.7 Build 8 to TestFlight
 
 on:
   pull_request:
@@ -6,116 +6,88 @@ on:
       - integration/mobile-event-editor-aligned-20260809
     paths:
       - ".github/workflows/tmp-eas-release-inspect.yml"
-      - "mobile/app.json"
-      - "mobile/assets/atlas-one-app-icon.png"
 
 permissions:
   contents: read
 
 jobs:
-  ios-release:
+  ios-submit:
     runs-on: ubuntu-latest
     environment: Production
-    timeout-minutes: 120
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: mobile
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      IOS_BUILD_ID: 85291fa7-ec7d-4105-8bc8-9190617daa38
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Verify Expo token
+      - name: Verify Expo project
         run: |
           test -n "$EXPO_TOKEN"
-          echo "EXPO_TOKEN is configured"
+          npx eas-cli@latest project:info
 
-      - name: Install mobile dependencies
-        run: npm install --no-audit --no-fund
-
-      - name: Generate and validate clean app icon
+      - name: Discover and connect App Store Connect app
         shell: bash
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq imagemagick
-          cat > /tmp/atlas-icon.svg <<'SVG'
-          <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-            <rect width="1024" height="1024" fill="#ffffff"/>
-            <path fill="#ff8200" d="M281 767 L433 300 Q439 282 459 282 H565 Q587 282 594 302 L744 767 Q751 790 729 790 H666 Q650 790 645 775 L616 684 H420 L390 776 Q385 790 367 790 H296 Q274 790 281 767 Z M469 573 H569 L519 426 Z"/>
-            <path fill="#0b4775" d="M282 785 L497 654 Q512 645 520 658 L492 765 Q486 786 462 786 Z"/>
-          </svg>
-          SVG
-          convert -background white /tmp/atlas-icon.svg -resize 1024x1024! -alpha off -strip PNG24:assets/atlas-one-app-icon.png
-          file assets/atlas-one-app-icon.png
-          identify assets/atlas-one-app-icon.png
-          node - <<'NODE'
-          const Jimp = require('jimp-compact');
-          Jimp.read('assets/atlas-one-app-icon.png')
-            .then(img => {
-              if (img.bitmap.width !== 1024 || img.bitmap.height !== 1024) {
-                throw new Error(`Expected 1024x1024 icon, got ${img.bitmap.width}x${img.bitmap.height}`);
-              }
-              console.log(`Jimp decoded icon: ${img.bitmap.width}x${img.bitmap.height}`);
-            })
-            .catch(err => { console.error(err); process.exit(1); });
-          NODE
+          set -o pipefail
+          npx eas-cli@latest integrations:asc:connect \
+            --bundle-id il.co.atlas.office \
+            --json \
+            --non-interactive 2>&1 | tee ../asc-connect.log
 
-      - name: Set iOS export compliance flag
+      - name: Configure submit profile from discovered Apple ID
+        shell: bash
         run: |
-          node - <<'NODE'
+          node <<'NODE'
           const fs = require('fs');
-          const p = 'app.json';
+          const text = fs.readFileSync('../asc-connect.log', 'utf8');
+          const matches = [
+            ...text.matchAll(/"ascAppId"\s*:\s*"?(\d{6,})"?/g),
+            ...text.matchAll(/"appleAppId"\s*:\s*"?(\d{6,})"?/g),
+            ...text.matchAll(/Apple ID[^0-9]*(\d{6,})/gi),
+            ...text.matchAll(/App Store Connect app[^0-9]*(\d{6,})/gi),
+          ];
+          const ids = [...new Set(matches.map(m => m[1]))];
+          if (ids.length !== 1) {
+            console.error('Could not determine a unique App Store Connect Apple ID. Candidates:', ids);
+            console.error(text);
+            process.exit(1);
+          }
+          const ascAppId = ids[0];
+          const p = 'eas.json';
           const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
-          cfg.expo.ios = cfg.expo.ios || {};
-          cfg.expo.ios.infoPlist = {
-            ...(cfg.expo.ios.infoPlist || {}),
-            ITSAppUsesNonExemptEncryption: false,
+          cfg.submit = cfg.submit || {};
+          cfg.submit.production = cfg.submit.production || {};
+          cfg.submit.production.ios = {
+            ...(cfg.submit.production.ios || {}),
+            ascAppId,
           };
           fs.writeFileSync(p, JSON.stringify(cfg, null, 2) + '\n');
+          console.log(`Configured ascAppId=${ascAppId}`);
           NODE
 
-      - name: Verify EAS project and app config
-        run: |
-          npx eas-cli@latest project:info
-          npx expo config --type public > /dev/null
-          npx expo-doctor
-          npm run typecheck
-
-      - name: Build iOS production
+      - name: Submit existing iOS build to TestFlight
         shell: bash
         run: |
-          npx eas-cli@latest build --platform ios --profile production --non-interactive --wait --json | tee ../ios-build.json
+          npx eas-cli@latest submit \
+            --platform ios \
+            --profile production \
+            --id "$IOS_BUILD_ID" \
+            --non-interactive \
+            --wait \
+            --verbose
 
-      - name: Submit iOS to TestFlight
-        shell: bash
-        run: |
-          IOS_BUILD_ID=$(node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('../ios-build.json','utf8'));const b=Array.isArray(d)?d[0]:d;process.stdout.write(b.id||'')")
-          test -n "$IOS_BUILD_ID"
-          echo "Submitting EAS build $IOS_BUILD_ID to TestFlight"
-          npx eas-cli@latest submit --platform ios --id "$IOS_BUILD_ID" --non-interactive --wait
-
-      - name: Publish iOS release info
+      - name: Publish result
         if: always()
         shell: bash
         working-directory: .
         run: |
-          node <<'NODE'
-          const fs=require('fs');
-          let ios=null;
-          if(fs.existsSync('ios-build.json')){const d=JSON.parse(fs.readFileSync('ios-build.json','utf8'));ios=Array.isArray(d)?d[0]:d;}
-          const url=ios?.artifacts?.applicationArchiveUrl||ios?.artifacts?.buildUrl||ios?.buildUrl||'';
-          const lines=['# Atlas One 0.1.7 iOS release','',`iOS EAS build: ${url||ios?.id||'not completed'}`,'Submission target: TestFlight'];
-          fs.writeFileSync('ios-release-info.txt',lines.join('\n')+'\n');
-          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,lines.join('\n')+'\n');
-          console.log(lines.join('\n'));
-          NODE
-
-      - name: Upload iOS release info
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: atlas-ios-017-release-info
-          path: ios-release-info.txt
+          echo "Atlas One 0.1.7 build 8" >> "$GITHUB_STEP_SUMMARY"
+          echo "EAS build: $IOS_BUILD_ID" >> "$GITHUB_STEP_SUMMARY"
+          echo "Target: TestFlight" >> "$GITHUB_STEP_SUMMARY"
