@@ -1,0 +1,60 @@
+name: Submit Atlas iOS 0.1.7 Build 8 to TestFlight
+
+# Submit the already-finished EAS iOS build. Do not rebuild Android or iOS here.
+on:
+  pull_request:
+    branches:
+      - integration/mobile-event-editor-aligned-20260809
+    paths:
+      - ".github/workflows/tmp-eas-release-inspect.yml"
+      - "mobile/eas.json"
+
+permissions:
+  contents: read
+
+jobs:
+  ios-submit:
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      IOS_BUILD_ID: 85291fa7-ec7d-4105-8bc8-9190617daa38
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify Expo project and submit config
+        run: |
+          test -n "$EXPO_TOKEN"
+          npx eas-cli@latest project:info
+          node -e "const c=require('./eas.json'); if(c.submit?.production?.ios?.ascAppId!=='6801675263') process.exit(1); console.log('ascAppId configured:', c.submit.production.ios.ascAppId)"
+
+      - name: Submit existing iOS build to TestFlight
+        shell: bash
+        run: |
+          npx eas-cli@latest submit \
+            --platform ios \
+            --profile production \
+            --id "$IOS_BUILD_ID" \
+            --non-interactive \
+            --wait \
+            --verbose
+
+      - name: Publish result
+        if: always()
+        shell: bash
+        working-directory: .
+        run: |
+          echo "Atlas One 0.1.7 build 8" >> "$GITHUB_STEP_SUMMARY"
+          echo "EAS build: $IOS_BUILD_ID" >> "$GITHUB_STEP_SUMMARY"
+          echo "App Store Connect Apple ID: 6801675263" >> "$GITHUB_STEP_SUMMARY"
+          echo "Target: TestFlight" >> "$GITHUB_STEP_SUMMARY"

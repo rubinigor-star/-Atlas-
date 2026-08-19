@@ -2,7 +2,7 @@
   "expo": {
     "name": "Atlas One",
     "slug": "atlas-office",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "orientation": "portrait",
     "scheme": "atlasoffice",
     "userInterfaceStyle": "automatic",
@@ -11,15 +11,15 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "il.co.atlas.office",
-      "buildNumber": "6",
+      "buildNumber": "7",
       "icon": "./assets/atlas-one-app-icon.png"
     },
     "android": {
       "package": "il.co.atlas.office",
-      "versionCode": 6,
+      "versionCode": 7,
       "adaptiveIcon": {
         "foregroundImage": "./assets/atlas-one-app-icon.png",
-        "backgroundColor": "#081426"
+        "backgroundColor": "#FFFFFF"
       }
     },
     "plugins": [
@@ -38,7 +38,7 @@
     "updates": {
       "enabled": false
     },
-    "runtimeVersion": "0.1.6",
+    "runtimeVersion": "0.1.7",
     "extra": {
       "apiBaseUrl": "https://www.atlas-one.co",
       "eas": {
