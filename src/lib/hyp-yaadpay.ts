@@ -13,6 +13,7 @@ function safeText(value: string, max = 120) { return value.replace(/[<>\r\n]/g, 
 function assertHttps(value: string, label: string) { if (!/^https:\/\//i.test(value)) throw new Error(`${label} must use HTTPS`); }
 function deploymentOrigin() {
   if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (process.env.VERCEL_ENV === "production") return "https://www.atlas-one.co";
   return (process.env.NEXT_PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, "");
 }
 function normalizeCallbackUrl(value: string) {
