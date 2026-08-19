@@ -1,12 +1,18 @@
-/* Hebrew storefronts use an RTL document, but the cart drawer itself should be physically anchored on the left edge. Keep a lang-based fallback in case client locale hydration temporarily leaves dir out of sync. */
+/* Hebrew cart must be a physical mirror of the LTR cart: the drawer lives on the LEFT edge,
+   while all content inside the drawer remains RTL. `justify-content:flex-start` alone is not
+   enough on an RTL flex container because flex-start resolves to the right side. */
 html[lang="he"] .atlas-cart-overlay,
 html[dir="rtl"] .atlas-cart-overlay {
+  direction: ltr !important;
   justify-content: flex-start !important;
 }
 
 html[lang="he"] .atlas-cart-panel,
 html[dir="rtl"] .atlas-cart-panel {
-  box-shadow: 24px 0 60px rgba(15,23,42,.2);
+  direction: rtl !important;
+  margin-right: auto !important;
+  margin-left: 0 !important;
+  box-shadow: 24px 0 60px rgba(15,23,42,.2) !important;
   animation-name: atlas-cart-drawer-in-he !important;
 }
 
