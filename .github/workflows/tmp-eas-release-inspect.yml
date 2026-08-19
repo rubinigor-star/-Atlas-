@@ -28,6 +28,9 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+
       - name: Verify Expo project
         run: |
           test -n "$EXPO_TOKEN"
@@ -39,8 +42,7 @@ jobs:
           set -o pipefail
           npx eas-cli@latest integrations:asc:connect \
             --bundle-id il.co.atlas.office \
-            --json \
-            --non-interactive 2>&1 | tee ../asc-connect.log
+            --json 2>&1 | tee ../asc-connect.log
 
       - name: Configure submit profile from discovered Apple ID
         shell: bash
@@ -48,27 +50,38 @@ jobs:
           node <<'NODE'
           const fs = require('fs');
           const text = fs.readFileSync('../asc-connect.log', 'utf8');
-          const matches = [
-            ...text.matchAll(/"ascAppId"\s*:\s*"?(\d{6,})"?/g),
-            ...text.matchAll(/"appleAppId"\s*:\s*"?(\d{6,})"?/g),
-            ...text.matchAll(/Apple ID[^0-9]*(\d{6,})/gi),
-            ...text.matchAll(/App Store Connect app[^0-9]*(\d{6,})/gi),
-          ];
-          const ids = [...new Set(matches.map(m => m[1]))];
-          if (ids.length !== 1) {
-            console.error('Could not determine a unique App Store Connect Apple ID. Candidates:', ids);
+          let obj = null;
+          for (const line of text.split(/\r?\n/).reverse()) {
+            const t = line.trim();
+            if (!t.startsWith('{') && !t.startsWith('[')) continue;
+            try { obj = JSON.parse(t); break; } catch {}
+          }
+          const ids = new Set();
+          const walk = v => {
+            if (!v) return;
+            if (Array.isArray(v)) return v.forEach(walk);
+            if (typeof v !== 'object') return;
+            for (const [k,val] of Object.entries(v)) {
+              if (/^(ascAppId|appleAppId|id)$/i.test(k) && /^\d{6,}$/.test(String(val))) ids.add(String(val));
+              walk(val);
+            }
+          };
+          walk(obj);
+          for (const re of [/"ascAppId"\s*:\s*"?(\d{6,})"?/g,/"appleAppId"\s*:\s*"?(\d{6,})"?/g,/Apple ID[^0-9]*(\d{6,})/gi]) {
+            for (const m of text.matchAll(re)) ids.add(m[1]);
+          }
+          const candidates = [...ids];
+          if (candidates.length !== 1) {
+            console.error('Could not determine a unique App Store Connect Apple ID. Candidates:', candidates);
             console.error(text);
             process.exit(1);
           }
-          const ascAppId = ids[0];
+          const ascAppId = candidates[0];
           const p = 'eas.json';
           const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
           cfg.submit = cfg.submit || {};
           cfg.submit.production = cfg.submit.production || {};
-          cfg.submit.production.ios = {
-            ...(cfg.submit.production.ios || {}),
-            ascAppId,
-          };
+          cfg.submit.production.ios = { ...(cfg.submit.production.ios || {}), ascAppId };
           fs.writeFileSync(p, JSON.stringify(cfg, null, 2) + '\n');
           console.log(`Configured ascAppId=${ascAppId}`);
           NODE
