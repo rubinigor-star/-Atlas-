@@ -4,7 +4,13 @@ import { useEffect } from "react";
 
 export function HypLaunchClient({paymentUrl}:{paymentUrl:string}){
   useEffect(()=>{
-    const timer=window.setTimeout(()=>window.location.assign(paymentUrl),100);
+    const frame=window.frameElement;
+    if(frame instanceof HTMLIFrameElement){
+      frame.setAttribute("allow","payment");
+      frame.setAttribute("src",paymentUrl);
+      return;
+    }
+    const timer=window.setTimeout(()=>window.location.assign(paymentUrl),50);
     return()=>window.clearTimeout(timer);
   },[paymentUrl]);
 
