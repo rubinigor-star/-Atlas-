@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 
+// Keep both browser payment permissions on the final HYP iframe emitted by the build.
 const tsxPath='src/components/checkout-form.tsx';
 const cssPath='src/components/checkout-form.module.css';
 let src=fs.readFileSync(tsxPath,'utf8');
