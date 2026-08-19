@@ -1,5 +1,6 @@
 name: Submit Atlas iOS 0.1.7 Build 8 to TestFlight
 
+# Submit the already-finished EAS iOS build. Do not rebuild Android or iOS here.
 on:
   pull_request:
     branches:
