@@ -1,13 +1,15 @@
 import fs from 'node:fs';
 
 // Keep both browser payment permissions on the final HYP iframe emitted by the build.
+// React 19 does not type allowPaymentRequest as an iframe JSX prop, so set the
+// legacy compatibility attribute through the ref while keeping allow="payment".
 const tsxPath='src/components/checkout-form.tsx';
 const cssPath='src/components/checkout-form.module.css';
 let src=fs.readFileSync(tsxPath,'utf8');
 
 if(!src.includes('className={styles.paymentLegal}')){
   const iframe='<iframe ref={iframeRef} src={paymentUrl} title={text.payment} allow="payment" onLoad={handleFrameLoad} className={styles.paymentFrame}/>';
-  const legal=`<><iframe ref={iframeRef} src={paymentUrl} title={text.payment} allow="payment" allowPaymentRequest onLoad={handleFrameLoad} className={styles.paymentFrame}/><div className={styles.paymentLegal}>{locale==="he"?<span>ע״י לחיצה על כפתור התשלום אני מאשר/ת את <a href="/privacy" target="_blank" rel="noreferrer">מדיניות הפרטיות</a> ו<a href="/terms" target="_blank" rel="noreferrer">תנאי השימוש</a></span>:locale==="ru"?<span>Нажимая кнопку оплаты, я подтверждаю согласие с <a href="/privacy" target="_blank" rel="noreferrer">Политикой конфиденциальности</a> и <a href="/terms" target="_blank" rel="noreferrer">Условиями использования</a></span>:<span>By clicking the payment button, I agree to the <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a> and <a href="/terms" target="_blank" rel="noreferrer">Terms of Use</a></span>}</div></>`;
+  const legal=`<><iframe ref={node=>{iframeRef.current=node;if(node)node.setAttribute("allowpaymentrequest","true")}} src={paymentUrl} title={text.payment} allow="payment" onLoad={handleFrameLoad} className={styles.paymentFrame}/><div className={styles.paymentLegal}>{locale==="he"?<span>ע״י לחיצה על כפתור התשלום אני מאשר/ת את <a href="/privacy" target="_blank" rel="noreferrer">מדיניות הפרטיות</a> ו<a href="/terms" target="_blank" rel="noreferrer">תנאי השימוש</a></span>:locale==="ru"?<span>Нажимая кнопку оплаты, я подтверждаю согласие с <a href="/privacy" target="_blank" rel="noreferrer">Политикой конфиденциальности</a> и <a href="/terms" target="_blank" rel="noreferrer">Условиями использования</a></span>:<span>By clicking the payment button, I agree to the <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a> and <a href="/terms" target="_blank" rel="noreferrer">Terms of Use</a></span>}</div></>`;
   if(!src.includes(iframe)) throw new Error('payment iframe anchor not found');
   src=src.replace(iframe,legal);
   fs.writeFileSync(tsxPath,src);
