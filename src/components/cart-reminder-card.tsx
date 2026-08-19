@@ -41,11 +41,11 @@ const copy = {
     close: "Close reminder",
   },
   he: {
-    eyebrow: "כרטיסים בסל",
-    title: "הכרטיסים שלכם מחכים בסל",
+    eyebrow: "כרטיסים בסל הקניות",
+    title: "הכרטיסים שלכם מחכים בסל הקניות",
     body: (title: string, minutes: number) => `${title}: נותרו ${minutes} דקות. השלימו את ההזמנה כל עוד המקומות שמורים עבורכם.`,
     urgent: (title: string) => `${title}: נותרו פחות מ-3 דקות. ב-00:00 המקומות יחזרו למכירה.`,
-    button: "פתיחת הסל",
+    button: "פתיחת סל הקניות",
     close: "סגירת התזכורת",
   },
 } as const;
