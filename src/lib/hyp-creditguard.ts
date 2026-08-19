@@ -12,6 +12,7 @@ function required(name: RequiredEnv) {
 function safeText(value: string, max = 120) { return value.replace(/[<>\r\n]/g, " ").trim().slice(0, max); }
 function deploymentOrigin() {
   if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (process.env.VERCEL_ENV === "production") return "https://www.atlas-one.co";
   return (process.env.NEXT_PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, "");
 }
 function callbackUrl(path: string, outcome: "success" | "error" | "cancel") {
