@@ -4,13 +4,10 @@ import { useEffect } from "react";
 
 export function HypLaunchClient({paymentUrl}:{paymentUrl:string}){
   useEffect(()=>{
-    const frame=window.frameElement;
-    if(frame instanceof HTMLIFrameElement){
-      frame.setAttribute("allow","payment");
-      frame.setAttribute("src",paymentUrl);
-      return;
-    }
-    const timer=window.setTimeout(()=>window.location.assign(paymentUrl),50);
+    // Navigate the current browsing context. When this page is rendered inside
+    // the checkout iframe, Safari keeps the navigation inside that iframe and
+    // loads HYP directly. This is more reliable than mutating frameElement.src.
+    const timer=window.setTimeout(()=>window.location.replace(paymentUrl),0);
     return()=>window.clearTimeout(timer);
   },[paymentUrl]);
 
