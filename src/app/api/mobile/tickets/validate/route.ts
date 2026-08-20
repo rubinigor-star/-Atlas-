@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getMobileStaff } from "@/lib/mobile-auth";
 import { validateAndUseTicket } from "@/lib/ticket-engine";
+import { ensureExternalTicketStorage } from "@/lib/external-ticket-storage";
 import { checkInExternalTicket } from "@/lib/external-tickets";
 
 const schema = z.object({
@@ -97,6 +98,7 @@ export async function POST(request: Request) {
       );
     }
 
+    await ensureExternalTicketStorage();
     const externalResult = await checkInExternalTicket(selectedEvent.id, code);
     if (externalResult.status === "NOT_FOUND") {
       await db.scan.create({ data: { result: "NOT_FOUND" } });
