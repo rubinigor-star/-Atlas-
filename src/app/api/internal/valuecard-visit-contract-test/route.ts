@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 
 const TOKEN = "valuecard-contract-20260820";
 const TEST_PHONE = "0525565457";
+const EXPECTED_TRANSACTION_ID = 481287723;
 
 function bearer(token: string) { return token.toLowerCase().startsWith("bearer ") ? token : `Bearer ${token}`; }
 function txId(payload: any) { const raw = payload?.transactionId ?? payload?.TransactionId ?? payload?.transactionID ?? payload?.TransactionID; const n = Number(raw); return Number.isFinite(n) && n > 0 ? n : null; }
@@ -14,6 +15,16 @@ async function post(token: string, path: string, body: unknown) {
   try { payload = JSON.parse(text); } catch {}
   return { status: response.status, ok: response.ok, payload };
 }
+function containsTransaction(value: any, id: number): boolean {
+  if (value == null) return false;
+  if (Array.isArray(value)) return value.some(item => containsTransaction(item, id));
+  if (typeof value !== "object") return false;
+  for (const [key, nested] of Object.entries(value)) {
+    if (/transaction.*id/i.test(key) && Number(nested) === id) return true;
+    if (nested && typeof nested === "object" && containsTransaction(nested, id)) return true;
+  }
+  return false;
+}
 
 export async function GET(request: NextRequest) {
   if (request.nextUrl.searchParams.get("token") !== TOKEN) return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -21,6 +32,14 @@ export async function GET(request: NextRequest) {
   if (!event) return NextResponse.json({ error: "Scanner Test event not found" }, { status: 404 });
   const token = await getValueCardToken(event.organizationId);
   if (!token) return NextResponse.json({ error: "ValueCard integration disabled" }, { status: 409 });
+
+  if (request.nextUrl.searchParams.get("historyOnly") === "1") {
+    const now = new Date();
+    const from = new Date(now.getTime() - 60 * 60 * 1000);
+    const history = await post(token, "/pos/transaction/UserTransaction", { fromDate: from.toISOString(), toDate: now.toISOString() });
+    return NextResponse.json({ history, expectedTransactionId: EXPECTED_TRANSACTION_ID, found: containsTransaction(history.payload, EXPECTED_TRANSACTION_ID) });
+  }
+
   const member = await searchValueCardMember(event.organizationId, TEST_PHONE);
   if (!member) return NextResponse.json({ error: "Member not found", phone: TEST_PHONE }, { status: 404 });
   const clientIdentifier = TEST_PHONE;
