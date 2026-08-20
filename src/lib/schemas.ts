@@ -30,6 +30,10 @@ export const checkoutSchema = z.object({
   }),
   payment: paymentSchema,
   locale: z.enum(["ru", "he", "en"]).default("ru"),
+  consents: z.object({
+    atlasMarketing: z.literal(true),
+    organizerMarketingAndClub: z.literal(true),
+  }),
   eligibilityAnswer: z.string().max(1000).optional(),
   promoCode: z.string().optional(),
   referralCode: z.string().optional(),
