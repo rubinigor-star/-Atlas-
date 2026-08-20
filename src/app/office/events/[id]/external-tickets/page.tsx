@@ -4,6 +4,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { ExternalTicketImportManager } from "@/components/external-ticket-import-manager";
 import { requireEventAccess } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ensureExternalTicketStorage } from "@/lib/external-ticket-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ type SourceRow = {
 export default async function ExternalTicketsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = await params;
   await requireEventAccess("TICKET_MANAGE", eventId);
+  await ensureExternalTicketStorage();
   const event = await db.event.findUnique({ where: { id: eventId }, select: { id: true, title: true } });
   if (!event) notFound();
 
