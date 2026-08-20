@@ -5,6 +5,7 @@ import { canAccessEvent, requirePermission } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { notifyWalletTickets } from "@/lib/wallet-push";
 import { checkInTicket, normalizeTicketCode, type CheckinResult } from "@/lib/checkin";
+import { ensureExternalTicketStorage } from "@/lib/external-ticket-storage";
 import { checkInExternalTicket } from "@/lib/external-tickets";
 
 type UnifiedCheckinResult = CheckinResult & {
@@ -32,6 +33,7 @@ export async function POST(req: Request) {
     });
 
     if (result.status === "NOT_FOUND" && selectedEventId) {
+      await ensureExternalTicketStorage();
       const external = await checkInExternalTicket(selectedEventId, normalizedCode);
       if (external.status === "AMBIGUOUS") {
         await db.scan.create({ data: { result: "NOT_FOUND" } });
@@ -77,6 +79,7 @@ export async function POST(req: Request) {
     const nativeEntered = await db.ticket.count({ where: { status: "USED", order: { status: "PAID", event: { organizationId: staff.organizationId! }, ...eventScope } } });
     let externalEntered = 0;
     if (selectedEventId) {
+      await ensureExternalTicketStorage();
       const counts = await db.$queryRawUnsafe<CountRow[]>(
         `SELECT COUNT(*) AS "count" FROM "ExternalTicket" WHERE "eventId"=$1 AND "status"='USED'`,
         selectedEventId,
