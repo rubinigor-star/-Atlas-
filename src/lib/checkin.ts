@@ -37,10 +37,12 @@ export async function checkInTicket({
   code,
   staff,
   selectedEventId,
+  deferNotFoundAudit = false,
 }: {
   code: string;
   staff: CurrentStaff;
   selectedEventId?: string | null;
+  deferNotFoundAudit?: boolean;
 }): Promise<CheckinResult> {
   const publicCode = normalizeTicketCode(code);
   if (!publicCode) return { status: "NOT_FOUND", message: "Код билета пуст" };
@@ -61,7 +63,7 @@ export async function checkInTicket({
       : null;
 
     if (!visible) {
-      await tx.scan.create({ data: { result: "NOT_FOUND" } });
+      if (!deferNotFoundAudit) await tx.scan.create({ data: { result: "NOT_FOUND" } });
       return { status: "NOT_FOUND", message: "Билет с таким кодом не найден" };
     }
 
