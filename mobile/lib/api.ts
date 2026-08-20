@@ -185,6 +185,38 @@ export type TicketValidationPayload = {
   event?: { id: string; title: string } | null;
 };
 
+export type ScannerAttendee = {
+  ticketId: string;
+  publicCode: string;
+  ticketStatus: string;
+  holderName: string;
+  categoryName: string;
+  orderPublicId: string;
+  customerName: string;
+  phone: string;
+  email: string;
+  eventId: string;
+  eventTitle: string;
+  eventStartsAt: string;
+  canCheckIn: boolean;
+};
+
+export type RecentScan = {
+  id: string;
+  result: string;
+  scannedAt: string;
+  ticketId: string | null;
+  publicCode: string | null;
+  ticketStatus: string | null;
+  holderName: string | null;
+  categoryName: string | null;
+  orderPublicId: string | null;
+  customerName: string | null;
+  phone: string | null;
+  email: string | null;
+  event: { id: string; title: string } | null;
+};
+
 async function request<T>(path: string, options: RequestInit = {}) {
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
   const url = `${API_BASE_URL}${path}`;
@@ -314,6 +346,16 @@ export async function validateTicket(eventId: string, code: string) {
     method: "POST",
     body: JSON.stringify({ eventId, code }),
   });
+}
+
+export async function searchScannerAttendees(eventId: string, query: string) {
+  const params = new URLSearchParams({ eventId, q: query.trim() });
+  return request<{ results: ScannerAttendee[] }>(`/api/mobile/tickets/search?${params.toString()}`).then((result) => result.results);
+}
+
+export async function getRecentScans(eventId: string) {
+  const params = new URLSearchParams({ eventId });
+  return request<{ results: RecentScan[] }>(`/api/mobile/tickets/recent?${params.toString()}`).then((result) => result.results);
 }
 
 export async function logout() {
