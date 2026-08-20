@@ -67,6 +67,11 @@ export function ExternalTicketImportManager({ eventId, sources }: { eventId: str
   const [result, setResult] = useState<ImportResult | null>(null);
 
   const effectiveName = selectedSource?.name || sourceName.trim();
+  const importBlockReason = !mapping.scanCode
+    ? "Выберите колонку QR / Barcode. Без кода, который реально считывает сканер, Atlas не может безопасно импортировать билеты."
+    : !effectiveName
+      ? "Укажите название источника билетов."
+      : "";
 
   async function previewFile() {
     if (!file) return setError("Выберите CSV файл");
@@ -91,7 +96,7 @@ export function ExternalTicketImportManager({ eventId, sources }: { eventId: str
 
   async function runImport() {
     if (!file || !preview) return setError("Сначала проверьте файл");
-    if (!mapping.scanCode) return setError("Выберите колонку QR / Barcode");
+    if (!mapping.scanCode) return setError("Выберите колонку QR / Barcode. Поле ID билета само по себе не считается кодом для сканирования.");
     if (!effectiveName) return setError("Укажите название источника");
     setBusy(true);
     setError("");
@@ -146,9 +151,10 @@ export function ExternalTicketImportManager({ eventId, sources }: { eventId: str
 
       {preview && <div className="stack">
         <div className="stats"><div className="stat"><span className="muted">Строк</span><strong>{preview.rowCount}</strong></div><div className="stat"><span className="muted">Разделитель</span><strong>{preview.delimiter}</strong></div><div className="stat"><span className="muted">QR найден автоматически</span><strong>{mapping.scanCode ? "Да" : "Нет"}</strong></div></div>
-        <section className="panel stack"><div><span className="eyebrow">Сопоставление</span><h3>Какая колонка что означает</h3></div><div className="grid two">{mappingFields.map((field) => <label key={field.key}>{field.label}{field.required ? " *" : ""}<select className="input" value={mapping[field.key] || ""} onChange={(event) => setMapping((current) => ({ ...current, [field.key]: event.target.value || undefined }))}><option value="">Не импортировать</option>{preview.headers.map((header) => <option key={header} value={header}>{header}</option>)}</select></label>)}</div></section>
+        <section className="panel stack"><div><span className="eyebrow">Сопоставление</span><h3>Какая колонка что означает</h3></div><div className="grid two">{mappingFields.map((field) => <label key={field.key}>{field.label}{field.required ? " *" : ""}<select className="input" value={mapping[field.key] || ""} onChange={(event) => { setMapping((current) => ({ ...current, [field.key]: event.target.value || undefined })); setError(""); }}><option value="">Не импортировать</option>{preview.headers.map((header) => <option key={header} value={header}>{header}</option>)}</select></label>)}</div></section>
         <div className="table-wrap"><table><thead><tr>{preview.headers.slice(0, 8).map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{preview.sample.map((row, index) => <tr key={index}>{preview.headers.slice(0, 8).map((header) => <td key={header}>{row[header] || "-"}</td>)}</tr>)}</tbody></table></div>
-        <button className="btn" type="button" disabled={busy || !mapping.scanCode || !effectiveName} onClick={() => void runImport()}>{busy ? "Импортируем..." : `Импортировать ${preview.rowCount} билетов`}</button>
+        {importBlockReason && <div className="toast"><strong>Перед импортом нужно ещё одно действие</strong><p>{importBlockReason}</p>{!mapping.scanCode && <p className="muted">Если QR на билете действительно содержит значение из колонки «מזהה כרטיס», выберите эту колонку в поле QR / Barcode. Если нет, нужен экспорт Eventer с настоящим Barcode/QR.</p>}</div>}
+        <button className="btn" type="button" disabled={busy} onClick={() => void runImport()}>{busy ? "Импортируем..." : importBlockReason ? "Проверить и импортировать" : `Импортировать ${preview.rowCount} билетов`}</button>
       </div>}
 
       {result && <div className="toast"><strong>Импорт завершён</strong><p>Новых: {result.insertedCount} · обновлено: {result.updatedCount} · ошибок: {result.errorCount}</p>{result.errorCount > 0 && <p className="muted">Первые ошибки: {result.errors?.slice(0, 3).map((item) => `строка ${item.row}: ${item.error}`).join("; ")}</p>}<button className="btn secondary" type="button" onClick={() => window.location.reload()}>Обновить данные</button></div>}
