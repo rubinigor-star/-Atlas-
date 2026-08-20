@@ -32,6 +32,18 @@ function logAuthResult(email: string, result: Awaited<ReturnType<typeof authenti
   console.warn("[office-auth] LOGIN_FAILED", { email, reason: result.error });
 }
 
+async function organizerLanding(userId: string) {
+  const grants = await db.permissionGrant.findMany({ where: { userId }, select: { permission: true } });
+  const allowed = new Set(grants.map((grant) => grant.permission));
+  if (allowed.has("EVENT_VIEW")) return "/office";
+  if (allowed.has("REQUEST_REVIEW")) return "/office/requests";
+  if (allowed.has("ORDER_VIEW")) return "/office/orders";
+  if (allowed.has("FINANCE_VIEW")) return "/office/finance";
+  if (allowed.has("SCAN")) return "/office/scanner";
+  if (allowed.has("TEAM_MANAGE")) return "/office/team";
+  return "/office/no-access";
+}
+
 export async function POST(request: Request) {
   const form = await request.formData();
   const email = String(form.get("email") || "").trim().toLowerCase();
@@ -47,7 +59,8 @@ export async function POST(request: Request) {
 
   if (!result.ok) return NextResponse.redirect(new URL(`/office/login?error=${result.error}`, request.url), 303);
 
-  const response = NextResponse.redirect(new URL(result.user.role === "ADMIN" ? "/platform" : "/office", request.url), 303);
+  const target = result.user.role === "ADMIN" ? "/platform" : await organizerLanding(result.user.id);
+  const response = NextResponse.redirect(new URL(target, request.url), 303);
   response.cookies.set(officeSessionCookie, createOfficeSessionToken(result.user.id), {
     httpOnly: true,
     sameSite: "lax",
