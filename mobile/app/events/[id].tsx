@@ -21,7 +21,6 @@ export default function EventHubScreen() {
   if (loading) return <SafeAreaView style={s.center}><ActivityIndicator size="large" /></SafeAreaView>;
   if (!state) return <SafeAreaView style={s.center}><Text>Не удалось открыть мероприятие</Text></SafeAreaView>;
 
-  const webBase = `https://www.atlas-one.co/office/events/${encodeURIComponent(eventId)}`;
   const canManage = state.permissions.includes("EVENT_MANAGE");
   const canTickets = state.permissions.includes("TICKET_MANAGE");
 
@@ -42,9 +41,9 @@ export default function EventHubScreen() {
 
       {(canManage || canTickets) && <View style={s.advanced}>
         <Text style={s.advancedTitle}>Дополнительные настройки</Text>
-        {canManage && <Mini icon="link-outline" label="Продажи и гостевые ссылки" onPress={() => Linking.openURL(`${webBase}/links`)} />}
-        {canTickets && <Mini icon="ticket-outline" label="Дизайн билета" onPress={() => Linking.openURL(`${webBase}/ticket-design`)} />}
-        <Text style={s.note}>Эти два редактора пока открываются в защищённом web back-office. Следующий шаг - перенести их в нативный интерфейс приложения без изменения backend-логики.</Text>
+        {canManage && <Mini icon="link-outline" label="Продажи и гостевые ссылки" onPress={() => router.push({ pathname: "/guest-links/[id]", params: { id: eventId } })} />}
+        {canTickets && <Mini icon="ticket-outline" label="Дизайн билета" onPress={() => router.push({ pathname: "/ticket-design/[id]", params: { id: eventId } })} />}
+        <Text style={s.note}>Эти разделы работают с теми же данными и backend-процессами, что и web back-office.</Text>
       </View>}
     </ScrollView>
   </SafeAreaView>;
@@ -54,7 +53,7 @@ function Action({ icon, title, text, onPress }: { icon: React.ComponentProps<typ
   return <TouchableOpacity style={s.card} activeOpacity={0.82} onPress={onPress}><View style={s.cardIcon}><Ionicons name={icon} size={25} color="#6D45FF" /></View><View style={s.cardCopy}><Text style={s.cardTitle}>{title}</Text><Text style={s.cardText}>{text}</Text></View><Ionicons name="chevron-forward" size={21} color="#9AA1B1" /></TouchableOpacity>;
 }
 function Mini({ icon, label, onPress }: { icon: React.ComponentProps<typeof Ionicons>["name"]; label: string; onPress: () => void }) {
-  return <TouchableOpacity style={s.mini} onPress={onPress}><Ionicons name={icon} size={20} color="#17213C" /><Text style={s.miniText}>{label}</Text><Ionicons name="open-outline" size={17} color="#8A92A3" /></TouchableOpacity>;
+  return <TouchableOpacity style={s.mini} onPress={onPress}><Ionicons name={icon} size={20} color="#17213C" /><Text style={s.miniText}>{label}</Text><Ionicons name="chevron-forward" size={17} color="#8A92A3" /></TouchableOpacity>;
 }
 
 const s = StyleSheet.create({
