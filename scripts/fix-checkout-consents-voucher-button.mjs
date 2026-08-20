@@ -24,6 +24,10 @@ if(!src.includes('ATLAS_CONSENTS_VOUCHER_BUTTON')){
   const requestWithConsents='locale,idempotencyKey,abandonToken:token(),consents:{atlasMarketing:consentAtlas,organizerMarketingAndClub:consentOrganizer}})});';
   if(src.includes(requestAnchor))src=src.replace(requestAnchor,requestWithConsents);else throw new Error('checkout consent payload anchor not found');
 
+  const consentSaveAnchor='const data=await response.json();if(!response.ok)throw new Error(data.error||text.error);if(data.paymentUrl){';
+  const consentSave='const data=await response.json();if(!response.ok)throw new Error(data.error||text.error);const consentResponse=await fetch(`/api/orders/${data.orderId}/consents`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({idempotencyKey,locale,consents:{atlasMarketing:consentAtlas,organizerMarketingAndClub:consentOrganizer}})});if(!consentResponse.ok)throw new Error(locale==="he"?"לא ניתן לשמור את האישור":locale==="ru"?"Не удалось сохранить подтверждение условий":"Could not save consent confirmation");if(data.paymentUrl){';
+  if(src.includes(consentSaveAnchor))src=src.replace(consentSaveAnchor,consentSave);else throw new Error('checkout consent persistence anchor not found');
+
   const buttonAnchor='{!paymentStage&&!paymentUrl&&!birthOpen&&!genderOpen&&!countryOpen&&<button type="button" className={styles.contactContinue} disabled={busy} onClick={()=>{if(!formReady){setValidationAttempted(true);return;}setPaymentStage(true);void startPayment();}}>{locale==="he"?"מעבר לתשלום":locale==="ru"?"Перейти к оплате":"Continue to payment"}<span aria-hidden="true">→</span></button>}';
   const consentBlock=`<div className={styles.consentList}>
    <label className={\`${'${styles.consentRow}'}${'${consentAtlasInvalid?` ${styles.consentInvalid}`:""}'}\`}><input type="checkbox" checked={consentAtlas} onChange={e=>setConsentAtlas(e.target.checked)}/><span>{locale==="he"?"אני מאשר/ת קבלת מידע וחומר פרסומי מ-ATLAS":locale==="ru"?"Я согласен(на) получать информацию и рекламные материалы от ATLAS":"I agree to receive information and promotional materials from ATLAS"}</span></label>
