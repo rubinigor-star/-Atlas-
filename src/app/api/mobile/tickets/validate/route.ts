@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getMobileStaff } from "@/lib/mobile-auth";
 import { validateAndUseTicket } from "@/lib/ticket-engine";
+import { checkInExternalTicket } from "@/lib/external-tickets";
 
 const schema = z.object({
   eventId: z.string().min(1).max(200),
@@ -18,6 +19,7 @@ function normalizeTicketCode(value: string) {
     const url = new URL(trimmed);
     return (
       url.searchParams.get("code") ||
+      url.searchParams.get("ticket") ||
       url.pathname.split("/").filter(Boolean).at(-1) ||
       trimmed
     );
@@ -86,10 +88,49 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await validateAndUseTicket(code);
-    const status = result.result === "NOT_FOUND" ? 404 : result.result === "VALID" ? 200 : 409;
+    const nativeResult = await validateAndUseTicket(code, { deferNotFoundAudit: true });
+    if (nativeResult.result !== "NOT_FOUND") {
+      const status = nativeResult.result === "VALID" ? 200 : 409;
+      return NextResponse.json(
+        { ...nativeResult, sourceName: "Atlas", external: false, event: { id: selectedEvent.id, title: selectedEvent.title } },
+        { status },
+      );
+    }
+
+    const externalResult = await checkInExternalTicket(selectedEvent.id, code);
+    if (externalResult.status === "NOT_FOUND") {
+      await db.scan.create({ data: { result: "NOT_FOUND" } });
+      return NextResponse.json(
+        { result: "NOT_FOUND", event: { id: selectedEvent.id, title: selectedEvent.title } },
+        { status: 404 },
+      );
+    }
+    if (externalResult.status === "AMBIGUOUS") {
+      await db.scan.create({ data: { result: "NOT_FOUND" } });
+      return NextResponse.json(
+        {
+          error: "AMBIGUOUS_EXTERNAL_TICKET",
+          result: "NOT_FOUND",
+          message: externalResult.message,
+          event: { id: selectedEvent.id, title: selectedEvent.title },
+        },
+        { status: 409 },
+      );
+    }
+
+    const status = externalResult.status === "VALID" ? 200 : 409;
     return NextResponse.json(
-      { ...result, event: { id: selectedEvent.id, title: selectedEvent.title } },
+      {
+        result: externalResult.status,
+        ticketId: externalResult.externalTicketId,
+        eventId: externalResult.eventId,
+        holderName: externalResult.holderName,
+        categoryName: externalResult.categoryName,
+        sourceName: externalResult.sourceName,
+        platformKey: externalResult.platformKey,
+        external: true,
+        event: { id: selectedEvent.id, title: selectedEvent.title },
+      },
       { status },
     );
   } catch (error) {
