@@ -3,6 +3,7 @@ import type { User } from "@prisma/client";
 import { db } from "@/lib/db";
 import { reviewOrder, type OrderReviewInput } from "@/lib/order-review-service";
 import { sendOrderTicketSms } from "@/lib/order-sms";
+import { enrollApprovedOrderInValueCard } from "@/lib/valuecard";
 
 type Actor = Pick<User, "id" | "organizationId">;
 
@@ -164,9 +165,17 @@ export async function processOrderReviewJobs(limit = 10) {
         { action: job.action, note: job.note ?? undefined },
         { id: job.actorId, organizationId: job.organizationId },
       );
+      let valueCard: Awaited<ReturnType<typeof enrollApprovedOrderInValueCard>> | { created: false; member: null; error: string } | undefined;
       let smsSent: boolean | undefined;
       let smsError: string | undefined;
       if (job.action === "approve" && result.status === "PAID") {
+        try {
+          valueCard = await enrollApprovedOrderInValueCard(job.publicId);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "ValueCard enrollment error";
+          valueCard = { created: false, member: null, error: message };
+          console.error("order_review_queue.valuecard_enrollment_failed", { publicId: job.publicId, message });
+        }
         try {
           await sendOrderTicketSms(job.publicId, { automatic: true });
           smsSent = true;
@@ -176,7 +185,7 @@ export async function processOrderReviewJobs(limit = 10) {
           console.error("order_review_queue.ticket_sms_failed", { publicId: job.publicId, message: smsError });
         }
       }
-      await completeJob(job, { ...result, smsSent, smsError });
+      await completeJob(job, { ...result, valueCard, smsSent, smsError });
       completed++;
     } catch (error) {
       if (await alreadyReachedFinalState(job)) {
