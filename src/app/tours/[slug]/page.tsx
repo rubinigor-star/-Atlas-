@@ -6,6 +6,7 @@ import {eventDate,money} from "@/lib/format";
 import {effectiveTicketPrice} from "@/lib/ticketing";
 import {getEffectiveEventTerms} from "@/lib/commercial-terms";
 import {calculateServiceFee} from "@/lib/service-fee";
+import {getNonIndexableEventIds} from "@/lib/event-language-server";
 
 export const dynamic="force-dynamic";
 type TourRow={id:string;slug:string;title:string;description:string;posterurl:string|null};
@@ -20,7 +21,8 @@ export default async function TourPage({params}:{params:Promise<{slug:string}>})
   }catch{return notFound();}
   if(!tour)return notFound();
   const ids=links.map(item=>item.eventid);
-  const events=await db.event.findMany({where:{id:{in:ids},status:"PUBLISHED"},include:{venue:true,categories:{include:{priceTiers:true}}}});
+  const nonIndexableIds=await getNonIndexableEventIds();
+  const events=await db.event.findMany({where:{id:{in:ids,...(nonIndexableIds.length?{notIn:nonIndexableIds}:{})},status:"PUBLISHED"},include:{venue:true,categories:{include:{priceTiers:true}}}});
   const byId=new Map(events.map(event=>[event.id,event]));
   const ordered=ids.map(id=>byId.get(id)).filter(Boolean) as typeof events;
   const now=new Date();

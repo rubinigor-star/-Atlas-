@@ -41,8 +41,9 @@ import { MarketingTracker } from "@/components/marketing-tracker";
 import { PromoterChannelTracker } from "@/components/promoter-channel-tracker";
 import { CartDrawerMotion } from "@/components/cart-drawer-motion";
 import { getServerI18n } from "@/lib/server-locale";
+import { getCanonicalOrigin } from "@/lib/public-origin";
 
-const BASE="https://www.atlas-one.co";
+const BASE=getCanonicalOrigin();
 
 export const metadata: Metadata = {
   metadataBase:new URL(BASE),
