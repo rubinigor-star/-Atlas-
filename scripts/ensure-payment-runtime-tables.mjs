@@ -96,6 +96,7 @@ const statements = [
        ALTER TABLE "Order" ALTER COLUMN "salesFlow" SET DEFAULT 'DIRECT'::"OrderSalesFlow";
      END IF;
    END $$`,
+  `DROP TRIGGER IF EXISTS atlas_prevent_order_sales_flow_change_trigger ON "Order"`,
   `UPDATE "Order" o
    SET "salesFlow"='APPROVAL'::"OrderSalesFlow"
    WHERE o."salesFlow"='DIRECT'::"OrderSalesFlow"
@@ -139,7 +140,6 @@ const statements = [
      RETURN NEW;
    END;
    $$ LANGUAGE plpgsql`,
-  `DROP TRIGGER IF EXISTS atlas_prevent_order_sales_flow_change_trigger ON "Order"`,
   `CREATE TRIGGER atlas_prevent_order_sales_flow_change_trigger
    BEFORE UPDATE ON "Order"
    FOR EACH ROW EXECUTE FUNCTION atlas_prevent_order_sales_flow_change()`,
