@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { canAccessEvent, getCurrentStaff } from "@/lib/auth";
+import { recordValueCardVisitForTicket } from "@/lib/valuecard-visit";
 
 type CurrentStaff = NonNullable<Awaited<ReturnType<typeof getCurrentStaff>>>;
 type Executor = Prisma.TransactionClient;
@@ -45,7 +46,7 @@ export async function checkInTicket({
   const publicCode = normalizeTicketCode(code);
   if (!publicCode) return { status: "NOT_FOUND", message: "Код билета пуст" };
 
-  return db.$transaction<CheckinResult>(async (tx: Executor) => {
+  const result = await db.$transaction<CheckinResult>(async (tx: Executor) => {
     const ticket = await tx.ticket.findUnique({
       where: { publicCode },
       include: {
@@ -112,4 +113,11 @@ export async function checkInTicket({
     await tx.scan.create({ data: { result: "VALID", ticketId: visible.id } });
     return { status: "VALID", message: "Вход разрешён", warning, ...details };
   });
+
+  if (result.status === "VALID" && result.ticketId) {
+    const valueCard = await recordValueCardVisitForTicket(result.ticketId);
+    console.info("scanner.valuecard.visit", { ticketId: result.ticketId, valueCard });
+  }
+
+  return result;
 }
