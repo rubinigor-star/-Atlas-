@@ -14,8 +14,11 @@ const BOOTSTRAP_ADMIN_PASSWORD_HASH = "scrypt:21b434e1ae97b23c011ab63710dca161:5
 export const DEMO_ORGANIZER_EMAIL = "demo.organizer@atlas-one.co";
 const DEMO_ORGANIZATION_NAME = "Demo Organizer";
 
+export type StaffEventScope = "ALL" | "SELECTED" | "NONE";
 type OfficeSession = { userId: string; expiresAt: number };
+type OfficeActionType = "verify" | "reset" | "invite";
 type CredentialRow = { userId: string; passwordHash: string; emailVerifiedAt: Date | null; failedAttempts: number; lockedUntil: Date | null };
+type EventScopeRow = { mode: StaffEventScope };
 export type OfficeCredentialStatus = {
   exists: boolean;
   failedAttempts: number;
@@ -43,6 +46,31 @@ export async function ensureOfficeAuthTable() {
     "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
 }
+
+export async function ensureStaffEventScopeTable() {
+  await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "StaffEventScope" (
+    "userId" TEXT PRIMARY KEY,"mode" TEXT NOT NULL DEFAULT 'ALL',
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+}
+
+export async function getStaffEventScope(userId: string): Promise<StaffEventScope> {
+  await ensureStaffEventScopeTable();
+  const rows = await db.$queryRawUnsafe<EventScopeRow[]>(`SELECT "mode" FROM "StaffEventScope" WHERE "userId"=$1 LIMIT 1`, userId);
+  const mode = rows[0]?.mode;
+  return mode === "SELECTED" || mode === "NONE" ? mode : "ALL";
+}
+
+export async function setStaffEventScope(userId: string, mode: StaffEventScope) {
+  await ensureStaffEventScopeTable();
+  await db.$executeRawUnsafe(
+    `INSERT INTO "StaffEventScope" ("userId","mode","createdAt","updatedAt") VALUES ($1,$2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+     ON CONFLICT ("userId") DO UPDATE SET "mode"=EXCLUDED."mode","updatedAt"=CURRENT_TIMESTAMP`,
+    userId,
+    mode,
+  );
+}
+
 export function hashOfficePassword(password: string) { const salt=randomBytes(16).toString("hex"); const hash=scryptSync(password,salt,64).toString("hex"); return `scrypt:${salt}:${hash}`; }
 export function verifyOfficePassword(password: string, stored: string) {
   const [scheme,salt,expected]=stored.split(":"); if(scheme!=="scrypt"||!salt||!expected)return false;
@@ -54,13 +82,7 @@ export async function getOfficeCredentialStatus(userId:string):Promise<OfficeCre
   const credential=await credentialForUser(userId);
   if(!credential)return{exists:false,failedAttempts:0,lockedUntil:null,locked:false,emailVerified:false};
   const lockedUntil=credential.lockedUntil?new Date(credential.lockedUntil):null;
-  return{
-    exists:true,
-    failedAttempts:Number(credential.failedAttempts)||0,
-    lockedUntil,
-    locked:Boolean(lockedUntil&&lockedUntil>new Date()),
-    emailVerified:Boolean(credential.emailVerifiedAt),
-  };
+  return{exists:true,failedAttempts:Number(credential.failedAttempts)||0,lockedUntil,locked:Boolean(lockedUntil&&lockedUntil>new Date()),emailVerified:Boolean(credential.emailVerifiedAt)};
 }
 
 async function ensureBootstrapSuperuser(email:string,password:string){
@@ -90,15 +112,24 @@ export async function authenticateOfficeUser(email:string,password:string){
 
 export async function createOfficeSession(userId:string){const store=await cookies();store.set(officeSessionCookie,encode({userId,expiresAt:Math.floor(Date.now()/1000)+SESSION_TTL_SECONDS}),{httpOnly:true,sameSite:"lax",secure:process.env.NODE_ENV==="production",path:"/",maxAge:SESSION_TTL_SECONDS});}
 export async function clearOfficeSession(){const store=await cookies();store.delete(officeSessionCookie);}
-export function createOfficeActionToken(type:"verify"|"reset",userId:string,email:string){return encode({type,userId,email:email.toLowerCase(),expiresAt:Math.floor(Date.now()/1000)+TOKEN_TTL_SECONDS});}
-export function verifyOfficeActionToken(token:string,expectedType:"verify"|"reset"){const value=decode<{type?:string;userId?:string;email?:string;expiresAt?:number}>(token);if(!value||value.type!==expectedType||typeof value.userId!=="string"||typeof value.email!=="string"||typeof value.expiresAt!=="number"||value.expiresAt<Math.floor(Date.now()/1000))return null;return{userId:value.userId,email:value.email};}
+export function createOfficeActionToken(type:OfficeActionType,userId:string,email:string){return encode({type,userId,email:email.toLowerCase(),expiresAt:Math.floor(Date.now()/1000)+TOKEN_TTL_SECONDS});}
+export function verifyOfficeActionToken(token:string,expectedType:OfficeActionType){const value=decode<{type?:string;userId?:string;email?:string;expiresAt?:number}>(token);if(!value||value.type!==expectedType||typeof value.userId!=="string"||typeof value.email!=="string"||typeof value.expiresAt!=="number"||value.expiresAt<Math.floor(Date.now()/1000))return null;return{userId:value.userId,email:value.email};}
 export async function markOfficeEmailVerified(userId:string){await ensureOfficeAuthTable();await db.$executeRawUnsafe(`UPDATE "OfficeCredential" SET "emailVerifiedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$1`,userId);}
 export async function resetOfficePassword(userId:string,password:string){await createOfficeCredential(userId,password,true);return getOfficeCredentialStatus(userId);}
 
-export async function getCurrentStaff(){const store=await cookies();const session=decode<OfficeSession>(store.get(officeSessionCookie)?.value||"");if(!session||typeof session.userId!=="string"||typeof session.expiresAt!=="number"||session.expiresAt<Math.floor(Date.now()/1000))return null;const user=await db.user.findUnique({where:{id:session.userId},include:{permissions:true,eventAccess:true,organization:true}});if(!user||!user.active)return null;const permissions=user.role==="ADMIN"?allPermissions:user.permissions.map(grant=>grant.permission);return{...user,permissionSet:new Set<StaffPermission>(permissions)};}
+export async function getCurrentStaff(){
+  const store=await cookies();
+  const session=decode<OfficeSession>(store.get(officeSessionCookie)?.value||"");
+  if(!session||typeof session.userId!=="string"||typeof session.expiresAt!=="number"||session.expiresAt<Math.floor(Date.now()/1000))return null;
+  const user=await db.user.findUnique({where:{id:session.userId},include:{permissions:true,eventAccess:true,organization:true}});
+  if(!user||!user.active)return null;
+  const permissions=user.role==="ADMIN"?allPermissions:user.permissions.map(grant=>grant.permission);
+  const eventScope: StaffEventScope = user.role === "ADMIN" || user.staffRole === "OWNER" ? "ALL" : await getStaffEventScope(user.id);
+  return{...user,eventScope,permissionSet:new Set<StaffPermission>(permissions)};
+}
 export async function requirePlatformAdmin(){const user=await getCurrentStaff();if(!user||user.role!=="ADMIN")throw new Error("FORBIDDEN");return user;}
 export async function requirePermission(permission:StaffPermission){const user=await getCurrentStaff();if(!user||!user.permissionSet.has(permission))throw new Error("FORBIDDEN");return user;}
-export function canAccessEvent(user:Awaited<ReturnType<typeof getCurrentStaff>>,eventId:string){if(!user)return false;return user.role==="ADMIN"||user.staffRole==="OWNER"||user.eventAccess.length===0||user.eventAccess.some(access=>access.eventId===eventId);}
+export function canAccessEvent(user:Awaited<ReturnType<typeof getCurrentStaff>>,eventId:string){if(!user)return false;if(user.role==="ADMIN"||user.staffRole==="OWNER"||user.eventScope==="ALL")return true;if(user.eventScope==="NONE")return false;return user.eventAccess.some(access=>access.eventId===eventId);}
 export async function requireEventAccess(permission:StaffPermission,eventId:string){const user=await requirePermission(permission);const event=await db.event.findUnique({where:{id:eventId},select:{organizationId:true}});if(!event||(user.role!=="ADMIN"&&event.organizationId!==user.organizationId)||!canAccessEvent(user,eventId))throw new Error("FORBIDDEN");return user;}
 
 export async function ensureDemoOrganizerPlatform(){
@@ -108,6 +139,7 @@ export async function ensureDemoOrganizerPlatform(){
   const temporaryPassword=`Atlas-${createHmac("sha256",authSecret()).update(`demo-organizer:${organization.id}`).digest("hex").slice(0,10)}!`;
   const demoUser=await db.user.upsert({where:{email:DEMO_ORGANIZER_EMAIL},update:{name:"Demo Organizer",role:"ORGANIZER",staffRole:"OWNER",jobTitle:"Organization Owner",active:true,organizationId:organization.id},create:{name:"Demo Organizer",email:DEMO_ORGANIZER_EMAIL,role:"ORGANIZER",staffRole:"OWNER",jobTitle:"Organization Owner",active:true,organizationId:organization.id},include:{organization:true}});
   const credential=await credentialForUser(demoUser.id);if(!credential)await createOfficeCredential(demoUser.id,temporaryPassword,true);
+  await setStaffEventScope(demoUser.id,"ALL");
   for(const permission of rolePermissions.OWNER){await db.permissionGrant.upsert({where:{userId_permission:{userId:demoUser.id,permission}},update:{},create:{userId:demoUser.id,permission}});}
   return{organization,user:demoUser,email:DEMO_ORGANIZER_EMAIL,temporaryPassword,eventCount:await db.event.count({where:{organizationId:organization.id}})};
 }
