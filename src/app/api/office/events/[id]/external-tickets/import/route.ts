@@ -7,6 +7,7 @@ import {
   type ExternalTicketMapping,
   validateExternalTicketMapping,
 } from "@/lib/external-ticket-csv";
+import { ensureExternalTicketStorage } from "@/lib/external-ticket-storage";
 import { importExternalTickets } from "@/lib/external-tickets";
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
@@ -26,6 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const { id: eventId } = await params;
     const staff = await requireEventAccess("TICKET_MANAGE", eventId);
+    await ensureExternalTicketStorage();
     const form = await request.formData();
     const upload = form.get("file");
     if (!(upload instanceof File)) throw new Error("Выберите CSV файл");
