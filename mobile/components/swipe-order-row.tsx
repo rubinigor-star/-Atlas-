@@ -35,6 +35,8 @@ export function SwipeOrderRow({ enabled = true, rightSwipe = null, leftSwipe = n
   };
 
   const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onStartShouldSetPanResponderCapture: () => false,
     onMoveShouldSetPanResponder: (_, gesture) => {
       if (!enabled) return false;
       const horizontal = Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.6;
@@ -43,11 +45,7 @@ export function SwipeOrderRow({ enabled = true, rightSwipe = null, leftSwipe = n
       if (gesture.dx < 0 && !leftSwipe) return false;
       return true;
     },
-    onMoveShouldSetPanResponderCapture: (_, gesture) => {
-      if (!enabled) return false;
-      const horizontal = Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.8;
-      return horizontal && Math.abs(gesture.dx) >= DIRECTION_LOCK_DISTANCE;
-    },
+    onMoveShouldSetPanResponderCapture: () => false,
     onPanResponderGrant: () => {
       dragging.current = true;
       translateX.stopAnimation();
@@ -77,7 +75,7 @@ export function SwipeOrderRow({ enabled = true, rightSwipe = null, leftSwipe = n
       }
       reset();
     },
-    onPanResponderTerminationRequest: () => false,
+    onPanResponderTerminationRequest: () => true,
     onPanResponderTerminate: reset,
   }), [enabled, leftSwipe, rightSwipe, translateX]);
 
