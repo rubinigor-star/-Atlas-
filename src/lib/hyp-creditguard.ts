@@ -99,8 +99,8 @@ export async function createHypApprovalPaymentPage(input: { amountMinor: number;
     FixTash: "True",
     sendemail: "False",
     SendHesh: "False",
-    Postpone: "False",
-    J5: "True",
+    Postpone: "True",
+    J5: "False",
     tmp: HYP_PAYMENT_TEMPLATE,
     ReturnUrl: callbackUrl(input.callbackPath, "success"),
     SuccessUrl: callbackUrl(input.callbackPath, "success"),
@@ -110,9 +110,9 @@ export async function createHypApprovalPaymentPage(input: { amountMinor: number;
   const signed = await callApiSign("SIGN", paymentParams);
   if (signed.get("action") !== "pay") throw new Error("HYP APISign response does not contain action=pay");
   if (!signed.get("signature")) throw new Error("HYP APISign response does not contain signature");
-  if (signed.get("J5") !== "True") throw new Error("HYP did not preserve J5=True for approval authorization");
-  if (signed.get("Postpone") === "True") throw new Error("HYP unexpectedly enabled Postpone together with J5");
-  console.info("hyp.approval.payment_page.created", { orderId, template: HYP_PAYMENT_TEMPLATE, mode: "J5" });
+  if (signed.get("Postpone") !== "True") throw new Error("HYP did not preserve Postpone=True");
+  if (signed.get("J5") === "True") throw new Error("HYP unexpectedly enabled J5 together with Postpone");
+  console.info("hyp.approval.payment_page.created", { orderId, template: HYP_PAYMENT_TEMPLATE });
   return `${HYP_ENDPOINT}?${signed.toString()}`;
 }
 

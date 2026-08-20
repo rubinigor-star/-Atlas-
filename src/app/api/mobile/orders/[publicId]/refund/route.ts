@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getMobileStaff } from "@/lib/mobile-auth";
-import { OrderRefundError, refundOrder, type OrderRefundInput } from "@/lib/order-refund-service";
+import { getRefundPolicy, OrderRefundError, refundOrder, type OrderRefundInput } from "@/lib/order-refund-service";
 
 function canAccessEvent(
   user: NonNullable<Awaited<ReturnType<typeof getMobileStaff>>>,
@@ -35,31 +35,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ publ
   const { publicId } = await params;
   const access = await authorizedOrder(request, publicId);
   if ("error" in access) return access.error;
-
-  const authorization = (await db.$queryRawUnsafe<Array<{
-    provider: string;
-    amountMinor: number;
-    refundedMinor: number;
-    status: string;
-  }>>(
-    `SELECT "provider","amountMinor","refundedMinor","status" FROM "PaymentAuthorization" WHERE "orderId"=$1 LIMIT 1`,
-    access.order.id,
-  ))[0];
-
-  const refundedMinor = authorization?.refundedMinor ?? 0;
-  const refundableMinor = authorization?.provider === "HYP"
-    ? Math.max(0, authorization.amountMinor - refundedMinor)
-    : 0;
-
-  return NextResponse.json({
-    orderStatus: access.order.status,
-    orderTotalMinor: access.order.totalMinor,
-    provider: authorization?.provider ?? null,
-    paymentStatus: authorization?.status ?? null,
-    refundedMinor,
-    refundableMinor,
-    canRefund: access.order.status === "PAID" && authorization?.provider === "HYP" && refundableMinor > 0,
-  });
+  try {
+    return NextResponse.json(await getRefundPolicy(publicId));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Ошибка возврата";
+    const status = error instanceof OrderRefundError ? error.status : 400;
+    return NextResponse.json({ error: message }, { status });
+  }
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ publicId: string }> }) {
@@ -69,7 +51,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
 
   try {
     const body = await request.json().catch(() => null) as OrderRefundInput | null;
-    return NextResponse.json(await refundOrder(publicId, body || {}));
+    return NextResponse.json(await refundOrder(publicId, body || {}, { actorId: access.user.id }));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Ошибка возврата";
     const status = error instanceof OrderRefundError ? error.status : 400;
