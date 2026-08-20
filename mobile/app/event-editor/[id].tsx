@@ -9,6 +9,7 @@ import { TicketsTab } from "@/components/editor/TicketsTab";
 import { MapTab } from "@/components/editor/MapTab";
 import { CheckoutTab } from "@/components/editor/CheckoutTab";
 import { ReviewTab } from "@/components/editor/ReviewTab";
+import { AdvancedTab } from "@/components/editor/AdvancedTab";
 
 const tabs = [
   { id: "about", label: "О мероприятии" },
@@ -16,6 +17,7 @@ const tabs = [
   { id: "map", label: "Места и карта" },
   { id: "checkout", label: "Покупатель" },
   { id: "review", label: "Проверка" },
+  { id: "advanced", label: "Дополнительно" },
 ] as const;
 type TabId = (typeof tabs)[number]["id"];
 
@@ -49,7 +51,7 @@ export default function EventEditorScreen() {
     <View style={s.header}>
       <TouchableOpacity onPress={() => router.back()} style={s.icon}><Ionicons name="chevron-back" size={28} color="#17213C" /></TouchableOpacity>
       <View style={s.headerCenter}><Text numberOfLines={1} style={s.headerTitle}>{state.event.title}</Text><Text style={s.headerMeta}>{state.review.archived ? "ARCHIVED" : state.event.status}</Text></View>
-      <View style={s.icon}><Ionicons name="ellipsis-horizontal" size={25} color="#17213C" /></View>
+      <TouchableOpacity style={s.icon} onPress={() => setActive("advanced")}><Ionicons name="ellipsis-horizontal" size={25} color="#17213C" /></TouchableOpacity>
     </View>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabs} contentContainerStyle={s.tabsContent} keyboardShouldPersistTaps="handled">
       {tabs.map((tab, index) => <TouchableOpacity key={tab.id} style={[s.tab, active === tab.id && s.tabOn]} onPress={() => setActive(tab.id)}><Text style={[s.tabIndex, active === tab.id && s.tabIndexOn]}>{String(index + 1).padStart(2, "0")}</Text><Text style={[s.tabLabel, active === tab.id && s.tabLabelOn]}>{tab.label}</Text></TouchableOpacity>)}
@@ -60,6 +62,7 @@ export default function EventEditorScreen() {
       {active === "map" && <MapTab eventId={eventId} state={state} onState={setState} />}
       {active === "checkout" && <CheckoutTab eventId={eventId} state={state} onState={setState} />}
       {active === "review" && <ReviewTab eventId={eventId} state={state} onState={setState} />}
+      {active === "advanced" && <AdvancedTab eventId={eventId} state={state} />}
     </View>
   </SafeAreaView>;
 }
