@@ -21,7 +21,13 @@ export type ExternalTicketImportRow = {
 };
 
 type SourceRow = { id: string; eventId: string; name: string; sourceKey: string; platformKey: string | null };
-type ExistingTicketRow = { externalTicketId: string };
+type ExistingTicketRow = { externalTicketId: string; normalizedScanCode: string };
+type PreparedImportRow = Required<Pick<ExternalTicketImportRow, "scanCode">> & ExternalTicketImportRow & {
+  normalizedScanCode: string;
+  stableTicketId: string;
+  status: ExternalTicketStatus;
+  rowNumber: number;
+};
 type LookupRow = {
   id: string;
   eventId: string;
@@ -104,18 +110,25 @@ export async function importExternalTickets({
   rows: ExternalTicketImportRow[];
 }) {
   const normalizedSourceKey = externalSourceKey(sourceKey || sourceName);
-  const prepared = new Map<string, Required<Pick<ExternalTicketImportRow, "scanCode">> & ExternalTicketImportRow & { normalizedScanCode: string; stableTicketId: string; status: ExternalTicketStatus }>();
+  const prepared = new Map<string, PreparedImportRow>();
+  const scanOwnersInFile = new Map<string, string>();
   const rowErrors: Array<{ row: number; error: string }> = [];
 
   rows.forEach((row, index) => {
+    const rowNumber = index + 1;
     const normalizedScanCode = normalizeExternalTicketCode(row.scanCode || "");
     if (!normalizedScanCode) {
-      rowErrors.push({ row: index + 1, error: "EMPTY_SCAN_CODE" });
+      rowErrors.push({ row: rowNumber, error: "EMPTY_SCAN_CODE" });
       return;
     }
     const stableTicketId = clean(row.externalTicketId) || normalizedScanCode;
     if (prepared.has(stableTicketId)) {
-      rowErrors.push({ row: index + 1, error: "DUPLICATE_EXTERNAL_TICKET_ID_IN_FILE" });
+      rowErrors.push({ row: rowNumber, error: "DUPLICATE_EXTERNAL_TICKET_ID_IN_FILE" });
+      return;
+    }
+    const scanOwner = scanOwnersInFile.get(normalizedScanCode);
+    if (scanOwner && scanOwner !== stableTicketId) {
+      rowErrors.push({ row: rowNumber, error: "DUPLICATE_SCAN_CODE_IN_FILE" });
       return;
     }
     prepared.set(stableTicketId, {
@@ -124,7 +137,9 @@ export async function importExternalTickets({
       normalizedScanCode,
       stableTicketId,
       status: normalizeStatus(row.status),
+      rowNumber,
     });
+    scanOwnersInFile.set(normalizedScanCode, stableTicketId);
   });
 
   const uniqueRows = [...prepared.values()];
@@ -155,10 +170,39 @@ export async function importExternalTickets({
     if (!source) throw new Error("Не удалось создать источник внешних билетов");
 
     const existing = await tx.$queryRawUnsafe<ExistingTicketRow[]>(
-      `SELECT "externalTicketId" FROM "ExternalTicket" WHERE "sourceId"=$1`,
+      `SELECT "externalTicketId","normalizedScanCode" FROM "ExternalTicket" WHERE "sourceId"=$1`,
       source.id,
     );
-    const existingIds = new Set(existing.map((ticket) => ticket.externalTicketId));
+    const existingById = new Map(existing.map((ticket) => [ticket.externalTicketId, ticket]));
+    const existingScanOwners = new Map(existing.map((ticket) => [ticket.normalizedScanCode, ticket.externalTicketId]));
+
+    const invalidIds = new Set<string>();
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const row of uniqueRows) {
+        if (invalidIds.has(row.stableTicketId)) continue;
+        const existingOwner = existingScanOwners.get(row.normalizedScanCode);
+        if (!existingOwner || existingOwner === row.stableTicketId) continue;
+        const ownerIncoming = prepared.get(existingOwner);
+        const ownerWillReleaseCode = Boolean(
+          ownerIncoming
+          && !invalidIds.has(existingOwner)
+          && ownerIncoming.normalizedScanCode !== row.normalizedScanCode,
+        );
+        if (!ownerWillReleaseCode) {
+          invalidIds.add(row.stableTicketId);
+          changed = true;
+        }
+      }
+    }
+
+    for (const row of uniqueRows) {
+      if (invalidIds.has(row.stableTicketId)) {
+        rowErrors.push({ row: row.rowNumber, error: "SCAN_CODE_ALREADY_USED_BY_ANOTHER_TICKET" });
+      }
+    }
+    const importableRows = uniqueRows.filter((row) => !invalidIds.has(row.stableTicketId));
 
     const batchId = randomUUID();
     await tx.$executeRawUnsafe(
@@ -173,56 +217,62 @@ export async function importExternalTickets({
       clean(createdById),
     );
 
+    let releaseIndex = 0;
+    for (const row of importableRows) {
+      const existingTicket = existingById.get(row.stableTicketId);
+      if (!existingTicket || existingTicket.normalizedScanCode === row.normalizedScanCode) continue;
+      releaseIndex += 1;
+      await tx.$executeRawUnsafe(
+        `UPDATE "ExternalTicket" SET "normalizedScanCode"=$1,"updatedAt"=CURRENT_TIMESTAMP WHERE "sourceId"=$2 AND "externalTicketId"=$3`,
+        `__ATLAS_IMPORT_${batchId}_${releaseIndex}`,
+        source.id,
+        row.stableTicketId,
+      );
+    }
+
     let insertedCount = 0;
     let updatedCount = 0;
 
-    for (const row of uniqueRows) {
-      const isExisting = existingIds.has(row.stableTicketId);
-      try {
-        await tx.$executeRawUnsafe(
-          `INSERT INTO "ExternalTicket" (
-             "id","eventId","sourceId","importBatchId","externalTicketId","externalOrderId","rawScanCode","normalizedScanCode",
-             "holderName","phone","email","ticketType","priceMinor","currency","status","metadataJson","createdAt","updatedAt"
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-           ON CONFLICT ("sourceId","externalTicketId") DO UPDATE SET
-             "importBatchId"=EXCLUDED."importBatchId",
-             "externalOrderId"=EXCLUDED."externalOrderId",
-             "rawScanCode"=EXCLUDED."rawScanCode",
-             "normalizedScanCode"=EXCLUDED."normalizedScanCode",
-             "holderName"=COALESCE(EXCLUDED."holderName","ExternalTicket"."holderName"),
-             "phone"=COALESCE(EXCLUDED."phone","ExternalTicket"."phone"),
-             "email"=COALESCE(EXCLUDED."email","ExternalTicket"."email"),
-             "ticketType"=COALESCE(EXCLUDED."ticketType","ExternalTicket"."ticketType"),
-             "priceMinor"=COALESCE(EXCLUDED."priceMinor","ExternalTicket"."priceMinor"),
-             "currency"=EXCLUDED."currency",
-             "status"=CASE WHEN "ExternalTicket"."status"='USED' THEN 'USED' ELSE EXCLUDED."status" END,
-             "metadataJson"=COALESCE(EXCLUDED."metadataJson","ExternalTicket"."metadataJson"),
-             "updatedAt"=CURRENT_TIMESTAMP`,
-          randomUUID(),
-          eventId,
-          source.id,
-          batchId,
-          row.stableTicketId,
-          clean(row.externalOrderId),
-          row.scanCode,
-          row.normalizedScanCode,
-          clean(row.holderName),
-          clean(row.phone),
-          clean(row.email),
-          clean(row.ticketType),
-          typeof row.priceMinor === "number" && Number.isFinite(row.priceMinor) ? Math.round(row.priceMinor) : null,
-          safeCurrency(row.currency),
-          row.status,
-          row.metadata ? JSON.stringify(row.metadata) : null,
-        );
-        if (isExisting) updatedCount += 1;
-        else insertedCount += 1;
-      } catch (error) {
-        rowErrors.push({
-          row: rows.findIndex((candidate) => (clean(candidate.externalTicketId) || normalizeExternalTicketCode(candidate.scanCode || "")) === row.stableTicketId) + 1,
-          error: error instanceof Error ? error.message : "IMPORT_FAILED",
-        });
-      }
+    for (const row of importableRows) {
+      const isExisting = existingById.has(row.stableTicketId);
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "ExternalTicket" (
+           "id","eventId","sourceId","importBatchId","externalTicketId","externalOrderId","rawScanCode","normalizedScanCode",
+           "holderName","phone","email","ticketType","priceMinor","currency","status","metadataJson","createdAt","updatedAt"
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+         ON CONFLICT ("sourceId","externalTicketId") DO UPDATE SET
+           "importBatchId"=EXCLUDED."importBatchId",
+           "externalOrderId"=EXCLUDED."externalOrderId",
+           "rawScanCode"=EXCLUDED."rawScanCode",
+           "normalizedScanCode"=EXCLUDED."normalizedScanCode",
+           "holderName"=COALESCE(EXCLUDED."holderName","ExternalTicket"."holderName"),
+           "phone"=COALESCE(EXCLUDED."phone","ExternalTicket"."phone"),
+           "email"=COALESCE(EXCLUDED."email","ExternalTicket"."email"),
+           "ticketType"=COALESCE(EXCLUDED."ticketType","ExternalTicket"."ticketType"),
+           "priceMinor"=COALESCE(EXCLUDED."priceMinor","ExternalTicket"."priceMinor"),
+           "currency"=EXCLUDED."currency",
+           "status"=CASE WHEN "ExternalTicket"."status"='USED' THEN 'USED' ELSE EXCLUDED."status" END,
+           "metadataJson"=COALESCE(EXCLUDED."metadataJson","ExternalTicket"."metadataJson"),
+           "updatedAt"=CURRENT_TIMESTAMP`,
+        randomUUID(),
+        eventId,
+        source.id,
+        batchId,
+        row.stableTicketId,
+        clean(row.externalOrderId),
+        row.scanCode,
+        row.normalizedScanCode,
+        clean(row.holderName),
+        clean(row.phone),
+        clean(row.email),
+        clean(row.ticketType),
+        typeof row.priceMinor === "number" && Number.isFinite(row.priceMinor) ? Math.round(row.priceMinor) : null,
+        safeCurrency(row.currency),
+        row.status,
+        row.metadata ? JSON.stringify(row.metadata) : null,
+      );
+      if (isExisting) updatedCount += 1;
+      else insertedCount += 1;
     }
 
     await tx.$executeRawUnsafe(
