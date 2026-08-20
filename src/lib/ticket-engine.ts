@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ticketCode } from "@/lib/ticketing";
+import { recordValueCardVisitForTicket } from "@/lib/valuecard-visit";
 
 type Executor = typeof db | Prisma.TransactionClient;
 
@@ -43,7 +44,7 @@ export async function cancelOrderTickets(orderId: string, executor: Executor = d
 }
 
 export async function validateAndUseTicket(publicCode: string): Promise<TicketValidationResult> {
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const ticket = await tx.ticket.findUnique({
       where: { publicCode },
       include: { category: true, order: { select: { eventId: true, status: true } } },
@@ -51,13 +52,13 @@ export async function validateAndUseTicket(publicCode: string): Promise<TicketVa
 
     if (!ticket) {
       await tx.scan.create({ data: { result: "NOT_FOUND" } });
-      return { result: "NOT_FOUND" };
+      return { result: "NOT_FOUND" } as TicketValidationResult;
     }
 
     if (ticket.status !== "VALID" || ticket.order.status !== "PAID") {
-      const result = ticket.status === "USED" ? "USED" : "CANCELLED";
-      await tx.scan.create({ data: { result, ticketId: ticket.id } });
-      return { result, ticketId: ticket.id };
+      const status = ticket.status === "USED" ? "USED" : "CANCELLED";
+      await tx.scan.create({ data: { result: status, ticketId: ticket.id } });
+      return { result: status, ticketId: ticket.id } as TicketValidationResult;
     }
 
     const claimed = await tx.ticket.updateMany({
@@ -66,7 +67,7 @@ export async function validateAndUseTicket(publicCode: string): Promise<TicketVa
     });
     if (claimed.count !== 1) {
       await tx.scan.create({ data: { result: "USED", ticketId: ticket.id } });
-      return { result: "USED", ticketId: ticket.id };
+      return { result: "USED", ticketId: ticket.id } as TicketValidationResult;
     }
 
     await tx.scan.create({ data: { result: "VALID", ticketId: ticket.id } });
@@ -76,6 +77,13 @@ export async function validateAndUseTicket(publicCode: string): Promise<TicketVa
       eventId: ticket.order.eventId,
       holderName: ticket.holderName,
       categoryName: ticket.category.name,
-    };
+    } as TicketValidationResult;
   });
+
+  if (result.result === "VALID") {
+    const valueCard = await recordValueCardVisitForTicket(result.ticketId);
+    console.info("scanner.valuecard.visit", { ticketId: result.ticketId, valueCard });
+  }
+
+  return result;
 }
