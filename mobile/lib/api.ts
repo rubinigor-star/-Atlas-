@@ -350,12 +350,14 @@ export async function validateTicket(eventId: string, code: string) {
 
 export async function searchScannerAttendees(eventId: string, query: string) {
   const params = new URLSearchParams({ eventId, q: query.trim() });
-  return request<{ results: ScannerAttendee[] }>(`/api/mobile/tickets/search?${params.toString()}`).then((result) => result.results);
+  return request<{ results?: ScannerAttendee[] }>(`/api/mobile/tickets/search?${params.toString()}`)
+    .then((result) => Array.isArray(result?.results) ? result.results : []);
 }
 
 export async function getRecentScans(eventId: string) {
   const params = new URLSearchParams({ eventId });
-  return request<{ results: RecentScan[] }>(`/api/mobile/tickets/recent?${params.toString()}`).then((result) => result.results);
+  return request<{ results?: RecentScan[] }>(`/api/mobile/tickets/recent?${params.toString()}`)
+    .then((result) => Array.isArray(result?.results) ? result.results : []);
 }
 
 export async function logout() {
