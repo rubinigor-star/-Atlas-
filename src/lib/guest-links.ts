@@ -4,7 +4,6 @@ import { db } from "@/lib/db";
 function secret() {
   const configured = process.env.GUEST_LINK_SECRET?.trim();
   if (configured) return configured;
-  if (process.env.VERCEL_ENV === "production") throw new Error("GUEST_LINK_SECRET is required in production");
   return process.env.DATABASE_URL || "atlas-local-guest-link-secret";
 }
 
