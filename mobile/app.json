@@ -12,7 +12,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "il.co.atlas.office",
       "buildNumber": "6",
-      "icon": "./assets/atlas-one-app-icon.png"
+      "icon": "./assets/atlas-one-app-icon.png",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "il.co.atlas.office",
@@ -20,7 +23,10 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/atlas-one-app-icon.png",
         "backgroundColor": "#081426"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "plugins": [
       "expo-router",
