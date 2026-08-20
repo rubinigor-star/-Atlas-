@@ -2,12 +2,14 @@ import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { ScannerClient } from "@/components/scanner-client";
 import { AdminShell } from "@/components/admin-shell";
+import { ensureExternalTicketStorage } from "@/lib/external-ticket-storage";
 
 export const dynamic = "force-dynamic";
 type CountRow = { count: number | bigint };
 
 export default async function Scanner() {
   const staff = await requirePermission("SCAN");
+  await ensureExternalTicketStorage();
   const allowedEvents = staff.eventAccess.map((item) => item.eventId);
   const scopedIds = staff.eventScope === "ALL" ? undefined : allowedEvents;
   const eventFilter = {
