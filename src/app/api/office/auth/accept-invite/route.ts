@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { resetOfficePassword, verifyOfficeActionToken } from "@/lib/auth";
+import { getOfficeCredentialStatus, resetOfficePassword, verifyOfficeActionToken } from "@/lib/auth";
 
 export async function POST(request: Request) {
   const form = await request.formData();
@@ -11,6 +11,8 @@ export async function POST(request: Request) {
   if (!payload) return NextResponse.redirect(new URL("/office/login?error=TOKEN_EXPIRED", request.url), 303);
   const user = await db.user.findUnique({ where: { id: payload.userId } });
   if (!user || !user.active || user.email.toLowerCase() !== payload.email) return NextResponse.redirect(new URL("/office/login?error=TOKEN_EXPIRED", request.url), 303);
+  const credential = await getOfficeCredentialStatus(user.id);
+  if (credential.exists) return NextResponse.redirect(new URL("/office/login?error=INVITE_ALREADY_USED", request.url), 303);
   await resetOfficePassword(user.id, password);
   return NextResponse.redirect(new URL("/office/login?invited=1", request.url), 303);
 }
