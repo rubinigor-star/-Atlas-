@@ -1,37 +1,26 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
-import { requirePermission } from "@/lib/auth";
+import { canAccessEvent, requirePermission } from "@/lib/auth";
 import { organizerFinanceSummary } from "@/lib/finance";
 import { money, eventDate } from "@/lib/format";
 
 export const dynamic="force-dynamic";
-
 function payoutLabel(status:string){return status==="PAID"?"Выплачено":status==="AVAILABLE"?"Доступно":"Запланировано";}
 function dateLabel(date:Date){return new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric",timeZone:"Asia/Jerusalem"}).format(date);}
 
 export default async function FinancePage(){
   const staff=await requirePermission("FINANCE_VIEW");
-  const summary=await organizerFinanceSummary(staff.organizationId!);
+  const raw=await organizerFinanceSummary(staff.organizationId!);
+  const events=raw.events.filter(event=>canAccessEvent(staff,event.eventId));
+  const scoped=staff.eventScope!=="ALL";
+  const sum=(key:"salesMinor"|"refundsMinor"|"servicesMinor"|"balanceMinor"|"paidOutMinor"|"availableMinor")=>events.reduce((total,event)=>total+event[key],0);
+  const summary={...raw,events,salesMinor:scoped?sum("salesMinor"):raw.salesMinor,refundsMinor:scoped?sum("refundsMinor"):raw.refundsMinor,servicesMinor:scoped?sum("servicesMinor"):raw.servicesMinor,balanceMinor:scoped?sum("balanceMinor"):raw.balanceMinor,paidOutMinor:scoped?sum("paidOutMinor"):raw.paidOutMinor,availableMinor:scoped?sum("availableMinor"):raw.availableMinor,unallocatedServicesMinor:scoped?0:raw.unallocatedServicesMinor};
   return <AdminShell>
-    <div className="office-page-heading"><div><span className="eyebrow">Finance</span><h1>Финансы</h1><p>Ваши продажи, возвраты, дополнительные услуги, баланс мероприятий и плановые выплаты.</p></div></div>
-    <div className="stats">
-      <div className="stat"><span className="muted">Всего заработано</span><strong>{money(summary.salesMinor)}</strong><small>сумма от продаж, принадлежащая вам</small></div>
-      <div className="stat"><span className="muted">Возвраты</span><strong>{money(summary.refundsMinor)}</strong><small>уменьшают баланс</small></div>
-      <div className="stat"><span className="muted">Доп. услуги</span><strong>{money(summary.servicesMinor)}</strong><small>сейчас: успешно отправленные SMS</small></div>
-      <div className="stat"><span className="muted">Текущий баланс</span><strong>{money(summary.balanceMinor-summary.paidOutMinor)}</strong><small>после возвратов, услуг и выплат</small></div>
-      <div className="stat"><span className="muted">Доступно к выплате</span><strong>{money(summary.availableMinor)}</strong><small>только по наступившему циклу выплаты</small></div>
-    </div>
-
-    <section className="panel" style={{marginBottom:20}}>
-      <div className="row between" style={{gap:20,alignItems:"flex-start"}}><div><span className="eyebrow">Правило выплат</span><h2 style={{margin:"6px 0"}}>Расчётный цикл Atlas</h2><p className="muted" style={{margin:0,maxWidth:780}}>Средства от платёжной системы учитываются 6-го числа. Стандартная выплата организатору становится доступной 7-го числа месяца после проведения мероприятия. Atlas не делает предоплат и не выплачивает средства раньше расчётного цикла.</p></div><div className="pill">Без предоплат</div></div>
-    </section>
-
+    <div className="office-page-heading"><div><span className="eyebrow">Finance</span><h1>Финансы</h1><p>{scoped?"Показаны финансовые данные только по мероприятиям, к которым вам выдан доступ.":"Ваши продажи, возвраты, дополнительные услуги, баланс мероприятий и плановые выплаты."}</p></div></div>
+    <div className="stats"><div className="stat"><span className="muted">Всего заработано</span><strong>{money(summary.salesMinor)}</strong><small>сумма от продаж, принадлежащая вам</small></div><div className="stat"><span className="muted">Возвраты</span><strong>{money(summary.refundsMinor)}</strong><small>уменьшают баланс</small></div><div className="stat"><span className="muted">Доп. услуги</span><strong>{money(summary.servicesMinor)}</strong><small>сейчас: успешно отправленные SMS</small></div><div className="stat"><span className="muted">Текущий баланс</span><strong>{money(summary.balanceMinor-summary.paidOutMinor)}</strong><small>после возвратов, услуг и выплат</small></div><div className="stat"><span className="muted">Доступно к выплате</span><strong>{money(summary.availableMinor)}</strong><small>только по наступившему циклу выплаты</small></div></div>
+    <section className="panel" style={{marginBottom:20}}><div className="row between" style={{gap:20,alignItems:"flex-start"}}><div><span className="eyebrow">Правило выплат</span><h2 style={{margin:"6px 0"}}>Расчётный цикл Atlas</h2><p className="muted" style={{margin:0,maxWidth:780}}>Средства от платёжной системы учитываются 6-го числа. Стандартная выплата организатору становится доступной 7-го числа месяца после проведения мероприятия. Atlas не делает предоплат и не выплачивает средства раньше расчётного цикла.</p></div><div className="pill">Без предоплат</div></div></section>
     {summary.unallocatedServicesMinor>0&&<section className="panel" style={{marginBottom:20}}><strong>Услуги вне конкретного мероприятия: {money(summary.unallocatedServicesMinor)}</strong><p className="muted" style={{marginBottom:0}}>Эти расходы относятся к организации в целом и поэтому не приписаны искусственно отдельному событию.</p></section>}
-
     <div className="row between" style={{marginBottom:12}}><div><h2 className="section-title" style={{marginBottom:4}}>Мероприятия</h2><p className="muted" style={{margin:0}}>Нажмите на мероприятие, чтобы открыть подробный финансовый отчёт.</p></div></div>
-    <div className="table-wrap"><table><thead><tr><th>Мероприятие</th><th>Дата</th><th>Продажи</th><th>Возвраты</th><th>Услуги</th><th>Баланс</th><th>Доступно</th><th>Ожидает поступления</th><th>Следующая выплата</th><th>Статус</th></tr></thead><tbody>
-      {summary.events.map(event=><tr key={event.eventId}><td><Link href={`/office/finance/${event.eventId}`}><strong>{event.eventTitle}</strong></Link></td><td>{eventDate(event.eventStartsAt)}</td><td><strong>{money(event.salesMinor)}</strong></td><td>{money(event.refundsMinor)}</td><td>{money(event.servicesMinor)}</td><td><strong>{money(event.balanceMinor-event.paidOutMinor)}</strong></td><td style={{color:event.availableMinor>0?"#15803d":undefined,fontWeight:700}}>{money(event.availableMinor)}</td><td>{money(Math.max(0,event.awaitingSettlementMinor))}</td><td>{dateLabel(event.payoutDate)}</td><td><span className="pill">{payoutLabel(event.status)}</span></td></tr>)}
-      {!summary.events.length&&<tr><td colSpan={10}>Финансовых операций пока нет.</td></tr>}
-    </tbody></table></div>
+    <div className="table-wrap"><table><thead><tr><th>Мероприятие</th><th>Дата</th><th>Продажи</th><th>Возвраты</th><th>Услуги</th><th>Баланс</th><th>Доступно</th><th>Ожидает поступления</th><th>Следующая выплата</th><th>Статус</th></tr></thead><tbody>{summary.events.map(event=><tr key={event.eventId}><td><Link href={`/office/finance/${event.eventId}`}><strong>{event.eventTitle}</strong></Link></td><td>{eventDate(event.eventStartsAt)}</td><td><strong>{money(event.salesMinor)}</strong></td><td>{money(event.refundsMinor)}</td><td>{money(event.servicesMinor)}</td><td><strong>{money(event.balanceMinor-event.paidOutMinor)}</strong></td><td style={{color:event.availableMinor>0?"#15803d":undefined,fontWeight:700}}>{money(event.availableMinor)}</td><td>{money(Math.max(0,event.awaitingSettlementMinor))}</td><td>{dateLabel(event.payoutDate)}</td><td><span className="pill">{payoutLabel(event.status)}</span></td></tr>)}{!summary.events.length&&<tr><td colSpan={10}>Нет финансовых данных по доступным мероприятиям.</td></tr>}</tbody></table></div>
   </AdminShell>;
 }
