@@ -107,7 +107,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
 
   const [allEvents,hiddenEventIds,tours,tourLinks,marqueeRows]=await Promise.all([
     db.event.findMany({
-      where: { status: "PUBLISHED", startsAt: { gte: new Date() } },
+      where: { status: "PUBLISHED", salesEnd: { gte: new Date() } },
       select: {
         id: true,
         slug: true,
@@ -115,6 +115,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
         description: true,
         posterUrl: true,
         startsAt: true,
+        salesEnd: true,
         organizationId: true,
         venue: { select: { city: true, name: true } },
         categories: { where: { hidden: false }, select: { priceMinor: true, pricingMode: true, salesStart: true, salesEnd: true, priceTiers: { select: { priceMinor: true, startsAt: true, endsAt: true } } } },
@@ -173,7 +174,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{categor
   const nowMs=Date.now();
   const marqueeCards=marqueeRows
     .map(row=>marqueeEventById.get(row.eventId))
-    .filter((event):event is EventRow=>Boolean(event&&event.startsAt.getTime()>=nowMs))
+    .filter((event):event is EventRow=>Boolean(event&&event.salesEnd.getTime()>=nowMs))
     .map(event=>({
       id:`event-${event.id}`,
       href:`/events/${event.slug}`,
