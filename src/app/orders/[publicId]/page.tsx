@@ -5,6 +5,7 @@ import { CheckCircle2, Clock3, WalletCards, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
 import { TicketCard } from "@/components/ticket-card";
 import { DemoPaymentButton } from "@/components/demo-payment-button";
+import { OrderCartCleanup } from "@/components/order-cart-cleanup";
 import { parseTicketDesign } from "@/lib/ticket-template";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export default async function OrderPage({ params }: { params: Promise<{ publicId
   const awaitingPayment = order.status === "AWAITING_PAYMENT";
   const paid = order.status === "PAID";
   const cancelled = order.status === "CANCELLED";
+  const shouldClearCart = pending || rejected || awaitingPayment || paid || cancelled;
   const qrs = cancelled ? [] : await Promise.all(order.tickets.map((ticket) => QRCode.toDataURL(ticket.publicCode, { margin: 1, width: 360, errorCorrectionLevel: "M" })));
   const design = parseTicketDesign(order.event.ticketTemplate);
   const walletReady = Boolean(process.env.APPLE_WALLET_PASS_TYPE_ID && process.env.APPLE_WALLET_TEAM_ID && process.env.APPLE_WALLET_SIGNER_CERT_BASE64 && process.env.APPLE_WALLET_SIGNER_KEY_BASE64 && process.env.APPLE_WALLET_WWDR_CERT_BASE64);
@@ -29,6 +31,7 @@ export default async function OrderPage({ params }: { params: Promise<{ publicId
 
   return (
     <main className="shell">
+      {shouldClearCart && <OrderCartCleanup eventSlug={order.event.slug} eventTitle={order.event.title} />}
       <section className="panel success">
         {pending && <Clock3 color="#d68b00" size={58} />}
         {(rejected || cancelled) && <XCircle color="#b42318" size={58} />}
