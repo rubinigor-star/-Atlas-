@@ -29,14 +29,14 @@ type ScanState =
   | { kind: "result"; payload: TicketValidationPayload }
   | { kind: "error"; message: string };
 
-const OK_TONE = "data:audio/wav;base64,UklGRnQFAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVAFAACAgIKCgX56eHl/houMhnxybnJ9i5WVi3trY2l6j56gkntkWWB1kaaqmn1hU1pykKesnH9jU1hvjaWsnoJlVFdsi6SsoIVnVVZqiKKtoohqVlVnhaCspItsV1Rlgp6spY1vWFNjgJysp5ByWlNhfZqrqJN0W1NfepiqqZV3XVNdd5Wpqph6X1NbdJOoq5p9YVNacpCnrJyAY1NYb42lrJ6CZVRXbIukrKCFZ1VWaoiiraKIalZVZ4WgrKSLbFdUZYKerKWNb1hTY4CcrKeQclpTYX2aq6iTdFtTX3qYqqmVd11TXXeVqaqYel9TW3STqKuafWFTWnKQp6ycf2NTWG+NpayegmVUV2yLpKyghWdVVmqIoq2iiGpWVWeFoKyki2xXVGWCnqyljW9YU2N/nKynkHJaU2F9mquok3RbU196mKqplXddU113lamqmHpfU1t0k6irmn1hU1pykKesnIBjU1hvjaWsnoJlVFdsi6SsoIVnVVZqiKKtoohqVlVnhaCspItsV1Rlgp6spY1vWFNjgJyrpY9yXFdkfZelopB2Ylxme5Kgno95Z2Foeo6amo58bGZreYqVlo1+cWtueYeQkYt/dXByeoSLjIiAeXV2e4KGh4WAfHp7fYCCgoGAf3+AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIKBfXp7gYiJgndyeIWQjoBwa3eLmJF7Z2V5lKCSdF1hfp6nkGtUYIanqYpjU2aNqqWCXVRtlaygellWdJusmnJVWnyhrJNrU16EpqmMZFNkjKmmhF5Ta5OsoXxaVXKarJt0Vll6oKyVbVRdgqWqjWZTY4qpp4ZgU2qSq6J+W1VxmayddldYeJ+slm5UXICkq49nU2KIqKiHYVNokKujf1xUb5esnnhXV3edrJhwVFt/o6uRaVNgh6eoiWJTZo6qpIFdVG2VrJ95WFZ1nKyZclVafaKrkmpTX4WmqYtkU2WNqqWDXlNslKyhe1lWc5utm3NWWXuhrJRsU16DpaqNZVNki6mmhV9TapKron1aVXKZrJx1Vlh5n6yVbVRdgaSqjmZTYomop4dgU2mRq6N/W1RwmKydd1dXeJ6sl29UXICjq5BoU2GHqKiIYlNnj6ukgFxUbpasn3hYV3adrJlxVVt+oquSalNghqepimNTZo2qpYJdVG2VrKB6WVZ0m6yaclVafKGsk2tTXoSmqYxkU2SMqaaEXlNrk6yhfFpVcpqsm3RWWXqgrJVtVF2CpaqNZlNjiqmnhmBTapKron5bVXGZrJ12V1h4n6yWblRcgKSrj2dTYoioqIdhU2iQq6OAXFRvl6yeeFdXd52smHBUW3+jq5FpU2CHp6iJYlNmjqqkgV1UbZWsn3lYVnWcrJlyVVp9oquSalNfhaapi2RTZY2qpYNeU2yUrKF7WVZzm6yadFdbe56okm5ZYoOfoopqXGqIn5yDaGBxjJ2Wfmhld4+ZkHppa3yPlYp3bHCAj5GFdm91g42MgndzeoSKh394d32DhoR+e3t/goKBf35/gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
+const OK_TONE = "data:audio/wav;base64,UklGRnQFAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVAFAACAgIKCgX56eHl/houMhnxybnJ9i5WVi3trY2l6j56gkntkWWB1kaaqmn1hU1pykKesnH9jU1hvjaWsnoJlVFdsi6SsoIVnVVZqiKKtoohqVlVnhaCspItsV1Rlgp6spY1vWFNjgJysp5ByWlNhfZqrqJN0W1NfepiqqZV3XVNdd5Wpqph6X1NbdJOoq5p9YVNacpCnrJyAY1NYb42lrJ6CZVRXbIukrKCFZ1VWaoiiraKIalZVZ4WgrKSLbFdUZYKerKWNb1hTY4CcrKeQclpTYX2aq6iTdFtTX3qYqqmVd11TXXeVqaqYel9TW3STqKuafWFTWnKQp6ycf2NTWG+NpayegmVUV2yLpKyghWdVVmqIoq2iiGpWVWeFoKyki2xXVGWCnqyljW9YU2N/nKynkHJaU2F9mquok3RbU196mKqplXddU113lamqmHpfU1t0k6irmn1hU1pykKesnIBjU1hvjaWsnoJlVFdsi6SsoIVnVVZqiKKtoohqVlVnhaCspItsV1Rlgp6spY1vWFNjgJyrpY9yXFdkfZelopB2Ylxme5Kgno95Z2Foeo6amo58bGZreYqVlo1+cWtueYeQkYt/dXByeoSLjIiAeXV2e4KGh4WAfHp7fYCCgoGAf3+AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIKBfXp7gYiJgndyeIWQjoBwa3eLmJF7Z2V5lKCSdF1hfp6nkGtUYIanqYpjU2aNqqWCXVRtlaygellWdJusmnJVWnyhrJNrU16EpqmMZFNkjKmmhF5Ta5OsoXxaVXKarJt0Vll6oKyVbVRdgqWqjWZTY4qpp4ZgU2qSq6J+W1VxmayddldYeJ+slm5UXICkq49nU2KIqKiHYVNokKujf1xUb5esnnhXV3edrJhwVFt/o6uRaVNgh6eoiWJTZo6qpIFdVG2VrJ95WFZ1nKyZclVafaKrkmpTX4WmqYtkU2WNqqWDXlNslKyhe1lWc5utm3NWWXuhrJRsU16DpaqNZVNki6mmhV9TapKron1aVXKZrJx1Vlh5n6yVbVRdgaSqjmZTYomop4dgU2mRq6N/W1RwmKydd1dXeJ6sl29UXICjq5BoU2GHqKiIYlNnj6ukgFxUbpasn3hYV3adrJlxVVt+oquSalNghqepimNTZo2qpYJdVG2VrKB6WVZ0m6yaclVafKGsk2tTXoSmqYxkU2SMqaaEXlNrk6yhfFpVcpqsm3RWWXqgrJVtVF2CpaqNZlNjiqmnhmBTapKron5bVXGZrJ12V1h4n6yWblRcgKSrj2dTYoioqIdhU2iQq6OAXFRvl6yeeFdXd52smHBUW3+jq5FpU2CHp6iJYlNmjqqkgV1UbZWsn3lYVnWcrJlyVVp9oquSalNfhaapi2RTZY2qpYNeU2yUrKF7WVZzm6yadFdbe56okm5ZYoOfoopqXGqIn5yDaGBxjJ2Wfmhld4+ZkHppa3yPlYp3bHCAj5GFdm91g42MgndzeoSKh394d32DhoR+e3t/goKBf35/gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
 const ERROR_TONE = "data:audio/wav;base64,UklGRvQHAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YdAHAACAgICBgoSFh4iKi4uLi4qIhoOAfHl0cGxpZmNhYGBhZGdrcHZ9hIuTmqClqausrKuopJ+Zk4uEfHRtZmBbV1RTU1RWWl9ka3J6gomRmJ6jp6qsrKyppqGclY6Hf3dwaWJdWFVTU1NVWF1iaXB3f4eOlZyhpqmsrKyqp6OemJGJgnpya2RfWlZUU1NUV1tgZm10fISLk5mfpKirrKyrqaWgmpOMhH11bmdhXFdUU1NUVlpeZGpyeYGJkJedo6eqrKysqqainJaPh394cGljXVlVU1NTVVhcYmhvdn6GjZWboaWpq6ysq6ijnpiRioJ7c2xlX1pWVFNTVFdbYGZsdHuDi5KZn6Soq6ysq6mloJuUjYV9dm5nYVxYVVNTU1ZZXmNqcXiAiI+WnaKnqqytrKqnop2Wj4iAeHFqY15ZVlNTU1VYXGFnbnZ9hY2Um6ClqausrKuopJ+ZkouDe3RsZmBbV1RTU1RWWl9lbHN7goqRmJ6jqKusrKuppaGblY2GfnZvaGJcWFVTU1NVWV1jaXB4gIePlpyipqqsrKyqp6Odl5CJgXlyamReWlZUU1NUV1xhZ251fYSMk5qgpamrrKyrqKSfmZOLhHx0bWZgW1dUU1NUVlpfZGtyeoKJkZieo6eqrKysqaahnJWOh393cGliXVhVU1NTVVhdYmlwd3+HjpWcoaaprKysqqejnpiRiYJ6cmtkX1pWVFNTVFdbYGZtdHyEi5OZn6Soq6ysq6mloJqTjIR9dW5nYVxXVFNTVFZaXmRqcnmBiZCXnaOnqqysrKqmopyWj4eAeHBpY11ZVVNTU1VYXGJob3Z+ho2Vm6GlqausrKuoo56YkYqCe3NsZV9aVlRTU1RXW2BmbHR7g4uSmZ+kqKusrKuppaCblI2FfXZuZ2FcWFVTU1NWWV5janF4gIiPlp2ip6qsrayqp6Kdlo+IgHhxamNeWVZTU1NVWF1iaW92foWLkZebn6Kjo6OhnpuXko2Hgn14c29saWdmZmZoaWxvcnZ6fYGEh4qMjY+Pj4+OjIuJh4WDgX9+fHt6enp6enp7fH19fn9/f4CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGCg4WGiImLjI2Ojo6NjIuJhoSAfXl1cW1pZWFfXFpZWVpbXmFlanB2fYOJj5Wbn6OnqqusrKyqp6Sgm5aQioR9d3FrZmFcWVZUU1NTVVdaXmNobnR6gIeNk5idoqWpq6ytrKuppaKdmJONh4B6dG5oY15aV1VTU1NUVllcYWZrcXd9hIqQlpugpKeqrKysq6qno5+blY+Jg312cGplYFxYVlRTU1NVV1tfY2ludHuBh42TmZ6ipqmrrKysq6iloZ2YkoyGf3lzbWdiXlpXVFNTU1RWWV1hZmxyeH6Ei5GWnKCkqKiqrKyrqaWjn5qVj4mCfHZwamRgXFhVVFNTU1VYW19kaW91e4KIjpSZnqOmqausrKyqqKWhnJeRi4V/eHJsZ2JdWlZUU1NTVFZaXWJnbHJ4f4WLkZecoaWoqqysrKuppqOemZSOiIJ7dW9pZF9bWFVTU1NUVVhcYGRqcHZ8gomPlZqfo6epq6ysrKqopKCclpGLhH54cmxmYV1ZVlRTU1NUV1peYmdtc3mAhoySmJ2hpairrKysq6mmop6Zk42HgXt0bmljX1tXVVNTU1RWWFxgZWpwdn2DiY+Vm5+jp6qrrKysqqekoJuWkIqEfXdxa2ZhXFlWVFNTU1VXWl5jaG50eoCHjZOYnaKlqausrayrqaWinZiTjYeAenRuaGNeWldVU1NTVFZZXGFma3F3fYSKkJaboKSnqqysrKuqp6Ofm5WPiYN9dnBqZWBcWFZUU1NTVVdbX2NpbnR7gYeNk5meoqapq6ysrKuopaGdmJKMhoB5c21nYl5aV1RTU1NUVlldYWZscnh+hIuRlpygpKiqrKysq6mno5+alY+Jgnx2cGpkYFxYVVRTU1NVWFtfZGlvdXuCiI6UmZ6jpqmrrKysqqiloZyXkYuFf3hybGdiXVpWVFNTU1RWWl1iZ2xyeH+Fi5GXnKGlqKqsrKyrqaajnpmUjoiCe3VvaWRfW1hVU1NTVFVYXGBkanB2fIKJj5Wan6OnqausrKyqqKSgnJaRi4R+eHJsZmFdWVZUU1NTVFdaXmJnbXN5gIaMkpidoaWoq6ysrKuppqKemZONh4F7dG5pY19bV1VTU1NUVlhcYGVqcHZ9g4mPlZufo6eqq6ysrKqnpKCblpCKhH13cWtmYVxZVlRTU1NVWFtfZGlvdXqAhouQlJibnqChoaGgn52al5SQjIiEgHx5dXJwbmxrampqa2xtb3FzdXh6fX+Bg4SGh4iJiYmJiIiHhoWEg4OCgYCAf39/f4CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA=";
 
 const RESULT_COPY: Record<TicketValidationPayload["result"], { title: string; message: string; icon: keyof typeof Ionicons.glyphMap }> = {
   VALID: { title: "Вход разрешён", message: "Билет отмечен как использованный.", icon: "checkmark-circle" },
   USED: { title: "Уже использован", message: "Этот билет уже проходил check-in.", icon: "alert-circle" },
   CANCELLED: { title: "Билет недействителен", message: "Отменённый билет нельзя пропустить.", icon: "close-circle" },
-  NOT_FOUND: { title: "Билет не найден", message: "Этот QR-код не относится к действующему билету Atlas.", icon: "help-circle" },
+  NOT_FOUND: { title: "Билет не найден", message: "Этот код не относится к действующему билету мероприятия.", icon: "help-circle" },
 };
 
 function errorMessage(error: unknown) {
@@ -47,7 +47,7 @@ function errorMessage(error: unknown) {
   if (code === "WRONG_EVENT") return "Это билет другого мероприятия. Билет не использован.";
   if (code === "CHECKIN_CLOSED") return "Сканирование для этого мероприятия сейчас закрыто.";
   if (code === "NETWORK_ERROR") return "Нет связи с Atlas. Проверьте интернет и повторите.";
-  if (code === "INVALID_QR") return "QR-код имеет неправильный формат.";
+  if (code === "INVALID_QR") return "Код имеет неправильный формат.";
   return "Не удалось проверить билет. Повторите сканирование.";
 }
 
@@ -137,6 +137,7 @@ export default function ScannerScreen() {
     busyRef.current = true;
     setPaused(true);
     setState({ kind: "checking" });
+    // Send the camera payload exactly as decoded. The backend decides whether it is Atlas or external.
     await checkCode(data);
     resumeTimerRef.current = setTimeout(resume, 2400);
   }, [checkCode, eventId, paused, resume]);
@@ -194,7 +195,7 @@ export default function ScannerScreen() {
         <View style={styles.permissionCard}>
           <View style={styles.permissionIcon}><Ionicons name="camera-outline" size={38} color="#15803D" /></View>
           <Text style={styles.permissionTitle}>Разрешите доступ к камере</Text>
-          <Text style={styles.permissionText}>Atlas One использует камеру только для чтения QR-кодов билетов.</Text>
+          <Text style={styles.permissionText}>Atlas One использует камеру только для чтения QR-кодов и штрих-кодов билетов.</Text>
           <TouchableOpacity style={styles.primaryButton} onPress={() => void requestPermission()}><Text style={styles.primaryButtonText}>Разрешить камеру</Text></TouchableOpacity>
         </View>
       </OfficePage>
@@ -204,6 +205,7 @@ export default function ScannerScreen() {
   const resultCopy = state.kind === "result" ? RESULT_COPY[state.payload.result] : null;
   const success = state.kind === "result" && state.payload.result === "VALID";
   const used = state.kind === "result" && state.payload.result === "USED";
+  const externalSource = state.kind === "result" && state.payload.external ? (state.payload.sourceName || state.payload.platformKey || "Imported") : null;
 
   return (
     <OfficePage title="Сканер" subtitle={eventTitle ? `Вход: ${eventTitle}` : "Сканирование мероприятия"}>
@@ -224,7 +226,7 @@ export default function ScannerScreen() {
           facing="back"
           active
           enableTorch={torch}
-          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+          barcodeScannerSettings={{ barcodeTypes: ["qr", "code128", "code39", "code93", "ean13", "ean8", "upc_a", "upc_e", "itf14", "codabar", "pdf417", "datamatrix", "aztec"] }}
           onBarcodeScanned={paused ? undefined : handleBarcode}
         >
           <View style={styles.overlay}>
@@ -238,7 +240,7 @@ export default function ScannerScreen() {
               <View style={[styles.corner, styles.cornerTopLeft]} /><View style={[styles.corner, styles.cornerTopRight]} />
               <View style={[styles.corner, styles.cornerBottomLeft]} /><View style={[styles.corner, styles.cornerBottomRight]} />
             </View>
-            <Text style={styles.hint}>QR-код билета Atlas</Text>
+            <Text style={styles.hint}>QR или штрих-код билета</Text>
           </View>
         </CameraView>
       </View>
@@ -246,7 +248,7 @@ export default function ScannerScreen() {
       <View style={[styles.statusCard, success && styles.statusSuccess, used && styles.statusUsed, state.kind === "result" && !success && !used && styles.statusError]}>
         {state.kind === "idle" && <><Ionicons name="scan-outline" size={32} color="#15803D" /><View style={styles.statusCopy}><Text style={styles.statusTitle}>Готов к сканированию</Text><Text style={styles.statusText}>Камера остаётся открытой после каждого билета.</Text></View></>}
         {state.kind === "checking" && <><ActivityIndicator size="small" color="#15803D" /><View style={styles.statusCopy}><Text style={styles.statusTitle}>Проверяем билет...</Text><Text style={styles.statusText}>Atlas проверяет билет и право входа.</Text></View></>}
-        {state.kind === "result" && resultCopy && <><Ionicons name={resultCopy.icon} size={38} color={success ? "#15803D" : used ? "#B45309" : "#B91C1C"} /><View style={styles.statusCopy}><Text style={[styles.statusTitle, used && styles.statusTitleUsed, !success && !used && styles.statusTitleError]}>{resultCopy.title}</Text><Text style={styles.statusText}>{state.payload.holderName ? `${state.payload.holderName} · ${state.payload.categoryName || "Билет"}` : resultCopy.message}</Text></View></>}
+        {state.kind === "result" && resultCopy && <><Ionicons name={resultCopy.icon} size={38} color={success ? "#15803D" : used ? "#B45309" : "#B91C1C"} /><View style={styles.statusCopy}><Text style={[styles.statusTitle, used && styles.statusTitleUsed, !success && !used && styles.statusTitleError]}>{resultCopy.title}</Text><Text style={styles.statusText}>{state.payload.holderName ? `${state.payload.holderName} · ${state.payload.categoryName || "Билет"}` : resultCopy.message}</Text>{externalSource && <Text style={styles.sourceText}>Источник: {externalSource}</Text>}</View></>}
         {state.kind === "error" && <><Ionicons name="warning-outline" size={38} color="#B91C1C" /><View style={styles.statusCopy}><Text style={styles.statusTitleError}>Вход не подтверждён</Text><Text style={styles.statusText}>{state.message}</Text></View></>}
       </View>
 
@@ -349,6 +351,7 @@ const styles = StyleSheet.create({
   statusTitleUsed: { color: "#B45309" },
   statusTitleError: { fontSize: 18, fontWeight: "900", color: "#B91C1C" },
   statusText: { fontSize: 13, lineHeight: 19, color: "#4B5563", marginTop: 3 },
+  sourceText: { fontSize: 11, lineHeight: 16, color: "#6D45FF", marginTop: 4, fontWeight: "800" },
   manualCard: { marginTop: 14, backgroundColor: "#FFFFFF", borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB", padding: 16 },
   sectionTitle: { fontSize: 17, fontWeight: "900", color: "#111827" },
   sectionHelp: { fontSize: 12.5, color: "#6B7280", marginTop: 3 },
