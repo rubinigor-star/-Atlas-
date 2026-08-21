@@ -5,6 +5,7 @@ import { getMobileStaff } from "@/lib/mobile-auth";
 import { validateAndUseTicket } from "@/lib/ticket-engine";
 import { ensureExternalTicketStorage } from "@/lib/external-ticket-storage";
 import { checkInExternalTicket } from "@/lib/external-tickets";
+import { recordValueCardVisitForCustomer } from "@/lib/valuecard-visit";
 
 const schema = z.object({
   eventId: z.string().min(1).max(200),
@@ -118,6 +119,24 @@ export async function POST(request: Request) {
         },
         { status: 409 },
       );
+    }
+
+    if (externalResult.status === "VALID" && externalResult.externalTicketId) {
+      const rows = await db.$queryRawUnsafe<Array<{ phone: string | null }>>(
+        `SELECT "phone" FROM "ExternalTicket" WHERE "id"=$1 LIMIT 1`,
+        externalResult.externalTicketId,
+      );
+      const valueCard = await recordValueCardVisitForCustomer({
+        organizationId: selectedEvent.organizationId,
+        phone: rows[0]?.phone ?? null,
+        referenceId: externalResult.externalTicketId,
+        eventTitle: selectedEvent.title,
+      });
+      console.info("scanner.valuecard.external.visit", {
+        externalTicketId: externalResult.externalTicketId,
+        sourceName: externalResult.sourceName,
+        valueCard,
+      });
     }
 
     const status = externalResult.status === "VALID" ? 200 : 409;
