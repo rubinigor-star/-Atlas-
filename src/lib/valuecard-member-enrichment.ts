@@ -115,23 +115,35 @@ function genderNumber(value: number | string | null | undefined) {
   return 0;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function valueCardFetch(token: string, url: string, init?: RequestInit) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 7000);
-  try {
-    return await fetch(url, {
-      ...init,
-      headers: {
-        Authorization: bearer(token),
-        Accept: "application/json, text/plain",
-        ...(init?.headers || {}),
-      },
-      cache: "no-store",
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timer);
+  let lastResponse: Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 7000);
+    try {
+      const response = await fetch(url, {
+        ...init,
+        headers: {
+          Authorization: bearer(token),
+          Accept: "application/json, text/plain",
+          ...(init?.headers || {}),
+        },
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      lastResponse = response;
+      if (![429, 471, 500, 502, 503, 504].includes(response.status) || attempt === 2) return response;
+    } finally {
+      clearTimeout(timer);
+    }
+    await sleep(500 * (attempt + 1));
   }
+  if (lastResponse) return lastResponse;
+  throw new Error("ValueCard request failed without response");
 }
 
 export async function getValueCardMemberDetails(token: string, memberId: number) {
@@ -170,7 +182,7 @@ export async function enrichValueCardMemberMissingFields(input: {
   if (!text(current.lastName) && atlasLast) updatedFields.push("lastName");
   if (!text(current.email) && atlasEmail) updatedFields.push("email");
   if (!dateOnly(current.birthDay) && atlasBirth) updatedFields.push("birthDate");
-  if (!text(current.address) && !text(current.city) && atlasCity) updatedFields.push("city");
+  if (!text(current.city) && atlasCity) updatedFields.push("city");
   if (genderNumber(current.gender) === 0 && atlasGender !== 0) updatedFields.push("gender");
 
   if (!updatedFields.length) return { updated: false, updatedFields, memberId: input.memberId };
@@ -184,7 +196,8 @@ export async function enrichValueCardMemberMissingFields(input: {
     email: text(current.email) || atlasEmail || null,
     birthDay: dateOnly(current.birthDay) || atlasBirth || null,
     phone: text(current.phone),
-    address: text(current.address) || text(current.city) || atlasCity || null,
+    address: text(current.address) || atlasCity || null,
+    city: text(current.city) || atlasCity || null,
     zipcode: text(current.zipcode),
     anniversaryDate: dateOnly(current.anniversaryDate),
     gender: genderNumber(current.gender) || atlasGender,
@@ -207,7 +220,7 @@ export async function enrichValueCardMemberMissingFields(input: {
     if (field === "lastName") return !text(verified.lastName);
     if (field === "email") return !text(verified.email);
     if (field === "birthDate") return !dateOnly(verified.birthDay);
-    if (field === "city") return !text(verified.address) && !text(verified.city);
+    if (field === "city") return !text(verified.city);
     if (field === "gender") return genderNumber(verified.gender) === 0;
     return false;
   });
