@@ -62,8 +62,10 @@ function findMember(value: unknown): ValueCardMember | null {
   const obj = value as Record<string, unknown>;
   const common = (obj.common ?? obj.Common) as Record<string, unknown> | undefined;
   if (common && (common.isError === true || common.IsError === true)) return null;
-  const idValue = obj.memberId ?? obj.MemberId ?? obj.memberID ?? obj.MemberID ?? obj.MemberKey ?? obj.memberKey;
   const cardValue = obj.memberCardNumber ?? obj.MemberCardNumber ?? obj.cardNumber ?? obj.CardNumber ?? obj.cardNum ?? obj.CardNum;
+  const explicitMemberId = obj.memberId ?? obj.MemberId ?? obj.memberID ?? obj.MemberID ?? obj.MemberKey ?? obj.memberKey ?? obj.clubMemberId ?? obj.ClubMemberId ?? obj.clubMemberID ?? obj.ClubMemberID;
+  const contextualId = cardValue !== undefined ? (obj.id ?? obj.Id ?? obj.ID) : undefined;
+  const idValue = explicitMemberId ?? contextualId;
   if (idValue !== undefined || cardValue !== undefined) {
     const parsed = typeof idValue === "number" ? idValue : Number(idValue);
     return {
@@ -141,7 +143,7 @@ export async function searchValueCardMember(organizationId: string, phone: strin
       const payload = parsePayload(text);
       const member = findMember(payload);
       const common = commonInfo(payload);
-      console.info("valuecard.lookup.result", { organizationId, status: response.status, contentType, variant: index + 1, found: Boolean(member), common });
+      console.info("valuecard.lookup.result", { organizationId, status: response.status, contentType, variant: index + 1, found: Boolean(member), hasMemberId: Boolean(member?.memberId), common });
       if (member) return member;
     } catch (error) {
       console.info("valuecard.lookup.exception", { organizationId, variant: index + 1, message: error instanceof Error ? error.message : "Unknown error" });
