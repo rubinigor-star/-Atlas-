@@ -3,6 +3,32 @@ import type { ReactNode } from "react";
 export default function SeatSelectionLayout({ children }: { children: ReactNode }) {
   return <>
     <style>{`
+      /* The public seat-map geometry is physical, not logical. Hebrew should
+         change text direction, not mirror the map/sidebar/header composition. */
+      body.atlas-seat-selection-active {
+        direction: ltr !important;
+      }
+
+      html[dir="rtl"] body.atlas-seat-selection-active .atlas-site-header,
+      html[dir="rtl"] body.atlas-seat-selection-active .atlas-header-shell {
+        direction: ltr !important;
+      }
+
+      html[dir="rtl"] body.atlas-seat-selection-active .atlas-header-brand {
+        justify-self: left !important;
+      }
+
+      html[dir="rtl"] body.atlas-seat-selection-active aside:has(> .atlas-checkout-button) {
+        direction: rtl !important;
+        text-align: right !important;
+      }
+
+      html[dir="rtl"] body.atlas-seat-selection-active a[class*="headerBack"] {
+        direction: rtl !important;
+        right: 28px !important;
+        left: auto !important;
+      }
+
       @media (min-width: 901px) {
         aside:has(> .atlas-checkout-button) {
           position: relative !important;
@@ -60,6 +86,11 @@ export default function SeatSelectionLayout({ children }: { children: ReactNode 
       @media (max-width: 900px) {
         aside:has(> .atlas-checkout-button) {
           display: flex !important;
+        }
+
+        html[dir="rtl"] body.atlas-seat-selection-active a[class*="headerBack"] {
+          right: 14px !important;
+          left: auto !important;
         }
       }
     `}</style>
