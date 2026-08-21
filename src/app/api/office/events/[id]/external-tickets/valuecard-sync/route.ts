@@ -15,7 +15,7 @@ const BATCH_SIZE = 5;
 type ExternalCustomerRow = {
   id: string;
   holderName: string | null;
-  phone: string | null;
+  phone: string;
   email: string | null;
   metadataJson: string | null;
 };
@@ -49,10 +49,6 @@ function splitName(holderName: string | null, metadata: Metadata) {
   };
 }
 
-function normalizedPhone(value: string | null) {
-  return (value || "").replace(/\D/g, "");
-}
-
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: eventId } = await params;
@@ -73,12 +69,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!source[0]) throw new Error("SOURCE_NOT_FOUND");
 
     const rows = await db.$queryRawUnsafe<ExternalCustomerRow[]>(
-      `SELECT "id","holderName","phone","email","metadataJson"
-       FROM "ExternalTicket"
-       WHERE "sourceId"=$1 AND "eventId"=$2
-         AND "metadataJson" LIKE '%"__atlasOrganizerConsent":true%'
-         AND ($3::text IS NULL OR "id" > $3)
-       ORDER BY "id" ASC
+      `SELECT DISTINCT ON (c."id")
+         c."id", c."name" AS "holderName", c."phone", c."email", t."metadataJson"
+       FROM "ExternalCustomer" c
+       JOIN "ExternalTicket" t ON t."customerId"=c."id"
+       WHERE t."sourceId"=$1 AND t."eventId"=$2
+         AND t."metadataJson" LIKE '%"__atlasOrganizerConsent":true%'
+         AND ($3::text IS NULL OR c."id" > $3)
+       ORDER BY c."id" ASC, t."id" ASC
        LIMIT $4`,
       input.sourceId,
       eventId,
@@ -88,7 +86,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const batch = rows.slice(0, BATCH_SIZE);
     const errors: Array<{ ticketId: string; reason: string }> = [];
-    const seenPhones = new Set<string>();
     let skipped = 0;
 
     const candidates = batch.flatMap((row) => {
@@ -98,18 +95,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         errors.push({ ticketId: row.id, reason: "NO_EXPLICIT_CONSENT" });
         return [];
       }
-      const phoneKey = normalizedPhone(row.phone);
-      if (!phoneKey) {
-        skipped += 1;
-        errors.push({ ticketId: row.id, reason: "NO_PHONE" });
-        return [];
-      }
-      if (seenPhones.has(phoneKey)) {
-        skipped += 1;
-        errors.push({ ticketId: row.id, reason: "DUPLICATE_PHONE_IN_BATCH" });
-        return [];
-      }
-      seenPhones.add(phoneKey);
       const names = splitName(row.holderName, metadata);
       if (!names.firstName || !names.lastName) {
         skipped += 1;
@@ -121,13 +106,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const outcomes = await Promise.all(candidates.map(async ({ row, firstName, lastName }) => {
       try {
-        const existing = await searchValueCardMember(event.organizationId, row.phone!);
+        const existing = await searchValueCardMember(event.organizationId, row.phone);
         if (existing) return { kind: "existing" as const, ticketId: row.id };
         await registerValueCardMember({
           organizationId: event.organizationId,
           firstName,
           lastName,
-          cellPhone: row.phone!,
+          cellPhone: row.phone,
           email: row.email,
         });
         return { kind: "created" as const, ticketId: row.id };
@@ -164,6 +149,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       nextCursor,
     });
   } catch (error) {
+    console.error("[external-ticket-valuecard-sync] failed", error);
     const message = error instanceof Error ? error.message : "VALUECARD_SYNC_FAILED";
     const status = message === "FORBIDDEN" ? 403 : message === "VALUECARD_NOT_CONFIGURED" ? 409 : 400;
     return NextResponse.json({ error: message }, { status });
