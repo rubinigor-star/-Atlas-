@@ -42,9 +42,14 @@
       "typedRoutes": true
     },
     "updates": {
-      "enabled": false
+      "enabled": true,
+      "url": "https://u.expo.dev/b3d8cabf-2459-4509-ae6f-4b06b2bbdd88",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
     },
-    "runtimeVersion": "1.7.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "extra": {
       "apiBaseUrl": "https://www.atlas-one.co",
       "eas": {
