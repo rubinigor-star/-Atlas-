@@ -8,6 +8,7 @@ import { getEffectiveEventTerms } from "@/lib/commercial-terms";
 import { getServerI18n } from "@/lib/server-locale";
 import { getActiveGuestSeatLocks } from "@/lib/guest-links";
 import { CART_SESSION_COOKIE, cartHoldOrderId, getHeldInventory } from "@/lib/cart-hold";
+import { getPendingCheckoutOwner } from "@/lib/cart-checkout-owner";
 import { EventSeatSelection } from "@/components/event-seat-selection";
 import { SeatHoldBridge } from "@/components/seat-hold-bridge";
 
@@ -42,7 +43,9 @@ export default async function EventSeatsPage({ params, searchParams }: { params:
   });
   if(!categories.length)notFound();
   const sessionId=store.get(CART_SESSION_COOKIE)?.value||"";
-  const held=await getHeldInventory({categoryIds:categories.map(category=>category.id),excludeOrderId:sessionId?cartHoldOrderId(sessionId,event.id):undefined});
+  const checkoutOwner=sessionId?await getPendingCheckoutOwner(sessionId,event.id).catch(()=>null):null;
+  const excludedOrderIds=sessionId?[cartHoldOrderId(sessionId,event.id),...(checkoutOwner?.orderId?[checkoutOwner.orderId]:[])]:[];
+  const held=await getHeldInventory({categoryIds:categories.map(category=>category.id),excludeOrderIds:excludedOrderIds});
   const heldSeatIds=new Set(held.seatIds);
   const heldTableIds=new Set(held.tableIds);
   const objects=zones.flatMap(zone=>zone.tables.map(table=>({
