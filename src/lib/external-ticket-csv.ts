@@ -5,6 +5,8 @@ export const externalTicketFields = [
   "externalTicketId",
   "externalOrderId",
   "holderName",
+  "firstName",
+  "lastName",
   "phone",
   "email",
   "ticketType",
@@ -12,6 +14,7 @@ export const externalTicketFields = [
   "priceMinor",
   "currency",
   "status",
+  "organizerConsent",
 ] as const;
 
 export type ExternalTicketField = (typeof externalTicketFields)[number];
@@ -30,14 +33,21 @@ const aliases: Record<ExternalTicketField, string[]> = {
   scanCode: ["qr", "qr code", "qrcode", "barcode", "bar code", "ticket barcode", "ticket qr", "scan code", "код qr", "штрихкод"],
   externalTicketId: ["ticket id", "ticket number", "ticket no", "ticketid", "номер билета", "id билета"],
   externalOrderId: ["order id", "order number", "order no", "booking id", "номер заказа", "id заказа"],
-  holderName: ["name", "full name", "customer name", "buyer name", "holder name", "guest name", "имя", "фио", "покупатель"],
-  phone: ["phone", "mobile", "telephone", "customer phone", "buyer phone", "телефон", "мобильный"],
-  email: ["email", "e mail", "mail", "customer email", "buyer email", "почта", "электронная почта"],
-  ticketType: ["ticket type", "ticket category", "category", "price type", "тип билета", "категория", "тариф"],
-  price: ["price", "amount", "ticket price", "цена", "сумма"],
+  holderName: ["name", "full name", "customer name", "buyer name", "holder name", "guest name", "фио", "покупатель", "שם מלא"],
+  firstName: ["first name", "firstname", "customer first name", "buyer first name", "имя", "שם פרטי"],
+  lastName: ["last name", "lastname", "customer last name", "buyer last name", "фамилия", "שם משפחה"],
+  phone: ["phone", "mobile", "telephone", "customer phone", "buyer phone", "телефон", "мобильный", "טלפון", "נייד"],
+  email: ["email", "e mail", "mail", "customer email", "buyer email", "почта", "электронная почта", "אימייל", "דואר אלקטרוני"],
+  ticketType: ["ticket type", "ticket category", "category", "price type", "тип билета", "категория", "тариф", "סוג כרטיס"],
+  price: ["price", "amount", "ticket price", "цена", "сумма", "מחיר"],
   priceMinor: ["price minor", "amount minor", "price cents", "agorot"],
-  currency: ["currency", "валюта"],
-  status: ["status", "ticket status", "статус", "статус билета"],
+  currency: ["currency", "валюта", "מטבע"],
+  status: ["status", "ticket status", "статус", "статус билета", "סטטוס"],
+  organizerConsent: [
+    "organizer consent", "club consent", "marketing consent", "mailing consent", "newsletter consent", "consent",
+    "согласие организатора", "согласие на рассылку", "согласие", "рассылка",
+    "אישור דיוור", "הסכמה לדיוור", "מאשר דיוור", "דיוור", "מועדון לקוחות", "אישור מועדון", "הסכמה למועדון",
+  ],
 };
 
 function separatorScore(line: string, separator: string) {
@@ -142,21 +152,39 @@ function parseStatus(value: string): ExternalTicketStatus {
   return "VALID";
 }
 
+export function parseOrganizerConsent(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return new Set(["yes", "true", "1", "y", "checked", "approved", "כן", "מאשר", "מאשרת", "מאושר", "מאושרת", "✓", "v"]).has(normalized);
+}
+
 export function mapCsvRecordsToExternalTickets(records: Record<string, string>[], mapping: ExternalTicketMapping) {
   if (!mapping.scanCode) throw new Error("Не выбрана колонка QR / Barcode");
-  return records.map<ExternalTicketImportRow>((record) => ({
-    scanCode: valueFor(record, mapping, "scanCode"),
-    externalTicketId: valueFor(record, mapping, "externalTicketId") || null,
-    externalOrderId: valueFor(record, mapping, "externalOrderId") || null,
-    holderName: valueFor(record, mapping, "holderName") || null,
-    phone: valueFor(record, mapping, "phone") || null,
-    email: valueFor(record, mapping, "email") || null,
-    ticketType: valueFor(record, mapping, "ticketType") || null,
-    priceMinor: parsePriceMinor(record, mapping),
-    currency: valueFor(record, mapping, "currency") || null,
-    status: parseStatus(valueFor(record, mapping, "status")),
-    metadata: record,
-  }));
+  return records.map<ExternalTicketImportRow>((record) => {
+    const firstName = valueFor(record, mapping, "firstName");
+    const lastName = valueFor(record, mapping, "lastName");
+    const mappedName = valueFor(record, mapping, "holderName");
+    const combinedName = [firstName, lastName].filter(Boolean).join(" ");
+    const consentValue = valueFor(record, mapping, "organizerConsent");
+    return {
+      scanCode: valueFor(record, mapping, "scanCode"),
+      externalTicketId: valueFor(record, mapping, "externalTicketId") || null,
+      externalOrderId: valueFor(record, mapping, "externalOrderId") || null,
+      holderName: mappedName || combinedName || null,
+      phone: valueFor(record, mapping, "phone") || null,
+      email: valueFor(record, mapping, "email") || null,
+      ticketType: valueFor(record, mapping, "ticketType") || null,
+      priceMinor: parsePriceMinor(record, mapping),
+      currency: valueFor(record, mapping, "currency") || null,
+      status: parseStatus(valueFor(record, mapping, "status")),
+      metadata: {
+        ...record,
+        __atlasOrganizerConsent: Boolean(mapping.organizerConsent) && parseOrganizerConsent(consentValue),
+        __atlasConsentColumn: mapping.organizerConsent || null,
+        __atlasFirstName: firstName || null,
+        __atlasLastName: lastName || null,
+      },
+    };
+  });
 }
 
 export function validateExternalTicketMapping(mapping: ExternalTicketMapping, headers: string[]) {
