@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectExternalTicketMapping, mapCsvRecordsToExternalTickets, parseCsv } from "@/lib/external-ticket-csv";
+import { detectExternalTicketMapping, mapCsvRecordsToExternalTickets, parseCsv, parseOrganizerConsent } from "@/lib/external-ticket-csv";
 
 describe("external ticket CSV", () => {
   it("parses semicolon files and quoted customer names", () => {
@@ -27,5 +27,26 @@ describe("external ticket CSV", () => {
     const rows = mapCsvRecordsToExternalTickets(parsed.records, mapping);
     expect(rows[0]).toMatchObject({ scanCode: "QR-9", ticketType: "VIP", priceMinor: 19990, status: "CANCELLED" });
     expect(rows[0].metadata).toMatchObject({ "QR Code": "QR-9", "Ticket Type": "VIP" });
+  });
+
+  it("treats only explicit positive organizer consent as consent", () => {
+    expect(parseOrganizerConsent("כן")).toBe(true);
+    expect(parseOrganizerConsent("yes")).toBe(true);
+    expect(parseOrganizerConsent("1")).toBe(true);
+    expect(parseOrganizerConsent("לא")).toBe(false);
+    expect(parseOrganizerConsent("")).toBe(false);
+  });
+
+  it("stores consent proof and first/last name in metadata", () => {
+    const parsed = parseCsv("Barcode,שם פרטי,שם משפחה,נייד,אישור דיוור\nQR-1,Igor,Rubin,0501234567,כן\n");
+    const mapping = detectExternalTicketMapping(parsed.headers);
+    const rows = mapCsvRecordsToExternalTickets(parsed.records, mapping);
+    expect(rows[0].holderName).toBe("Igor Rubin");
+    expect(rows[0].metadata).toMatchObject({
+      __atlasOrganizerConsent: true,
+      __atlasConsentColumn: "אישור דיוור",
+      __atlasFirstName: "Igor",
+      __atlasLastName: "Rubin",
+    });
   });
 });
