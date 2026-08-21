@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireEventAccess } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureExternalTicketStorage } from "@/lib/external-ticket-storage";
+import { ensureExternalCustomerProfileColumns } from "@/lib/external-customer-profiles";
 import { getValueCardToken, registerValueCardMember, searchValueCardMember } from "@/lib/valuecard";
 
 const schema = z.object({
@@ -17,6 +18,9 @@ type ExternalCustomerRow = {
   holderName: string | null;
   phone: string;
   email: string | null;
+  birthDate: Date | string | null;
+  city: string | null;
+  gender: string | null;
   metadataJson: string | null;
 };
 
@@ -49,11 +53,22 @@ function splitName(holderName: string | null, metadata: Metadata) {
   };
 }
 
+function asDate(value: Date | string | null) {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function asGender(value: string | null): "MALE" | "FEMALE" | null {
+  return value === "MALE" || value === "FEMALE" ? value : null;
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: eventId } = await params;
     await requireEventAccess("TICKET_MANAGE", eventId);
-    await ensureExternalTicketStorage();
+    await Promise.all([ensureExternalTicketStorage(), ensureExternalCustomerProfileColumns()]);
     const input = schema.parse(await request.json());
 
     const event = await db.event.findUnique({ where: { id: eventId }, select: { organizationId: true } });
@@ -70,7 +85,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const rows = await db.$queryRawUnsafe<ExternalCustomerRow[]>(
       `SELECT DISTINCT ON (c."id")
-         c."id", c."name" AS "holderName", c."phone", c."email", t."metadataJson"
+         c."id", c."name" AS "holderName", c."phone", c."email", c."birthDate", c."city", c."gender", t."metadataJson"
        FROM "ExternalCustomer" c
        JOIN "ExternalTicket" t ON t."customerId"=c."id"
        WHERE t."sourceId"=$1 AND t."eventId"=$2
@@ -114,6 +129,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           lastName,
           cellPhone: row.phone,
           email: row.email,
+          birthDate: asDate(row.birthDate),
+          city: row.city,
+          gender: asGender(row.gender),
         });
         return { kind: "created" as const, ticketId: row.id };
       } catch (error) {
