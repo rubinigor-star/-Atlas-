@@ -16,8 +16,8 @@ if(!src.includes('ATLAS_CONSENTS_VOUCHER_BUTTON')){
   );
 
   src=src.replace(
-    ' const genderRequiredInvalid=(validationAttempted||Boolean(touched.gender))&&!gender;\n const remaining=',
-    ' const genderRequiredInvalid=(validationAttempted||Boolean(touched.gender))&&!gender;\n const consentAtlasInvalid=validationAttempted&&!consentAtlas;\n const consentOrganizerInvalid=validationAttempted&&!consentOrganizer;\n const remaining='
+    ' const genderRequiredInvalid=validationAttempted&&!gender;\n const remaining=',
+    ' const genderRequiredInvalid=validationAttempted&&!gender;\n const consentAtlasInvalid=validationAttempted&&!consentAtlas;\n const consentOrganizerInvalid=validationAttempted&&!consentOrganizer;\n const remaining='
   );
 
   const requestAnchor='locale,idempotencyKey,abandonToken:token()})});';
