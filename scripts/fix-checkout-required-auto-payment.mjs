@@ -12,7 +12,7 @@ if(!src.includes('ATLAS_REQUIRED_AUTO_PAYMENT')){
 
   src=src.replace(
     ' const formReady=contactReady&&requiredExtrasReady;\n const remaining=',
-    ' const formReady=contactReady&&requiredExtrasReady;\n const nameInvalid=(validationAttempted||touched.fullName)&&!contactReady&&fullName.trim().length<3;\n const emailInvalid=(validationAttempted||touched.email)&&!validEmail(email);\n const phoneRequiredInvalid=(validationAttempted||touched.phone)&&(!validPhone(fullPhone)||!localPhoneValid);\n const requiredExtraInvalid=(key:GuestFieldKey)=>Boolean(props.guestFields[key]?.required)&&(validationAttempted||Boolean(touched[key]))&&(key==="birthDate"?!birthDateToIso(extras[key]||""):!(extras[key]||"").trim());\n const genderRequiredInvalid=(validationAttempted||Boolean(touched.gender))&&!gender;\n const remaining='
+    ' const formReady=contactReady&&requiredExtrasReady;\n const nameInvalid=(validationAttempted||touched.firstName||touched.lastName)&&!contactReady&&(firstName.trim().length<2||lastName.trim().length<2);\n const emailInvalid=(validationAttempted||touched.email)&&!validEmail(email);\n const phoneRequiredInvalid=(validationAttempted||touched.phone)&&(!validPhone(fullPhone)||!localPhoneValid);\n const requiredExtraInvalid=(key:GuestFieldKey)=>Boolean(props.guestFields[key]?.required)&&(validationAttempted||Boolean(touched[key]))&&(key==="birthDate"?!birthDateToIso(extras[key]||""):!(extras[key]||"").trim());\n const genderRequiredInvalid=(validationAttempted||Boolean(touched.gender))&&!gender;\n const remaining='
   );
 
   const autoAnchor=' useEffect(()=>{if(cancelled||!paymentUrl||!orderId||!requiredExtrasReady)return;if(detailsTimerRef.current)clearTimeout(detailsTimerRef.current);';
