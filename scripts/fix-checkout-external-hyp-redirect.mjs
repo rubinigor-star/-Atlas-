@@ -79,4 +79,7 @@ if(!css.includes('ATLAS_RESPONSIVE_CHECKOUT_HARDENING')){
 if(!css.includes('ATLAS_DESKTOP_GRID_ALIGNMENT_FIX')){
   css+=`\n/* ATLAS_DESKTOP_GRID_ALIGNMENT_FIX */\n@media(min-width:901px){.checkout{align-items:stretch!important}.leftColumn{align-self:start!important}.rightColumn{align-self:stretch!important;display:grid!important;grid-template-rows:auto auto minmax(0,1fr)!important;align-content:stretch!important;gap:18px!important}.rightColumn>.timer{justify-self:end!important;align-self:start!important;margin:0!important}.rightColumn>.summary{width:100%!important;box-sizing:border-box!important}.checkoutActionsDesktop{display:flex!important;flex-direction:column!important;min-height:0!important;height:100%!important;gap:10px!important;margin:0!important;width:100%!important;box-sizing:border-box!important}.checkoutActionsDesktop .voucherSection,.checkoutActionsDesktop .voucherCard,.checkoutActionsDesktop .consentList{width:100%!important;box-sizing:border-box!important}.checkoutActionsDesktop .contactContinue{margin-top:auto!important;margin-bottom:0!important;width:100%!important;max-width:100%!important;box-sizing:border-box!important;flex:0 0 auto!important}}\n`;
 }
+if(!css.includes('ATLAS_HEBREW_GENDER_RTL')){
+  css+=`\n/* ATLAS_HEBREW_GENDER_RTL */\nhtml[dir="rtl"] .genderTrigger{direction:rtl!important;text-align:right!important}html[dir="rtl"] .genderMenu{direction:rtl!important;text-align:right!important}html[dir="rtl"] .genderOption{direction:rtl!important;text-align:right!important}\n`;
+}
 fs.writeFileSync(cssPath,css);
