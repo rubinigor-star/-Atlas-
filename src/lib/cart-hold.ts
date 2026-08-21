@@ -60,8 +60,6 @@ export async function replaceCartHold(params: {
   const existing = rows[0];
   const existingId = existing?.id;
 
-  // Temporarily remove this browser's own previous claims while recalculating the
-  // replacement hold. API callers run this inside a transaction, so failures roll back.
   if (existingId) await removeReservationItems(existingId, executor);
 
   if (!params.items.length) {
@@ -129,6 +127,7 @@ export async function releaseCartHold(params: {
 export async function getHeldInventory(params: {
   categoryIds: string[];
   excludeOrderId?: string;
+  excludeOrderIds?: string[];
   executor?: SqlExecutor;
 }) {
   const executor = params.executor ?? db;
@@ -146,12 +145,13 @@ export async function getHeldInventory(params: {
     WHERE r.status = 'ACTIVE' AND r.expiresAt > CURRENT_TIMESTAMP
   `;
   const categorySet = new Set(params.categoryIds);
+  const excludedOrderIds = new Set([...(params.excludeOrderIds ?? []), ...(params.excludeOrderId ? [params.excludeOrderId] : [])]);
   const seatIds = new Set<string>();
   const tableIds = new Set<string>();
   const categoryQuantities: Record<string, number> = {};
 
   for (const row of rows) {
-    if (!categorySet.has(row.categoryId) || row.orderId === params.excludeOrderId) continue;
+    if (!categorySet.has(row.categoryId) || excludedOrderIds.has(row.orderId)) continue;
     categoryQuantities[row.categoryId] = (categoryQuantities[row.categoryId] ?? 0) + Number(row.quantity);
     if (row.seatId) seatIds.add(row.seatId);
     if (row.tableId) tableIds.add(row.tableId);
