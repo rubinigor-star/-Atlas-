@@ -182,6 +182,9 @@ export type TicketValidationPayload = {
   eventId?: string;
   holderName?: string;
   categoryName?: string;
+  sourceName?: string;
+  platformKey?: string;
+  external?: boolean;
   event?: { id: string; title: string } | null;
 };
 
