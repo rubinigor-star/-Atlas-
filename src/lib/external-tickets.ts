@@ -22,6 +22,7 @@ export type ExternalTicketImportRow = {
 
 type SourceRow = { id: string; eventId: string; name: string; sourceKey: string; platformKey: string | null };
 type ExistingTicketRow = { externalTicketId: string; normalizedScanCode: string };
+type CustomerRow = { id: string; normalizedPhone: string };
 type PreparedImportRow = Required<Pick<ExternalTicketImportRow, "scanCode">> & ExternalTicketImportRow & {
   normalizedScanCode: string;
   stableTicketId: string;
@@ -70,6 +71,15 @@ export function normalizeExternalTicketCode(value: string) {
   } catch {
     return trimmed;
   }
+}
+
+export function normalizeCustomerPhone(value?: string | null) {
+  let digits = (value || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("00972")) digits = digits.slice(2);
+  if (digits.startsWith("9720")) digits = `972${digits.slice(4)}`;
+  if (digits.startsWith("0") && digits.length >= 9 && digits.length <= 10) return `972${digits.slice(1)}`;
+  return digits;
 }
 
 export function externalSourceKey(value: string) {
@@ -146,6 +156,13 @@ export async function importExternalTickets({
   if (!uniqueRows.length) throw new Error("В файле нет билетов с QR/Barcode");
 
   return db.$transaction(async (tx) => {
+    const eventRows = await tx.$queryRawUnsafe<Array<{ organizationId: string }>>(
+      `SELECT "organizationId" FROM "Event" WHERE "id"=$1 LIMIT 1`,
+      eventId,
+    );
+    const organizationId = eventRows[0]?.organizationId;
+    if (!organizationId) throw new Error("EVENT_NOT_FOUND");
+
     const sourceId = randomUUID();
     await tx.$executeRawUnsafe(
       `INSERT INTO "ExternalTicketSource" ("id","eventId","name","sourceKey","platformKey","createdAt","updatedAt")
@@ -168,6 +185,34 @@ export async function importExternalTickets({
     );
     const source = sources[0];
     if (!source) throw new Error("Не удалось создать источник внешних билетов");
+
+    const customerIds = new Map<string, string>();
+    for (const row of uniqueRows) {
+      const normalizedPhone = normalizeCustomerPhone(row.phone);
+      if (!normalizedPhone || customerIds.has(normalizedPhone)) continue;
+      const newCustomerId = randomUUID();
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "ExternalCustomer" ("id","organizationId","normalizedPhone","phone","name","email","createdAt","updatedAt")
+         VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+         ON CONFLICT ("organizationId","normalizedPhone") DO UPDATE SET
+           "phone"=EXCLUDED."phone",
+           "name"=COALESCE(EXCLUDED."name","ExternalCustomer"."name"),
+           "email"=COALESCE(EXCLUDED."email","ExternalCustomer"."email"),
+           "updatedAt"=CURRENT_TIMESTAMP`,
+        newCustomerId,
+        organizationId,
+        normalizedPhone,
+        clean(row.phone) || normalizedPhone,
+        clean(row.holderName),
+        clean(row.email),
+      );
+      const found = await tx.$queryRawUnsafe<CustomerRow[]>(
+        `SELECT "id","normalizedPhone" FROM "ExternalCustomer" WHERE "organizationId"=$1 AND "normalizedPhone"=$2 LIMIT 1`,
+        organizationId,
+        normalizedPhone,
+      );
+      if (found[0]) customerIds.set(normalizedPhone, found[0].id);
+    }
 
     const existing = await tx.$queryRawUnsafe<ExistingTicketRow[]>(
       `SELECT "externalTicketId","normalizedScanCode" FROM "ExternalTicket" WHERE "sourceId"=$1`,
@@ -235,13 +280,16 @@ export async function importExternalTickets({
 
     for (const row of importableRows) {
       const isExisting = existingById.has(row.stableTicketId);
+      const normalizedPhone = normalizeCustomerPhone(row.phone);
+      const customerId = normalizedPhone ? customerIds.get(normalizedPhone) || null : null;
       await tx.$executeRawUnsafe(
         `INSERT INTO "ExternalTicket" (
-           "id","eventId","sourceId","importBatchId","externalTicketId","externalOrderId","rawScanCode","normalizedScanCode",
+           "id","eventId","sourceId","importBatchId","customerId","externalTicketId","externalOrderId","rawScanCode","normalizedScanCode",
            "holderName","phone","email","ticketType","priceMinor","currency","status","metadataJson","createdAt","updatedAt"
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
          ON CONFLICT ("sourceId","externalTicketId") DO UPDATE SET
            "importBatchId"=EXCLUDED."importBatchId",
+           "customerId"=COALESCE(EXCLUDED."customerId","ExternalTicket"."customerId"),
            "externalOrderId"=EXCLUDED."externalOrderId",
            "rawScanCode"=EXCLUDED."rawScanCode",
            "normalizedScanCode"=EXCLUDED."normalizedScanCode",
@@ -258,6 +306,7 @@ export async function importExternalTickets({
         eventId,
         source.id,
         batchId,
+        customerId,
         row.stableTicketId,
         clean(row.externalOrderId),
         row.scanCode,
@@ -290,6 +339,7 @@ export async function importExternalTickets({
       processedCount: insertedCount + updatedCount,
       insertedCount,
       updatedCount,
+      uniqueCustomerCount: customerIds.size,
       errorCount: rowErrors.length,
       errors: rowErrors.slice(0, 50),
     };
