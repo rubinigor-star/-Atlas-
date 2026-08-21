@@ -43,7 +43,7 @@ export async function cancelOrderTickets(orderId: string, executor: Executor = d
   });
 }
 
-export async function validateAndUseTicket(publicCode: string): Promise<TicketValidationResult> {
+export async function validateAndUseTicket(publicCode: string, options?: { deferNotFoundAudit?: boolean }): Promise<TicketValidationResult> {
   const result = await db.$transaction(async (tx) => {
     const ticket = await tx.ticket.findUnique({
       where: { publicCode },
@@ -51,7 +51,7 @@ export async function validateAndUseTicket(publicCode: string): Promise<TicketVa
     });
 
     if (!ticket) {
-      await tx.scan.create({ data: { result: "NOT_FOUND" } });
+      if (!options?.deferNotFoundAudit) await tx.scan.create({ data: { result: "NOT_FOUND" } });
       return { result: "NOT_FOUND" } as TicketValidationResult;
     }
 

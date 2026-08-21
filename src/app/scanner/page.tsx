@@ -2,11 +2,14 @@ import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { ScannerClient } from "@/components/scanner-client";
 import { AdminShell } from "@/components/admin-shell";
+import { ensureExternalTicketStorage } from "@/lib/external-ticket-storage";
 
 export const dynamic = "force-dynamic";
+type CountRow = { count: number | bigint };
 
 export default async function Scanner() {
   const staff = await requirePermission("SCAN");
+  await ensureExternalTicketStorage();
   const allowedEvents = staff.eventAccess.map((item) => item.eventId);
   const scopedIds = staff.eventScope === "ALL" ? undefined : allowedEvents;
   const eventFilter = {
@@ -20,11 +23,22 @@ export default async function Scanner() {
   ]);
 
   const eventOptions = await Promise.all(events.map(async (event) => {
-    const [sold, entered] = await Promise.all([
+    const [nativeSold, nativeEntered, externalSoldRows, externalEnteredRows] = await Promise.all([
       db.ticket.count({ where: { order: { eventId: event.id, status: "PAID" } } }),
       db.ticket.count({ where: { status: "USED", order: { eventId: event.id, status: "PAID" } } }),
+      db.$queryRawUnsafe<CountRow[]>(`SELECT COUNT(*) AS "count" FROM "ExternalTicket" WHERE "eventId"=$1 AND "status"!='CANCELLED'`, event.id),
+      db.$queryRawUnsafe<CountRow[]>(`SELECT COUNT(*) AS "count" FROM "ExternalTicket" WHERE "eventId"=$1 AND "status"='USED'`, event.id),
     ]);
-    return { id: event.id, title: event.title, startsAt: event.startsAt.toISOString(), capacity: event.categories.reduce((sum, category) => sum + category.capacity, 0), sold, entered };
+    const externalSold = Number(externalSoldRows[0]?.count || 0);
+    const externalEntered = Number(externalEnteredRows[0]?.count || 0);
+    return {
+      id: event.id,
+      title: event.title,
+      startsAt: event.startsAt.toISOString(),
+      capacity: event.categories.reduce((sum, category) => sum + category.capacity, 0),
+      sold: nativeSold + externalSold,
+      entered: nativeEntered + externalEntered,
+    };
   }));
 
   const totalEntered = eventOptions.reduce((sum, event) => sum + event.entered, 0);

@@ -4,7 +4,17 @@ import { checkinSchema } from "@/lib/schemas";
 import { canAccessEvent, requirePermission } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { notifyWalletTickets } from "@/lib/wallet-push";
-import { checkInTicket, normalizeTicketCode } from "@/lib/checkin";
+import { checkInTicket, normalizeTicketCode, type CheckinResult } from "@/lib/checkin";
+import { ensureExternalTicketStorage } from "@/lib/external-ticket-storage";
+import { checkInExternalTicket } from "@/lib/external-tickets";
+
+type UnifiedCheckinResult = CheckinResult & {
+  externalTicketId?: string;
+  sourceName?: string;
+  platformKey?: string | null;
+};
+
+type CountRow = { count: number | bigint };
 
 export async function POST(req: Request) {
   try {
@@ -15,9 +25,48 @@ export async function POST(req: Request) {
     if (selectedEventId && !canAccessEvent(staff, selectedEventId)) throw new Error("FORBIDDEN");
     const source = payload.source === "MANUAL" ? "MANUAL" : "CAMERA";
     const normalizedCode = normalizeTicketCode(code);
-    const result = await checkInTicket({ code: normalizedCode, staff, selectedEventId });
+    let result: UnifiedCheckinResult = await checkInTicket({
+      code: normalizedCode,
+      staff,
+      selectedEventId,
+      deferNotFoundAudit: Boolean(selectedEventId),
+    });
 
-    await writeAudit(staff, { action: `CHECKIN_${result.status}`, entityType: "Ticket", entityId: result.ticketId, summary: `Сканирование: ${result.message}`, metadata: { code: normalizedCode.slice(0, 12), source, eventId: result.eventId || selectedEventId, userAgent: req.headers.get("user-agent")?.slice(0, 180) || undefined } });
+    if (result.status === "NOT_FOUND" && selectedEventId) {
+      await ensureExternalTicketStorage();
+      const external = await checkInExternalTicket(selectedEventId, normalizedCode);
+      if (external.status === "AMBIGUOUS") {
+        await db.scan.create({ data: { result: "NOT_FOUND" } });
+        result = { status: "NOT_FOUND", message: external.message, eventId: selectedEventId, warning: "Проверьте билет вручную" };
+      } else if (external.status === "NOT_FOUND") {
+        await db.scan.create({ data: { result: "NOT_FOUND" } });
+      } else {
+        result = {
+          status: external.status,
+          message: external.message,
+          externalTicketId: external.externalTicketId,
+          eventId: external.eventId,
+          holderName: external.holderName,
+          categoryName: external.categoryName,
+          sourceName: external.sourceName,
+          platformKey: external.platformKey,
+        };
+      }
+    }
+
+    await writeAudit(staff, {
+      action: `CHECKIN_${result.status}`,
+      entityType: result.externalTicketId ? "ExternalTicket" : "Ticket",
+      entityId: result.externalTicketId || result.ticketId,
+      summary: `Сканирование: ${result.message}`,
+      metadata: {
+        code: normalizedCode.slice(0, 12),
+        source,
+        ticketSource: result.sourceName || "Atlas",
+        eventId: result.eventId || selectedEventId,
+        userAgent: req.headers.get("user-agent")?.slice(0, 180) || undefined,
+      },
+    });
     if (result.status === "VALID" && result.ticketId) await notifyWalletTickets([result.ticketId]);
 
     const allowedEvents = staff.eventAccess.map((item) => item.eventId);
@@ -27,8 +76,18 @@ export async function POST(req: Request) {
       : scopedIds
         ? { eventId: { in: scopedIds } }
         : {};
-    const entered = await db.ticket.count({ where: { status: "USED", order: { status: "PAID", event: { organizationId: staff.organizationId! }, ...eventScope } } });
-    return NextResponse.json({ ...result, entered, scannedAt: new Date().toISOString() });
+    const nativeEntered = await db.ticket.count({ where: { status: "USED", order: { status: "PAID", event: { organizationId: staff.organizationId! }, ...eventScope } } });
+    let externalEntered = 0;
+    if (selectedEventId) {
+      await ensureExternalTicketStorage();
+      const counts = await db.$queryRawUnsafe<CountRow[]>(
+        `SELECT COUNT(*) AS "count" FROM "ExternalTicket" WHERE "eventId"=$1 AND "status"='USED'`,
+        selectedEventId,
+      );
+      externalEntered = Number(counts[0]?.count || 0);
+    }
+
+    return NextResponse.json({ ...result, entered: nativeEntered + externalEntered, scannedAt: new Date().toISOString() });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Ошибка проверки билета";
     const forbidden = message === "FORBIDDEN";
