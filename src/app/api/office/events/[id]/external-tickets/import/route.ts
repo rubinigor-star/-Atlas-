@@ -35,9 +35,14 @@ function applyKnownPlatformDefaults(mapping: ExternalTicketMapping, headers: str
   const isEventer = platformKey?.toUpperCase() === "EVENTER" || headerSet.has("מזהה כרטיס");
   if (!isEventer) return next;
 
-  if (!next.scanCode && headerSet.has("מזהה כרטיס")) next.scanCode = "מזהה כרטיס";
-  if (!next.externalTicketId && headerSet.has("מזהה כרטיס")) next.externalTicketId = "מזהה כרטיס";
-  if (!next.externalOrderId && headerSet.has("מס' הזמנה")) next.externalOrderId = "מס' הזמנה";
+  // Eventer has two different identifiers:
+  // מזהה כרטיס = unique ticket/barcode, מס' הזמנה = order id shared by all tickets in the order.
+  // Force these mappings so a multi-ticket order can never be mistaken for duplicate tickets.
+  if (headerSet.has("מזהה כרטיס")) {
+    next.scanCode = "מזהה כרטיס";
+    next.externalTicketId = "מזהה כרטיס";
+  }
+  if (headerSet.has("מס' הזמנה")) next.externalOrderId = "מס' הזמנה";
   if (!next.holderName && headerSet.has("שם")) next.holderName = "שם";
   if (!next.phone && headerSet.has("טלפון")) next.phone = "טלפון";
   if (!next.email && headerSet.has("אימייל")) next.email = "אימייל";
