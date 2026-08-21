@@ -13,7 +13,7 @@ type SourceSummary = {
   lastImportedAt: string | null;
 };
 
-type Mapping = Partial<Record<"scanCode"|"externalTicketId"|"externalOrderId"|"holderName"|"phone"|"email"|"ticketType"|"price"|"priceMinor"|"currency"|"status", string>>;
+type Mapping = Partial<Record<"scanCode"|"externalTicketId"|"externalOrderId"|"holderName"|"firstName"|"lastName"|"phone"|"email"|"ticketType"|"price"|"priceMinor"|"currency"|"status"|"organizerConsent", string>>;
 
 type Preview = {
   fileName: string;
@@ -33,19 +33,41 @@ type ImportResult = {
   updatedCount: number;
   errorCount: number;
   errors?: Array<{ row: number; error: string }>;
+  source?: { id: string; name: string; sourceKey: string; platformKey: string | null };
+};
+
+type ValueCardBatch = {
+  ok: boolean;
+  processed: number;
+  created: number;
+  existing: number;
+  skipped: number;
+  failed: number;
+  errors?: Array<{ ticketId: string; reason: string }>;
+  nextCursor: string | null;
+};
+
+type ValueCardTotals = {
+  created: number;
+  existing: number;
+  skipped: number;
+  failed: number;
 };
 
 const mappingFields: Array<{ key: keyof Mapping; label: string; required?: boolean }> = [
   { key: "scanCode", label: "QR / Barcode", required: true },
   { key: "externalTicketId", label: "ID билета" },
   { key: "externalOrderId", label: "ID заказа" },
-  { key: "holderName", label: "Имя покупателя" },
+  { key: "holderName", label: "Полное имя покупателя" },
+  { key: "firstName", label: "Имя" },
+  { key: "lastName", label: "Фамилия" },
   { key: "phone", label: "Телефон" },
   { key: "email", label: "Email" },
   { key: "ticketType", label: "Тип билета" },
   { key: "price", label: "Цена" },
   { key: "currency", label: "Валюта" },
   { key: "status", label: "Статус" },
+  { key: "organizerConsent", label: "Согласие на программы / рассылки организатора" },
 ];
 
 function platformLabel(value: string | null) {
@@ -54,7 +76,7 @@ function platformLabel(value: string | null) {
   return known[value.toUpperCase()] || value;
 }
 
-export function ExternalTicketImportManager({ eventId, sources }: { eventId: string; sources: SourceSummary[] }) {
+export function ExternalTicketImportManager({ eventId, sources, valueCardEnabled }: { eventId: string; sources: SourceSummary[]; valueCardEnabled: boolean }) {
   const [selectedSourceId, setSelectedSourceId] = useState(sources[0]?.id || "NEW");
   const selectedSource = useMemo(() => sources.find((source) => source.id === selectedSourceId) || null, [sources, selectedSourceId]);
   const [sourceName, setSourceName] = useState("");
@@ -65,6 +87,9 @@ export function ExternalTicketImportManager({ eventId, sources }: { eventId: str
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [valueCardBusySource, setValueCardBusySource] = useState("");
+  const [valueCardError, setValueCardError] = useState("");
+  const [valueCardResult, setValueCardResult] = useState<ValueCardTotals | null>(null);
 
   const effectiveName = selectedSource?.name || sourceName.trim();
   const importBlockReason = !mapping.scanCode
@@ -101,6 +126,8 @@ export function ExternalTicketImportManager({ eventId, sources }: { eventId: str
     setBusy(true);
     setError("");
     setResult(null);
+    setValueCardResult(null);
+    setValueCardError("");
     try {
       const form = new FormData();
       form.set("file", file);
@@ -119,17 +146,50 @@ export function ExternalTicketImportManager({ eventId, sources }: { eventId: str
     }
   }
 
+  async function syncValueCard(sourceId: string) {
+    if (!valueCardEnabled || !sourceId || valueCardBusySource) return;
+    setValueCardBusySource(sourceId);
+    setValueCardError("");
+    setValueCardResult(null);
+    const totals: ValueCardTotals = { created: 0, existing: 0, skipped: 0, failed: 0 };
+    let afterId: string | null = null;
+    try {
+      do {
+        const response = await fetch(`/api/office/events/${eventId}/external-tickets/valuecard-sync`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ sourceId, afterId }),
+        });
+        const data = await response.json() as ValueCardBatch & { error?: string };
+        if (!response.ok) throw new Error(data.error || "Не удалось синхронизировать ValueCard");
+        totals.created += data.created;
+        totals.existing += data.existing;
+        totals.skipped += data.skipped;
+        totals.failed += data.failed;
+        afterId = data.nextCursor;
+      } while (afterId);
+      setValueCardResult(totals);
+    } catch (cause) {
+      setValueCardError(cause instanceof Error ? cause.message : "Ошибка синхронизации ValueCard");
+    } finally {
+      setValueCardBusySource("");
+    }
+  }
+
+  const importedSourceId = result?.source?.id || selectedSource?.id || "";
+
   return <div className="stack">
     {sources.length > 0 && <section className="panel stack">
       <div><span className="eyebrow">Подключённые источники</span><h2>Продажи мероприятия</h2><p className="muted">Повторная загрузка обновляет существующие билеты и добавляет только новые.</p></div>
-      <div className="stats">{sources.map((source) => <div className="stat" key={source.id}><span className="muted">{platformLabel(source.platformKey)}</span><strong>{source.name}</strong><small className="muted">Билетов: {source.total} · вошли: {source.used} · отменены: {source.cancelled}</small>{source.lastImportedAt && <small className="muted">Последний импорт: {new Date(source.lastImportedAt).toLocaleString("ru-RU")}</small>}</div>)}</div>
+      <div className="stats">{sources.map((source) => <div className="stat" key={source.id}><span className="muted">{platformLabel(source.platformKey)}</span><strong>{source.name}</strong><small className="muted">Билетов: {source.total} · вошли: {source.used} · отменены: {source.cancelled}</small>{source.lastImportedAt && <small className="muted">Последний импорт: {new Date(source.lastImportedAt).toLocaleString("ru-RU")}</small>}{valueCardEnabled && <button className="btn secondary" type="button" disabled={Boolean(valueCardBusySource)} onClick={() => void syncValueCard(source.id)}>{valueCardBusySource === source.id ? "Синхронизируем..." : "Синхронизировать с ValueCard"}</button>}</div>)}</div>
+      {valueCardEnabled && <p className="muted">ValueCard получает только клиентов, для которых при импорте была выбрана колонка согласия и в ней стоит явное положительное значение. Существующие участники клуба не создаются повторно.</p>}
     </section>}
 
     <section className="panel stack">
       <div><span className="eyebrow">Импорт</span><h2>Добавить базу продаж</h2><p className="muted">На первом этапе принимаем CSV/TXT. Перед импортом Atlas покажет строки и предложит сопоставление колонок.</p></div>
 
       {sources.length > 0 && <label>Источник
-        <select className="input" value={selectedSourceId} onChange={(event) => { setSelectedSourceId(event.target.value); setPreview(null); setResult(null); }}>
+        <select className="input" value={selectedSourceId} onChange={(event) => { setSelectedSourceId(event.target.value); setPreview(null); setResult(null); setValueCardResult(null); setValueCardError(""); }}>
           {sources.map((source) => <option key={source.id} value={source.id}>{source.name} · {platformLabel(source.platformKey)}</option>)}
           <option value="NEW">+ Новый источник</option>
         </select>
@@ -144,20 +204,23 @@ export function ExternalTicketImportManager({ eventId, sources }: { eventId: str
         <label>Название источника<input className="input" value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Например Eventer Israel"/></label>
       </div>}
 
-      <label>Файл продаж<input className="input" type="file" accept=".csv,.txt,text/csv,text/plain" onChange={(event) => { setFile(event.target.files?.[0] || null); setPreview(null); setResult(null); setError(""); }}/></label>
+      <label>Файл продаж<input className="input" type="file" accept=".csv,.txt,text/csv,text/plain" onChange={(event) => { setFile(event.target.files?.[0] || null); setPreview(null); setResult(null); setError(""); setValueCardResult(null); setValueCardError(""); }}/></label>
       <div className="row"><button className="btn secondary" type="button" disabled={!file || busy} onClick={() => void previewFile()}>{busy ? "Проверяем..." : "Проверить файл"}</button>{file && <span className="muted">{file.name}</span>}</div>
 
       {error && <div className="toast"><strong>Не удалось продолжить</strong><p>{error}</p></div>}
 
       {preview && <div className="stack">
         <div className="stats"><div className="stat"><span className="muted">Строк</span><strong>{preview.rowCount}</strong></div><div className="stat"><span className="muted">Разделитель</span><strong>{preview.delimiter}</strong></div><div className="stat"><span className="muted">QR найден автоматически</span><strong>{mapping.scanCode ? "Да" : "Нет"}</strong></div></div>
-        <section className="panel stack"><div><span className="eyebrow">Сопоставление</span><h3>Какая колонка что означает</h3></div><div className="grid two">{mappingFields.map((field) => <label key={field.key}>{field.label}{field.required ? " *" : ""}<select className="input" value={mapping[field.key] || ""} onChange={(event) => { setMapping((current) => ({ ...current, [field.key]: event.target.value || undefined })); setError(""); }}><option value="">Не импортировать</option>{preview.headers.map((header) => <option key={header} value={header}>{header}</option>)}</select></label>)}</div></section>
+        <section className="panel stack"><div><span className="eyebrow">Сопоставление</span><h3>Какая колонка что означает</h3></div><div className="grid two">{mappingFields.map((field) => <label key={field.key}>{field.label}{field.required ? " *" : ""}<select className="input" value={mapping[field.key] || ""} onChange={(event) => { setMapping((current) => ({ ...current, [field.key]: event.target.value || undefined })); setError(""); }}><option value="">Не импортировать</option>{preview.headers.map((header) => <option key={header} value={header}>{header}</option>)}</select></label>)}</div>{valueCardEnabled && <div className="toast"><strong>ValueCard</strong><p>Для автоматического добавления новых клиентов выберите колонку «Согласие на программы / рассылки организатора», а также телефон и имя. Atlas считает согласием только явные значения вроде כן, yes, true или 1.</p></div>}</section>
         <div className="table-wrap"><table><thead><tr>{preview.headers.slice(0, 8).map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{preview.sample.map((row, index) => <tr key={index}>{preview.headers.slice(0, 8).map((header) => <td key={header}>{row[header] || "-"}</td>)}</tr>)}</tbody></table></div>
         {importBlockReason && <div className="toast"><strong>Перед импортом нужно ещё одно действие</strong><p>{importBlockReason}</p>{!mapping.scanCode && <p className="muted">Если QR на билете действительно содержит значение из колонки «מזהה כרטיס», выберите эту колонку в поле QR / Barcode. Если нет, нужен экспорт Eventer с настоящим Barcode/QR.</p>}</div>}
         <button className="btn" type="button" disabled={busy} onClick={() => void runImport()}>{busy ? "Импортируем..." : importBlockReason ? "Проверить и импортировать" : `Импортировать ${preview.rowCount} билетов`}</button>
       </div>}
 
-      {result && <div className="toast"><strong>Импорт завершён</strong><p>Новых: {result.insertedCount} · обновлено: {result.updatedCount} · ошибок: {result.errorCount}</p>{result.errorCount > 0 && <p className="muted">Первые ошибки: {result.errors?.slice(0, 3).map((item) => `строка ${item.row}: ${item.error}`).join("; ")}</p>}<button className="btn secondary" type="button" onClick={() => window.location.reload()}>Обновить данные</button></div>}
+      {result && <div className="toast"><strong>Импорт завершён</strong><p>Новых: {result.insertedCount} · обновлено: {result.updatedCount} · ошибок: {result.errorCount}</p>{result.errorCount > 0 && <p className="muted">Первые ошибки: {result.errors?.slice(0, 3).map((item) => `строка ${item.row}: ${item.error}`).join("; ")}</p>}{valueCardEnabled && mapping.organizerConsent && importedSourceId && <button className="btn" type="button" disabled={Boolean(valueCardBusySource)} onClick={() => void syncValueCard(importedSourceId)}>{valueCardBusySource ? "Синхронизируем с ValueCard..." : "Добавить согласившихся в ValueCard"}</button>}{valueCardEnabled && !mapping.organizerConsent && <p className="muted">ValueCard не запущен: в этом импорте не выбрана колонка согласия организатора.</p>}<button className="btn secondary" type="button" onClick={() => window.location.reload()}>Обновить данные</button></div>}
+
+      {valueCardError && <div className="toast"><strong>ValueCard</strong><p>{valueCardError}</p></div>}
+      {valueCardResult && <div className="toast"><strong>Синхронизация ValueCard завершена</strong><p>Добавлено новых: {valueCardResult.created} · уже были в ValueCard: {valueCardResult.existing} · пропущено: {valueCardResult.skipped} · ошибок: {valueCardResult.failed}</p></div>}
     </section>
   </div>;
 }
