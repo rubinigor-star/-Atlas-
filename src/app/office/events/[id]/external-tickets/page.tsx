@@ -19,6 +19,12 @@ type SourceRow = {
   used: number | bigint;
   cancelled: number | bigint;
   lastImportedAt: Date | string | null;
+  valueCardCreatedTotal: number | bigint;
+  valueCardLastCreated: number | bigint;
+  valueCardLastExisting: number | bigint;
+  valueCardLastSkipped: number | bigint;
+  valueCardLastFailed: number | bigint;
+  valueCardLastSyncedAt: Date | string | null;
 };
 
 type ImportedTicketRow = {
@@ -62,6 +68,7 @@ export default async function ExternalTicketsPage({ params }: { params: Promise<
   const [rows, valueCardRows, importedTickets] = await Promise.all([
     db.$queryRawUnsafe<SourceRow[]>(
       `SELECT s."id",s."name",s."sourceKey",s."platformKey",
+        s."valueCardCreatedTotal",s."valueCardLastCreated",s."valueCardLastExisting",s."valueCardLastSkipped",s."valueCardLastFailed",s."valueCardLastSyncedAt",
         (SELECT COUNT(*) FROM "ExternalTicket" t WHERE t."sourceId"=s."id") AS "total",
         (SELECT COUNT(*) FROM "ExternalTicket" t WHERE t."sourceId"=s."id" AND t."status"='USED') AS "used",
         (SELECT COUNT(*) FROM "ExternalTicket" t WHERE t."sourceId"=s."id" AND t."status"='CANCELLED') AS "cancelled",
@@ -96,6 +103,12 @@ export default async function ExternalTicketsPage({ params }: { params: Promise<
     used: Number(row.used || 0),
     cancelled: Number(row.cancelled || 0),
     lastImportedAt: row.lastImportedAt ? new Date(row.lastImportedAt).toISOString() : null,
+    valueCardCreatedTotal: Number(row.valueCardCreatedTotal || 0),
+    valueCardLastCreated: Number(row.valueCardLastCreated || 0),
+    valueCardLastExisting: Number(row.valueCardLastExisting || 0),
+    valueCardLastSkipped: Number(row.valueCardLastSkipped || 0),
+    valueCardLastFailed: Number(row.valueCardLastFailed || 0),
+    valueCardLastSyncedAt: row.valueCardLastSyncedAt ? new Date(row.valueCardLastSyncedAt).toISOString() : null,
   }));
   const valueCardEnabled = Boolean(valueCardRows[0]?.enabled && valueCardRows[0]?.credentialsEncrypted);
 
