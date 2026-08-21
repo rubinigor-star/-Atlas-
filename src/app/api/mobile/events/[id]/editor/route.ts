@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { StaffPermission } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getMobileStaff } from "@/lib/mobile-auth";
 import { eventTypeValues } from "@/lib/event-type";
@@ -82,7 +83,8 @@ async function authorize(request: Request, eventId: string, permission: "EVENT_V
 async function authorizeEventHub(request: Request, eventId: string) {
   const actor = await getMobileStaff(request);
   if (!actor) return { error: NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 }) } as const;
-  const canOpen = actor.role === "ADMIN" || ["EVENT_VIEW", "EVENT_MANAGE", "TICKET_MANAGE", "ORDER_VIEW", "REQUEST_REVIEW", "ORDER_MANAGE", "SCAN"].some((permission) => actor.permissionSet.has(permission));
+  const eventHubPermissions: StaffPermission[] = ["EVENT_VIEW", "EVENT_MANAGE", "TICKET_MANAGE", "ORDER_VIEW", "REQUEST_REVIEW", "ORDER_MANAGE", "SCAN"];
+  const canOpen = actor.role === "ADMIN" || eventHubPermissions.some((permission) => actor.permissionSet.has(permission));
   if (!canOpen) return { error: NextResponse.json({ error: "Недостаточно прав" }, { status: 403 }) } as const;
   const event = await db.event.findUnique({ where: { id: eventId }, select: { id: true, organizationId: true } });
   if (!event) return { error: NextResponse.json({ error: "Мероприятие не найдено" }, { status: 404 }) } as const;
