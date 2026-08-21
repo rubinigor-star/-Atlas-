@@ -4,11 +4,16 @@ import { createGenericShortLink } from "@/lib/generic-short-link";
 import { claimNotification, completeNotification, failNotification } from "@/lib/notification-ledger";
 import { sendSms019 } from "@/lib/sms-019";
 
+const DEFAULT_PUBLIC_APP_URL = "https://www.atlas-one.co";
+
 function baseUrl() {
-  if (process.env.VERCEL_ENV === "production") return (process.env.PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.atlas-one.co").replace(/\/$/, "");
-  const previewHost = process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
-  if (previewHost) return `https://${previewHost.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
-  return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+  // Transactional auth emails must never expose a Vercel preview/deployment URL.
+  // A staff invitation can be triggered while an operator is testing a preview,
+  // but the recipient should always activate their account on the canonical Atlas domain.
+  if (process.env.VERCEL || process.env.NODE_ENV === "production") {
+    return (process.env.PUBLIC_APP_URL || DEFAULT_PUBLIC_APP_URL).replace(/\/$/, "");
+  }
+  return (process.env.PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 function escapeHtml(value: string) { return value.replace(/[&<>'"]/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char] || char); }
 
