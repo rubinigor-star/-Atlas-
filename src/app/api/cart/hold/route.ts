@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { CART_SESSION_COOKIE, cartHoldOrderId, getHeldInventory, releaseCartHold, replaceCartHold } from "@/lib/cart-hold";
+import { getPendingCheckoutOwner, pendingCheckoutReservationMatches } from "@/lib/cart-checkout-owner";
 import type { ReservationItemInput } from "@/lib/reservation";
 
 export const dynamic = "force-dynamic";
@@ -104,9 +105,11 @@ export async function GET(req: Request) {
     if (!eventId) return NextResponse.json({ error: "eventId обязателен" }, { status: 400 });
     const categories = await db.ticketCategory.findMany({ where: { eventId, hidden: false }, select: { id: true } });
     const sessionId = cookieValue(req, CART_SESSION_COOKIE);
+    const owner = sessionId ? await getPendingCheckoutOwner(sessionId, eventId).catch(() => null) : null;
+    const excluded = sessionId ? [cartHoldOrderId(sessionId, eventId), ...(owner?.orderId ? [owner.orderId] : [])] : [];
     const held = await getHeldInventory({
       categoryIds: categories.map(category => category.id),
-      excludeOrderId: sessionId ? cartHoldOrderId(sessionId, eventId) : undefined,
+      excludeOrderIds: excluded,
     });
     return NextResponse.json({
       heldSeatIds: held.seatIds,
@@ -135,6 +138,18 @@ export async function POST(req: Request) {
     }
 
     const validated = await validateAndBuild(eventId, items);
+
+    // When a buyer returns from checkout, the pending order already owns these
+    // exact reservation claims. Treat that reservation as this browser's hold
+    // instead of trying to claim the same seats a second time.
+    const owner = sessionFromCookie ? await getPendingCheckoutOwner(sessionId, eventId).catch(() => null) : null;
+    if (owner?.orderId && owner.expiresAt) {
+      const sameReservation = await pendingCheckoutReservationMatches(owner.orderId, validated.reservationItems).catch(() => false);
+      if (sameReservation) {
+        return NextResponse.json({ ok: true, expiresAt: owner.expiresAt.toISOString(), ownedCheckout: true });
+      }
+    }
+
     const hold = await db.$transaction(async tx => replaceCartHold({
       sessionId,
       eventId,
