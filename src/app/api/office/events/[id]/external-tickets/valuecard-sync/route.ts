@@ -13,6 +13,7 @@ const schema = z.object({
 });
 
 const BATCH_SIZE = 5;
+const BETWEEN_CUSTOMERS_MS = 300;
 
 type ExternalCustomerRow = {
   id: string;
@@ -63,6 +64,10 @@ function asDate(value: Date | string | null) {
 
 function asGender(value: string | null): "MALE" | "FEMALE" | null {
   return value === "MALE" || value === "FEMALE" ? value : null;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -120,7 +125,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return [{ row, ...names }];
     });
 
-    const outcomes = await Promise.all(candidates.map(async ({ row, firstName, lastName }) => {
+    const outcomes: Array<
+      | { kind: "created"; ticketId: string }
+      | { kind: "updated"; ticketId: string; updatedFields: string[] }
+      | { kind: "unchanged"; ticketId: string }
+      | { kind: "failed"; ticketId: string; reason: string }
+    > = [];
+
+    for (let index = 0; index < candidates.length; index += 1) {
+      const { row, firstName, lastName } = candidates[index];
       try {
         const existing = await searchValueCardMember(event.organizationId, row.phone);
         if (existing?.memberId) {
@@ -137,30 +150,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
               gender: asGender(row.gender),
             },
           });
-          return enrichment.updated
-            ? { kind: "updated" as const, ticketId: row.id, updatedFields: enrichment.updatedFields }
-            : { kind: "unchanged" as const, ticketId: row.id };
+          outcomes.push(enrichment.updated
+            ? { kind: "updated", ticketId: row.id, updatedFields: enrichment.updatedFields }
+            : { kind: "unchanged", ticketId: row.id });
+        } else if (existing) {
+          outcomes.push({ kind: "unchanged", ticketId: row.id });
+        } else {
+          await registerValueCardMember({
+            organizationId: event.organizationId,
+            firstName,
+            lastName,
+            cellPhone: row.phone,
+            email: row.email,
+            birthDate: asDate(row.birthDate),
+            city: row.city,
+            gender: asGender(row.gender),
+          });
+          outcomes.push({ kind: "created", ticketId: row.id });
         }
-        if (existing) return { kind: "unchanged" as const, ticketId: row.id };
-        await registerValueCardMember({
-          organizationId: event.organizationId,
-          firstName,
-          lastName,
-          cellPhone: row.phone,
-          email: row.email,
-          birthDate: asDate(row.birthDate),
-          city: row.city,
-          gender: asGender(row.gender),
-        });
-        return { kind: "created" as const, ticketId: row.id };
       } catch (error) {
-        return {
-          kind: "failed" as const,
+        outcomes.push({
+          kind: "failed",
           ticketId: row.id,
           reason: error instanceof Error ? error.message : "VALUECARD_SYNC_FAILED",
-        };
+        });
       }
-    }));
+      if (index < candidates.length - 1) await sleep(BETWEEN_CUSTOMERS_MS);
+    }
 
     let created = 0;
     let updated = 0;
