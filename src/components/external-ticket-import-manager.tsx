@@ -14,6 +14,7 @@ type SourceSummary = {
 };
 
 type Mapping = Partial<Record<"scanCode"|"externalTicketId"|"externalOrderId"|"holderName"|"firstName"|"lastName"|"phone"|"email"|"ticketType"|"price"|"priceMinor"|"currency"|"status"|"organizerConsent", string>>;
+type ConsentMode = "NONE" | "ALL" | "COLUMN";
 
 type Preview = {
   fileName: string;
@@ -67,7 +68,6 @@ const mappingFields: Array<{ key: keyof Mapping; label: string; required?: boole
   { key: "price", label: "Цена" },
   { key: "currency", label: "Валюта" },
   { key: "status", label: "Статус" },
-  { key: "organizerConsent", label: "Согласие на программы / рассылки организатора" },
 ];
 
 function platformLabel(value: string | null) {
@@ -84,6 +84,7 @@ export function ExternalTicketImportManager({ eventId, sources, valueCardEnabled
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [mapping, setMapping] = useState<Mapping>({});
+  const [consentMode, setConsentMode] = useState<ConsentMode>("NONE");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -96,7 +97,9 @@ export function ExternalTicketImportManager({ eventId, sources, valueCardEnabled
     ? "Выберите колонку QR / Barcode. Без кода, который реально считывает сканер, Atlas не может безопасно импортировать билеты."
     : !effectiveName
       ? "Укажите название источника билетов."
-      : "";
+      : consentMode === "COLUMN" && !mapping.organizerConsent
+        ? "Вы выбрали согласие из колонки. Укажите, в какой колонке файла находится Да/Нет."
+        : "";
 
   async function previewFile() {
     if (!file) return setError("Выберите CSV файл");
@@ -111,6 +114,7 @@ export function ExternalTicketImportManager({ eventId, sources, valueCardEnabled
       if (!response.ok) throw new Error(data.error || "Не удалось прочитать файл");
       setPreview(data);
       setMapping(data.detectedMapping || {});
+      setConsentMode(data.detectedMapping?.organizerConsent ? "COLUMN" : "NONE");
     } catch (cause) {
       setPreview(null);
       setError(cause instanceof Error ? cause.message : "Ошибка чтения файла");
@@ -123,6 +127,7 @@ export function ExternalTicketImportManager({ eventId, sources, valueCardEnabled
     if (!file || !preview) return setError("Сначала проверьте файл");
     if (!mapping.scanCode) return setError("Выберите колонку QR / Barcode. Поле ID билета само по себе не считается кодом для сканирования.");
     if (!effectiveName) return setError("Укажите название источника");
+    if (consentMode === "COLUMN" && !mapping.organizerConsent) return setError("Выберите колонку, где указано согласие клиента.");
     setBusy(true);
     setError("");
     setResult(null);
@@ -133,8 +138,10 @@ export function ExternalTicketImportManager({ eventId, sources, valueCardEnabled
       form.set("file", file);
       form.set("sourceName", effectiveName);
       form.set("platformKey", selectedSource?.platformKey || platformKey);
+      form.set("consentMode", consentMode);
       if (selectedSource) form.set("sourceKey", selectedSource.sourceKey);
-      form.set("mapping", JSON.stringify(mapping));
+      const mappingForImport = consentMode === "COLUMN" ? mapping : { ...mapping, organizerConsent: undefined };
+      form.set("mapping", JSON.stringify(mappingForImport));
       const response = await fetch(`/api/office/events/${eventId}/external-tickets/import`, { method: "POST", body: form });
       const data = await response.json() as ImportResult & { error?: string };
       if (!response.ok) throw new Error(data.error || "Импорт не выполнен");
@@ -177,12 +184,13 @@ export function ExternalTicketImportManager({ eventId, sources, valueCardEnabled
   }
 
   const importedSourceId = result?.source?.id || selectedSource?.id || "";
+  const consentIncluded = consentMode === "ALL" || (consentMode === "COLUMN" && Boolean(mapping.organizerConsent));
 
   return <div className="stack">
     {sources.length > 0 && <section className="panel stack">
       <div><span className="eyebrow">Подключённые источники</span><h2>Продажи мероприятия</h2><p className="muted">Повторная загрузка обновляет существующие билеты и добавляет только новые.</p></div>
       <div className="stats">{sources.map((source) => <div className="stat" key={source.id}><span className="muted">{platformLabel(source.platformKey)}</span><strong>{source.name}</strong><small className="muted">Билетов: {source.total} · вошли: {source.used} · отменены: {source.cancelled}</small>{source.lastImportedAt && <small className="muted">Последний импорт: {new Date(source.lastImportedAt).toLocaleString("ru-RU")}</small>}{valueCardEnabled && <button className="btn secondary" type="button" disabled={Boolean(valueCardBusySource)} onClick={() => void syncValueCard(source.id)}>{valueCardBusySource === source.id ? "Синхронизируем..." : "Синхронизировать с ValueCard"}</button>}</div>)}</div>
-      {valueCardEnabled && <p className="muted">ValueCard получает только клиентов, для которых при импорте была выбрана колонка согласия и в ней стоит явное положительное значение. Существующие участники клуба не создаются повторно.</p>}
+      {valueCardEnabled && <p className="muted">ValueCard получает только клиентов, которым при импорте было зафиксировано согласие. Существующие участники клуба не создаются повторно.</p>}
     </section>}
 
     <section className="panel stack">
@@ -204,20 +212,24 @@ export function ExternalTicketImportManager({ eventId, sources, valueCardEnabled
         <label>Название источника<input className="input" value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Например Eventer Israel"/></label>
       </div>}
 
-      <label>Файл продаж<input className="input" type="file" accept=".csv,.txt,text/csv,text/plain" onChange={(event) => { setFile(event.target.files?.[0] || null); setPreview(null); setResult(null); setError(""); setValueCardResult(null); setValueCardError(""); }}/></label>
+      <label>Файл продаж<input className="input" type="file" accept=".csv,.txt,text/csv,text/plain" onChange={(event) => { setFile(event.target.files?.[0] || null); setPreview(null); setResult(null); setError(""); setValueCardResult(null); setValueCardError(""); setConsentMode("NONE"); }}/></label>
       <div className="row"><button className="btn secondary" type="button" disabled={!file || busy} onClick={() => void previewFile()}>{busy ? "Проверяем..." : "Проверить файл"}</button>{file && <span className="muted">{file.name}</span>}</div>
 
       {error && <div className="toast"><strong>Не удалось продолжить</strong><p>{error}</p></div>}
 
       {preview && <div className="stack">
         <div className="stats"><div className="stat"><span className="muted">Строк</span><strong>{preview.rowCount}</strong></div><div className="stat"><span className="muted">Разделитель</span><strong>{preview.delimiter}</strong></div><div className="stat"><span className="muted">QR найден автоматически</span><strong>{mapping.scanCode ? "Да" : "Нет"}</strong></div></div>
-        <section className="panel stack"><div><span className="eyebrow">Сопоставление</span><h3>Какая колонка что означает</h3></div><div className="grid two">{mappingFields.map((field) => <label key={field.key}>{field.label}{field.required ? " *" : ""}<select className="input" value={mapping[field.key] || ""} onChange={(event) => { setMapping((current) => ({ ...current, [field.key]: event.target.value || undefined })); setError(""); }}><option value="">Не импортировать</option>{preview.headers.map((header) => <option key={header} value={header}>{header}</option>)}</select></label>)}</div>{valueCardEnabled && <div className="toast"><strong>ValueCard</strong><p>Для автоматического добавления новых клиентов выберите колонку «Согласие на программы / рассылки организатора», а также телефон и имя. Atlas считает согласием только явные значения вроде כן, yes, true или 1.</p></div>}</section>
+        <section className="panel stack">
+          <div><span className="eyebrow">Сопоставление</span><h3>Какая колонка что означает</h3></div>
+          <div className="grid two">{mappingFields.map((field) => <label key={field.key}>{field.label}{field.required ? " *" : ""}<select className="input" value={mapping[field.key] || ""} onChange={(event) => { setMapping((current) => ({ ...current, [field.key]: event.target.value || undefined })); setError(""); }}><option value="">Не импортировать</option>{preview.headers.map((header) => <option key={header} value={header}>{header}</option>)}</select></label>)}</div>
+          {valueCardEnabled && <div className="toast stack"><strong>Согласие клиента для ValueCard</strong><label>Как учитывать согласие<select className="input" value={consentMode} onChange={(event) => { const mode = event.target.value as ConsentMode; setConsentMode(mode); if (mode !== "COLUMN") setMapping((current) => ({ ...current, organizerConsent: undefined })); setError(""); }}><option value="NONE">Не передавать согласие</option><option value="ALL">Все клиенты в этом файле дали согласие</option><option value="COLUMN">Согласие указано в отдельной колонке</option></select></label>{consentMode === "COLUMN" && <label>Колонка с согласием<select className="input" value={mapping.organizerConsent || ""} onChange={(event) => setMapping((current) => ({ ...current, organizerConsent: event.target.value || undefined }))}><option value="">Выберите колонку</option>{preview.headers.map((header) => <option key={header} value={header}>{header}</option>)}</select></label>}{consentMode === "ALL" && <p className="muted">Atlas отметит согласие у всех импортированных клиентов этого файла. Используйте этот вариант только если источник действительно подтверждает такое согласие.</p>}{consentMode === "COLUMN" && <p className="muted">Положительными считаются только явные значения вроде כן, yes, true или 1.</p>}</div>}
+        </section>
         <div className="table-wrap"><table><thead><tr>{preview.headers.slice(0, 8).map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{preview.sample.map((row, index) => <tr key={index}>{preview.headers.slice(0, 8).map((header) => <td key={header}>{row[header] || "-"}</td>)}</tr>)}</tbody></table></div>
         {importBlockReason && <div className="toast"><strong>Перед импортом нужно ещё одно действие</strong><p>{importBlockReason}</p>{!mapping.scanCode && <p className="muted">Если QR на билете действительно содержит значение из колонки «מזהה כרטיס», выберите эту колонку в поле QR / Barcode. Если нет, нужен экспорт Eventer с настоящим Barcode/QR.</p>}</div>}
         <button className="btn" type="button" disabled={busy} onClick={() => void runImport()}>{busy ? "Импортируем..." : importBlockReason ? "Проверить и импортировать" : `Импортировать ${preview.rowCount} билетов`}</button>
       </div>}
 
-      {result && <div className="toast"><strong>Импорт завершён</strong><p>Новых: {result.insertedCount} · обновлено: {result.updatedCount} · ошибок: {result.errorCount}</p>{result.errorCount > 0 && <p className="muted">Первые ошибки: {result.errors?.slice(0, 3).map((item) => `строка ${item.row}: ${item.error}`).join("; ")}</p>}{valueCardEnabled && mapping.organizerConsent && importedSourceId && <button className="btn" type="button" disabled={Boolean(valueCardBusySource)} onClick={() => void syncValueCard(importedSourceId)}>{valueCardBusySource ? "Синхронизируем с ValueCard..." : "Добавить согласившихся в ValueCard"}</button>}{valueCardEnabled && !mapping.organizerConsent && <p className="muted">ValueCard не запущен: в этом импорте не выбрана колонка согласия организатора.</p>}<button className="btn secondary" type="button" onClick={() => window.location.reload()}>Обновить данные</button></div>}
+      {result && <div className="toast"><strong>Импорт завершён</strong><p>Новых: {result.insertedCount} · обновлено: {result.updatedCount} · ошибок: {result.errorCount}</p>{result.errorCount > 0 && <p className="muted">Первые ошибки: {result.errors?.slice(0, 3).map((item) => `строка ${item.row}: ${item.error}`).join("; ")}</p>}{valueCardEnabled && consentIncluded && importedSourceId && <button className="btn" type="button" disabled={Boolean(valueCardBusySource)} onClick={() => void syncValueCard(importedSourceId)}>{valueCardBusySource ? "Синхронизируем с ValueCard..." : "Добавить согласившихся в ValueCard"}</button>}{valueCardEnabled && !consentIncluded && <p className="muted">ValueCard не запущен: в этом импорте согласие клиентов не передавалось.</p>}<button className="btn secondary" type="button" onClick={() => window.location.reload()}>Обновить данные</button></div>}
 
       {valueCardError && <div className="toast"><strong>ValueCard</strong><p>{valueCardError}</p></div>}
       {valueCardResult && <div className="toast"><strong>Синхронизация ValueCard завершена</strong><p>Добавлено новых: {valueCardResult.created} · уже были в ValueCard: {valueCardResult.existing} · пропущено: {valueCardResult.skipped} · ошибок: {valueCardResult.failed}</p></div>}
