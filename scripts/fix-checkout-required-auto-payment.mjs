@@ -12,7 +12,7 @@ if(!src.includes('ATLAS_REQUIRED_AUTO_PAYMENT')){
 
   src=src.replace(
     ' const formReady=contactReady&&requiredExtrasReady;\n const remaining=',
-    ' const formReady=contactReady&&requiredExtrasReady;\n const nameInvalid=(validationAttempted||touched.firstName||touched.lastName)&&!contactReady&&(firstName.trim().length<2||lastName.trim().length<2);\n const emailInvalid=(validationAttempted||touched.email)&&!validEmail(email);\n const phoneRequiredInvalid=(validationAttempted||touched.phone)&&(!validPhone(fullPhone)||!localPhoneValid);\n const requiredExtraInvalid=(key:GuestFieldKey)=>Boolean(props.guestFields[key]?.required)&&(validationAttempted||Boolean(touched[key]))&&(key==="birthDate"?!birthDateToIso(extras[key]||""):!(extras[key]||"").trim());\n const genderRequiredInvalid=(validationAttempted||Boolean(touched.gender))&&!gender;\n const remaining='
+    ' const formReady=contactReady&&requiredExtrasReady;\n const nameInvalid=validationAttempted&&!contactReady&&(firstName.trim().length<2||lastName.trim().length<2);\n const emailInvalid=validationAttempted&&!validEmail(email);\n const phoneRequiredInvalid=validationAttempted&&(!validPhone(fullPhone)||!localPhoneValid);\n const requiredExtraInvalid=(key:GuestFieldKey)=>Boolean(props.guestFields[key]?.required)&&validationAttempted&&(key==="birthDate"?!birthDateToIso(extras[key]||""):!(extras[key]||"").trim());\n const genderRequiredInvalid=validationAttempted&&!gender;\n const remaining='
   );
 
   const autoAnchor=' useEffect(()=>{if(cancelled||!paymentUrl||!orderId||!requiredExtrasReady)return;if(detailsTimerRef.current)clearTimeout(detailsTimerRef.current);';
@@ -75,6 +75,8 @@ if(!src.includes('ATLAS_REQUIRED_AUTO_PAYMENT')){
   if(src.includes(oldButton)) src=src.replace(oldButton,newButton); else throw new Error('checkout CTA anchor not found');
 }
 
+// Do not show phone validation before the customer explicitly attempts to continue.
+src=src.replaceAll('const phoneInvalid=phoneTouched&&phone.length>0&&!localPhoneValid;','const phoneInvalid=validationAttempted&&phone.length>0&&!localPhoneValid;');
 // Neutral example number: with Israel selected the rendered example is +972 00 000 0000.
 src=src.replaceAll('placeholder="52 556 5457"','placeholder="00 000 0000"');
 fs.writeFileSync(tsxPath,src);
