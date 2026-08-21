@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getMobileStaff } from "@/lib/mobile-auth";
+import { ensureExternalTicketStorage } from "@/lib/external-ticket-storage";
 
 export const dynamic = "force-dynamic";
 
 const CHECKIN_OPENS_BEFORE_MS = 3 * 60 * 60 * 1000;
 const CHECKIN_CLOSES_AFTER_MS = 12 * 60 * 60 * 1000;
+
+type ExternalCountRow = {
+  eventId: string;
+  expected: bigint | number | string;
+  checkedIn: bigint | number | string;
+};
 
 function checkInWindow(startsAt: Date) {
   return {
@@ -64,9 +71,31 @@ export async function GET(request: Request) {
     checkedInByEvent.set(ticket.order.eventId, (checkedInByEvent.get(ticket.order.eventId) ?? 0) + 1);
   }
 
+  const externalExpectedByEvent = new Map<string, number>();
+  const externalCheckedInByEvent = new Map<string, number>();
+  if (eventIds.length) {
+    await ensureExternalTicketStorage();
+    const placeholders = eventIds.map((_, index) => `$${index + 1}`).join(",");
+    const rows = await db.$queryRawUnsafe<ExternalCountRow[]>(
+      `SELECT "eventId",
+              COUNT(*) FILTER (WHERE "status" <> 'CANCELLED') AS "expected",
+              COUNT(*) FILTER (WHERE "status" = 'USED') AS "checkedIn"
+       FROM "ExternalTicket"
+       WHERE "eventId" IN (${placeholders})
+       GROUP BY "eventId"`,
+      ...eventIds,
+    );
+    for (const row of rows) {
+      externalExpectedByEvent.set(row.eventId, Number(row.expected ?? 0));
+      externalCheckedInByEvent.set(row.eventId, Number(row.checkedIn ?? 0));
+    }
+  }
+
   const visibleEvents = events.map((event) => {
-    const sold = event.categories.reduce((sum, category) => sum + category.sold, 0);
+    const atlasSold = event.categories.reduce((sum, category) => sum + category.sold, 0);
+    const sold = atlasSold + (externalExpectedByEvent.get(event.id) ?? 0);
     const capacity = event.categories.reduce((sum, category) => sum + category.capacity, 0);
+    const checkedIn = (checkedInByEvent.get(event.id) ?? 0) + (externalCheckedInByEvent.get(event.id) ?? 0);
     const published = event.status === "PUBLISHED";
     const { opensAt, closesAt } = checkInWindow(event.startsAt);
     const isPast = now > closesAt;
@@ -83,7 +112,7 @@ export async function GET(request: Request) {
       mapEnabled: event.mapEnabled,
       sold,
       capacity,
-      checkedIn: checkedInByEvent.get(event.id) ?? 0,
+      checkedIn,
       checkInOpensAt: opensAt.toISOString(),
       checkInClosesAt: closesAt.toISOString(),
       checkInOpen: published && now >= opensAt && now <= closesAt,
