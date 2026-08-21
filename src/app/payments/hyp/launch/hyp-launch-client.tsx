@@ -1,15 +1,29 @@
 "use client";
 
-import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useLocale } from "@/components/locale-provider";
+import styles from "./hyp-launch.module.css";
 
 export function HypLaunchClient({paymentUrl}:{paymentUrl:string}){
-  useEffect(()=>{
-    // Navigate the current browsing context. When this page is rendered inside
-    // the checkout iframe, Safari keeps the navigation inside that iframe and
-    // loads HYP directly. This is more reliable than mutating frameElement.src.
-    const timer=window.setTimeout(()=>window.location.replace(paymentUrl),0);
-    return()=>window.clearTimeout(timer);
-  },[paymentUrl]);
+  const router=useRouter();
+  const {locale}=useLocale();
+  const backLabel=locale==="he"?"חזרה לפרטי ההזמנה":locale==="ru"?"Вернуться к оформлению заказа":"Back to checkout";
 
-  return <main className="container" style={{paddingTop:80,maxWidth:720}}><section className="panel form" style={{textAlign:"center"}}><h1>Переходим к безопасной оплате HYP…</h1><p>Если переход не произошёл автоматически, нажмите кнопку.</p><a className="btn" href={paymentUrl}>Открыть страницу оплаты</a></section></main>;
+  return <main className={styles.shell}>
+    <div className={styles.toolbar}>
+      <button type="button" className={styles.back} onClick={()=>router.back()}>
+        <span className={styles.backIcon} aria-hidden="true">←</span>{backLabel}
+      </button>
+    </div>
+    <section className={styles.frameWrap} aria-label="HYP payment">
+      <iframe
+        className={styles.frame}
+        src={paymentUrl}
+        title="HYP payment"
+        allow="payment"
+        scrolling="no"
+        referrerPolicy="origin"
+      />
+    </section>
+  </main>;
 }
