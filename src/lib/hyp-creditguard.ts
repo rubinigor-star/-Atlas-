@@ -1,4 +1,5 @@
 const HYP_ENDPOINT = "https://pay.hyp.co.il/p/";
+const HYP_3DS_ENDPOINT = "https://pay.hyp.co.il/cgi-bin/yaadpay/yaadpay3ds.pl?";
 const REQUEST_TIMEOUT_MS = 20_000;
 const HYP_PAYMENT_TEMPLATE = "5";
 
@@ -99,8 +100,7 @@ export async function createHypApprovalPaymentPage(input: { amountMinor: number;
     FixTash: "True",
     sendemail: "False",
     SendHesh: "False",
-    Postpone: "True",
-    J5: "False",
+    J5: "True",
     tmp: HYP_PAYMENT_TEMPLATE,
     ReturnUrl: callbackUrl(input.callbackPath, "success"),
     SuccessUrl: callbackUrl(input.callbackPath, "success"),
@@ -110,9 +110,9 @@ export async function createHypApprovalPaymentPage(input: { amountMinor: number;
   const signed = await callApiSign("SIGN", paymentParams);
   if (signed.get("action") !== "pay") throw new Error("HYP APISign response does not contain action=pay");
   if (!signed.get("signature")) throw new Error("HYP APISign response does not contain signature");
-  if (signed.get("Postpone") !== "True") throw new Error("HYP did not preserve Postpone=True");
-  if (signed.get("J5") === "True") throw new Error("HYP unexpectedly enabled J5 together with Postpone");
-  console.info("hyp.approval.payment_page.created", { orderId, template: HYP_PAYMENT_TEMPLATE });
+  if (signed.get("J5") !== "True") throw new Error("HYP did not preserve J5=True authorization mode");
+  if (signed.get("Postpone") === "True") throw new Error("HYP returned legacy Postpone mode instead of J5 authorization");
+  console.info("hyp.approval.payment_page.created", { orderId, template: HYP_PAYMENT_TEMPLATE, mode:"J5" });
   return `${HYP_ENDPOINT}?${signed.toString()}`;
 }
 
@@ -131,8 +131,9 @@ export function hypApprovalResultFromUrl(url: URL) {
     amount: url.searchParams.get("Amount") || url.searchParams.get("amount") || "",
     txId: transId,
     uniqueId: orderId,
-    cgUid: url.searchParams.get("cgUid") || "",
-    authorizationCode: url.searchParams.get("ACode") || url.searchParams.get("authNumber") || "",
+    cgUid: url.searchParams.get("cgUid") || url.searchParams.get("CgUid") || "",
+    originalUid: url.searchParams.get("UID") || url.searchParams.get("Uid") || url.searchParams.get("uid") || url.searchParams.get("originalUid") || "",
+    authorizationCode: url.searchParams.get("ACode") || url.searchParams.get("AuthNum") || url.searchParams.get("authNumber") || "",
     cardToken: url.searchParams.get("Token") || url.searchParams.get("token") || url.searchParams.get("cardToken") || url.searchParams.get("CardToken") || "",
     cardExp: url.searchParams.get("Tokef") || url.searchParams.get("tokef") || url.searchParams.get("cardExp") || url.searchParams.get("CardExp") || "",
     cardMask: url.searchParams.get("L4digit") || url.searchParams.get("cardMask") || "",
@@ -153,21 +154,45 @@ export async function verifyHypApprovalResponseMac(url: URL) {
   }
 }
 
-export async function captureHypAuthorization(input: { transactionId: string; amountMinor: number; description?: string }) {
+export async function captureHypAuthorization(input: { transactionId: string; amountMinor: number; description?: string; originalUid?: string|null; authorizationCode?: string|null }) {
   const transactionId = input.transactionId.trim();
-  if (!/^\d+$/.test(transactionId)) throw new Error("HYP TransId не сохранён для завершения Postpone");
+  if (!/^\d+$/.test(transactionId)) throw new Error("HYP TransId is missing");
+  const originalUid=(input.originalUid||"").trim();
+  const authNum=(input.authorizationCode||"").trim();
+  if(originalUid&&authNum){
+    const params=new URLSearchParams({
+      action:"soft",Masof:required("HYP_MASOF"),PassP:required("HYP_PASSP"),
+      Amount:(input.amountMinor/100).toFixed(2),Info:safeText(input.description||"Atlas approved order",120),
+      UTF8:"True",UTF8out:"True",Coin:"1",Tash:"1",SendHesh:"True",sendHeshSMS:"True",
+      "inputObj.originalUid":originalUid,"inputObj.originalAmount":(input.amountMinor/100).toFixed(2),
+      AuthNum:authNum,"inputObj.authorizationCodeManpik":"7"
+    });
+    const response=await fetch(HYP_3DS_ENDPOINT,{method:"POST",headers:{"User-Agent":"Atlas-One-HYP-J5-Capture/1.0","content-type":"application/x-www-form-urlencoded"},body:params,cache:"no-store",signal:AbortSignal.timeout(REQUEST_TIMEOUT_MS)});
+    const body=(await response.text()).trim();
+    if(!response.ok)throw new Error(`HYP J5 capture HTTP ${response.status}`);
+    const result=parseHypBody(body);const code=result.get("CCode")||result.get("Error")||result.get("error")||"";
+    if(code!=="0"&&code!=="000")throw new Error(`HYP J5 capture ${code||"UNKNOWN"}`);
+    return {resultCode:code||"0",captureTranId:result.get("Id")||result.get("TransId")||transactionId,statusText:result.get("ErrMsg")||result.get("Message")||"Captured",rawResponse:safeProviderResponse(body)};
+  }
+  // Legacy fallback for applications authorized before the J5 migration.
   const params = new URLSearchParams({ action: "commitTrans", Masof: required("HYP_MASOF"), PassP: required("HYP_PASSP"), TransId: transactionId, Amount: (input.amountMinor / 100).toFixed(2), SendHesh: "True", UTF8: "True", UTF8out: "True", sendHeshSMS: "True", heshDesc: safeText(input.description || "Atlas approved order", 120) });
-  const response = await fetch(HYP_ENDPOINT, { method: "POST", headers: { "User-Agent": "Atlas-One-HYP-Commit/1.0", "content-type": "application/x-www-form-urlencoded" }, body: params, cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  const response = await fetch(HYP_ENDPOINT, { method: "POST", headers: { "User-Agent": "Atlas-One-HYP-Legacy-Commit/1.0", "content-type": "application/x-www-form-urlencoded" }, body: params, cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
   const body = (await response.text()).trim();
-  if (!response.ok) throw new Error(`HYP commitTrans HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`HYP legacy commitTrans HTTP ${response.status}`);
   const result = parseHypBody(body);
   const code = result.get("CCode") || result.get("Error") || result.get("error") || "";
-  if (code !== "0" && code !== "000") throw new Error(`HYP commitTrans ${code || "UNKNOWN"}`);
+  if (code !== "0" && code !== "000") throw new Error(`HYP legacy commitTrans ${code || "UNKNOWN"}`);
   return { resultCode: code || "0", captureTranId: result.get("Id") || result.get("TransId") || transactionId, statusText: result.get("ErrMsg") || result.get("Message") || "Captured", rawResponse: safeProviderResponse(body) };
 }
 
 export async function cancelHypAuthorization(input: { transactionId: string }) {
   const transactionId = input.transactionId.trim();
-  if (!/^\d+$/.test(transactionId)) throw new Error("HYP TransId не сохранён для отклонения Postpone");
-  return { resultCode: "NOT_COMMITTED", cancelTranId: transactionId, statusText: "Postponed transaction was not committed", rawResponse: JSON.stringify({ transactionId, action: "not-committed" }) };
+  if (!/^\d+$/.test(transactionId)) throw new Error("HYP TransId is missing for authorization cancellation");
+  const params=new URLSearchParams({action:"CancelTrans",Masof:required("HYP_MASOF"),PassP:required("HYP_PASSP"),TransId:transactionId,UTF8:"True",UTF8out:"True"});
+  const response=await fetch(HYP_ENDPOINT,{method:"POST",headers:{"User-Agent":"Atlas-One-HYP-J5-Cancel/1.0","content-type":"application/x-www-form-urlencoded"},body:params,cache:"no-store",signal:AbortSignal.timeout(REQUEST_TIMEOUT_MS)});
+  const body=(await response.text()).trim();
+  if(!response.ok)throw new Error(`HYP authorization cancel HTTP ${response.status}`);
+  const result=parseHypBody(body);const code=result.get("CCode")||result.get("Error")||result.get("error")||"";
+  if(code!=="0"&&code!=="000")throw new Error(`HYP authorization cancel ${code||"UNKNOWN"}`);
+  return {resultCode:code||"0",cancelTranId:result.get("Id")||result.get("TransId")||transactionId,statusText:result.get("ErrMsg")||result.get("Message")||"Authorization cancelled",rawResponse:safeProviderResponse(body)};
 }
