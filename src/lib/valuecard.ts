@@ -82,6 +82,28 @@ function findMember(value: unknown): ValueCardMember | null {
   return null;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(url: string | URL, init: RequestInit) {
+  let lastResponse: Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 7000);
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal });
+      lastResponse = response;
+      if (![429, 471, 500, 502, 503, 504].includes(response.status) || attempt === 2) return response;
+    } finally {
+      clearTimeout(timer);
+    }
+    await sleep(500 * (attempt + 1));
+  }
+  if (lastResponse) return lastResponse;
+  throw new Error("ValueCard request failed without response");
+}
+
 export async function getValueCardToken(organizationId: string) {
   await ensureOrganizationIntegrationsTable();
   const rows = await db.$queryRaw<IntegrationRow[]>`SELECT "enabled","credentialsEncrypted" FROM "OrganizationIntegration" WHERE "organizationId"=${organizationId} AND "provider"='VALUECARD' LIMIT 1`;
@@ -99,15 +121,12 @@ export async function searchValueCardMember(organizationId: string, phone: strin
   const variants = phoneVariants(phone);
   for (let index = 0; index < variants.length; index += 1) {
     const cellPhone = variants[index];
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
     try {
       const url = new URL("https://valuecard.co.il/api/pos/club_member/SearchClubMember");
       url.searchParams.set("cellPhone", cellPhone);
-      const response = await fetch(url, {
+      const response = await fetchWithRetry(url, {
         headers: { Authorization: token.toLowerCase().startsWith("bearer ") ? token : `Bearer ${token}`, Accept: "application/json, text/plain" },
         cache: "no-store",
-        signal: controller.signal,
       });
       const contentType = response.headers.get("content-type") || "";
       if (!response.ok) {
@@ -126,8 +145,6 @@ export async function searchValueCardMember(organizationId: string, phone: strin
       if (member) return member;
     } catch (error) {
       console.info("valuecard.lookup.exception", { organizationId, variant: index + 1, message: error instanceof Error ? error.message : "Unknown error" });
-    } finally {
-      clearTimeout(timer);
     }
   }
   return null;
@@ -135,7 +152,11 @@ export async function searchValueCardMember(organizationId: string, phone: strin
 
 export async function searchValueCardMembers(organizationId: string, phones: string[]) {
   const unique = [...new Set(phones.filter(Boolean))];
-  const pairs = await Promise.all(unique.map(async (phone) => [phone, await searchValueCardMember(organizationId, phone)] as const));
+  const pairs: Array<readonly [string, ValueCardMember | null]> = [];
+  for (const phone of unique) {
+    pairs.push([phone, await searchValueCardMember(organizationId, phone)] as const);
+    await sleep(200);
+  }
   return new Map(pairs);
 }
 
@@ -154,7 +175,7 @@ export async function registerValueCardMember(input: {
   if (!input.firstName.trim() || !input.lastName.trim()) throw new Error("ValueCard registration requires first and last name");
   const cellPhone = primaryPhone(input.cellPhone);
   if (!cellPhone) throw new Error("ValueCard registration requires cellphone");
-  const payload = {
+  const basePayload = {
     firstName: input.firstName.trim(),
     lastName: input.lastName.trim(),
     birthDate: input.birthDate && input.birthDate.getUTCFullYear() > 1900 ? input.birthDate.toISOString() : null,
@@ -163,6 +184,7 @@ export async function registerValueCardMember(input: {
     cellPhone,
     email: input.email?.trim() || "",
     address: input.city?.trim() || "",
+    city: input.city?.trim() || "",
     zipCode: "",
     comments: "Registered via Atlas approved order",
     gender: input.gender === "MALE" ? 1 : input.gender === "FEMALE" ? 2 : 0,
@@ -176,10 +198,9 @@ export async function registerValueCardMember(input: {
     extField2: null,
     extField3: null,
   };
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 7000);
-  try {
-    const response = await fetch("https://valuecard.co.il/api/pos/club_member/RegisterClubMemberEx", {
+
+  async function attemptRegistration(payload: typeof basePayload) {
+    const response = await fetchWithRetry("https://valuecard.co.il/api/pos/club_member/RegisterClubMemberEx", {
       method: "POST",
       headers: {
         Authorization: token.toLowerCase().startsWith("bearer ") ? token : `Bearer ${token}`,
@@ -188,20 +209,49 @@ export async function registerValueCardMember(input: {
       },
       body: JSON.stringify(payload),
       cache: "no-store",
-      signal: controller.signal,
     });
     const text = await response.text();
     const parsed = text ? parsePayload(text) : null;
     const common = commonInfo(parsed);
     const member = findMember(parsed);
     console.info("valuecard.register.result", { organizationId: input.organizationId, status: response.status, found: Boolean(member), common });
-    if (!response.ok) throw new Error(`ValueCard registration HTTP ${response.status}`);
-    if (common?.isError === true) throw new Error(String(common.printMessage || common.message || `ValueCard error ${common.returnCode ?? "unknown"}`));
-    if (!member?.memberId && !member?.cardNumber) throw new Error("ValueCard registration succeeded without member identifier");
-    return member;
-  } finally {
-    clearTimeout(timer);
+    return { response, common, member };
   }
+
+  let result = await attemptRegistration(basePayload);
+  const duplicateEmail = result.common?.isError === true && (
+    String(result.common?.returnCode ?? "") === "-1036" ||
+    String(result.common?.message ?? "").includes("דואר אלקטרוני כבר קיים") ||
+    String(result.common?.printMessage ?? "").includes("דואר אלקטרוני כבר קיים")
+  );
+  if (duplicateEmail && basePayload.email) {
+    console.info("valuecard.register.retry_without_email", { organizationId: input.organizationId });
+    await sleep(350);
+    result = await attemptRegistration({ ...basePayload, email: "" });
+  }
+
+  if (!result.response.ok) throw new Error(`ValueCard registration HTTP ${result.response.status}`);
+  if (result.common?.isError === true) throw new Error(String(result.common.printMessage || result.common.message || `ValueCard error ${result.common.returnCode ?? "unknown"}`));
+  if (!result.member?.memberId && !result.member?.cardNumber) throw new Error("ValueCard registration succeeded without member identifier");
+
+  if (result.member.memberId && input.city?.trim()) {
+    await sleep(250);
+    await enrichValueCardMemberMissingFields({
+      token,
+      memberId: result.member.memberId,
+      atlas: {
+        firstName: input.firstName,
+        lastName: input.lastName,
+        cellPhone,
+        email: duplicateEmail ? null : input.email,
+        birthDate: input.birthDate,
+        gender: input.gender,
+        city: input.city,
+      },
+    });
+  }
+
+  return result.member;
 }
 
 export async function enrollApprovedOrderInValueCard(publicId: string): Promise<ValueCardRegistrationResult> {
