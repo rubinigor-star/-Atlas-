@@ -21,8 +21,12 @@ export default function EventHubScreen() {
   if (loading) return <SafeAreaView style={s.center}><ActivityIndicator size="large" /></SafeAreaView>;
   if (!state) return <SafeAreaView style={s.center}><Text>Не удалось открыть мероприятие</Text></SafeAreaView>;
 
-  const canManage = state.permissions.includes("EVENT_MANAGE");
-  const canTickets = state.permissions.includes("TICKET_MANAGE");
+  const permissions = new Set(state.permissions || []);
+  const canViewOrders = permissions.has("ORDER_VIEW") || permissions.has("REQUEST_REVIEW") || permissions.has("ORDER_MANAGE");
+  const canManage = permissions.has("EVENT_MANAGE");
+  const canTickets = permissions.has("TICKET_MANAGE");
+  const canScan = permissions.has("SCAN");
+  const hasSettings = canManage || canTickets;
 
   return <SafeAreaView style={s.safe} edges={["top"]}>
     <View style={s.header}>
@@ -33,18 +37,20 @@ export default function EventHubScreen() {
 
     <ScrollView contentContainerStyle={s.content}>
       <Text style={s.sectionTitle}>Управление мероприятием</Text>
-      <Text style={s.help}>Все рабочие разделы мероприятия доступны из одного места.</Text>
+      <Text style={s.help}>Показываются только разделы, разрешённые вашей ролью.</Text>
 
-      <Action icon="receipt-outline" title="Заказы" text="Заявки, approvals, отмены, возвраты и повторная отправка билетов." onPress={() => router.push({ pathname: "/event-orders/[id]", params: { id: eventId } })} />
-      <Action icon="settings-outline" title="Настройки" text="О мероприятии, билеты и цены, карта, checkout, публикация и архив." onPress={() => router.push({ pathname: "/event-editor/[id]", params: { id: eventId } })} />
-      <Action icon="scan-outline" title="Сканер" text="QR-сканирование, ручной поиск и check-in посетителей." onPress={() => router.push({ pathname: "/scanner", params: { eventId, eventTitle: state.event.title } })} />
+      {canViewOrders && <Action icon="receipt-outline" title="Заказы" text="Заявки, approvals, отмены, возвраты и повторная отправка билетов." onPress={() => router.push({ pathname: "/event-orders/[id]", params: { id: eventId } })} />}
+      {hasSettings && <Action icon="settings-outline" title="Настройки" text="О мероприятии, билеты и цены, карта, checkout, публикация и архив." onPress={() => router.push({ pathname: "/event-editor/[id]", params: { id: eventId } })} />}
+      {canScan && <Action icon="scan-outline" title="Сканер" text="QR и штрих-коды, ручной поиск и check-in посетителей." onPress={() => router.push({ pathname: "/scanner", params: { eventId, eventTitle: state.event.title } })} />}
 
       {(canManage || canTickets) && <View style={s.advanced}>
         <Text style={s.advancedTitle}>Дополнительные настройки</Text>
         {canManage && <Mini icon="link-outline" label="Продажи и гостевые ссылки" onPress={() => router.push({ pathname: "/guest-links/[id]", params: { id: eventId } })} />}
         {canTickets && <Mini icon="ticket-outline" label="Дизайн билета" onPress={() => router.push({ pathname: "/ticket-design/[id]", params: { id: eventId } })} />}
-        <Text style={s.note}>Эти разделы работают с теми же данными и backend-процессами, что и web back-office.</Text>
+        <Text style={s.note}>Разрешения проверяются также на backend при каждом изменении.</Text>
       </View>}
+
+      {!canViewOrders && !hasSettings && !canScan && <View style={s.advanced}><Text style={s.note}>Для этого мероприятия вашей роли не назначены рабочие действия.</Text></View>}
     </ScrollView>
   </SafeAreaView>;
 }
