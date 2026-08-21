@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import Script from "next/script";
 import { db } from "@/lib/db";
 import { CheckoutForm } from "@/components/checkout-form";
+import { CheckoutBackToMap } from "@/components/checkout-back-to-map";
 import { AbandonExitTracker } from "@/components/abandon-exit-tracker";
 import { effectiveTicketPrice } from "@/lib/ticketing";
 import { parseGuestFields } from "@/lib/event-guest-fields";
@@ -88,5 +89,5 @@ export default async function Checkout({searchParams}:{searchParams:Promise<Reco
   const pricing=calculateServiceFee(subtotal,{salesFeePercentBps:terms.organizer.salesFeePercentBps,salesFeeFixedMinor:terms.organizer.salesFeeFixedMinor,serviceFeePayer:terms.serviceFeePayer});
   const first=items[0];
   const firstTable=first.tableId?tableMap.get(first.tableId):undefined;
-  return <main className="shell"><Script src="https://pps.creditguard.co.il/plugins/applePayOnIframe.js" strategy="afterInteractive"/><AbandonExitTracker eventId={event.id} categoryId={first.categoryId} tableId={firstTable?.id} seatIds={seatIds}/><CheckoutForm eventId={event.id} eventSlug={event.slug} categoryId={first.categoryId} quantity={quantity} tableId={firstTable?.id} items={items} seatIds={seatIds} subtotal={pricing.subtotalMinor} serviceFee={pricing.serviceFeeMinor} total={pricing.buyerTotalMinor} serviceFeePayer={terms.serviceFeePayer} title={event.title} label={labels.join(" · ")} posterUrl={event.posterUrl} startsAt={event.startsAt.toISOString()} summaryItems={summaryItems} salesMode={event.salesMode} approvalInstructions={event.approvalInstructions} referralCode={validLink?.code} promoterLabel={validLink?`${validLink.promoterName} · ${validLink.label}`:undefined} recoveryToken={query.recovery} guestFields={parseGuestFields(event.description)}/></main>;
+  return <main className="shell"><Script src="https://pps.creditguard.co.il/plugins/applePayOnIframe.js" strategy="afterInteractive"/><AbandonExitTracker eventId={event.id} categoryId={first.categoryId} tableId={firstTable?.id} seatIds={seatIds}/><CheckoutBackToMap eventSlug={event.slug} referralCode={validLink?.code}/><CheckoutForm eventId={event.id} eventSlug={event.slug} categoryId={first.categoryId} quantity={quantity} tableId={firstTable?.id} items={items} seatIds={seatIds} subtotal={pricing.subtotalMinor} serviceFee={pricing.serviceFeeMinor} total={pricing.buyerTotalMinor} serviceFeePayer={terms.serviceFeePayer} title={event.title} label={labels.join(" · ")} posterUrl={event.posterUrl} startsAt={event.startsAt.toISOString()} summaryItems={summaryItems} salesMode={event.salesMode} approvalInstructions={event.approvalInstructions} referralCode={validLink?.code} promoterLabel={validLink?`${validLink.promoterName} · ${validLink.label}`:undefined} recoveryToken={query.recovery} guestFields={parseGuestFields(event.description)}/></main>;
 }
