@@ -172,6 +172,7 @@ export async function registerValueCardMember(input: {
 }) {
   const token = await getValueCardToken(input.organizationId);
   if (!token) throw new Error("ValueCard integration is not enabled or configured");
+  const authToken = token;
   if (!input.firstName.trim() || !input.lastName.trim()) throw new Error("ValueCard registration requires first and last name");
   const cellPhone = primaryPhone(input.cellPhone);
   if (!cellPhone) throw new Error("ValueCard registration requires cellphone");
@@ -203,7 +204,7 @@ export async function registerValueCardMember(input: {
     const response = await fetchWithRetry("https://valuecard.co.il/api/pos/club_member/RegisterClubMemberEx", {
       method: "POST",
       headers: {
-        Authorization: token.toLowerCase().startsWith("bearer ") ? token : `Bearer ${token}`,
+        Authorization: authToken.toLowerCase().startsWith("bearer ") ? authToken : `Bearer ${authToken}`,
         Accept: "application/json",
         "Content-Type": "application/json",
       },
@@ -237,7 +238,7 @@ export async function registerValueCardMember(input: {
   if (result.member.memberId && input.city?.trim()) {
     await sleep(250);
     await enrichValueCardMemberMissingFields({
-      token,
+      token: authToken,
       memberId: result.member.memberId,
       atlas: {
         firstName: input.firstName,
