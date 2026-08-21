@@ -42,6 +42,22 @@ src=src.replaceAll("I agree to receive information and promotional materials fro
 // page is HYP; do not enter any embedded payment stage.
 src=src.replaceAll('setPaymentStage(true);void startPayment();','void startPayment();');
 
+// On desktop, render voucher + consents + CTA directly beneath the order summary.
+// On mobile, keep the same controls in the natural single-column form flow.
+if(!src.includes('checkoutActionsDesktop')){
+  const actionStart=src.indexOf('{/* ATLAS_EXTERNAL_HYP_VOUCHER */}');
+  const ctaClass='className={styles.contactContinue}';
+  const ctaAt=src.indexOf(ctaClass,actionStart);
+  if(actionStart<0||ctaAt<0)throw new Error('checkout actions block not found');
+  const actionEnd=src.indexOf('</button>}',ctaAt);
+  if(actionEnd<0)throw new Error('checkout CTA end not found');
+  const actionBlock=src.slice(actionStart,actionEnd+'</button>}'.length);
+  src=src.slice(0,actionStart)+'<div className={styles.checkoutActionsMobile}>'+actionBlock+'</div>'+src.slice(actionEnd+'</button>}'.length);
+  const asideAnchor='{summaryBlock}{paymentBlock}';
+  if(!src.includes(asideAnchor))throw new Error('summary aside anchor not found');
+  src=src.replace(asideAnchor,'{summaryBlock}<div className={styles.checkoutActionsDesktop}>'+actionBlock+'</div>{paymentBlock}');
+}
+
 // Never render the legacy embedded HYP payment area.
 src=src.replace(/\n const paymentBlock=.*?;\n return /s,'\n const paymentBlock=null;\n return ');
 
@@ -50,5 +66,8 @@ fs.writeFileSync(tsxPath,src);
 let css=fs.readFileSync(cssPath,'utf8');
 if(!css.includes('ATLAS_EXTERNAL_HYP_LAYOUT_POLISH')){
   css+=`\n/* ATLAS_EXTERNAL_HYP_LAYOUT_POLISH */\n.voucherSection{display:grid;gap:10px;margin-top:4px}.voucherSectionTitle{font-size:18px;line-height:1.15;margin:0;font-weight:850;color:#11152f;text-transform:uppercase}.voucherSection .voucherCard{margin:0!important;padding:16px 18px 18px!important}.voucherSection .couponHint{margin:0 0 12px!important}.consentList{margin-top:10px!important}.title{min-width:0;max-width:100%}@media(max-width:900px){.title{font-size:clamp(16px,4.4vw,20px)!important;letter-spacing:-.45px!important;min-width:0;max-width:100%;overflow:visible}.voucherSectionTitle{font-size:17px}}@media(max-width:390px){.title{font-size:16px!important;letter-spacing:-.55px!important}.timer{padding-left:13px!important;padding-right:13px!important}.voucherSectionTitle{font-size:16px}}\n`;
-  fs.writeFileSync(cssPath,css);
 }
+if(!css.includes('ATLAS_DESKTOP_CHECKOUT_ACTIONS')){
+  css+=`\n/* ATLAS_DESKTOP_CHECKOUT_ACTIONS */\n.checkoutActionsDesktop{display:grid;gap:10px;margin-top:16px}.checkoutActionsMobile{display:none}.checkoutActionsDesktop .voucherSection{margin-top:0}.checkoutActionsDesktop .voucherSectionTitle{font-size:17px}.checkoutActionsDesktop .voucherCard{padding:14px 16px 16px!important}.checkoutActionsDesktop .consentList{margin-top:2px!important}.checkoutActionsDesktop .contactContinue{margin-top:4px!important;width:100%!important}@media(max-width:900px){.checkoutActionsDesktop{display:none}.checkoutActionsMobile{display:block}.checkoutActionsMobile .voucherSection{margin-top:4px}}\n`;
+}
+fs.writeFileSync(cssPath,css);
