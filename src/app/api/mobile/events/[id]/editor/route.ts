@@ -79,9 +79,23 @@ async function authorize(request: Request, eventId: string, permission: "EVENT_V
   return { actor, event } as const;
 }
 
+async function authorizeEventHub(request: Request, eventId: string) {
+  const actor = await getMobileStaff(request);
+  if (!actor) return { error: NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 }) } as const;
+  const canOpen = actor.role === "ADMIN" || ["EVENT_VIEW", "EVENT_MANAGE", "TICKET_MANAGE", "ORDER_VIEW", "REQUEST_REVIEW", "ORDER_MANAGE", "SCAN"].some((permission) => actor.permissionSet.has(permission));
+  if (!canOpen) return { error: NextResponse.json({ error: "Недостаточно прав" }, { status: 403 }) } as const;
+  const event = await db.event.findUnique({ where: { id: eventId }, select: { id: true, organizationId: true } });
+  if (!event) return { error: NextResponse.json({ error: "Мероприятие не найдено" }, { status: 404 }) } as const;
+  const organizationAccess = actor.role === "ADMIN" || Boolean(actor.organizationId && actor.organizationId === event.organizationId);
+  const scoped = actor.eventAccess.length > 0;
+  const eventAccess = actor.eventAccess.some((access) => access.eventId === eventId);
+  if (!organizationAccess || (scoped && !eventAccess)) return { error: NextResponse.json({ error: "Недостаточно прав" }, { status: 403 }) } as const;
+  return { actor, event } as const;
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const auth = await authorize(request, id, "EVENT_VIEW");
+  const auth = await authorizeEventHub(request, id);
   if ("error" in auth) return auth.error;
   const editor = await getMobileEditorState(id);
   if (!editor) return NextResponse.json({ error: "Мероприятие не найдено" }, { status: 404 });
