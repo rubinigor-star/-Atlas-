@@ -137,6 +137,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
     }
 
+    if (!input.afterId) {
+      await db.$executeRawUnsafe(
+        `UPDATE "ExternalTicketSource"
+         SET "valueCardCreatedTotal"=COALESCE("valueCardCreatedTotal",0)+$2,
+             "valueCardLastCreated"=$2,
+             "valueCardLastExisting"=$3,
+             "valueCardLastSkipped"=$4,
+             "valueCardLastFailed"=$5,
+             "valueCardLastSyncedAt"=CURRENT_TIMESTAMP,
+             "updatedAt"=CURRENT_TIMESTAMP
+         WHERE "id"=$1`,
+        input.sourceId, created, existing, skipped, failed,
+      );
+    } else {
+      await db.$executeRawUnsafe(
+        `UPDATE "ExternalTicketSource"
+         SET "valueCardCreatedTotal"=COALESCE("valueCardCreatedTotal",0)+$2,
+             "valueCardLastCreated"=COALESCE("valueCardLastCreated",0)+$2,
+             "valueCardLastExisting"=COALESCE("valueCardLastExisting",0)+$3,
+             "valueCardLastSkipped"=COALESCE("valueCardLastSkipped",0)+$4,
+             "valueCardLastFailed"=COALESCE("valueCardLastFailed",0)+$5,
+             "valueCardLastSyncedAt"=CURRENT_TIMESTAMP,
+             "updatedAt"=CURRENT_TIMESTAMP
+         WHERE "id"=$1`,
+        input.sourceId, created, existing, skipped, failed,
+      );
+    }
+
     const nextCursor = rows.length > BATCH_SIZE ? batch[batch.length - 1]?.id || null : null;
     return NextResponse.json({
       ok: true,
