@@ -29,14 +29,35 @@ function parseConsentMode(value: string): ConsentMode {
   return "NONE";
 }
 
+function applyKnownPlatformDefaults(mapping: ExternalTicketMapping, headers: string[], platformKey?: string) {
+  const headerSet = new Set(headers);
+  const next = { ...mapping };
+  const isEventer = platformKey?.toUpperCase() === "EVENTER" || headerSet.has("מזהה כרטיס");
+  if (!isEventer) return next;
+
+  if (!next.scanCode && headerSet.has("מזהה כרטיס")) next.scanCode = "מזהה כרטיס";
+  if (!next.externalTicketId && headerSet.has("מזהה כרטיס")) next.externalTicketId = "מזהה כרטיס";
+  if (!next.externalOrderId && headerSet.has("מס' הזמנה")) next.externalOrderId = "מס' הזמנה";
+  if (!next.holderName && headerSet.has("שם")) next.holderName = "שם";
+  if (!next.phone && headerSet.has("טלפון")) next.phone = "טלפון";
+  if (!next.email && headerSet.has("אימייל")) next.email = "אימייל";
+  if (!next.ticketType && headerSet.has("סוג כרטיס")) next.ticketType = "סוג כרטיס";
+  if (!next.price && headerSet.has("מחיר כרטיס")) next.price = "מחיר כרטיס";
+  return next;
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  let eventId = "unknown";
+  let uploadName = "unknown";
   try {
-    const { id: eventId } = await params;
+    const resolved = await params;
+    eventId = resolved.id;
     const staff = await requireEventAccess("TICKET_MANAGE", eventId);
     await ensureExternalTicketStorage();
     const form = await request.formData();
     const upload = form.get("file");
     if (!(upload instanceof File)) throw new Error("Выберите CSV файл");
+    uploadName = upload.name;
     if (!isTextTicketFile(upload)) throw new Error("Сейчас поддерживается CSV/TXT. XLSX добавим отдельным адаптером.");
     if (upload.size > MAX_FILE_BYTES) throw new Error("Файл больше 15 MB");
 
@@ -47,11 +68,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const parsed = parseCsv(await upload.text());
     if (parsed.records.length > MAX_ROWS) throw new Error(`В одном импорте допускается до ${MAX_ROWS} строк`);
 
-    let mapping: ExternalTicketMapping = detectExternalTicketMapping(parsed.headers);
+    let mapping: ExternalTicketMapping = applyKnownPlatformDefaults(detectExternalTicketMapping(parsed.headers), parsed.headers, platformKey);
     const mappingValue = formString(form, "mapping");
     if (mappingValue) {
       const candidate = JSON.parse(mappingValue) as ExternalTicketMapping;
-      mapping = validateExternalTicketMapping(candidate, parsed.headers);
+      mapping = applyKnownPlatformDefaults(candidate, parsed.headers, platformKey);
+      mapping = validateExternalTicketMapping(mapping, parsed.headers);
     } else {
       mapping = validateExternalTicketMapping(mapping, parsed.headers);
     }
@@ -89,6 +111,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ ok: true, consentMode, ...result });
   } catch (error) {
+    console.error("[external-ticket-import] failed", {
+      eventId,
+      uploadName,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const message = error instanceof Error ? error.message : "Не удалось импортировать внешние билеты";
     return NextResponse.json({ error: message }, { status: message === "FORBIDDEN" ? 403 : 400 });
   }
