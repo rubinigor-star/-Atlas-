@@ -70,4 +70,7 @@ if(!css.includes('ATLAS_EXTERNAL_HYP_LAYOUT_POLISH')){
 if(!css.includes('ATLAS_DESKTOP_CHECKOUT_ACTIONS')){
   css+=`\n/* ATLAS_DESKTOP_CHECKOUT_ACTIONS */\n.checkoutActionsDesktop{display:grid;gap:10px;margin-top:16px}.checkoutActionsMobile{display:none}.checkoutActionsDesktop .voucherSection{margin-top:0}.checkoutActionsDesktop .voucherSectionTitle{font-size:17px}.checkoutActionsDesktop .voucherCard{padding:14px 16px 16px!important}.checkoutActionsDesktop .consentList{margin-top:2px!important}.checkoutActionsDesktop .contactContinue{margin-top:4px!important;width:100%!important}@media(max-width:900px){.checkoutActionsDesktop{display:none}.checkoutActionsMobile{display:block}.checkoutActionsMobile .voucherSection{margin-top:4px}}\n`;
 }
+if(!css.includes('ATLAS_DESKTOP_ACTION_BOTTOM_ALIGN')){
+  css+=`\n/* ATLAS_DESKTOP_ACTION_BOTTOM_ALIGN */\n@media(min-width:901px){.rightColumn{align-self:stretch!important;display:flex!important;flex-direction:column!important;gap:18px!important}.checkoutActionsDesktop{display:flex!important;flex:1 1 auto;min-height:0;flex-direction:column;gap:10px;margin-top:0!important}.checkoutActionsDesktop .voucherSection{gap:10px}.checkoutActionsDesktop .voucherSectionTitle{margin:0!important}.checkoutActionsDesktop .consentList{margin-top:2px!important}.checkoutActionsDesktop .contactContinue{margin-top:auto!important;width:100%!important}.summary{flex:0 0 auto}.timer{flex:0 0 auto}}\n`;
+}
 fs.writeFileSync(cssPath,css);
