@@ -12,8 +12,8 @@ const schema = z.object({
   afterId: z.string().min(1).max(200).nullable().optional(),
 });
 
-const BATCH_SIZE = 5;
-const BETWEEN_CUSTOMERS_MS = 300;
+const BATCH_SIZE = 1;
+const VALUECARD_REQUEST_GAP_MS = 1800;
 
 type ExternalCustomerRow = {
   id: string;
@@ -27,6 +27,7 @@ type ExternalCustomerRow = {
 };
 
 type SourceRow = { id: string };
+type CountRow = { total: number | bigint };
 
 type Metadata = {
   __atlasOrganizerConsent?: boolean;
@@ -89,22 +90,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
     if (!source[0]) throw new Error("SOURCE_NOT_FOUND");
 
-    const rows = await db.$queryRawUnsafe<ExternalCustomerRow[]>(
-      `SELECT DISTINCT ON (c."id")
-         c."id", c."name" AS "holderName", c."phone", c."email", c."birthDate", c."city", c."gender", t."metadataJson"
-       FROM "ExternalCustomer" c
-       JOIN "ExternalTicket" t ON t."customerId"=c."id"
-       WHERE t."sourceId"=$1 AND t."eventId"=$2
-         AND t."metadataJson" LIKE '%"__atlasOrganizerConsent":true%'
-         AND ($3::text IS NULL OR c."id" > $3)
-       ORDER BY c."id" ASC, t."id" ASC
-       LIMIT $4`,
-      input.sourceId,
-      eventId,
-      input.afterId || null,
-      BATCH_SIZE + 1,
-    );
+    const [rows, countRows] = await Promise.all([
+      db.$queryRawUnsafe<ExternalCustomerRow[]>(
+        `SELECT DISTINCT ON (c."id")
+           c."id", c."name" AS "holderName", c."phone", c."email", c."birthDate", c."city", c."gender", t."metadataJson"
+         FROM "ExternalCustomer" c
+         JOIN "ExternalTicket" t ON t."customerId"=c."id"
+         WHERE t."sourceId"=$1 AND t."eventId"=$2
+           AND t."metadataJson" LIKE '%"__atlasOrganizerConsent":true%'
+           AND ($3::text IS NULL OR c."id" > $3)
+         ORDER BY c."id" ASC, t."id" ASC
+         LIMIT $4`,
+        input.sourceId,
+        eventId,
+        input.afterId || null,
+        BATCH_SIZE + 1,
+      ),
+      db.$queryRawUnsafe<CountRow[]>(
+        `SELECT COUNT(DISTINCT c."id") AS "total"
+         FROM "ExternalCustomer" c
+         JOIN "ExternalTicket" t ON t."customerId"=c."id"
+         WHERE t."sourceId"=$1 AND t."eventId"=$2
+           AND t."metadataJson" LIKE '%"__atlasOrganizerConsent":true%'`,
+        input.sourceId,
+        eventId,
+      ),
+    ]);
 
+    const totalEligible = Number(countRows[0]?.total || 0);
     const batch = rows.slice(0, BATCH_SIZE);
     const errors: Array<{ ticketId: string; reason: string }> = [];
     let skipped = 0;
@@ -132,8 +145,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       | { kind: "failed"; ticketId: string; reason: string }
     > = [];
 
-    for (let index = 0; index < candidates.length; index += 1) {
-      const { row, firstName, lastName } = candidates[index];
+    for (const { row, firstName, lastName } of candidates) {
+      await sleep(VALUECARD_REQUEST_GAP_MS);
       try {
         const existing = await searchValueCardMember(event.organizationId, row.phone);
         if (existing?.memberId) {
@@ -175,7 +188,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           reason: error instanceof Error ? error.message : "VALUECARD_SYNC_FAILED",
         });
       }
-      if (index < candidates.length - 1) await sleep(BETWEEN_CUSTOMERS_MS);
     }
 
     let created = 0;
@@ -225,6 +237,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({
       ok: true,
       processed: batch.length,
+      totalEligible,
       created,
       updated,
       unchanged,
