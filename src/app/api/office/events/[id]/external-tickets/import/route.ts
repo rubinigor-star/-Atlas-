@@ -9,6 +9,7 @@ import {
 } from "@/lib/external-ticket-csv";
 import { ensureExternalTicketStorage } from "@/lib/external-ticket-storage";
 import { importExternalTickets } from "@/lib/external-tickets";
+import { syncExternalCustomerProfiles } from "@/lib/external-customer-profiles";
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const MAX_ROWS = 50_000;
@@ -35,19 +36,19 @@ function applyKnownPlatformDefaults(mapping: ExternalTicketMapping, headers: str
   const isEventer = platformKey?.toUpperCase() === "EVENTER" || headerSet.has("מזהה כרטיס");
   if (!isEventer) return next;
 
-  // Eventer has two different identifiers:
-  // מזהה כרטיס = unique ticket/barcode, מס' הזמנה = order id shared by all tickets in the order.
-  // Force these mappings so a multi-ticket order can never be mistaken for duplicate tickets.
   if (headerSet.has("מזהה כרטיס")) {
     next.scanCode = "מזהה כרטיס";
     next.externalTicketId = "מזהה כרטיס";
   }
   if (headerSet.has("מס' הזמנה")) next.externalOrderId = "מס' הזמנה";
-  if (!next.holderName && headerSet.has("שם")) next.holderName = "שם";
-  if (!next.phone && headerSet.has("טלפון")) next.phone = "טלפון";
-  if (!next.email && headerSet.has("אימייל")) next.email = "אימייל";
-  if (!next.ticketType && headerSet.has("סוג כרטיס")) next.ticketType = "סוג כרטיס";
-  if (!next.price && headerSet.has("מחיר כרטיס")) next.price = "מחיר כרטיס";
+  if (headerSet.has("שם")) next.holderName = "שם";
+  if (headerSet.has("טלפון")) next.phone = "טלפון";
+  if (headerSet.has("אימייל")) next.email = "אימייל";
+  if (headerSet.has("גיל")) next.birthDate = "גיל";
+  if (headerSet.has("עיר מגורים")) next.city = "עיר מגורים";
+  if (headerSet.has("מין")) next.gender = "מין";
+  if (headerSet.has("סוג כרטיס")) next.ticketType = "סוג כרטיס";
+  if (headerSet.has("מחיר כרטיס")) next.price = "מחיר כרטיס";
   return next;
 }
 
@@ -66,7 +67,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!isTextTicketFile(upload)) throw new Error("Сейчас поддерживается CSV/TXT. XLSX добавим отдельным адаптером.");
     if (upload.size > MAX_FILE_BYTES) throw new Error("Файл больше 15 MB");
 
-    const sourceName = formString(form, "sourceName") || upload.name.replace(/\.(csv|txt)$/i, "") || "External";
+    const sourceName = formString(form, "sourceName") || upload.name.replace(/\.(csv|txt)$/i, "") || "Imported";
     const sourceKey = formString(form, "sourceKey") || undefined;
     const platformKey = formString(form, "platformKey") || undefined;
     const consentMode = parseConsentMode(formString(form, "consentMode"));
@@ -78,14 +79,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (mappingValue) {
       const candidate = JSON.parse(mappingValue) as ExternalTicketMapping;
       mapping = applyKnownPlatformDefaults(candidate, parsed.headers, platformKey);
-      mapping = validateExternalTicketMapping(mapping, parsed.headers);
-    } else {
-      mapping = validateExternalTicketMapping(mapping, parsed.headers);
     }
+    mapping = validateExternalTicketMapping(mapping, parsed.headers);
 
-    if (consentMode === "COLUMN" && !mapping.organizerConsent) {
-      throw new Error("Выберите колонку, где указано согласие клиента");
-    }
+    if (consentMode === "COLUMN" && !mapping.organizerConsent) throw new Error("Выберите колонку, где указано согласие клиента");
     if (consentMode !== "COLUMN") delete mapping.organizerConsent;
 
     const mappedRows = mapCsvRecordsToExternalTickets(parsed.records, mapping);
@@ -93,13 +90,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ...row,
       metadata: {
         ...(row.metadata || {}),
-        __atlasOrganizerConsent: consentMode === "ALL"
-          ? true
-          : consentMode === "NONE"
-            ? false
-            : Boolean(row.metadata?.__atlasOrganizerConsent),
+        __atlasOrganizerConsent: consentMode === "ALL" ? true : consentMode === "NONE" ? false : Boolean(row.metadata?.__atlasOrganizerConsent),
         __atlasConsentMode: consentMode,
         __atlasConsentColumn: consentMode === "COLUMN" ? mapping.organizerConsent || null : null,
+        __atlasImportMode: "SILENT_READ_ONLY",
       },
     }));
 
@@ -109,19 +103,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       sourceKey,
       platformKey,
       fileName: upload.name,
-      mapping: { ...(mapping as Record<string, string>), __consentMode: consentMode },
+      mapping: { ...(mapping as Record<string, string>), __consentMode: consentMode, __importMode: "SILENT_READ_ONLY" },
       createdById: staff.id,
       rows,
     });
 
-    return NextResponse.json({ ok: true, consentMode, ...result });
+    const customerSync = await syncExternalCustomerProfiles(eventId, result.source.id);
+    return NextResponse.json({ ok: true, consentMode, importMode: "SILENT_READ_ONLY", customerSync, ...result });
   } catch (error) {
-    console.error("[external-ticket-import] failed", {
-      eventId,
-      uploadName,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    });
+    console.error("[external-ticket-import] failed", { eventId, uploadName, message: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined });
     const message = error instanceof Error ? error.message : "Не удалось импортировать внешние билеты";
     return NextResponse.json({ error: message }, { status: message === "FORBIDDEN" ? 403 : 400 });
   }
