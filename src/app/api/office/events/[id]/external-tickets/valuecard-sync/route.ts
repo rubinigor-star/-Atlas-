@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { ensureExternalTicketStorage } from "@/lib/external-ticket-storage";
 import { ensureExternalCustomerProfileColumns } from "@/lib/external-customer-profiles";
 import { getValueCardToken, registerValueCardMember, searchValueCardMember } from "@/lib/valuecard";
+import { enrichValueCardMemberMissingFields } from "@/lib/valuecard-member-enrichment";
 
 const schema = z.object({
   sourceId: z.string().min(1).max(200),
@@ -122,7 +123,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const outcomes = await Promise.all(candidates.map(async ({ row, firstName, lastName }) => {
       try {
         const existing = await searchValueCardMember(event.organizationId, row.phone);
-        if (existing) return { kind: "existing" as const, ticketId: row.id };
+        if (existing?.memberId) {
+          const enrichment = await enrichValueCardMemberMissingFields({
+            token,
+            memberId: existing.memberId,
+            atlas: {
+              firstName,
+              lastName,
+              cellPhone: row.phone,
+              email: row.email,
+              birthDate: asDate(row.birthDate),
+              city: row.city,
+              gender: asGender(row.gender),
+            },
+          });
+          return enrichment.updated
+            ? { kind: "updated" as const, ticketId: row.id, updatedFields: enrichment.updatedFields }
+            : { kind: "unchanged" as const, ticketId: row.id };
+        }
+        if (existing) return { kind: "unchanged" as const, ticketId: row.id };
         await registerValueCardMember({
           organizationId: event.organizationId,
           firstName,
@@ -144,17 +163,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }));
 
     let created = 0;
-    let existing = 0;
+    let updated = 0;
+    let unchanged = 0;
     let failed = 0;
     for (const outcome of outcomes) {
       if (outcome.kind === "created") created += 1;
-      else if (outcome.kind === "existing") existing += 1;
+      else if (outcome.kind === "updated") updated += 1;
+      else if (outcome.kind === "unchanged") unchanged += 1;
       else {
         failed += 1;
         errors.push({ ticketId: outcome.ticketId, reason: outcome.reason });
       }
     }
 
+    const existing = updated + unchanged;
     if (!input.afterId) {
       await db.$executeRawUnsafe(
         `UPDATE "ExternalTicketSource"
@@ -188,6 +210,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ok: true,
       processed: batch.length,
       created,
+      updated,
+      unchanged,
       existing,
       skipped,
       failed,
