@@ -11,10 +11,22 @@ export function ensureExternalTicketStorage() {
       "name" TEXT NOT NULL,
       "sourceKey" TEXT NOT NULL,
       "platformKey" TEXT,
+      "valueCardCreatedTotal" INTEGER NOT NULL DEFAULT 0,
+      "valueCardLastCreated" INTEGER NOT NULL DEFAULT 0,
+      "valueCardLastExisting" INTEGER NOT NULL DEFAULT 0,
+      "valueCardLastSkipped" INTEGER NOT NULL DEFAULT 0,
+      "valueCardLastFailed" INTEGER NOT NULL DEFAULT 0,
+      "valueCardLastSyncedAt" TIMESTAMP,
       "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "ExternalTicketSource_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE
     )`);
+    await db.$executeRawUnsafe(`ALTER TABLE "ExternalTicketSource" ADD COLUMN IF NOT EXISTS "valueCardCreatedTotal" INTEGER NOT NULL DEFAULT 0`);
+    await db.$executeRawUnsafe(`ALTER TABLE "ExternalTicketSource" ADD COLUMN IF NOT EXISTS "valueCardLastCreated" INTEGER NOT NULL DEFAULT 0`);
+    await db.$executeRawUnsafe(`ALTER TABLE "ExternalTicketSource" ADD COLUMN IF NOT EXISTS "valueCardLastExisting" INTEGER NOT NULL DEFAULT 0`);
+    await db.$executeRawUnsafe(`ALTER TABLE "ExternalTicketSource" ADD COLUMN IF NOT EXISTS "valueCardLastSkipped" INTEGER NOT NULL DEFAULT 0`);
+    await db.$executeRawUnsafe(`ALTER TABLE "ExternalTicketSource" ADD COLUMN IF NOT EXISTS "valueCardLastFailed" INTEGER NOT NULL DEFAULT 0`);
+    await db.$executeRawUnsafe(`ALTER TABLE "ExternalTicketSource" ADD COLUMN IF NOT EXISTS "valueCardLastSyncedAt" TIMESTAMP`);
     await db.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "ExternalTicketSource_eventId_sourceKey_key" ON "ExternalTicketSource"("eventId","sourceKey")`);
     await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ExternalTicketSource_eventId_idx" ON "ExternalTicketSource"("eventId")`);
 
