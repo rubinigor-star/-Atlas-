@@ -1,67 +1,11 @@
-import { SmsTestPanel } from "@/components/sms-test-panel";
-import { getSms019ConfigurationStatus } from "@/lib/sms-019";
-import { getSmsPriceMinor } from "@/lib/order-sms";
-import { getSmsLedgerSummary, listNotificationDeliveries } from "@/lib/notification-ledger";
+import {SmsTestPanel} from "@/components/sms-test-panel";
+import {getSms019ConfigurationStatus} from "@/lib/sms-019";
+import {getSmsPriceMinor} from "@/lib/order-sms";
+import {getSmsLedgerSummary,listNotificationDeliveries} from "@/lib/notification-ledger";
+import {getServerI18n} from "@/lib/server-locale";
+import {localeConfig} from "@/lib/i18n";
 
-export const dynamic = "force-dynamic";
-
-function formatDate(value: Date | null) {
-  if (!value) return "-";
-  return new Intl.DateTimeFormat("ru-RU", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Jerusalem" }).format(value);
-}
-
-export default async function SmsIntegrationPage() {
-  const config = getSms019ConfigurationStatus();
-  const priceMinor = getSmsPriceMinor();
-  const ready = config.username && config.token && config.source;
-  const [summary, deliveries] = await Promise.all([getSmsLedgerSummary(), listNotificationDeliveries(50)]);
-
-  return <div style={{maxWidth:1100,margin:"0 auto",padding:"36px 24px"}}>
-    <h1>SMS integration</h1>
-    <p>019SMS is used for automatic ticket delivery, customer login links and manual ticket resending.</p>
-
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,margin:"24px 0"}}>
-      <div className="card"><strong>Username</strong><div>{config.username ? "Configured" : "Missing"}</div></div>
-      <div className="card"><strong>API token</strong><div>{config.token ? "Configured" : "Missing"}</div></div>
-      <div className="card"><strong>Sender</strong><div>{config.source ? "Configured" : "Missing"}</div></div>
-      <div className="card"><strong>Organizer price</strong><div>{(priceMinor / 100).toFixed(2)} ₪ per SMS</div></div>
-      <div className="card"><strong>Sent</strong><div>{summary.sentCount}</div></div>
-      <div className="card"><strong>Failed</strong><div>{summary.failedCount}</div></div>
-      <div className="card"><strong>Total billed</strong><div>{(summary.billedMinor / 100).toFixed(2)} ₪</div></div>
-    </div>
-
-    <div className="toast" style={{marginBottom:20}}>{ready ? "Configuration is ready for testing." : "One or more Vercel variables are missing."}</div>
-    <SmsTestPanel initialPhone="0547997275" />
-
-    <section style={{marginTop:40}}>
-      <h2>Recent deliveries</h2>
-      <div style={{overflowX:"auto",border:"1px solid #e5e7eb",borderRadius:14}}>
-        <table style={{width:"100%",borderCollapse:"collapse",minWidth:820}}>
-          <thead>
-            <tr style={{background:"#f8fafc",textAlign:"left"}}>
-              <th style={{padding:12}}>Date</th>
-              <th style={{padding:12}}>Type</th>
-              <th style={{padding:12}}>Recipient</th>
-              <th style={{padding:12}}>Status</th>
-              <th style={{padding:12}}>Provider</th>
-              <th style={{padding:12}}>Cost</th>
-              <th style={{padding:12}}>Message</th>
-            </tr>
-          </thead>
-          <tbody>
-            {deliveries.map((item) => <tr key={item.id} style={{borderTop:"1px solid #e5e7eb"}}>
-              <td style={{padding:12,whiteSpace:"nowrap"}}>{formatDate(item.sentAt ?? item.createdAt)}</td>
-              <td style={{padding:12}}>{item.type}</td>
-              <td style={{padding:12}}>{item.recipient}</td>
-              <td style={{padding:12}}>{item.status}</td>
-              <td style={{padding:12}}>{item.providerStatus ?? "-"}</td>
-              <td style={{padding:12,whiteSpace:"nowrap"}}>{(item.priceMinor / 100).toFixed(2)} ₪</td>
-              <td style={{padding:12,maxWidth:300,overflowWrap:"anywhere"}}>{item.providerMessage ?? "-"}</td>
-            </tr>)}
-            {!deliveries.length && <tr><td colSpan={7} style={{padding:24,textAlign:"center",color:"#64748b"}}>No SMS deliveries yet.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  </div>;
-}
+export const dynamic="force-dynamic";
+const copy={ru:{title:"Интеграция SMS",help:"019SMS используется для автоматической доставки билетов, ссылок входа для клиентов и ручной повторной отправки билетов.",username:"Username",token:"API token",sender:"Sender",configured:"Настроено",missing:"Не настроено",price:"Цена для организатора",perSms:"за SMS",sent:"Отправлено",failed:"Ошибки",billed:"Всего начислено",ready:"Конфигурация готова к тестированию.",notReady:"Одна или несколько переменных Vercel отсутствуют.",recent:"Последние отправки",date:"Дата",type:"Тип",recipient:"Получатель",status:"Статус",provider:"Провайдер",cost:"Стоимость",message:"Сообщение",empty:"SMS-отправок пока нет."},he:{title:"אינטגרציית SMS",help:"019SMS משמשת לשליחה אוטומטית של כרטיסים, קישורי כניסה ללקוחות ושליחה ידנית חוזרת של כרטיסים.",username:"Username",token:"API token",sender:"Sender",configured:"מוגדר",missing:"לא מוגדר",price:"מחיר למפיק",perSms:"ל-SMS",sent:"נשלחו",failed:"נכשלו",billed:"סה״כ לחיוב",ready:"ההגדרה מוכנה לבדיקה.",notReady:"חסר משתנה Vercel אחד או יותר.",recent:"שליחות אחרונות",date:"תאריך",type:"סוג",recipient:"נמען",status:"סטטוס",provider:"ספק",cost:"עלות",message:"הודעה",empty:"עדיין לא נשלחו הודעות SMS."},en:{title:"SMS integration",help:"019SMS is used for automatic ticket delivery, customer sign-in links and manual ticket resending.",username:"Username",token:"API token",sender:"Sender",configured:"Configured",missing:"Missing",price:"Organizer price",perSms:"per SMS",sent:"Sent",failed:"Failed",billed:"Total billed",ready:"Configuration is ready for testing.",notReady:"One or more Vercel variables are missing.",recent:"Recent deliveries",date:"Date",type:"Type",recipient:"Recipient",status:"Status",provider:"Provider",cost:"Cost",message:"Message",empty:"No SMS deliveries yet."}} as const;
+function formatDate(value:Date|null,tag:string){if(!value)return"-";return new Intl.DateTimeFormat(tag,{dateStyle:"short",timeStyle:"short",timeZone:"Asia/Jerusalem"}).format(value)}
+export default async function SmsIntegrationPage(){const{locale}=await getServerI18n();const t=copy[locale];const config=getSms019ConfigurationStatus();const priceMinor=getSmsPriceMinor();const ready=config.username&&config.token&&config.source;const[summary,deliveries]=await Promise.all([getSmsLedgerSummary(),listNotificationDeliveries(50)]);return <div style={{maxWidth:1100,margin:"0 auto",padding:"36px 24px"}}><h1>{t.title}</h1><p>{t.help}</p><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,margin:"24px 0"}}><div className="card"><strong>{t.username}</strong><div>{config.username?t.configured:t.missing}</div></div><div className="card"><strong>{t.token}</strong><div>{config.token?t.configured:t.missing}</div></div><div className="card"><strong>{t.sender}</strong><div>{config.source?t.configured:t.missing}</div></div><div className="card"><strong>{t.price}</strong><div><bdi>{(priceMinor/100).toLocaleString(localeConfig[locale].tag,{minimumFractionDigits:2,maximumFractionDigits:2})} ₪</bdi> {t.perSms}</div></div><div className="card"><strong>{t.sent}</strong><div>{summary.sentCount}</div></div><div className="card"><strong>{t.failed}</strong><div>{summary.failedCount}</div></div><div className="card"><strong>{t.billed}</strong><div><bdi>{(summary.billedMinor/100).toLocaleString(localeConfig[locale].tag,{minimumFractionDigits:2,maximumFractionDigits:2})} ₪</bdi></div></div></div><div className="toast" style={{marginBottom:20}}>{ready?t.ready:t.notReady}</div><SmsTestPanel initialPhone="0547997275"/><section style={{marginTop:40}}><h2>{t.recent}</h2><div style={{overflowX:"auto",border:"1px solid #e5e7eb",borderRadius:14}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:820}}><thead><tr><th style={{padding:12,textAlign:"start"}}>{t.date}</th><th style={{padding:12,textAlign:"start"}}>{t.type}</th><th style={{padding:12,textAlign:"start"}}>{t.recipient}</th><th style={{padding:12,textAlign:"start"}}>{t.status}</th><th style={{padding:12,textAlign:"start"}}>{t.provider}</th><th style={{padding:12,textAlign:"start"}}>{t.cost}</th><th style={{padding:12,textAlign:"start"}}>{t.message}</th></tr></thead><tbody>{deliveries.map(item=><tr key={item.id} style={{borderTop:"1px solid #e5e7eb"}}><td style={{padding:12,whiteSpace:"nowrap"}}><bdi>{formatDate(item.sentAt??item.createdAt,localeConfig[locale].tag)}</bdi></td><td style={{padding:12}}><bdi>{item.type}</bdi></td><td style={{padding:12}} dir="ltr">{item.recipient}</td><td style={{padding:12}}><bdi>{item.status}</bdi></td><td style={{padding:12}}><bdi>{item.providerStatus??"-"}</bdi></td><td style={{padding:12,whiteSpace:"nowrap"}}><bdi>{(item.priceMinor/100).toFixed(2)} ₪</bdi></td><td style={{padding:12,maxWidth:300,overflowWrap:"anywhere"}} dir="auto">{item.providerMessage??"-"}</td></tr>)}{!deliveries.length&&<tr><td colSpan={7} style={{padding:24,textAlign:"center",color:"#64748b"}}>{t.empty}</td></tr>}</tbody></table></div></section></div>}
