@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/components/locale-provider";
+import { officeAbandonedMessages } from "@/lib/office-abandoned-i18n";
 
 type Item = {
   id: string;
@@ -27,12 +29,17 @@ const toneStyle: Record<Item["statusTone"], React.CSSProperties> = {
 
 export function AbandonedTable({ items }: { items: Item[] }) {
   const router = useRouter();
-  return <div className="table-wrap"><table><thead><tr><th>Клиент</th><th>Мероприятие</th><th>Источник</th><th>Этап</th><th>Сумма</th><th>Последняя активность</th><th>Статус</th></tr></thead><tbody>
-    {items.map(item => <tr key={item.id} tabIndex={0} role="link" onClick={() => router.push(`/office/abandoned/${item.id}`)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") router.push(`/office/abandoned/${item.id}`); }} style={{cursor:"pointer"}}>
+  const { locale } = useLocale();
+  const t = officeAbandonedMessages[locale].table;
+
+  return <div className="table-wrap"><table><thead><tr>
+    <th>{t.customer}</th><th>{t.event}</th><th>{t.source}</th><th>{t.stage}</th><th>{t.amount}</th><th>{t.lastActivity}</th><th>{t.status}</th>
+  </tr></thead><tbody>
+    {items.map(item => <tr key={item.id} tabIndex={0} role="link" onClick={() => router.push(`/office/abandoned/${item.id}`)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") router.push(`/office/abandoned/${item.id}`); }} style={{ cursor: "pointer" }}>
       <td><strong>{item.customerName}</strong><br/><small>{item.customerContact}</small></td>
       <td>{item.eventTitle}</td><td>{item.sourceLabel}</td><td>{item.stageLabel}</td><td>{item.amountLabel}</td><td>{item.activityLabel}</td>
       <td><span className="pill" style={toneStyle[item.statusTone]}>{item.statusLabel}</span></td>
     </tr>)}
-    {!items.length && <tr><td colSpan={7}>Пока нет активных или незавершённых покупок.</td></tr>}
+    {!items.length && <tr><td colSpan={7}>{t.empty}</td></tr>}
   </tbody></table></div>;
 }
