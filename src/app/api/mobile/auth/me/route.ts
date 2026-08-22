@@ -2,12 +2,10 @@ import { NextResponse } from "next/server";
 import { getMobileStaff } from "@/lib/mobile-auth";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { resolveStaffLocale } from "@/lib/i18n";
 
 export async function GET(request: Request) {
   const user = await getMobileStaff(request);
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  const staffLocale = resolveStaffLocale({ memberOverride: user.interfaceLocaleOverride, userPreference: user.preferredLocale, organizationDefault: user.organization?.defaultStaffLocale });
 
   return NextResponse.json(
     {
@@ -21,12 +19,8 @@ export async function GET(request: Request) {
         organization: user.organization ? { id: user.organization.id, name: user.organization.name } : null,
         permissions: Array.from(user.permissionSet),
         eventIds: user.eventAccess.map((access) => access.eventId),
-        staffLocale,
-        localePreference: {
-          override: user.interfaceLocaleOverride,
-          userPreferred: user.preferredLocale,
-          organizationDefault: user.organization?.defaultStaffLocale ?? "ru",
-        },
+        staffLocale: user.staffLocale,
+        localePreference: user.localePreference,
       },
     },
     { headers: { "cache-control": "no-store" } },
