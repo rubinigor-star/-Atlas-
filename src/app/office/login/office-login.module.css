@@ -200,6 +200,7 @@
   font-family: var(--atlas-body-font);
   font-size: 13px;
   font-weight: 750;
+  text-align: start;
 }
 
 .input {
@@ -207,7 +208,7 @@
   width: 100%;
   min-width: 0;
   min-height: 54px;
-  padding: 0 16px;
+  padding-inline: 16px;
   border: 1px solid #d6dce6;
   border-radius: 14px;
   background: #fff;
@@ -215,6 +216,12 @@
   font: inherit;
   outline: none;
   transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.technicalInput {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
 }
 
 .input:focus {
@@ -266,8 +273,8 @@
   line-height: 1.25;
 }
 
-.links a:first-child { text-align: left; }
-.links a:last-child { text-align: right; }
+.links a:first-child { text-align: start; }
+.links a:last-child { text-align: end; }
 
 .links a,
 .backLink {
@@ -304,6 +311,7 @@
   border-radius: 12px;
   font-size: 13px;
   line-height: 1.4;
+  text-align: start;
 }
 
 .resend {
@@ -312,6 +320,7 @@
   border: 1px solid #fed7aa;
   border-radius: 15px;
   background: #fffaf5;
+  text-align: start;
 }
 
 .resend p {
