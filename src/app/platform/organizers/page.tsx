@@ -1,15 +1,9 @@
 import Link from "next/link";
-import { PlatformShell } from "@/components/platform-shell";
-import { ensureDemoOrganizerPlatform } from "@/lib/auth";
-import { db } from "@/lib/db";
+import {PlatformShell} from "@/components/platform-shell";
+import {ensureDemoOrganizerPlatform} from "@/lib/auth";
+import {db} from "@/lib/db";
+import {getServerI18n} from "@/lib/server-locale";
 
 export const dynamic="force-dynamic";
-
-export default async function PlatformOrganizersPage(){
-  await ensureDemoOrganizerPlatform();
-  const organizations=await db.organization.findMany({include:{users:true,events:true},orderBy:{createdAt:"asc"}});
-  return <PlatformShell>
-    <div className="platform-heading"><div><span className="eyebrow">Atlas Platform Admin</span><h1>Организаторы</h1><p>Управление компаниями, владельцами кабинетов, мероприятиями и базовыми коммерческими условиями.</p></div></div>
-    <div className="table-wrap"><table><thead><tr><th>Организация</th><th>Владелец кабинета</th><th>Мероприятия</th><th>Пользователи</th><th></th></tr></thead><tbody>{organizations.map(org=>{const owner=org.users.find(user=>user.staffRole==="OWNER")??org.users[0];return <tr key={org.id}><td><strong>{org.name}</strong><br/><small>{org.id}</small></td><td>{owner?.name??"Не назначен"}<br/><small>{owner?.email??""}</small></td><td>{org.events.length}</td><td>{org.users.length}</td><td><Link className="btn" href={`/platform/organizers/${org.id}`}>Открыть карточку</Link></td></tr>})}</tbody></table></div>
-  </PlatformShell>;
-}
+const copy={ru:{title:"Организаторы",help:"Управление компаниями, владельцами кабинетов, мероприятиями и базовыми коммерческими условиями.",organization:"Организация",owner:"Владелец кабинета",events:"Мероприятия",users:"Пользователи",missing:"Не назначен",open:"Открыть карточку"},he:{title:"מפיקים",help:"ניהול ארגונים, בעלי החשבון, אירועים ותנאים מסחריים בסיסיים.",organization:"ארגון",owner:"בעל החשבון",events:"אירועים",users:"משתמשים",missing:"לא הוגדר",open:"פתיחת הכרטיס"},en:{title:"Organizers",help:"Manage companies, workspace owners, events and baseline commercial terms.",organization:"Organization",owner:"Workspace owner",events:"Events",users:"Users",missing:"Not assigned",open:"Open profile"}} as const;
+export default async function PlatformOrganizersPage(){await ensureDemoOrganizerPlatform();const[{locale},organizations]=await Promise.all([getServerI18n(),db.organization.findMany({include:{users:true,events:true},orderBy:{createdAt:"asc"}})]);const t=copy[locale];return <PlatformShell><div className="platform-heading"><div><span className="eyebrow">Atlas Platform Admin</span><h1>{t.title}</h1><p>{t.help}</p></div></div><div className="table-wrap"><table><thead><tr><th>{t.organization}</th><th>{t.owner}</th><th>{t.events}</th><th>{t.users}</th><th></th></tr></thead><tbody>{organizations.map(org=>{const owner=org.users.find(user=>user.staffRole==="OWNER")??org.users[0];return <tr key={org.id}><td><strong>{org.name}</strong><br/><small><bdi>{org.id}</bdi></small></td><td>{owner?.name??t.missing}<br/><small><bdi>{owner?.email??""}</bdi></small></td><td>{org.events.length}</td><td>{org.users.length}</td><td><Link className="btn" href={`/platform/organizers/${org.id}`}>{t.open}</Link></td></tr>})}</tbody></table></div></PlatformShell>}
