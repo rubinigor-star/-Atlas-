@@ -1,94 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import {useState} from "react";
+import {useRouter} from "next/navigation";
+import {useLocale} from "@/components/locale-provider";
 
-type Initial = {
-  organizationName: string;
-  ownerName: string;
-  ownerEmail: string;
-  businessType: string;
-  country: string;
-  phone: string;
-};
-type OrganizerUser = { id:string; name:string|null; email:string; staffRole:string|null; role:string; active:boolean };
-type CredentialStatus = {
-  exists: boolean;
-  failedAttempts: number;
-  lockedUntil: string | null;
-  locked: boolean;
-  emailVerified: boolean;
-};
+type Initial={organizationName:string;ownerName:string;ownerEmail:string;businessType:string;country:string;phone:string};
+type OrganizerUser={id:string;name:string|null;email:string;staffRole:string|null;role:string;active:boolean};
+type CredentialStatus={exists:boolean;failedAttempts:number;lockedUntil:string|null;locked:boolean;emailVerified:boolean};
+const copy={
+ ru:{emailExists:"Этот email уже используется другим аккаунтом.",saveError:"Не удалось сохранить данные.",saved:"Данные сохранены",choose:"Сначала выберите пользователя.",passwordMin:"Пароль должен содержать минимум 10 символов.",operationError:"Не удалось выполнить операцию.",stillLocked:"Блокировка всё ещё активна.",unlocked:"Аккаунт разблокирован",attempts:"Неудачных попыток",passwordSet:"Новый пароль установлен. Блокировка снята.",statusUpdated:"Статус обновлён.",profile:"Профиль организатора",contact:"Контактные и юридические данные",contactHelp:"Эти данные можно исправлять отдельно от договора и документов для выплат.",organization:"Название организации",owner:"Имя владельца",ownerEmail:"Email владельца",phone:"Телефон",business:"Тип бизнеса",country:"Страна",saving:"Сохранение...",save:"Сохранить данные",users:"Пользователи организации",access:"Доступ в кабинет",accessHelp:"Superuser управляет каждым аккаунтом отдельно. Выберите конкретного пользователя, чтобы проверить статус, снять блокировку или установить новый пароль.",user:"Пользователь",role:"Роль",status:"Статус",noName:"Без имени",active:"Активен",disabled:"Отключён",selected:"Выбран",manage:"Управлять",selectedAccount:"Выбранный аккаунт",newPassword:"Новый пароль",placeholder:"Минимум 10 символов",credential:"Credential",exists:"Есть",none:"Нет",lock:"Блокировка",locked:"Заблокирован",notLocked:"Не заблокирован",emailVerified:"Подтверждён",emailNotVerified:"Не подтверждён",check:"Проверить статус",unlock:"Снять блокировку",setPassword:"Установить новый пароль",cleanLogin:"Открыть чистый вход"},
+ he:{emailExists:"כתובת ה-Email כבר משמשת חשבון אחר.",saveError:"לא ניתן לשמור את הנתונים.",saved:"הנתונים נשמרו",choose:"יש לבחור משתמש תחילה.",passwordMin:"הסיסמה חייבת לכלול לפחות 10 תווים.",operationError:"לא ניתן לבצע את הפעולה.",stillLocked:"החסימה עדיין פעילה.",unlocked:"החשבון שוחרר מחסימה",attempts:"ניסיונות כושלים",passwordSet:"הסיסמה החדשה נשמרה והחסימה הוסרה.",statusUpdated:"הסטטוס עודכן.",profile:"פרופיל המפיק",contact:"פרטי קשר ונתונים משפטיים",contactHelp:"אפשר לעדכן את הנתונים האלה בנפרד מההסכם וממסמכי התשלום.",organization:"שם הארגון",owner:"שם בעל החשבון",ownerEmail:"Email של בעל החשבון",phone:"טלפון",business:"סוג עסק",country:"מדינה",saving:"שומרים...",save:"שמירת נתונים",users:"משתמשי הארגון",access:"גישה למערכת",accessHelp:"מנהל העל מנהל כל חשבון בנפרד. בחרו משתמש מסוים כדי לבדוק סטטוס, להסיר חסימה או להגדיר סיסמה חדשה.",user:"משתמש",role:"תפקיד",status:"סטטוס",noName:"ללא שם",active:"פעיל",disabled:"מושבת",selected:"נבחר",manage:"ניהול",selectedAccount:"החשבון שנבחר",newPassword:"סיסמה חדשה",placeholder:"לפחות 10 תווים",credential:"Credential",exists:"קיים",none:"לא קיים",lock:"חסימה",locked:"חסום",notLocked:"לא חסום",emailVerified:"מאומת",emailNotVerified:"לא מאומת",check:"בדיקת סטטוס",unlock:"הסרת חסימה",setPassword:"הגדרת סיסמה חדשה",cleanLogin:"פתיחת מסך כניסה נקי"},
+ en:{emailExists:"This email is already used by another account.",saveError:"Could not save the data.",saved:"Data saved",choose:"Select a user first.",passwordMin:"The password must contain at least 10 characters.",operationError:"Could not perform the operation.",stillLocked:"The lock is still active.",unlocked:"Account unlocked",attempts:"Failed attempts",passwordSet:"New password set and lock removed.",statusUpdated:"Status updated.",profile:"Organizer profile",contact:"Contact and legal details",contactHelp:"These details can be corrected separately from the agreement and payout documents.",organization:"Organization name",owner:"Owner name",ownerEmail:"Owner email",phone:"Phone",business:"Business type",country:"Country",saving:"Saving...",save:"Save data",users:"Organization users",access:"Workspace access",accessHelp:"The superuser manages each account separately. Select a specific user to check status, remove a lock or set a new password.",user:"User",role:"Role",status:"Status",noName:"No name",active:"Active",disabled:"Disabled",selected:"Selected",manage:"Manage",selectedAccount:"Selected account",newPassword:"New password",placeholder:"At least 10 characters",credential:"Credential",exists:"Exists",none:"None",lock:"Lock",locked:"Locked",notLocked:"Not locked",emailVerified:"Verified",emailNotVerified:"Not verified",check:"Check status",unlock:"Unlock",setPassword:"Set new password",cleanLogin:"Open clean sign-in"}
+} as const;
 
-export function PlatformOrganizerProfileForm({ organizationId, initial, users }: { organizationId: string; initial: Initial; users: OrganizerUser[] }) {
-  const router = useRouter();
-  const [form,setForm]=useState(initial);
-  const [saving,setSaving]=useState(false);
-  const [message,setMessage]=useState("");
-  const [newPassword,setNewPassword]=useState("");
-  const [securityBusy,setSecurityBusy]=useState(false);
-  const [securityMessage,setSecurityMessage]=useState("");
-  const [credentialStatus,setCredentialStatus]=useState<CredentialStatus|null>(null);
-  const ownerUser=users.find(user=>user.staffRole==="OWNER")??users[0];
-  const [selectedUserId,setSelectedUserId]=useState(ownerUser?.id??"");
-  const selectedUser=users.find(user=>user.id===selectedUserId)??ownerUser;
-  const set=(key:keyof Initial,value:string)=>setForm(current=>({...current,[key]:value}));
-
-  async function save(){
-    setSaving(true);setMessage("");
-    const response=await fetch(`/api/platform/organizers/${organizationId}/profile`,{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(form)});
-    setSaving(false);
-    if(!response.ok){const body=await response.json().catch(()=>({}));setMessage(body.error==="EMAIL_EXISTS"?"Этот email уже используется другим аккаунтом.":"Не удалось сохранить данные.");return;}
-    setMessage("Данные сохранены");router.refresh();
-  }
-
-  async function security(action:"STATUS"|"UNLOCK"|"SET_PASSWORD"){
-    if(!selectedUserId){setSecurityMessage("Сначала выберите пользователя.");return;}
-    if(action==="SET_PASSWORD"&&newPassword.length<10){setSecurityMessage("Пароль должен содержать минимум 10 символов.");return;}
-    setSecurityBusy(true);setSecurityMessage("");
-    const payload=action==="SET_PASSWORD"?{action,userId:selectedUserId,password:newPassword}:{action,userId:selectedUserId};
-    const response=await fetch(`/api/platform/organizers/${organizationId}/security`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});
-    const body=await response.json().catch(()=>({}));
-    setSecurityBusy(false);
-    if(!response.ok){setSecurityMessage(body.error||"Не удалось выполнить операцию.");return;}
-    if(body.status)setCredentialStatus(body.status);
-    if(action==="UNLOCK")setSecurityMessage(body.status?.locked?"Блокировка всё ещё активна.":`Аккаунт ${body.email} разблокирован. Неудачных попыток: ${body.status?.failedAttempts ?? 0}.`);
-    else if(action==="SET_PASSWORD"){setSecurityMessage(`Новый пароль для ${body.email} установлен. Блокировка снята.`);setNewPassword("");}
-    else setSecurityMessage(`Статус ${body.email} обновлён.`);
-  }
-
-  function chooseUser(userId:string){setSelectedUserId(userId);setCredentialStatus(null);setSecurityMessage("");setNewPassword("");}
-
-  return <>
-    <section className="platform-section-card">
-      <div><span className="eyebrow">Профиль организатора</span><h2>Контактные и юридические данные</h2><p className="muted">Эти данные можно исправлять отдельно от договора и документов для выплат.</p></div>
-      <div className="form-grid two" style={{marginTop:18}}>
-        <label className="field"><span>Название организации</span><input className="input" value={form.organizationName} onChange={e=>set("organizationName",e.target.value)}/></label>
-        <label className="field"><span>Имя владельца</span><input className="input" value={form.ownerName} onChange={e=>set("ownerName",e.target.value)}/></label>
-        <label className="field"><span>Email владельца</span><input className="input" type="email" value={form.ownerEmail} onChange={e=>set("ownerEmail",e.target.value)}/></label>
-        <label className="field"><span>Телефон</span><input className="input" value={form.phone} onChange={e=>set("phone",e.target.value)}/></label>
-        <label className="field"><span>Тип бизнеса</span><input className="input" value={form.businessType} onChange={e=>set("businessType",e.target.value)}/></label>
-        <label className="field"><span>Страна</span><input className="input" value={form.country} onChange={e=>set("country",e.target.value)}/></label>
-      </div>
-      <div className="row" style={{marginTop:16}}><button className="btn" type="button" disabled={saving} onClick={save}>{saving?"Сохранение...":"Сохранить данные"}</button>{message&&<span className="muted">{message}</span>}</div>
-    </section>
-
-    <section className="platform-section-card">
-      <div><span className="eyebrow">Пользователи организации</span><h2>Доступ в кабинет</h2><p className="muted">Superuser управляет каждым аккаунтом отдельно. Выберите конкретного пользователя, чтобы проверить статус, снять блокировку или установить новый пароль.</p></div>
-      <div className="table-wrap" style={{marginTop:18}}><table><thead><tr><th>Пользователь</th><th>Email</th><th>Роль</th><th>Статус</th><th></th></tr></thead><tbody>{users.map(user=><tr key={user.id}><td><strong>{user.name||"Без имени"}</strong></td><td>{user.email}</td><td>{user.staffRole||user.role}</td><td>{user.active?"Активен":"Отключён"}</td><td><button className="btn secondary" type="button" onClick={()=>chooseUser(user.id)}>{selectedUserId===user.id?"Выбран":"Управлять"}</button></td></tr>)}</tbody></table></div>
-      {selectedUser&&<div style={{marginTop:20,paddingTop:18,borderTop:"1px solid #e5e7eb"}}>
-        <div className="form-grid two">
-          <label className="field"><span>Выбранный аккаунт</span><input className="input" value={`${selectedUser.name||"Без имени"} · ${selectedUser.email}`} disabled/></label>
-          <label className="field"><span>Новый пароль</span><input className="input" type="password" minLength={10} autoComplete="new-password" placeholder="Минимум 10 символов" value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></label>
-        </div>
-        {credentialStatus&&<div className="stats" style={{marginTop:16,marginBottom:0}}>
-          <div className="stat"><span className="muted">Credential</span><strong style={{fontSize:18}}>{credentialStatus.exists?"Есть":"Нет"}</strong></div>
-          <div className="stat"><span className="muted">Блокировка</span><strong style={{fontSize:18,color:credentialStatus.locked?"#b42318":"#15803d"}}>{credentialStatus.locked?"Заблокирован":"Не заблокирован"}</strong></div>
-          <div className="stat"><span className="muted">Неудачных попыток</span><strong style={{fontSize:18}}>{credentialStatus.failedAttempts}</strong></div>
-          <div className="stat"><span className="muted">Email</span><strong style={{fontSize:18}}>{credentialStatus.emailVerified?"Подтверждён":"Не подтверждён"}</strong></div>
-        </div>}
-        <div className="row" style={{marginTop:16,flexWrap:"wrap"}}><button className="btn secondary" type="button" disabled={securityBusy} onClick={()=>security("STATUS")}>Проверить статус</button><button className="btn secondary" type="button" disabled={securityBusy} onClick={()=>security("UNLOCK")}>Снять блокировку</button><button className="btn" type="button" disabled={securityBusy||newPassword.length<10} onClick={()=>security("SET_PASSWORD")}>Установить новый пароль</button>{credentialStatus&&!credentialStatus.locked&&<a className="btn secondary" href="/office/login" target="_blank" rel="noreferrer">Открыть чистый вход</a>}{securityMessage&&<span className="muted">{securityMessage}</span>}</div>
-      </div>}
-    </section>
-  </>;
+export function PlatformOrganizerProfileForm({organizationId,initial,users}:{organizationId:string;initial:Initial;users:OrganizerUser[]}){const{locale}=useLocale();const t=copy[locale];const router=useRouter();const[form,setForm]=useState(initial);const[saving,setSaving]=useState(false);const[message,setMessage]=useState("");const[newPassword,setNewPassword]=useState("");const[securityBusy,setSecurityBusy]=useState(false);const[securityMessage,setSecurityMessage]=useState("");const[credentialStatus,setCredentialStatus]=useState<CredentialStatus|null>(null);const ownerUser=users.find(user=>user.staffRole==="OWNER")??users[0];const[selectedUserId,setSelectedUserId]=useState(ownerUser?.id??"");const selectedUser=users.find(user=>user.id===selectedUserId)??ownerUser;const set=(key:keyof Initial,value:string)=>setForm(current=>({...current,[key]:value}));
+ async function save(){setSaving(true);setMessage("");const response=await fetch(`/api/platform/organizers/${organizationId}/profile`,{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(form)});setSaving(false);if(!response.ok){const body=await response.json().catch(()=>({}));setMessage(body.error==="EMAIL_EXISTS"?t.emailExists:t.saveError);return;}setMessage(t.saved);router.refresh();}
+ async function security(action:"STATUS"|"UNLOCK"|"SET_PASSWORD"){if(!selectedUserId){setSecurityMessage(t.choose);return;}if(action==="SET_PASSWORD"&&newPassword.length<10){setSecurityMessage(t.passwordMin);return;}setSecurityBusy(true);setSecurityMessage("");const payload=action==="SET_PASSWORD"?{action,userId:selectedUserId,password:newPassword}:{action,userId:selectedUserId};const response=await fetch(`/api/platform/organizers/${organizationId}/security`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});const body=await response.json().catch(()=>({}));setSecurityBusy(false);if(!response.ok){setSecurityMessage(body.error||t.operationError);return;}if(body.status)setCredentialStatus(body.status);if(action==="UNLOCK")setSecurityMessage(body.status?.locked?t.stillLocked:`${t.unlocked}: ${body.email}. ${t.attempts}: ${body.status?.failedAttempts??0}.`);else if(action==="SET_PASSWORD"){setSecurityMessage(`${t.passwordSet} ${body.email}.`);setNewPassword("");}else setSecurityMessage(`${t.statusUpdated} ${body.email}.`);}
+ function chooseUser(userId:string){setSelectedUserId(userId);setCredentialStatus(null);setSecurityMessage("");setNewPassword("");}
+ return <><section className="platform-section-card"><div><span className="eyebrow">{t.profile}</span><h2>{t.contact}</h2><p className="muted">{t.contactHelp}</p></div><div className="form-grid two" style={{marginTop:18}}><label className="field"><span>{t.organization}</span><input className="input" value={form.organizationName} onChange={e=>set("organizationName",e.target.value)}/></label><label className="field"><span>{t.owner}</span><input className="input" value={form.ownerName} onChange={e=>set("ownerName",e.target.value)}/></label><label className="field"><span>{t.ownerEmail}</span><input className="input" dir="ltr" style={{textAlign:"left"}} type="email" value={form.ownerEmail} onChange={e=>set("ownerEmail",e.target.value)}/></label><label className="field"><span>{t.phone}</span><input className="input" dir="ltr" style={{textAlign:"left"}} value={form.phone} onChange={e=>set("phone",e.target.value)}/></label><label className="field"><span>{t.business}</span><input className="input" value={form.businessType} onChange={e=>set("businessType",e.target.value)}/></label><label className="field"><span>{t.country}</span><input className="input" value={form.country} onChange={e=>set("country",e.target.value)}/></label></div><div className="row" style={{marginTop:16}}><button className="btn" type="button" disabled={saving} onClick={save}>{saving?t.saving:t.save}</button>{message&&<span className="muted">{message}</span>}</div></section><section className="platform-section-card"><div><span className="eyebrow">{t.users}</span><h2>{t.access}</h2><p className="muted">{t.accessHelp}</p></div><div className="table-wrap" style={{marginTop:18}}><table><thead><tr><th>{t.user}</th><th>Email</th><th>{t.role}</th><th>{t.status}</th><th></th></tr></thead><tbody>{users.map(user=><tr key={user.id}><td><strong>{user.name||t.noName}</strong></td><td><bdi>{user.email}</bdi></td><td><bdi>{user.staffRole||user.role}</bdi></td><td>{user.active?t.active:t.disabled}</td><td><button className="btn secondary" type="button" onClick={()=>chooseUser(user.id)}>{selectedUserId===user.id?t.selected:t.manage}</button></td></tr>)}</tbody></table></div>{selectedUser&&<div style={{marginTop:20,paddingTop:18,borderTop:"1px solid #e5e7eb"}}><div className="form-grid two"><label className="field"><span>{t.selectedAccount}</span><input className="input" dir="auto" value={`${selectedUser.name||t.noName} · ${selectedUser.email}`} disabled/></label><label className="field"><span>{t.newPassword}</span><input className="input" dir="ltr" style={{textAlign:"left"}} type="password" minLength={10} autoComplete="new-password" placeholder={t.placeholder} value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></label></div>{credentialStatus&&<div className="stats" style={{marginTop:16,marginBottom:0}}><div className="stat"><span className="muted">{t.credential}</span><strong style={{fontSize:18}}>{credentialStatus.exists?t.exists:t.none}</strong></div><div className="stat"><span className="muted">{t.lock}</span><strong style={{fontSize:18,color:credentialStatus.locked?"#b42318":"#15803d"}}>{credentialStatus.locked?t.locked:t.notLocked}</strong></div><div className="stat"><span className="muted">{t.attempts}</span><strong style={{fontSize:18}}>{credentialStatus.failedAttempts}</strong></div><div className="stat"><span className="muted">Email</span><strong style={{fontSize:18}}>{credentialStatus.emailVerified?t.emailVerified:t.emailNotVerified}</strong></div></div>}<div className="row" style={{marginTop:16,flexWrap:"wrap"}}><button className="btn secondary" type="button" disabled={securityBusy} onClick={()=>security("STATUS")}>{t.check}</button><button className="btn secondary" type="button" disabled={securityBusy} onClick={()=>security("UNLOCK")}>{t.unlock}</button><button className="btn" type="button" disabled={securityBusy||newPassword.length<10} onClick={()=>security("SET_PASSWORD")}>{t.setPassword}</button>{credentialStatus&&!credentialStatus.locked&&<a className="btn secondary" href="/office/login" target="_blank" rel="noreferrer">{t.cleanLogin}</a>}{securityMessage&&<span className="muted">{securityMessage}</span>}</div></div>}</section></>;
 }
