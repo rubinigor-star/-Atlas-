@@ -1,7 +1,7 @@
 # Atlas One localization audit
 
-Date: 2026-08-22  
-Branch: `feature/multilingual-platform`  
+Date: 2026-08-22
+Branch: `feature/multilingual-platform`
 Base production commit audited: `0002341d42a2530a4f5d34dd4f2abaaa277b2e79`
 
 ## Executive summary
