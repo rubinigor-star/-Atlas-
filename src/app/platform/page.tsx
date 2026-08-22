@@ -1,23 +1,10 @@
 import Link from "next/link";
-import { PlatformShell } from "@/components/platform-shell";
-import { db } from "@/lib/db";
-import { ensureDemoOrganizerPlatform } from "@/lib/auth";
-import { money } from "@/lib/format";
+import {PlatformShell} from "@/components/platform-shell";
+import {db} from "@/lib/db";
+import {ensureDemoOrganizerPlatform} from "@/lib/auth";
+import {money} from "@/lib/format";
+import {getServerI18n} from "@/lib/server-locale";
 
 export const dynamic="force-dynamic";
-
-export default async function PlatformDashboard(){
-  await ensureDemoOrganizerPlatform();
-  const [organizations,events,users,revenue]=await Promise.all([
-    db.organization.findMany({include:{users:true,events:true},orderBy:{createdAt:"asc"}}),
-    db.event.count(),
-    db.user.count({where:{role:"ORGANIZER"}}),
-    db.order.aggregate({where:{status:"PAID"},_sum:{totalMinor:true}}),
-  ]);
-  return <PlatformShell>
-    <div className="platform-heading"><div><span className="eyebrow">Atlas Platform Admin</span><h1>Управление платформой</h1><p>Организаторы, мероприятия, комиссии, договоры и общая финансовая картина.</p></div><span className="platform-admin-badge">SUPER ADMIN</span></div>
-    <div className="stats"><div className="stat"><span className="muted">Организаторы</span><strong>{organizations.length}</strong></div><div className="stat"><span className="muted">Пользователи-организаторы</span><strong>{users}</strong></div><div className="stat"><span className="muted">Все мероприятия</span><strong>{events}</strong></div><div className="stat"><span className="muted">Продажи платформы</span><strong>{money(revenue._sum.totalMinor??0)}</strong></div></div>
-    <div className="row between"><h2 className="section-title">Организаторы</h2><Link href="/platform/organizers">Открыть список →</Link></div>
-    <div className="platform-card-grid">{organizations.map(org=><Link className="platform-organizer-card" href={`/platform/organizers/${org.id}`} key={org.id}><div><span className="eyebrow">Организатор</span><h3>{org.name}</h3></div><div className="platform-mini-stats"><span><b>{org.events.length}</b> мероприятий</span><span><b>{org.users.length}</b> пользователей</span></div><strong>Открыть карточку →</strong></Link>)}</div>
-  </PlatformShell>;
-}
+const copy={ru:{title:"Управление платформой",help:"Организаторы, мероприятия, комиссии, договоры и общая финансовая картина.",organizers:"Организаторы",users:"Пользователи-организаторы",events:"Все мероприятия",sales:"Продажи платформы",openList:"Открыть список",organizer:"Организатор",eventWord:"мероприятий",userWord:"пользователей",open:"Открыть карточку"},he:{title:"ניהול הפלטפורמה",help:"מפיקים, אירועים, עמלות, הסכמים והתמונה הפיננסית הכוללת.",organizers:"מפיקים",users:"משתמשי מפיקים",events:"כל האירועים",sales:"מכירות הפלטפורמה",openList:"פתיחת הרשימה",organizer:"מפיק",eventWord:"אירועים",userWord:"משתמשים",open:"פתיחת הכרטיס"},en:{title:"Platform management",help:"Organizers, events, fees, agreements and the overall financial picture.",organizers:"Organizers",users:"Organizer users",events:"All events",sales:"Platform sales",openList:"Open list",organizer:"Organizer",eventWord:"events",userWord:"users",open:"Open profile"}} as const;
+export default async function PlatformDashboard(){await ensureDemoOrganizerPlatform();const[{locale},organizations,events,users,revenue]=await Promise.all([getServerI18n(),db.organization.findMany({include:{users:true,events:true},orderBy:{createdAt:"asc"}}),db.event.count(),db.user.count({where:{role:"ORGANIZER"}}),db.order.aggregate({where:{status:"PAID"},_sum:{totalMinor:true}})]);const t=copy[locale];return <PlatformShell><div className="platform-heading"><div><span className="eyebrow">Atlas Platform Admin</span><h1>{t.title}</h1><p>{t.help}</p></div><span className="platform-admin-badge">SUPER ADMIN</span></div><div className="stats"><div className="stat"><span className="muted">{t.organizers}</span><strong>{organizations.length}</strong></div><div className="stat"><span className="muted">{t.users}</span><strong>{users}</strong></div><div className="stat"><span className="muted">{t.events}</span><strong>{events}</strong></div><div className="stat"><span className="muted">{t.sales}</span><strong><bdi>{money(revenue._sum.totalMinor??0,"ILS",locale)}</bdi></strong></div></div><div className="row between"><h2 className="section-title">{t.organizers}</h2><Link href="/platform/organizers">{t.openList} →</Link></div><div className="platform-card-grid">{organizations.map(org=><Link className="platform-organizer-card" href={`/platform/organizers/${org.id}`} key={org.id}><div><span className="eyebrow">{t.organizer}</span><h3>{org.name}</h3></div><div className="platform-mini-stats"><span><b>{org.events.length}</b> {t.eventWord}</span><span><b>{org.users.length}</b> {t.userWord}</span></div><strong>{t.open} →</strong></Link>)}</div></PlatformShell>}
