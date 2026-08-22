@@ -1,36 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import type { Locale } from "@/components/locale-provider";
+import { useLocale, type Locale } from "@/components/locale-provider";
 import { localeNames } from "@/lib/i18n";
 import styles from "./office-login-branding.module.css";
 
 const locales: Locale[] = ["ru", "he", "en"];
 
-function isLocale(value: string | null | undefined): value is Locale {
-  return value === "ru" || value === "he" || value === "en";
-}
-
 export function OfficeLanguageControl() {
-  const [locale, setLocale] = useState<Locale>("ru");
+  const { locale, setLocale } = useLocale();
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    const htmlLocale = document.documentElement.lang?.slice(0, 2);
-    const storedLocale = window.localStorage.getItem("atlas-locale");
-    const resolved = isLocale(storedLocale) ? storedLocale : isLocale(htmlLocale) ? htmlLocale : "ru";
-    setLocale(resolved);
-  }, []);
 
   const activeName = useMemo(() => localeNames[locale], [locale]);
 
   function chooseLocale(nextLocale: Locale) {
     setLocale(nextLocale);
     setOpen(false);
-    window.localStorage.setItem("atlas-locale", nextLocale);
-    document.cookie = `atlas_locale=${nextLocale}; path=/; max-age=31536000; samesite=lax`;
-    window.location.reload();
   }
 
   return <div className={styles.languageControl}>
