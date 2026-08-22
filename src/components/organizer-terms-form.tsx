@@ -2,70 +2,24 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/components/locale-provider";
 
-type Terms = {
-  salesFeePercentBps: number;
-  salesFeeFixedMinor: number;
-  serviceFeePayer: "BUYER" | "ORGANIZER";
-  refundsEnabled: boolean;
-  refundFeePercentBps: number;
-  refundFeeFixedMinor: number;
-  refundDeadlineHours: number;
-  transferRefundWindowDays: number;
-};
+type Terms={salesFeePercentBps:number;salesFeeFixedMinor:number;serviceFeePayer:"BUYER"|"ORGANIZER";refundsEnabled:boolean;refundFeePercentBps:number;refundFeeFixedMinor:number;refundDeadlineHours:number;transferRefundWindowDays:number};
+const copy={
+  ru:{error:"Не удалось сохранить условия",saved:"Условия сохранены",eyebrow:"Условия продажи",title:"Базовые условия организатора",help:"Эти значения применяются по умолчанию к продажам. Плательщика сервисного сбора можно переопределить для конкретного мероприятия.",percent:"Комиссия Atlas, %",fixed:"Фиксированная часть за билет, ₪",payer:"Кто оплачивает сервисный сбор",buyer:"Покупатель",organizer:"Организатор",cancelEyebrow:"Отмена заказа",cancelTitle:"Единая политика Cancellation",cancelHelp:"Эти правила не редактируются в коммерческих условиях организатора. Они применяются единым Cancellation-модулем Atlas.",cancelFee:"Комиссия за отмену",cancelFeeHelp:"5% от суммы операции, максимум 100 ₪",salesKept:"Sales fee сохраняется",salesKeptHelp:"Комиссия первоначальной продажи не аннулируется при возврате",organizerLoad:"Нагрузка организатора",organizerLoadHelp:"Фактический refund клиенту + комиссия отмены уменьшают баланс организатора",policy:"Право клиента на отмену определяется Cancellation-модулем и применимой политикой/законодательством. Добровольный возврат сверх стандартной суммы оплачивается из баланса организатора.",saving:"Сохранение...",save:"Сохранить условия"},
+  he:{error:"לא הצלחנו לשמור את התנאים",saved:"התנאים נשמרו",eyebrow:"תנאי מכירה",title:"תנאי הבסיס של המפיק",help:"הערכים האלה משמשים כברירת מחדל למכירות. אפשר להגדיר בכל אירוע בנפרד מי נושא בדמי השירות.",percent:"עמלת Atlas, %",fixed:"רכיב קבוע לכרטיס, ₪",payer:"מי משלם את דמי השירות",buyer:"הרוכש",organizer:"המפיק",cancelEyebrow:"ביטול הזמנה",cancelTitle:"מדיניות ביטולים אחידה",cancelHelp:"הכללים האלה אינם ניתנים לעריכה בתנאים המסחריים של המפיק. הם מיושמים באמצעות מודול הביטולים האחיד של Atlas.",cancelFee:"עמלת ביטול",cancelFeeHelp:"5% מסכום העסקה, עד 100 ₪",salesKept:"עמלת המכירה נשמרת",salesKeptHelp:"עמלת המכירה המקורית אינה מתבטלת בעת החזר",organizerLoad:"חיוב המפיק",organizerLoadHelp:"ההחזר בפועל ללקוח + עמלת הביטול מפחיתים את יתרת המפיק",policy:"זכות הלקוח לביטול נקבעת לפי מודול הביטולים והמדיניות או הדין החלים. החזר וולונטרי מעבר לסכום הסטנדרטי משולם מיתרת המפיק.",saving:"שומרים...",save:"שמירת התנאים"},
+  en:{error:"Could not save terms",saved:"Terms saved",eyebrow:"Sales terms",title:"Organizer base terms",help:"These values apply to sales by default. The service-fee payer can be overridden for a specific event.",percent:"Atlas fee, %",fixed:"Fixed amount per ticket, ₪",payer:"Who pays the service fee",buyer:"Buyer",organizer:"Organizer",cancelEyebrow:"Order cancellation",cancelTitle:"Unified cancellation policy",cancelHelp:"These rules are not editable in organizer commercial terms. They are applied by Atlas's unified cancellation module.",cancelFee:"Cancellation fee",cancelFeeHelp:"5% of the transaction amount, capped at ₪100",salesKept:"Sales fee remains",salesKeptHelp:"The original sales fee is not reversed when a refund is made",organizerLoad:"Organizer impact",organizerLoadHelp:"The actual customer refund plus cancellation fee reduce the organizer balance",policy:"Customer cancellation rights are determined by the cancellation module and applicable policy or law. Voluntary refunds above the standard amount are paid from the organizer balance.",saving:"Saving...",save:"Save terms"}
+} as const;
 
-export function OrganizerTermsForm({ organizationId, initial, readOnly = false }: { organizationId: string; initial: Terms; readOnly?: boolean }) {
-  const router = useRouter();
-  const [form, setForm] = useState({
-    salesFeePercentBps: initial.salesFeePercentBps,
-    salesFeeFixedMinor: initial.salesFeeFixedMinor,
-    serviceFeePayer: initial.serviceFeePayer,
-  });
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-  const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => setForm((current) => ({ ...current, [key]: value }));
-
-  async function save() {
-    setSaving(true);
-    setMessage("");
-    const response = await fetch(`/api/platform/organizers/${organizationId}/terms`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setSaving(false);
-    if (!response.ok) {
-      setMessage("Не удалось сохранить условия");
-      return;
-    }
-    setMessage("Условия сохранены");
-    router.refresh();
-  }
-
-  return <div className="card stack">
-    <div>
-      <span className="eyebrow">Условия продажи</span>
-      <h2>Базовые условия организатора</h2>
-      <p className="muted">Эти значения применяются по умолчанию к продажам. Плательщика сервисного сбора можно переопределить для конкретного мероприятия.</p>
-    </div>
-    <div className="form-grid">
-      <label>Комиссия Atlas, %<input disabled={readOnly} type="number" min="0" max="100" step="0.01" value={form.salesFeePercentBps / 100} onChange={(e) => set("salesFeePercentBps", Math.round(Number(e.target.value) * 100))}/></label>
-      <label>Фиксированная часть за билет, ₪<input disabled={readOnly} type="number" min="0" step="0.01" value={form.salesFeeFixedMinor / 100} onChange={(e) => set("salesFeeFixedMinor", Math.round(Number(e.target.value) * 100))}/></label>
-      <label>Кто оплачивает сервисный сбор<select disabled={readOnly} value={form.serviceFeePayer} onChange={(e) => set("serviceFeePayer", e.target.value as "BUYER" | "ORGANIZER")}><option value="BUYER">Покупатель</option><option value="ORGANIZER">Организатор</option></select></label>
-    </div>
-
-    <div className="platform-section-card" style={{marginTop:6,boxShadow:"none"}}>
-      <span className="eyebrow">Отмена заказа</span>
-      <h3 style={{margin:"6px 0 10px"}}>Единая политика Cancellation</h3>
-      <p className="muted" style={{marginTop:0}}>Эти правила не редактируются в коммерческих условиях организатора. Они применяются единым Cancellation-модулем Atlas.</p>
-      <div className="platform-readiness-grid" style={{marginTop:14}}>
-        <div className="platform-readiness-item ready"><b>5%</b><div><strong>Комиссия за отмену</strong><small>5% от суммы операции, максимум 100 ₪</small></div></div>
-        <div className="platform-readiness-item ready"><b>+</b><div><strong>Sales fee сохраняется</strong><small>Комиссия первоначальной продажи не аннулируется при возврате</small></div></div>
-        <div className="platform-readiness-item ready"><b>−</b><div><strong>Нагрузка организатора</strong><small>Фактический refund клиенту + комиссия отмены уменьшают баланс организатора</small></div></div>
-      </div>
-      <p className="muted" style={{marginBottom:0}}>Право клиента на отмену определяется Cancellation-модулем и применимой политикой/законодательством. Добровольный возврат сверх стандартной суммы оплачивается из баланса организатора.</p>
-    </div>
-
-    {!readOnly && <div className="row"><button className="btn" disabled={saving} onClick={save}>{saving ? "Сохранение..." : "Сохранить условия"}</button>{message && <span className="muted">{message}</span>}</div>}
-  </div>;
+export function OrganizerTermsForm({organizationId,initial,readOnly=false}:{organizationId:string;initial:Terms;readOnly?:boolean}){
+  const {locale}=useLocale();const text=copy[locale];const router=useRouter();
+  const [form,setForm]=useState({salesFeePercentBps:initial.salesFeePercentBps,salesFeeFixedMinor:initial.salesFeeFixedMinor,serviceFeePayer:initial.serviceFeePayer});const [saving,setSaving]=useState(false);const [message,setMessage]=useState("");
+  const set=<K extends keyof typeof form>(key:K,value:(typeof form)[K])=>setForm(current=>({...current,[key]:value}));
+  async function save(){setSaving(true);setMessage("");const response=await fetch(`/api/platform/organizers/${organizationId}/terms`,{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(form)});setSaving(false);if(!response.ok){setMessage(text.error);return;}setMessage(text.saved);router.refresh();}
+  return <div className="card stack"><div><span className="eyebrow">{text.eyebrow}</span><h2>{text.title}</h2><p className="muted">{text.help}</p></div><div className="form-grid">
+    <label>{text.percent}<input dir="ltr" style={{textAlign:"left"}} disabled={readOnly} type="number" min="0" max="100" step="0.01" value={form.salesFeePercentBps/100} onChange={e=>set("salesFeePercentBps",Math.round(Number(e.target.value)*100))}/></label>
+    <label>{text.fixed}<input dir="ltr" style={{textAlign:"left"}} disabled={readOnly} type="number" min="0" step="0.01" value={form.salesFeeFixedMinor/100} onChange={e=>set("salesFeeFixedMinor",Math.round(Number(e.target.value)*100))}/></label>
+    <label>{text.payer}<select disabled={readOnly} value={form.serviceFeePayer} onChange={e=>set("serviceFeePayer",e.target.value as "BUYER"|"ORGANIZER")}><option value="BUYER">{text.buyer}</option><option value="ORGANIZER">{text.organizer}</option></select></label>
+  </div><div className="platform-section-card" style={{marginTop:6,boxShadow:"none"}}><span className="eyebrow">{text.cancelEyebrow}</span><h3 style={{margin:"6px 0 10px"}}>{text.cancelTitle}</h3><p className="muted" style={{marginTop:0}}>{text.cancelHelp}</p><div className="platform-readiness-grid" style={{marginTop:14}}><div className="platform-readiness-item ready"><b>5%</b><div><strong>{text.cancelFee}</strong><small>{text.cancelFeeHelp}</small></div></div><div className="platform-readiness-item ready"><b>+</b><div><strong>{text.salesKept}</strong><small>{text.salesKeptHelp}</small></div></div><div className="platform-readiness-item ready"><b>−</b><div><strong>{text.organizerLoad}</strong><small>{text.organizerLoadHelp}</small></div></div></div><p className="muted" style={{marginBottom:0}}>{text.policy}</p></div>
+  {!readOnly&&<div className="row"><button className="btn" disabled={saving} onClick={save}>{saving?text.saving:text.save}</button>{message&&<span className="muted">{message}</span>}</div>}</div>;
 }
