@@ -34,7 +34,7 @@ export const recoveryCopy = {
   en: { subjectFinal:"Ticket reminder",subjectFirst:"You did not complete your ticket purchase",titleFinal:"Your purchase is not complete",titleFirst:"Your order is almost complete",hello:"Hello",started:"You started booking tickets for",unfinished:"but did not complete payment.",important:"Important:",inventory:"Tickets and selected seats are not reserved. Availability, category or price may have changed.",action:"View available tickets",service:"This is a service message about a checkout you started. It does not subscribe you to marketing messages.",optout:"Stop reminders about this purchase" },
 } as const;
 
-const recoverySmsCopy = {
+export const recoverySmsCopy = {
   ru: { lead:"Atlas One: вы не завершили покупку билетов на", inventory:"Билеты, места и цена могли измениться.", action:"Продолжить", optout:"Не напоминать" },
   he: { lead:"Atlas One: לא השלמת את רכישת הכרטיסים לאירוע", inventory:"ייתכן שהכרטיסים, המקומות או המחיר השתנו.", action:"להמשך ההזמנה", optout:"להפסקת תזכורות" },
   en: { lead:"Atlas One: you did not complete your ticket purchase for", inventory:"Tickets, seats or price may have changed.", action:"Continue", optout:"Stop reminders" },
