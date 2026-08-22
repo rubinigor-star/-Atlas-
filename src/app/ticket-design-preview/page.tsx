@@ -1,91 +1,11 @@
+import {getServerI18n} from "@/lib/server-locale";
 import styles from "./ticket-design-preview.module.css";
 
-const details = [
-  ["Дата и время", "26 ноября 2026, 20:00"],
-  ["Площадка", "Reading 3, Тель-Авив"],
-  ["Категория", "VIP Standing"],
-  ["Гость", "Igor Rubin"],
-  ["Место", "Секция A · Ряд 2 · Место 14"],
-  ["Заказ", "ATL-MS94QYR6-A350"],
-];
-
-function Qr() {
-  return <div className={styles.qr} aria-label="QR preview"><span /><span /><span /><span /><span /><span /><span /><span /><span /></div>;
-}
-
-function Status() {
-  return <span className={styles.status}><i /> VALID</span>;
-}
-
-export default function TicketDesignPreviewPage() {
-  return (
-    <main className={styles.page}>
-      <header className={styles.hero}>
-        <div>
-          <span className={styles.eyebrow}>Atlas Ticket Design System</span>
-          <h1>Один билет. Один визуальный язык.</h1>
-          <p>Визуальная концепция для PDF, Apple Wallet, web и email. Это изолированный прототип без подключения к реальным заказам.</p>
-        </div>
-        <div className={styles.tokens}>
-          <span style={{ background: "#071426" }} />
-          <span style={{ background: "#ff5b45" }} />
-          <span style={{ background: "#f4f7fb" }} />
-          <span style={{ background: "#ffffff" }} />
-        </div>
-      </header>
-
-      <section className={styles.grid}>
-        <article className={styles.panel}>
-          <div className={styles.panelHead}><span>01</span><div><b>PDF ticket</b><small>Полная версия для скачивания</small></div></div>
-          <div className={styles.pdfTicket}>
-            <div className={styles.brandRow}><div className={styles.logo}>ATLAS<span>ONE</span></div><Status /></div>
-            <div className={styles.art}><span>LIVE IN ISRAEL</span><strong>REFLEX</strong><small>25 YEARS TOUR</small></div>
-            <div className={styles.pdfBody}>
-              <div><span className={styles.kicker}>БИЛЕТ НА МЕРОПРИЯТИЕ</span><h2>REFLEX · 25 YEARS TOUR</h2></div>
-              <div className={styles.details}>{details.slice(0, 5).map(([label, value]) => <div key={label}><small>{label}</small><b>{value}</b></div>)}</div>
-              <div className={styles.qrRow}><Qr /><div><small>НОМЕР ЗАКАЗА</small><b>ATL-MS94QYR6-A350</b><small>КОД БИЛЕТА</small><b>ATL-48F2-91AC</b></div></div>
-            </div>
-            <footer>Powered by Atlas One · atlas-one.co</footer>
-          </div>
-        </article>
-
-        <article className={styles.panel}>
-          <div className={styles.panelHead}><span>02</span><div><b>Apple Wallet</b><small>Нативная адаптация под ограничения Apple</small></div></div>
-          <div className={styles.phone}>
-            <div className={styles.wallet}>
-              <div className={styles.walletTop}><div className={styles.walletLogo}>A</div><div><b>Atlas One</b><small>Event Ticket</small></div><Status /></div>
-              <div className={styles.walletArt}><small>LIVE IN ISRAEL</small><strong>REFLEX</strong></div>
-              <div className={styles.walletTitle}><small>МЕРОПРИЯТИЕ</small><h2>REFLEX · 25 YEARS TOUR</h2></div>
-              <div className={styles.walletFields}><div><small>ДАТА</small><b>26 НОЯБРЯ</b><span>20:00</span></div><div><small>ПЛОЩАДКА</small><b>READING 3</b><span>Тель-Авив</span></div></div>
-              <div className={styles.walletFields}><div><small>КАТЕГОРИЯ</small><b>VIP STANDING</b></div><div><small>ГОСТЬ</small><b>IGOR RUBIN</b></div></div>
-              <Qr />
-              <div className={styles.code}>ATL-48F2-91AC</div>
-            </div>
-          </div>
-        </article>
-
-        <article className={styles.panel}>
-          <div className={styles.panelHead}><span>03</span><div><b>Web ticket</b><small>Основной мобильный билет</small></div></div>
-          <div className={styles.webCard}>
-            <div className={styles.webArt}><div className={styles.logo}>ATLAS<span>ONE</span></div><Status /><strong>REFLEX</strong></div>
-            <div className={styles.webBody}><span className={styles.kicker}>26 НОЯБРЯ · 20:00</span><h2>REFLEX · 25 YEARS TOUR</h2><p>Reading 3, Тель-Авив</p><div className={styles.webInfo}><div><small>КАТЕГОРИЯ</small><b>VIP Standing</b></div><div><small>ГОСТЬ</small><b>Igor Rubin</b></div><div><small>МЕСТО</small><b>A · 2 · 14</b></div></div><Qr /><button type="button">Добавить в Apple Wallet</button><a>Скачать PDF</a></div>
-          </div>
-        </article>
-
-        <article className={styles.panel}>
-          <div className={styles.panelHead}><span>04</span><div><b>Email</b><small>Компактная доставка билета</small></div></div>
-          <div className={styles.email}>
-            <div className={styles.emailHead}><div className={styles.logo}>ATLAS<span>ONE</span></div><span>Ваш билет готов</span></div>
-            <div className={styles.emailArt}><strong>REFLEX</strong><small>25 YEARS TOUR</small></div>
-            <div className={styles.emailBody}><Status /><h2>REFLEX · 25 YEARS TOUR</h2><p>26 ноября 2026, 20:00<br />Reading 3, Тель-Авив</p><div className={styles.emailTicket}><div><small>ГОСТЬ</small><b>Igor Rubin</b><small>КАТЕГОРИЯ</small><b>VIP Standing</b></div><Qr /></div><button type="button">Открыть билет</button><button type="button" className={styles.darkButton}>Добавить в Apple Wallet</button><small className={styles.note}>Каждый билет имеет отдельный QR и отдельную Wallet-ссылку.</small></div>
-          </div>
-        </article>
-      </section>
-
-      <section className={styles.rtl} dir="rtl">
-        <div><span className={styles.eyebrow}>RTL CHECK</span><h2>אותו כרטיס, אותה היררכיה</h2><p>הכותרות, הנתונים, הסטטוס והפעולות נשארים עקביים גם בעברית.</p></div>
-        <div className={styles.rtlCard}><Status /><small>אירוע</small><b>REFLEX · 25 YEARS TOUR</b><small>תאריך ומקום</small><b>26 בנובמבר 2026 · רידינג 3</b></div>
-      </section>
-    </main>
-  );
-}
+const copy={
+ ru:{title:"Один билет. Один визуальный язык.",intro:"Визуальная концепция для PDF, Apple Wallet, web и email. Это изолированный прототип без подключения к реальным заказам.",details:[["Дата и время","26 ноября 2026, 20:00"],["Площадка","Reading 3, Тель-Авив"],["Категория","VIP Standing"],["Гость","Igor Rubin"],["Место","Секция A · Ряд 2 · Место 14"]],pdfHelp:"Полная версия для скачивания",ticket:"БИЛЕТ НА МЕРОПРИЯТИЕ",order:"НОМЕР ЗАКАЗА",code:"КОД БИЛЕТА",walletHelp:"Нативная адаптация под ограничения Apple",event:"МЕРОПРИЯТИЕ",date:"ДАТА",venue:"ПЛОЩАДКА",category:"КАТЕГОРИЯ",guest:"ГОСТЬ",place:"МЕСТО",november:"26 НОЯБРЯ",city:"Тель-Авив",webHelp:"Основной мобильный билет",addWallet:"Добавить в Apple Wallet",downloadPdf:"Скачать PDF",emailHelp:"Компактная доставка билета",ready:"Ваш билет готов",open:"Открыть билет",note:"Каждый билет имеет отдельный QR и отдельную Wallet-ссылку.",rtlTitle:"אותו כרטיס, אותה היררכיה",rtlText:"הכותרות, הנתונים, הסטטוס והפעולות נשארים עקביים גם בעברית.",rtlEvent:"אירוע",rtlDate:"תאריך ומקום",rtlValue:"26 בנובמבר 2026 · רידינג 3"},
+ he:{title:"כרטיס אחד. שפה חזותית אחת.",intro:"קונספט חזותי ל-PDF, Apple Wallet, web ו-email. זהו אב-טיפוס מבודד שאינו מחובר להזמנות אמיתיות.",details:[["תאריך ושעה","26 בנובמבר 2026, 20:00"],["מקום","Reading 3, תל אביב"],["קטגוריה","VIP Standing"],["אורח","Igor Rubin"],["מקום ישיבה","אזור A · שורה 2 · מקום 14"]],pdfHelp:"גרסה מלאה להורדה",ticket:"כרטיס לאירוע",order:"מספר הזמנה",code:"קוד כרטיס",walletHelp:"התאמה טבעית למגבלות Apple",event:"אירוע",date:"תאריך",venue:"מקום",category:"קטגוריה",guest:"אורח",place:"מקום ישיבה",november:"26 בנובמבר",city:"תל אביב",webHelp:"הכרטיס הראשי למובייל",addWallet:"הוספה ל-Apple Wallet",downloadPdf:"הורדת PDF",emailHelp:"מסירה קומפקטית של הכרטיס",ready:"הכרטיס שלך מוכן",open:"פתיחת הכרטיס",note:"לכל כרטיס QR נפרד וקישור Wallet נפרד.",rtlTitle:"אותו כרטיס, אותה היררכיה",rtlText:"הכותרות, הנתונים, הסטטוס והפעולות נשארים עקביים גם בעברית.",rtlEvent:"אירוע",rtlDate:"תאריך ומקום",rtlValue:"26 בנובמבר 2026 · רידינג 3"},
+ en:{title:"One ticket. One visual language.",intro:"A visual concept for PDF, Apple Wallet, web and email. This is an isolated prototype with no connection to real orders.",details:[["Date and time","November 26, 2026, 20:00"],["Venue","Reading 3, Tel Aviv"],["Category","VIP Standing"],["Guest","Igor Rubin"],["Seat","Section A · Row 2 · Seat 14"]],pdfHelp:"Full downloadable version",ticket:"EVENT TICKET",order:"ORDER NUMBER",code:"TICKET CODE",walletHelp:"Native adaptation to Apple constraints",event:"EVENT",date:"DATE",venue:"VENUE",category:"CATEGORY",guest:"GUEST",place:"SEAT",november:"NOVEMBER 26",city:"Tel Aviv",webHelp:"Primary mobile ticket",addWallet:"Add to Apple Wallet",downloadPdf:"Download PDF",emailHelp:"Compact ticket delivery",ready:"Your ticket is ready",open:"Open ticket",note:"Every ticket has its own QR code and Wallet link.",rtlTitle:"אותו כרטיס, אותה היררכיה",rtlText:"הכותרות, הנתונים, הסטטוס והפעולות נשארים עקביים גם בעברית.",rtlEvent:"אירוע",rtlDate:"תאריך ומקום",rtlValue:"26 בנובמבר 2026 · רידינג 3"}
+} as const;
+function Qr(){return <div className={styles.qr} aria-label="QR preview"><span/><span/><span/><span/><span/><span/><span/><span/><span/></div>}
+function Status(){return <span className={styles.status}><i/> VALID</span>}
+export default async function TicketDesignPreviewPage(){const{locale}=await getServerI18n();const t=copy[locale];return <main className={styles.page}><header className={styles.hero}><div><span className={styles.eyebrow}>Atlas Ticket Design System</span><h1>{t.title}</h1><p>{t.intro}</p></div><div className={styles.tokens}><span style={{background:"#071426"}}/><span style={{background:"#ff5b45"}}/><span style={{background:"#f4f7fb"}}/><span style={{background:"#ffffff"}}/></div></header><section className={styles.grid}><article className={styles.panel}><div className={styles.panelHead}><span>01</span><div><b>PDF ticket</b><small>{t.pdfHelp}</small></div></div><div className={styles.pdfTicket}><div className={styles.brandRow}><div className={styles.logo}>ATLAS<span>ONE</span></div><Status/></div><div className={styles.art}><span>LIVE IN ISRAEL</span><strong>REFLEX</strong><small>25 YEARS TOUR</small></div><div className={styles.pdfBody}><div><span className={styles.kicker}>{t.ticket}</span><h2>REFLEX · 25 YEARS TOUR</h2></div><div className={styles.details}>{t.details.map(([label,value])=><div key={label}><small>{label}</small><b>{value}</b></div>)}</div><div className={styles.qrRow}><Qr/><div><small>{t.order}</small><b dir="ltr">ATL-MS94QYR6-A350</b><small>{t.code}</small><b dir="ltr">ATL-48F2-91AC</b></div></div></div><footer>Powered by Atlas One · atlas-one.co</footer></div></article><article className={styles.panel}><div className={styles.panelHead}><span>02</span><div><b>Apple Wallet</b><small>{t.walletHelp}</small></div></div><div className={styles.phone}><div className={styles.wallet}><div className={styles.walletTop}><div className={styles.walletLogo}>A</div><div><b>Atlas One</b><small>Event Ticket</small></div><Status/></div><div className={styles.walletArt}><small>LIVE IN ISRAEL</small><strong>REFLEX</strong></div><div className={styles.walletTitle}><small>{t.event}</small><h2>REFLEX · 25 YEARS TOUR</h2></div><div className={styles.walletFields}><div><small>{t.date}</small><b>{t.november}</b><span>20:00</span></div><div><small>{t.venue}</small><b>READING 3</b><span>{t.city}</span></div></div><div className={styles.walletFields}><div><small>{t.category}</small><b>VIP STANDING</b></div><div><small>{t.guest}</small><b>IGOR RUBIN</b></div></div><Qr/><div className={styles.code}>ATL-48F2-91AC</div></div></div></article><article className={styles.panel}><div className={styles.panelHead}><span>03</span><div><b>Web ticket</b><small>{t.webHelp}</small></div></div><div className={styles.webCard}><div className={styles.webArt}><div className={styles.logo}>ATLAS<span>ONE</span></div><Status/><strong>REFLEX</strong></div><div className={styles.webBody}><span className={styles.kicker}>{t.november} · 20:00</span><h2>REFLEX · 25 YEARS TOUR</h2><p>Reading 3, {t.city}</p><div className={styles.webInfo}><div><small>{t.category}</small><b>VIP Standing</b></div><div><small>{t.guest}</small><b>Igor Rubin</b></div><div><small>{t.place}</small><b>A · 2 · 14</b></div></div><Qr/><button type="button">{t.addWallet}</button><a>{t.downloadPdf}</a></div></div></article><article className={styles.panel}><div className={styles.panelHead}><span>04</span><div><b>Email</b><small>{t.emailHelp}</small></div></div><div className={styles.email}><div className={styles.emailHead}><div className={styles.logo}>ATLAS<span>ONE</span></div><span>{t.ready}</span></div><div className={styles.emailArt}><strong>REFLEX</strong><small>25 YEARS TOUR</small></div><div className={styles.emailBody}><Status/><h2>REFLEX · 25 YEARS TOUR</h2><p>{t.details[0][1]}<br/>Reading 3, {t.city}</p><div className={styles.emailTicket}><div><small>{t.guest}</small><b>Igor Rubin</b><small>{t.category}</small><b>VIP Standing</b></div><Qr/></div><button type="button">{t.open}</button><button type="button" className={styles.darkButton}>{t.addWallet}</button><small className={styles.note}>{t.note}</small></div></div></article></section><section className={styles.rtl} dir="rtl"><div><span className={styles.eyebrow}>RTL CHECK</span><h2>{t.rtlTitle}</h2><p>{t.rtlText}</p></div><div className={styles.rtlCard}><Status/><small>{t.rtlEvent}</small><b>REFLEX · 25 YEARS TOUR</b><small>{t.rtlDate}</small><b>{t.rtlValue}</b></div></section></main>}
