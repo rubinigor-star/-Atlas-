@@ -11,14 +11,12 @@ type CountRow = { count: number | bigint };
 export default async function Scanner() {
   const staff = await requirePermission("SCAN");
   const locale=resolveStaffLocale({memberOverride:staff.interfaceLocaleOverride,userPreference:staff.preferredLocale,organizationDefault:staff.organization?.defaultStaffLocale});
-  const c=locale==="he"?{title:"סריקת כרטיסים",intro:"בקרת כניסה מהנייד, נתוני האירוע וחיפוש מהיר של אורחים.",entered:"נכנסו",time:"שעה",result:"תוצאה",guest:"אורח",category:"קטגוריה",event:"אירוע",code:"קוד"}:locale==="en"?{title:"Ticket scanner",intro:"Mobile door control, live event statistics and quick guest search.",entered:"Entered",time:"Time",result:"Result",guest:"Guest",category:"Category",event:"Event",code:"Code"}:{title:"Сканер билетов",intro:"Мобильный контроль входа, статистика мероприятия и быстрый поиск гостя.",entered:"Вошли",time:"Время",result:"Результат",guest:"Гость",category:"Категория",event:"Мероприятие",code:"Код"};
+  const c=locale==="he"?{eyebrow:"בקרת כניסה",title:"סריקת כרטיסים",intro:"בקרת כניסה מהנייד, נתוני האירוע וחיפוש מהיר של אורחים.",entered:"נכנסו",time:"שעה",result:"תוצאה",guest:"אורח",category:"קטגוריה",event:"אירוע",code:"קוד",valid:"כניסה אושרה",used:"כבר מומש",cancelled:"בוטל",wrong:"אירוע אחר",early:"הכניסה עדיין סגורה",notFound:"לא נמצא"}:locale==="en"?{eyebrow:"Door control",title:"Ticket scanner",intro:"Mobile door control, live event statistics and quick guest search.",entered:"Entered",time:"Time",result:"Result",guest:"Guest",category:"Category",event:"Event",code:"Code",valid:"Entry allowed",used:"Already used",cancelled:"Cancelled",wrong:"Different event",early:"Entry not open yet",notFound:"Not found"}:{eyebrow:"Контроль входа",title:"Сканер билетов",intro:"Мобильный контроль входа, статистика мероприятия и быстрый поиск гостя.",entered:"Вошли",time:"Время",result:"Результат",guest:"Гость",category:"Категория",event:"Мероприятие",code:"Код",valid:"Вход разрешён",used:"Уже использован",cancelled:"Отменён",wrong:"Другое мероприятие",early:"Вход ещё закрыт",notFound:"Не найден"};
+  const resultLabel=(value:string)=>value==="VALID"?c.valid:value==="USED"?c.used:value==="CANCELLED"?c.cancelled:value==="WRONG_EVENT"?c.wrong:value==="TOO_EARLY"?c.early:value==="NOT_FOUND"?c.notFound:value;
   await ensureExternalTicketStorage();
   const allowedEvents = staff.eventAccess.map((item) => item.eventId);
   const scopedIds = staff.eventScope === "ALL" ? undefined : allowedEvents;
-  const eventFilter = {
-    organizationId: staff.organizationId!,
-    ...(scopedIds ? { id: { in: scopedIds } } : {}),
-  };
+  const eventFilter = { organizationId: staff.organizationId!, ...(scopedIds ? { id: { in: scopedIds } } : {}) };
 
   const [events, scans] = await Promise.all([
     db.event.findMany({ where: eventFilter, orderBy: { startsAt: "asc" }, select: { id: true, title: true, startsAt: true, categories: { select: { capacity: true } } } }),
@@ -34,17 +32,10 @@ export default async function Scanner() {
     ]);
     const externalSold = Number(externalSoldRows[0]?.count || 0);
     const externalEntered = Number(externalEnteredRows[0]?.count || 0);
-    return {
-      id: event.id,
-      title: event.title,
-      startsAt: event.startsAt.toISOString(),
-      capacity: event.categories.reduce((sum, category) => sum + category.capacity, 0),
-      sold: nativeSold + externalSold,
-      entered: nativeEntered + externalEntered,
-    };
+    return { id: event.id, title: event.title, startsAt: event.startsAt.toISOString(), capacity: event.categories.reduce((sum, category) => sum + category.capacity, 0), sold: nativeSold + externalSold, entered: nativeEntered + externalEntered };
   }));
 
   const totalEntered = eventOptions.reduce((sum, event) => sum + event.entered, 0);
 
-  return <AdminShell><div className="office-page-heading"><div><span className="eyebrow">Door control</span><h1>{c.title}</h1><p>{c.intro}</p></div><span className="office-live"><i/>{c.entered}: {totalEntered}</span></div><div className="office-scanner"><ScannerClient initialEntered={totalEntered} events={eventOptions}/><div className="table-wrap"><table><thead><tr><th>{c.time}</th><th>{c.result}</th><th>{c.guest}</th><th>{c.category}</th><th>{c.event}</th><th>{c.code}</th></tr></thead><tbody>{scans.map((scan) => <tr key={scan.id}><td>{scan.scannedAt.toLocaleString(localeTag(locale), { timeZone: "Asia/Jerusalem" })}</td><td><span className="pill">{scan.result}</span></td><td>{scan.ticket?.holderName ?? "-"}</td><td>{scan.ticket?.category.name ?? "-"}</td><td>{scan.ticket?.order.event.title ?? "-"}</td><td>{scan.ticket?.publicCode.slice(0, 16) ?? "-"}</td></tr>)}</tbody></table></div></div></AdminShell>;
+  return <AdminShell><div className="office-page-heading"><div><span className="eyebrow">{c.eyebrow}</span><h1>{c.title}</h1><p>{c.intro}</p></div><span className="office-live"><i/>{c.entered}: <bdi>{totalEntered}</bdi></span></div><div className="office-scanner"><ScannerClient initialEntered={totalEntered} events={eventOptions}/><div className="table-wrap"><table><thead><tr><th>{c.time}</th><th>{c.result}</th><th>{c.guest}</th><th>{c.category}</th><th>{c.event}</th><th>{c.code}</th></tr></thead><tbody>{scans.map((scan) => <tr key={scan.id}><td><bdi>{scan.scannedAt.toLocaleString(localeTag(locale), { timeZone: "Asia/Jerusalem" })}</bdi></td><td><span className="pill">{resultLabel(scan.result)}</span></td><td>{scan.ticket?.holderName ?? "-"}</td><td>{scan.ticket?.category.name ?? "-"}</td><td>{scan.ticket?.order.event.title ?? "-"}</td><td><bdi>{scan.ticket?.publicCode.slice(0, 16) ?? "-"}</bdi></td></tr>)}</tbody></table></div></div></AdminShell>;
 }
