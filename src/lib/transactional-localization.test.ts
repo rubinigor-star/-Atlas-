@@ -3,7 +3,7 @@ import { orderEmailCopy } from "@/lib/order-email";
 import { cancellationCopy } from "@/lib/order-cancellation-email";
 import { cancellationRequestCopy } from "@/lib/cancellation-request-email";
 import { approvalRequestCopy } from "@/lib/order-status-email";
-import { recoveryCopy } from "@/lib/recovery-channels";
+import { recoveryCopy, recoverySmsCopy } from "@/lib/recovery-channels";
 import { ticketSmsCopy } from "@/lib/order-sms";
 import { ticketCopy } from "@/lib/ticket-language";
 import type { Locale } from "@/lib/i18n";
@@ -14,6 +14,7 @@ const surfaces = {
   cancellationRequest: cancellationRequestCopy,
   approvalRequest: approvalRequestCopy,
   recovery: recoveryCopy,
+  recoverySms: recoverySmsCopy,
   sms: ticketSmsCopy,
   ticket: ticketCopy,
 };
