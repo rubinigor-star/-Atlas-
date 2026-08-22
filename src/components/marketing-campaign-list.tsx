@@ -2,38 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/components/locale-provider";
+import { localeTag } from "@/lib/i18n";
 
 type Campaign={id:string;name:string;channel:"EMAIL"|"SMS"|"WHATSAPP";status:string;estimatedRecipients:number;estimatedCostMinor:number;createdAt:string;message:string};
-
-const labels:Record<string,string>={DRAFT:"Черновик",SCHEDULED:"Запланирована",SENDING:"Отправляется",COMPLETED:"Завершена",FAILED:"Ошибка",CANCELLED:"Отменена",ARCHIVED:"Архив"};
+const copy={
+ru:{statuses:{DRAFT:"Черновик",SCHEDULED:"Запланирована",SENDING:"Отправляется",COMPLETED:"Завершена",FAILED:"Ошибка",CANCELLED:"Отменена",ARCHIVED:"Архив"},error:"Не удалось выполнить действие",duplicate:"Кампания продублирована",archived:"Кампания отправлена в архив",renamed:"Название обновлено",eyebrow:"Управление кампаниями",title:"Черновики и история",campaigns:"кампаний",search:"Поиск по названию",all:"Все статусы",drafts:"Черновики",scheduled:"Запланированные",completed:"Завершённые",archiveFilter:"Архив",columns:["Кампания","Канал","Статус","Получатели","Стоимость","Создана","Действия"],copy:"Копия",archive:"Архив",rename:"Переименовать",prompt:"Новое название кампании",empty:"Кампаний по выбранному фильтру нет."},
+he:{statuses:{DRAFT:"טיוטה",SCHEDULED:"מתוזמן",SENDING:"נשלח כעת",COMPLETED:"הושלם",FAILED:"שגיאה",CANCELLED:"בוטל",ARCHIVED:"ארכיון"},error:"לא הצלחנו לבצע את הפעולה",duplicate:"הקמפיין שוכפל",archived:"הקמפיין הועבר לארכיון",renamed:"השם עודכן",eyebrow:"ניהול קמפיינים",title:"טיוטות והיסטוריה",campaigns:"קמפיינים",search:"חיפוש לפי שם",all:"כל הסטטוסים",drafts:"טיוטות",scheduled:"מתוזמנים",completed:"הושלמו",archiveFilter:"ארכיון",columns:["קמפיין","ערוץ","סטטוס","נמענים","עלות","נוצר","פעולות"],copy:"שכפול",archive:"ארכיון",rename:"שינוי שם",prompt:"שם חדש לקמפיין",empty:"אין קמפיינים במסנן שנבחר."},
+en:{statuses:{DRAFT:"Draft",SCHEDULED:"Scheduled",SENDING:"Sending",COMPLETED:"Completed",FAILED:"Failed",CANCELLED:"Cancelled",ARCHIVED:"Archive"},error:"Could not complete the action",duplicate:"Campaign duplicated",archived:"Campaign archived",renamed:"Name updated",eyebrow:"Campaign management",title:"Drafts and history",campaigns:"campaigns",search:"Search by name",all:"All statuses",drafts:"Drafts",scheduled:"Scheduled",completed:"Completed",archiveFilter:"Archive",columns:["Campaign","Channel","Status","Recipients","Cost","Created","Actions"],copy:"Duplicate",archive:"Archive",rename:"Rename",prompt:"New campaign name",empty:"No campaigns match the selected filter."}
+} as const;
 
 export function MarketingCampaignList({campaigns}:{campaigns:Campaign[]}){
-  const router=useRouter();
-  const [query,setQuery]=useState("");
-  const [status,setStatus]=useState("ALL");
-  const [busy,setBusy]=useState("");
-  const [notice,setNotice]=useState("");
-  const visible=useMemo(()=>campaigns.filter(item=>(status==="ALL"||item.status===status)&&item.name.toLowerCase().includes(query.toLowerCase())),[campaigns,query,status]);
-
-  async function act(action:"duplicate"|"archive"|"rename",campaignId:string,name?:string){
-    setBusy(campaignId);setNotice("");
-    const response=await fetch("/api/admin/marketing/campaigns",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({action,campaignId,name})});
-    const data=await response.json();setBusy("");
-    if(!response.ok)return setNotice(data.error||"Не удалось выполнить действие");
-    setNotice(action==="duplicate"?"Кампания продублирована":action==="archive"?"Кампания отправлена в архив":"Название обновлено");
-    router.refresh();
-  }
-
-  return <div className="card">
-    <div className="row between"><div><span className="eyebrow">Управление кампаниями</span><h2>Черновики и история</h2></div><span className="pill">{campaigns.length} кампаний</span></div>
-    <div className="row" style={{marginBottom:16}}>
-      <input className="input" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Поиск по названию" />
-      <select value={status} onChange={e=>setStatus(e.target.value)}><option value="ALL">Все статусы</option><option value="DRAFT">Черновики</option><option value="SCHEDULED">Запланированные</option><option value="COMPLETED">Завершённые</option><option value="ARCHIVED">Архив</option></select>
-    </div>
-    {notice&&<div className="toast">{notice}</div>}
-    <div className="table-wrap"><table><thead><tr><th>Кампания</th><th>Канал</th><th>Статус</th><th>Получатели</th><th>Стоимость</th><th>Создана</th><th>Действия</th></tr></thead><tbody>
-      {visible.map(item=><tr key={item.id}><td><strong>{item.name}</strong><br/><small>{item.message.slice(0,80)}{item.message.length>80?"…":""}</small></td><td>{item.channel}</td><td><span className="pill">{labels[item.status]||item.status}</span></td><td>{item.estimatedRecipients}</td><td>₪{(item.estimatedCostMinor/100).toFixed(2)}</td><td>{new Date(item.createdAt).toLocaleDateString("ru-IL")}</td><td><div className="row"><button className="btn secondary" disabled={busy===item.id} onClick={()=>void act("duplicate",item.id)}>Копия</button><button className="btn secondary" disabled={busy===item.id||item.status==="ARCHIVED"} onClick={()=>void act("archive",item.id)}>Архив</button><button className="btn secondary" disabled={busy===item.id} onClick={()=>{const name=window.prompt("Новое название кампании",item.name);if(name?.trim())void act("rename",item.id,name.trim());}}>Переименовать</button></div></td></tr>)}
-      {!visible.length&&<tr><td colSpan={7}>Кампаний по выбранному фильтру нет.</td></tr>}
-    </tbody></table></div>
-  </div>;
+  const {locale}=useLocale();const text=copy[locale];const router=useRouter();const [query,setQuery]=useState(""),[status,setStatus]=useState("ALL"),[busy,setBusy]=useState(""),[notice,setNotice]=useState("");const visible=useMemo(()=>campaigns.filter(item=>(status==="ALL"||item.status===status)&&item.name.toLowerCase().includes(query.toLowerCase())),[campaigns,query,status]);
+  async function act(action:"duplicate"|"archive"|"rename",campaignId:string,name?:string){setBusy(campaignId);setNotice("");const response=await fetch("/api/admin/marketing/campaigns",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({action,campaignId,name})});const data=await response.json();setBusy("");if(!response.ok)return setNotice(data.error||text.error);setNotice(action==="duplicate"?text.duplicate:action==="archive"?text.archived:text.renamed);router.refresh();}
+  const currency=(minor:number)=>(minor/100).toLocaleString(localeTag(locale),{style:"currency",currency:"ILS"});const date=(value:string)=>new Intl.DateTimeFormat(localeTag(locale),{dateStyle:"short"}).format(new Date(value));
+  return <div className="card"><div className="row between"><div><span className="eyebrow">{text.eyebrow}</span><h2>{text.title}</h2></div><span className="pill">{campaigns.length} {text.campaigns}</span></div><div className="row" style={{marginBottom:16}}><input className="input" value={query} onChange={e=>setQuery(e.target.value)} placeholder={text.search}/><select value={status} onChange={e=>setStatus(e.target.value)}><option value="ALL">{text.all}</option><option value="DRAFT">{text.drafts}</option><option value="SCHEDULED">{text.scheduled}</option><option value="COMPLETED">{text.completed}</option><option value="ARCHIVED">{text.archiveFilter}</option></select></div>{notice&&<div className="toast">{notice}</div>}<div className="table-wrap"><table><thead><tr>{text.columns.map(column=><th key={column}>{column}</th>)}</tr></thead><tbody>{visible.map(item=><tr key={item.id}><td><strong>{item.name}</strong><br/><small>{item.message.slice(0,80)}{item.message.length>80?"…":""}</small></td><td><bdi>{item.channel}</bdi></td><td><span className="pill">{text.statuses[item.status as keyof typeof text.statuses]||item.status}</span></td><td>{item.estimatedRecipients}</td><td><bdi>{currency(item.estimatedCostMinor)}</bdi></td><td><bdi>{date(item.createdAt)}</bdi></td><td><div className="row"><button className="btn secondary" disabled={busy===item.id} onClick={()=>void act("duplicate",item.id)}>{text.copy}</button><button className="btn secondary" disabled={busy===item.id||item.status==="ARCHIVED"} onClick={()=>void act("archive",item.id)}>{text.archive}</button><button className="btn secondary" disabled={busy===item.id} onClick={()=>{const name=window.prompt(text.prompt,item.name);if(name?.trim())void act("rename",item.id,name.trim());}}>{text.rename}</button></div></td></tr>)}{!visible.length&&<tr><td colSpan={7}>{text.empty}</td></tr>}</tbody></table></div></div>;
 }
