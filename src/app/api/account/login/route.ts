@@ -22,8 +22,10 @@ function escapeHtml(value: string) {
 }
 
 export async function POST(request: Request) {
+  let responseLocale: Locale = "ru";
   try {
     const { email, locale: requestedLocale } = schema.parse(await request.json());
+    responseLocale = normalizeLocale(requestedLocale);
     const normalized = email.toLowerCase();
     const latestOrder = await db.order.findFirst({
       where: { customerEmail: normalized },
@@ -49,11 +51,12 @@ export async function POST(request: Request) {
     const token = createCustomerMagicToken(normalized);
     const emailUrl = `${origin}/api/account/verify?token=${encodeURIComponent(token)}`;
     const locale = normalizeLocale(requestedLocale ?? latestOrder.communicationLocale);
+    responseLocale = locale;
     const text = copy[locale];
     const localeSettings = localeConfig[locale];
     const apiKey = process.env.RESEND_API_KEY;
     const from = process.env.RESEND_FROM_EMAIL;
-    if (!apiKey || !from) throw new Error("Resend не настроен в Vercel");
+    if (!apiKey || !from) throw new Error("RESEND_NOT_CONFIGURED");
 
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -67,12 +70,13 @@ export async function POST(request: Request) {
     });
     if (!response.ok) {
       await failNotification(requestClaim.id!, text.error);
-      throw new Error(text.error);
+      throw new Error("EMAIL_DELIVERY_FAILED");
     }
     await completeNotification(requestClaim.id!, { providerStatus: response.status, providerMessage: "Resend accepted" });
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось отправить ссылку" }, { status: 400 });
+    console.error("[customer-login]", error);
+    return NextResponse.json({ error: copy[responseLocale].error }, { status: 400 });
   }
 }
