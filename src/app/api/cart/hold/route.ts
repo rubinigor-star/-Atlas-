@@ -4,177 +4,51 @@ import { db } from "@/lib/db";
 import { CART_SESSION_COOKIE, cartHoldOrderId, getHeldInventory, releaseCartHold, replaceCartHold } from "@/lib/cart-hold";
 import { getPendingCheckoutOwner, pendingCheckoutReservationMatches } from "@/lib/cart-checkout-owner";
 import type { ReservationItemInput } from "@/lib/reservation";
+import { normalizeLocale, type Locale } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-type CartHoldItem = {
-  categoryId: string;
-  quantity: number;
-  tableId?: string | null;
-  seatIds?: string[];
-};
-
-function cookieValue(req: Request, name: string) {
-  const raw = req.headers.get("cookie") || "";
-  for (const part of raw.split(";")) {
-    const [key, ...rest] = part.trim().split("=");
-    if (key === name) return decodeURIComponent(rest.join("="));
-  }
-  return "";
-}
-
-function cleanItems(value: unknown): CartHoldItem[] {
-  if (!Array.isArray(value)) return [];
-  return value.slice(0, 30).flatMap((raw): CartHoldItem[] => {
-    if (!raw || typeof raw !== "object") return [];
-    const item = raw as Record<string, unknown>;
-    if (typeof item.categoryId !== "string") return [];
-    const quantity = Math.max(1, Math.min(20, Number(item.quantity) || 1));
-    const seatIds = Array.isArray(item.seatIds)
-      ? item.seatIds.filter((id): id is string => typeof id === "string").slice(0, 20)
-      : [];
-    return [{
-      categoryId: item.categoryId,
-      quantity,
-      tableId: typeof item.tableId === "string" ? item.tableId : null,
-      seatIds,
-    }];
-  });
-}
+type CartHoldItem = { categoryId: string; quantity: number; tableId?: string | null; seatIds?: string[] };
+const copy={
+  ru:{missing:"Не указано мероприятие",event:"Мероприятие недоступно для продажи",duplicate:"Одно место нельзя добавить в корзину дважды",tariff:"Один из тарифов недоступен",tables:"Один из выбранных столов больше недоступен",seats:"Одно из выбранных мест больше недоступно",table:"Стол не найден",seatCount:"Количество мест в позиции изменилось",seat:"Место не найдено",inventory:"Недостаточно доступных билетов",tempTable:"Этот стол уже временно забронирован",tempSeat:"Это место уже временно забронировано",load:"Не удалось получить бронь",hold:"Не удалось забронировать билеты",release:"Не удалось снять бронь"},
+  he:{missing:"לא נבחר אירוע",event:"האירוע אינו זמין כרגע למכירה",duplicate:"לא ניתן להוסיף את אותו מקום פעמיים לעגלה",tariff:"אחד מסוגי הכרטיסים אינו זמין",tables:"אחד השולחנות שנבחרו אינו זמין עוד",seats:"אחד המקומות שנבחרו אינו זמין עוד",table:"השולחן לא נמצא",seatCount:"מספר המקומות בפריט השתנה",seat:"המקום לא נמצא",inventory:"אין מספיק כרטיסים זמינים",tempTable:"השולחן כבר שמור זמנית",tempSeat:"המקום כבר שמור זמנית",load:"לא ניתן לטעון את שמירת המקומות",hold:"לא ניתן לשמור את הכרטיסים",release:"לא ניתן לבטל את שמירת המקומות"},
+  en:{missing:"Event is required",event:"This event is not currently available for sale",duplicate:"The same seat cannot be added to the cart twice",tariff:"One of the ticket types is unavailable",tables:"One of the selected tables is no longer available",seats:"One of the selected seats is no longer available",table:"Table not found",seatCount:"The number of seats in this item has changed",seat:"Seat not found",inventory:"Not enough tickets are available",tempTable:"This table is temporarily reserved",tempSeat:"This seat is temporarily reserved",load:"Could not load the ticket hold",hold:"Could not hold the tickets",release:"Could not release the ticket hold"},
+} as const;
+function localized(error:unknown,locale:Locale,fallback:"load"|"hold"|"release"){const raw=error instanceof Error?error.message:"";const c=copy[locale];if(raw.includes("eventId обязателен"))return c.missing;if(raw.includes("Мероприятие недоступно"))return c.event;if(raw.includes("место нельзя добавить"))return c.duplicate;if(raw.includes("тарифов недоступен"))return c.tariff;if(raw.includes("выбранных столов больше недоступен"))return c.tables;if(raw.includes("выбранных мест больше недоступно"))return c.seats;if(raw==="Стол не найден")return c.table;if(raw.includes("Количество мест в позиции"))return c.seatCount;if(raw==="Место не найдено")return c.seat;if(raw.startsWith("Недостаточно доступных билетов")){const name=raw.replace("Недостаточно доступных билетов","").trim();return name?`${c.inventory}: ${name}`:c.inventory;}if(raw.includes("стол уже временно забронирован")||raw.includes("стол только что был временно забронирован"))return c.tempTable;if(raw.includes("место уже временно забронировано")||raw.includes("место только что было временно забронировано"))return c.tempSeat;return c[fallback];}
+function cookieValue(req: Request, name: string) {const raw = req.headers.get("cookie") || "";for (const part of raw.split(";")) {const [key, ...rest] = part.trim().split("=");if (key === name) return decodeURIComponent(rest.join("="));}return "";}
+function cleanItems(value: unknown): CartHoldItem[] {if (!Array.isArray(value)) return [];return value.slice(0, 30).flatMap((raw): CartHoldItem[] => {if (!raw || typeof raw !== "object") return [];const item = raw as Record<string, unknown>;if (typeof item.categoryId !== "string") return [];const quantity = Math.max(1, Math.min(20, Number(item.quantity) || 1));const seatIds = Array.isArray(item.seatIds) ? item.seatIds.filter((id): id is string => typeof id === "string").slice(0, 20) : [];return [{ categoryId: item.categoryId, quantity, tableId: typeof item.tableId === "string" ? item.tableId : null, seatIds }];});}
+async function eventLocale(eventId:string,requested?:unknown){const row=eventId?await db.event.findUnique({where:{id:eventId},select:{customerCommunicationLocale:true}}).catch(()=>null):null;return normalizeLocale(row?.customerCommunicationLocale??requested);}
 
 async function validateAndBuild(eventId: string, items: CartHoldItem[]) {
   const event = await db.event.findUnique({ where: { id: eventId } });
   if (!event || event.status !== "PUBLISHED") throw new Error("Мероприятие недоступно для продажи");
-
-  const categoryIds = [...new Set(items.map(item => item.categoryId))];
-  const tableIds = [...new Set(items.flatMap(item => item.tableId ? [item.tableId] : []))];
-  const seatIds = items.flatMap(item => item.seatIds ?? []);
-  if (new Set(seatIds).size !== seatIds.length) throw new Error("Одно место нельзя добавить в корзину дважды");
-
-  const [categories, tables, seats] = await Promise.all([
-    categoryIds.length ? db.ticketCategory.findMany({ where: { id: { in: categoryIds } } }) : [],
-    tableIds.length ? db.table.findMany({ where: { id: { in: tableIds } }, include: { zone: true, category: true } }) : [],
-    seatIds.length ? db.seat.findMany({ where: { id: { in: seatIds } }, include: { category: true, table: { include: { zone: true } } } }) : [],
-  ]);
-
-  if (categories.length !== categoryIds.length || categories.some(category => category.eventId !== event.id || category.hidden)) {
-    throw new Error("Один из тарифов недоступен");
-  }
-  if (tables.length !== tableIds.length || tables.some(table => table.zone.eventId !== event.id || table.reserved || table.priceMode !== "WHOLE_TABLE" || !table.category)) {
-    throw new Error("Один из выбранных столов больше недоступен");
-  }
-  if (seats.length !== seatIds.length || seats.some(seat => seat.table.zone.eventId !== event.id || seat.table.priceMode !== "PER_SEAT" || seat.status !== "AVAILABLE" || !seat.category)) {
-    throw new Error("Одно из выбранных мест больше недоступно");
-  }
-
-  const tableMap = new Map(tables.map(table => [table.id, table]));
-  const seatMap = new Map(seats.map(seat => [seat.id, seat]));
-  const reservationItems: ReservationItemInput[] = [];
-
-  for (const item of items) {
-    if (item.tableId) {
-      const table = tableMap.get(item.tableId);
-      if (!table?.category) throw new Error("Стол не найден");
-      reservationItems.push({ categoryId: table.category.id, quantity: table.seats, tableId: table.id, seatId: null });
-      continue;
-    }
-    if (item.seatIds?.length) {
-      if (item.quantity !== item.seatIds.length) throw new Error("Количество мест в позиции изменилось");
-      for (const id of item.seatIds) {
-        const seat = seatMap.get(id);
-        if (!seat?.category) throw new Error("Место не найдено");
-        reservationItems.push({ categoryId: seat.category.id, quantity: 1, tableId: null, seatId: seat.id });
-      }
-      continue;
-    }
-    reservationItems.push({ categoryId: item.categoryId, quantity: item.quantity, tableId: null, seatId: null });
-  }
-
-  const capacities = new Map(categories.map(category => [category.id, {
-    sold: category.sold,
-    capacity: category.capacity,
-    name: category.name,
-  }]));
-  return { event, categories, reservationItems, capacities };
+  const categoryIds = [...new Set(items.map(item => item.categoryId))];const tableIds = [...new Set(items.flatMap(item => item.tableId ? [item.tableId] : []))];const seatIds = items.flatMap(item => item.seatIds ?? []);if (new Set(seatIds).size !== seatIds.length) throw new Error("Одно место нельзя добавить в корзину дважды");
+  const [categories, tables, seats] = await Promise.all([categoryIds.length ? db.ticketCategory.findMany({ where: { id: { in: categoryIds } } }) : [],tableIds.length ? db.table.findMany({ where: { id: { in: tableIds } }, include: { zone: true, category: true } }) : [],seatIds.length ? db.seat.findMany({ where: { id: { in: seatIds } }, include: { category: true, table: { include: { zone: true } } } }) : []]);
+  if (categories.length !== categoryIds.length || categories.some(category => category.eventId !== event.id || category.hidden)) throw new Error("Один из тарифов недоступен");
+  if (tables.length !== tableIds.length || tables.some(table => table.zone.eventId !== event.id || table.reserved || table.priceMode !== "WHOLE_TABLE" || !table.category)) throw new Error("Один из выбранных столов больше недоступен");
+  if (seats.length !== seatIds.length || seats.some(seat => seat.table.zone.eventId !== event.id || seat.table.priceMode !== "PER_SEAT" || seat.status !== "AVAILABLE" || !seat.category)) throw new Error("Одно из выбранных мест больше недоступно");
+  const tableMap = new Map(tables.map(table => [table.id, table]));const seatMap = new Map(seats.map(seat => [seat.id, seat]));const reservationItems: ReservationItemInput[] = [];
+  for (const item of items) {if (item.tableId) {const table = tableMap.get(item.tableId);if (!table?.category) throw new Error("Стол не найден");reservationItems.push({ categoryId: table.category.id, quantity: table.seats, tableId: table.id, seatId: null });continue;}if (item.seatIds?.length) {if (item.quantity !== item.seatIds.length) throw new Error("Количество мест в позиции изменилось");for (const id of item.seatIds) {const seat = seatMap.get(id);if (!seat?.category) throw new Error("Место не найдено");reservationItems.push({ categoryId: seat.category.id, quantity: 1, tableId: null, seatId: seat.id });}continue;}reservationItems.push({ categoryId: item.categoryId, quantity: item.quantity, tableId: null, seatId: null });}
+  const capacities = new Map(categories.map(category => [category.id, { sold: category.sold, capacity: category.capacity, name: category.name }]));return { event, categories, reservationItems, capacities };
 }
 
 export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const eventId = url.searchParams.get("eventId") || "";
-    if (!eventId) return NextResponse.json({ error: "eventId обязателен" }, { status: 400 });
-    const categories = await db.ticketCategory.findMany({ where: { eventId, hidden: false }, select: { id: true } });
-    const sessionId = cookieValue(req, CART_SESSION_COOKIE);
-    const owner = sessionId ? await getPendingCheckoutOwner(sessionId, eventId).catch(() => null) : null;
-    const excluded = sessionId ? [cartHoldOrderId(sessionId, eventId), ...(owner?.orderId ? [owner.orderId] : [])] : [];
-    const held = await getHeldInventory({
-      categoryIds: categories.map(category => category.id),
-      excludeOrderIds: excluded,
-    });
-    return NextResponse.json({
-      heldSeatIds: held.seatIds,
-      heldTableIds: held.tableIds,
-      heldByCategory: held.categoryQuantities,
-    });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось получить бронь" }, { status: 400 });
-  }
+  let locale:Locale="ru";
+  try {const url = new URL(req.url);const eventId = url.searchParams.get("eventId") || "";locale=await eventLocale(eventId,url.searchParams.get("locale"));if (!eventId) return NextResponse.json({ error: copy[locale].missing }, { status: 400 });const categories = await db.ticketCategory.findMany({ where: { eventId, hidden: false }, select: { id: true } });const sessionId = cookieValue(req, CART_SESSION_COOKIE);const owner = sessionId ? await getPendingCheckoutOwner(sessionId, eventId).catch(() => null) : null;const excluded = sessionId ? [cartHoldOrderId(sessionId, eventId), ...(owner?.orderId ? [owner.orderId] : [])] : [];const held = await getHeldInventory({ categoryIds: categories.map(category => category.id), excludeOrderIds: excluded });return NextResponse.json({ heldSeatIds: held.seatIds, heldTableIds: held.tableIds, heldByCategory: held.categoryQuantities });}
+  catch (error) {console.error("[cart-hold-get]",error);return NextResponse.json({ error: localized(error,locale,"load") }, { status: 400 });}
 }
 
 export async function POST(req: Request) {
-  try {
-    const body = await req.json() as { eventId?: unknown; items?: unknown };
-    const eventId = typeof body.eventId === "string" ? body.eventId : "";
-    if (!eventId) throw new Error("eventId обязателен");
-    const items = cleanItems(body.items);
-    const sessionFromCookie = cookieValue(req, CART_SESSION_COOKIE);
-    const sessionId = sessionFromCookie || randomUUID();
-
-    if (!items.length) {
-      await db.$transaction(async tx => releaseCartHold({ sessionId, eventId, executor: tx }));
-      const response = NextResponse.json({ ok: true, expiresAt: null });
-      if (!sessionFromCookie) response.cookies.set(CART_SESSION_COOKIE, sessionId, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 86400 });
-      return response;
-    }
-
-    const validated = await validateAndBuild(eventId, items);
-
-    // When a buyer returns from checkout, the pending order already owns these
-    // exact reservation claims. Treat that reservation as this browser's hold
-    // instead of trying to claim the same seats a second time.
-    const owner = sessionFromCookie ? await getPendingCheckoutOwner(sessionId, eventId).catch(() => null) : null;
-    if (owner?.orderId && owner.expiresAt) {
-      const sameReservation = await pendingCheckoutReservationMatches(owner.orderId, validated.reservationItems).catch(() => false);
-      if (sameReservation) {
-        return NextResponse.json({ ok: true, expiresAt: owner.expiresAt.toISOString(), ownedCheckout: true });
-      }
-    }
-
-    const hold = await db.$transaction(async tx => replaceCartHold({
-      sessionId,
-      eventId,
-      items: validated.reservationItems,
-      capacities: validated.capacities,
-      executor: tx,
-    }));
-
-    const response = NextResponse.json({ ok: true, expiresAt: hold?.expiresAt.toISOString() ?? null });
-    if (!sessionFromCookie) response.cookies.set(CART_SESSION_COOKIE, sessionId, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 86400 });
-    return response;
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось забронировать билеты" }, { status: 409 });
-  }
+  let locale:Locale="ru";
+  try {const body = await req.json() as { eventId?: unknown; items?: unknown; locale?:unknown };const eventId = typeof body.eventId === "string" ? body.eventId : "";locale=await eventLocale(eventId,body.locale);if (!eventId) throw new Error("eventId обязателен");const items = cleanItems(body.items);const sessionFromCookie = cookieValue(req, CART_SESSION_COOKIE);const sessionId = sessionFromCookie || randomUUID();
+    if (!items.length) {await db.$transaction(async tx => releaseCartHold({ sessionId, eventId, executor: tx }));const response = NextResponse.json({ ok: true, expiresAt: null });if (!sessionFromCookie) response.cookies.set(CART_SESSION_COOKIE, sessionId, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 86400 });return response;}
+    const validated = await validateAndBuild(eventId, items);const owner = sessionFromCookie ? await getPendingCheckoutOwner(sessionId, eventId).catch(() => null) : null;if (owner?.orderId && owner.expiresAt) {const sameReservation = await pendingCheckoutReservationMatches(owner.orderId, validated.reservationItems).catch(() => false);if (sameReservation) return NextResponse.json({ ok: true, expiresAt: owner.expiresAt.toISOString(), ownedCheckout: true });}
+    const hold = await db.$transaction(async tx => replaceCartHold({ sessionId, eventId, items: validated.reservationItems, capacities: validated.capacities, executor: tx }));const response = NextResponse.json({ ok: true, expiresAt: hold?.expiresAt.toISOString() ?? null });if (!sessionFromCookie) response.cookies.set(CART_SESSION_COOKIE, sessionId, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 86400 });return response;}
+  catch (error) {console.error("[cart-hold-post]",error);return NextResponse.json({ error: localized(error,locale,"hold") }, { status: 409 });}
 }
 
 export async function DELETE(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const eventId = url.searchParams.get("eventId") || "";
-    const sessionId = cookieValue(req, CART_SESSION_COOKIE);
-    if (!eventId || !sessionId) return NextResponse.json({ ok: true });
-    await db.$transaction(async tx => releaseCartHold({ sessionId, eventId, executor: tx }));
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось снять бронь" }, { status: 400 });
-  }
+  let locale:Locale="ru";
+  try {const url = new URL(req.url);const eventId = url.searchParams.get("eventId") || "";locale=await eventLocale(eventId,url.searchParams.get("locale"));const sessionId = cookieValue(req, CART_SESSION_COOKIE);if (!eventId || !sessionId) return NextResponse.json({ ok: true });await db.$transaction(async tx => releaseCartHold({ sessionId, eventId, executor: tx }));return NextResponse.json({ ok: true });}
+  catch (error) {console.error("[cart-hold-delete]",error);return NextResponse.json({ error: localized(error,locale,"release") }, { status: 400 });}
 }
