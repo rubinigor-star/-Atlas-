@@ -1,38 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import {useState} from "react";
+import {useRouter} from "next/navigation";
+import type {Locale} from "@/lib/i18n";
 
-export function PlatformPayoutForm({eventId,availableMinor}:{eventId:string;availableMinor:number}){
-  const router=useRouter();
-  const [amount,setAmount]=useState((availableMinor/100).toFixed(2));
-  const [reference,setReference]=useState("");
-  const [busy,setBusy]=useState(false);
-  const [message,setMessage]=useState<string|null>(null);
-
-  async function submit(){
-    const amountMinor=Math.round(Number(amount)*100);
-    if(!Number.isFinite(amountMinor)||amountMinor<=0){setMessage("Укажите корректную сумму");return;}
-    if(amountMinor>availableMinor){setMessage(`Максимум ${(availableMinor/100).toFixed(2)} ₪`);return;}
-    if(!window.confirm(`Зафиксировать уже выполненную выплату ${(amountMinor/100).toFixed(2)} ₪? Это действие не отправляет деньги, а только записывает банковский перевод в Atlas.`))return;
-    setBusy(true);setMessage(null);
-    try{
-      const response=await fetch("/api/platform/finance/payouts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({eventId,amountMinor,reference})});
-      const data=await response.json();
-      if(!response.ok)throw new Error(data.error||"Ошибка записи выплаты");
-      setMessage("Выплата зафиксирована");
-      router.refresh();
-    }catch(error){setMessage(error instanceof Error?error.message:"Ошибка записи выплаты");}
-    finally{setBusy(false);}
-  }
-
-  return <div style={{display:"grid",gap:6,minWidth:210}}>
-    <div style={{display:"flex",gap:6}}>
-      <input aria-label="Сумма выплаты" value={amount} onChange={event=>setAmount(event.target.value)} inputMode="decimal" style={{width:95}}/>
-      <span style={{alignSelf:"center"}}>₪</span>
-      <button type="button" className="btn" onClick={submit} disabled={busy}>{busy?"Сохраняем...":"Зафиксировать"}</button>
-    </div>
-    <input aria-label="Номер банковского перевода" placeholder="№ перевода / примечание" value={reference} onChange={event=>setReference(event.target.value)}/>
-    {message&&<small>{message}</small>}
-  </div>;
-}
+const copy={ru:{invalid:"Укажите корректную сумму",max:"Максимум",confirmStart:"Зафиксировать уже выполненную выплату",confirmEnd:"Это действие не отправляет деньги, а только записывает банковский перевод в Atlas.",error:"Ошибка записи выплаты",saved:"Выплата зафиксирована",amount:"Сумма выплаты",saving:"Сохраняем...",record:"Зафиксировать",reference:"Номер банковского перевода",placeholder:"№ перевода / примечание"},he:{invalid:"יש להזין סכום תקין",max:"מקסימום",confirmStart:"לרשום תשלום שכבר בוצע בסך",confirmEnd:"הפעולה אינה מעבירה כסף אלא רק רושמת את ההעברה הבנקאית ב-Atlas.",error:"לא ניתן לרשום את התשלום",saved:"התשלום נרשם",amount:"סכום התשלום",saving:"שומרים...",record:"רישום תשלום",reference:"מספר העברה בנקאית",placeholder:"מספר העברה / הערה"},en:{invalid:"Enter a valid amount",max:"Maximum",confirmStart:"Record an already completed payout of",confirmEnd:"This action does not send money. It only records the bank transfer in Atlas.",error:"Could not record payout",saved:"Payout recorded",amount:"Payout amount",saving:"Saving...",record:"Record",reference:"Bank transfer reference",placeholder:"Transfer number / note"}} as const;
+export function PlatformPayoutForm({eventId,availableMinor,locale="ru"}:{eventId:string;availableMinor:number;locale?:Locale}){const t=copy[locale];const router=useRouter();const[amount,setAmount]=useState((availableMinor/100).toFixed(2));const[reference,setReference]=useState("");const[busy,setBusy]=useState(false);const[message,setMessage]=useState<string|null>(null);async function submit(){const amountMinor=Math.round(Number(amount)*100);if(!Number.isFinite(amountMinor)||amountMinor<=0){setMessage(t.invalid);return;}if(amountMinor>availableMinor){setMessage(`${t.max} ${(availableMinor/100).toFixed(2)} ₪`);return;}if(!window.confirm(`${t.confirmStart} ${(amountMinor/100).toFixed(2)} ₪? ${t.confirmEnd}`))return;setBusy(true);setMessage(null);try{const response=await fetch("/api/platform/finance/payouts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({eventId,amountMinor,reference})});const data=await response.json();if(!response.ok)throw new Error(data.error||t.error);setMessage(t.saved);router.refresh();}catch(error){setMessage(error instanceof Error?error.message:t.error);}finally{setBusy(false);}}return <div style={{display:"grid",gap:6,minWidth:210}}><div style={{display:"flex",gap:6}} dir="ltr"><input aria-label={t.amount} value={amount} onChange={event=>setAmount(event.target.value)} inputMode="decimal" style={{width:95,textAlign:"left"}}/><span style={{alignSelf:"center"}}>₪</span><button type="button" className="btn" onClick={submit} disabled={busy}>{busy?t.saving:t.record}</button></div><input dir="ltr" style={{textAlign:"left"}} aria-label={t.reference} placeholder={t.placeholder} value={reference} onChange={event=>setReference(event.target.value)}/>{message&&<small>{message}</small>}</div>}
