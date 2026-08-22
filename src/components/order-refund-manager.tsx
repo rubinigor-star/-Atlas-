@@ -1,56 +1,19 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/components/locale-provider";
+import { localeTag } from "@/lib/i18n";
 
 type Mode="CANCELLATION"|"TECHNICAL_PARTIAL";
 type FeePayer="CUSTOMER"|"ORGANIZER";
+const copy={
+ ru:{reasonRequired:"Укажите причину возврата",partialRequired:"Укажите сумму частичного возврата",fullOnly:"Полный возврат оформляется только как отмена заказа",confirmCancel:(refund:string,fee:string)=>`Отменить заказ и вернуть клиенту ${refund}? Комиссия отмены ${fee}.`,confirmPartial:(amount:string)=>`Сделать технический частичный возврат ${amount}? Билеты останутся действительными.`,badResponse:"Некорректный ответ сервера",failed:"Возврат не выполнен",success:(amount:string,cancelled:boolean)=>`✓ Возврат ${amount} подтверждён HYP${cancelled?". Заказ отменён.":"."}`,error:"Ошибка возврата",eyebrow:"Финансы",title:"Возврат средств",help:"Одна и та же серверная логика применяется в кабинете и мобильном приложении. Отмена заказа всегда учитывает комиссию 5%, максимум 100 ₪.",already:"По этому заказу возврат уже зарегистрирован.",type:"Тип операции",cancel:"Отмена заказа",partial:"Технический частичный возврат",fee:"Комиссия отмены",customerPays:"Клиент оплачивает 5% - вернуть",organizerPays:"Организатор оплачивает 5% - вернуть клиенту",partialAmount:"Сумма частичного возврата, ₪",partialHelp:"Билет и заказ остаются активными. Для отмены используйте режим «Отмена заказа».",reason:"Причина",reasonPh:"Например: запрос клиента",sending:"Отправляем возврат…",cancelButton:"Отменить и вернуть через HYP",refundButton:"Вернуть через HYP"},
+ he:{reasonRequired:"יש לציין סיבה להחזר",partialRequired:"יש לציין סכום להחזר חלקי",fullOnly:"החזר מלא מתבצע רק במסגרת ביטול הזמנה",confirmCancel:(refund:string,fee:string)=>`לבטל את ההזמנה ולהחזיר ללקוח ${refund}? עמלת הביטול היא ${fee}.`,confirmPartial:(amount:string)=>`לבצע החזר טכני חלקי של ${amount}? הכרטיסים יישארו בתוקף.`,badResponse:"תשובת שרת לא תקינה",failed:"ההחזר לא בוצע",success:(amount:string,cancelled:boolean)=>`✓ החזר של ${amount} אושר על ידי HYP${cancelled?". ההזמנה בוטלה.":"."}`,error:"שגיאה בביצוע ההחזר",eyebrow:"פיננסים",title:"החזר כספי",help:"אותה לוגיקת שרת משמשת באזור המפיקים ובאפליקציה. ביטול הזמנה כולל תמיד עמלה של 5%, עד 100 ₪.",already:"כבר נרשם החזר להזמנה הזו.",type:"סוג פעולה",cancel:"ביטול הזמנה",partial:"החזר טכני חלקי",fee:"עמלת ביטול",customerPays:"הלקוח משלם 5% - החזר",organizerPays:"המפיק משלם 5% - החזר ללקוח",partialAmount:"סכום החזר חלקי, ₪",partialHelp:"הכרטיס וההזמנה נשארים פעילים. לביטול השתמשו במצב „ביטול הזמנה”.",reason:"סיבה",reasonPh:"לדוגמה: בקשת הלקוח",sending:"מבצעים החזר…",cancelButton:"ביטול והחזר דרך HYP",refundButton:"החזר דרך HYP"},
+ en:{reasonRequired:"Enter a refund reason",partialRequired:"Enter a partial refund amount",fullOnly:"A full refund must be processed as an order cancellation",confirmCancel:(refund:string,fee:string)=>`Cancel the order and refund ${refund} to the customer? Cancellation fee: ${fee}.`,confirmPartial:(amount:string)=>`Issue a technical partial refund of ${amount}? Tickets will remain valid.`,badResponse:"Invalid server response",failed:"Refund failed",success:(amount:string,cancelled:boolean)=>`✓ Refund of ${amount} confirmed by HYP${cancelled?". Order cancelled.":"."}`,error:"Refund error",eyebrow:"Finance",title:"Refund",help:"The same server logic is used in the back office and mobile app. Order cancellation always includes a 5% fee capped at ₪100.",already:"A refund is already registered for this order.",type:"Operation type",cancel:"Cancel order",partial:"Technical partial refund",fee:"Cancellation fee",customerPays:"Customer pays 5% - refund",organizerPays:"Organizer pays 5% - refund customer",partialAmount:"Partial refund amount, ₪",partialHelp:"The ticket and order stay active. Use Cancel order for a cancellation.",reason:"Reason",reasonPh:"For example: customer request",sending:"Sending refund…",cancelButton:"Cancel and refund via HYP",refundButton:"Refund via HYP"}
+} as const;
 
 export function OrderRefundManager({orderId,totalMinor,alreadyRefunded}:{orderId:string;totalMinor:number;alreadyRefunded:boolean}){
- const router=useRouter();
- const feeMinor=Math.min(Math.round(totalMinor*0.05),10000);
- const[mode,setMode]=useState<Mode>("CANCELLATION");
- const[feePayer,setFeePayer]=useState<FeePayer>("CUSTOMER");
- const[amount,setAmount]=useState("");
- const[reason,setReason]=useState("");
- const[busy,setBusy]=useState(false);
- const[message,setMessage]=useState("");
- const cancellationRefundMinor=feePayer==="CUSTOMER"?Math.max(0,totalMinor-feeMinor):totalMinor;
-
- async function refund(){
-  if(reason.trim().length<3){setMessage("Укажите причину возврата");return;}
-  let amountMinor:number|undefined;
-  if(mode==="TECHNICAL_PARTIAL"){
-   amountMinor=Math.round(Number(amount)*100);
-   if(!amountMinor||amountMinor<1){setMessage("Укажите сумму частичного возврата");return;}
-   if(amountMinor>=totalMinor){setMessage("Полный возврат оформляется только как отмена заказа");return;}
-  }
-  const text=mode==="CANCELLATION"
-   ?`Отменить заказ и вернуть клиенту ${(cancellationRefundMinor/100).toFixed(2)} ₪? Комиссия отмены ${(feeMinor/100).toFixed(2)} ₪.`
-   :`Сделать технический частичный возврат ${((amountMinor||0)/100).toFixed(2)} ₪? Билеты останутся действительными.`;
-  if(!window.confirm(text))return;
-  setBusy(true);setMessage("");
-  try{
-   const response=await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}/refund`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({mode,amountMinor,reason:reason.trim(),cancellationFeePayer:mode==="CANCELLATION"?feePayer:undefined})});
-   const data=await response.json().catch(()=>({error:"Некорректный ответ сервера"}));
-   if(!response.ok)throw new Error(data.error||"Возврат не выполнен");
-   setMessage(`✓ Возврат ${(data.amountMinor/100).toFixed(2)} ₪ подтверждён HYP${data.orderCancelled?". Заказ отменён.":"."}`);
-   router.refresh();
-  }catch(error){setMessage(error instanceof Error?error.message:"Ошибка возврата");}finally{setBusy(false);}
- }
-
- return <section className="panel form">
-  <span className="eyebrow">Финансы</span><h2>Возврат средств</h2>
-  <p className="muted">Одна и та же серверная логика применяется в кабинете и мобильном приложении. Отмена заказа всегда учитывает комиссию 5%, максимум 100 ₪.</p>
-  {alreadyRefunded?<div className="toast">По этому заказу возврат уже зарегистрирован.</div>:<>
-   <div className="field"><label>Тип операции</label><select className="input" value={mode} onChange={e=>setMode(e.target.value as Mode)}><option value="CANCELLATION">Отмена заказа</option><option value="TECHNICAL_PARTIAL">Технический частичный возврат</option></select></div>
-   {mode==="CANCELLATION"?<div className="panel form">
-    <strong>Комиссия отмены: {(feeMinor/100).toFixed(2)} ₪</strong>
-    <label><input type="radio" checked={feePayer==="CUSTOMER"} onChange={()=>setFeePayer("CUSTOMER")}/> Клиент оплачивает 5% - вернуть {(Math.max(0,totalMinor-feeMinor)/100).toFixed(2)} ₪</label>
-    <label><input type="radio" checked={feePayer==="ORGANIZER"} onChange={()=>setFeePayer("ORGANIZER")}/> Организатор оплачивает 5% - вернуть клиенту {(totalMinor/100).toFixed(2)} ₪</label>
-   </div>:<div className="field"><label>Сумма частичного возврата, ₪</label><input className="input" type="number" min="0.01" max={Math.max(0,(totalMinor-1)/100).toFixed(2)} step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/><span className="muted">Билет и заказ остаются активными. Для отмены используйте режим «Отмена заказа».</span></div>}
-   <div className="field"><label>Причина</label><input className="input" value={reason} onChange={e=>setReason(e.target.value)} placeholder="Например: запрос клиента"/></div>
-   <button type="button" className="btn" onClick={()=>void refund()} disabled={busy}>{busy?"Отправляем возврат…":mode==="CANCELLATION"?"Отменить и вернуть через HYP":"Вернуть через HYP"}</button>
-  </>}
-  {message&&<div className="toast">{message}</div>}
- </section>;
+ const {locale}=useLocale();const text=copy[locale];const router=useRouter();const feeMinor=Math.min(Math.round(totalMinor*0.05),10000);const[mode,setMode]=useState<Mode>("CANCELLATION");const[feePayer,setFeePayer]=useState<FeePayer>("CUSTOMER");const[amount,setAmount]=useState("");const[reason,setReason]=useState("");const[busy,setBusy]=useState(false);const[message,setMessage]=useState("");const cancellationRefundMinor=feePayer==="CUSTOMER"?Math.max(0,totalMinor-feeMinor):totalMinor;const format=(minor:number)=>(minor/100).toLocaleString(localeTag(locale),{minimumFractionDigits:2,maximumFractionDigits:2})+" ₪";
+ async function refund(){if(reason.trim().length<3){setMessage(text.reasonRequired);return;}let amountMinor:number|undefined;if(mode==="TECHNICAL_PARTIAL"){amountMinor=Math.round(Number(amount)*100);if(!amountMinor||amountMinor<1){setMessage(text.partialRequired);return;}if(amountMinor>=totalMinor){setMessage(text.fullOnly);return;}}const confirmText=mode==="CANCELLATION"?text.confirmCancel(format(cancellationRefundMinor),format(feeMinor)):text.confirmPartial(format(amountMinor||0));if(!window.confirm(confirmText))return;setBusy(true);setMessage("");try{const response=await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}/refund`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({mode,amountMinor,reason:reason.trim(),cancellationFeePayer:mode==="CANCELLATION"?feePayer:undefined})});const data=await response.json().catch(()=>({error:text.badResponse}));if(!response.ok)throw new Error(data.error||text.failed);setMessage(text.success(format(data.amountMinor),Boolean(data.orderCancelled)));router.refresh();}catch(error){setMessage(error instanceof Error?error.message:text.error);}finally{setBusy(false);}}
+ return <section className="panel form"><span className="eyebrow">{text.eyebrow}</span><h2>{text.title}</h2><p className="muted">{text.help}</p>{alreadyRefunded?<div className="toast">{text.already}</div>:<><div className="field"><label>{text.type}</label><select className="input" value={mode} onChange={e=>setMode(e.target.value as Mode)}><option value="CANCELLATION">{text.cancel}</option><option value="TECHNICAL_PARTIAL">{text.partial}</option></select></div>{mode==="CANCELLATION"?<div className="panel form"><strong>{text.fee}: <bdi>{format(feeMinor)}</bdi></strong><label><input type="radio" checked={feePayer==="CUSTOMER"} onChange={()=>setFeePayer("CUSTOMER")}/> {text.customerPays} <bdi>{format(Math.max(0,totalMinor-feeMinor))}</bdi></label><label><input type="radio" checked={feePayer==="ORGANIZER"} onChange={()=>setFeePayer("ORGANIZER")}/> {text.organizerPays} <bdi>{format(totalMinor)}</bdi></label></div>:<div className="field"><label>{text.partialAmount}</label><input className="input" dir="ltr" style={{textAlign:"left"}} type="number" min="0.01" max={Math.max(0,(totalMinor-1)/100).toFixed(2)} step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/><span className="muted">{text.partialHelp}</span></div>}<div className="field"><label>{text.reason}</label><input className="input" value={reason} onChange={e=>setReason(e.target.value)} placeholder={text.reasonPh}/></div><button type="button" className="btn" onClick={()=>void refund()} disabled={busy}>{busy?text.sending:mode==="CANCELLATION"?text.cancelButton:text.refundButton}</button></>}{message&&<div className="toast">{message}</div>}</section>;
 }
