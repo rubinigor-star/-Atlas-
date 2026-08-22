@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { normalizeLocale } from "@/lib/i18n";
+import { localeConfig, normalizeLocale } from "@/lib/i18n";
+import { money } from "@/lib/format";
 
 export const cancellationCopy={
   ru:{refundSubject:"Возврат выполнен",cancelSubject:"Заказ отменён",title:"Билеты отменены, возврат оформлен",hello:"Здравствуйте",request:"Номер заявки",order:"Ваш заказ",event:"на мероприятие",cancelled:"отменён",refund:"Организатор подтвердил возврат на сумму",refundTail:"Возврат уже оформлен на исходный способ оплаты. Срок фактического зачисления средств зависит от банка и платёжной системы.",invalid:"Все билеты и QR-коды по этому заказу больше недействительны.",open:"Посмотреть отменённый заказ"},
@@ -27,17 +28,17 @@ export async function sendOrderCancellationEmail(publicId: string, refundedMinor
     where: { publicId },
     include: { event: true },
   });
-  if (!order) throw new Error("Заказ не найден");
-  if (order.status !== "CANCELLED") throw new Error("Уведомление об отмене можно отправить только для отменённого заказа");
+  if (!order) throw new Error("ORDER_NOT_FOUND");
+  if (order.status !== "CANCELLED") throw new Error("ORDER_NOT_CANCELLED");
 
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("Resend API key не настроен в Vercel");
+  if (!apiKey) throw new Error("RESEND_NOT_CONFIGURED");
 
   const recipient = process.env.RESEND_TEST_TO || order.customerEmail;
-  const locale=normalizeLocale(order.communicationLocale);const c=cancellationCopy[locale];const dir=locale==="he"?"rtl":"ltr";
-  const amount = `${(refundedMinor / 100).toFixed(2)} ₪`;
+  const locale=normalizeLocale(order.communicationLocale);const c=cancellationCopy[locale];const config=localeConfig[locale];
+  const amount = money(refundedMinor, order.currency || "ILS", locale);
   const orderUrl = `${baseUrl()}/orders/${encodeURIComponent(order.publicId)}`;
-  const requestLine = cancellationPublicId ? `<p>${c.request}: <strong>${escapeHtml(cancellationPublicId)}</strong>.</p>` : "";
+  const requestLine = cancellationPublicId ? `<p>${c.request}: <strong dir="ltr">${escapeHtml(cancellationPublicId)}</strong>.</p>` : "";
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -49,7 +50,7 @@ export async function sendOrderCancellationEmail(publicId: string, refundedMinor
       from: resendFromAddress(),
       to: [recipient],
       subject: cancellationPublicId ? `${c.refundSubject} - ${cancellationPublicId}` : `${c.cancelSubject} - ${order.event.title}`,
-      html: `<div lang="${locale}" dir="${dir}" style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111827"><div style="background:#081426;color:white;padding:26px"><h1 style="margin:0">${c.title}</h1></div><div style="padding:26px"><p>${c.hello}, ${escapeHtml(order.customerName)}.</p>${requestLine}<p>${c.order} <strong>${escapeHtml(order.publicId)}</strong> ${c.event} <strong>${escapeHtml(order.event.title)}</strong> ${c.cancelled}.</p><p>${c.refund} <strong>${escapeHtml(amount)}</strong>. ${c.refundTail}</p><p><strong>${c.invalid}</strong></p><p><a href="${orderUrl}">${c.open}</a></p></div></div>`,
+      html: `<div lang="${config.tag}" dir="${config.dir}" style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111827"><div style="background:#081426;color:white;padding:26px"><h1 style="margin:0">${c.title}</h1></div><div style="padding:26px"><p>${c.hello}, ${escapeHtml(order.customerName)}.</p>${requestLine}<p>${c.order} <strong dir="ltr">${escapeHtml(order.publicId)}</strong> ${c.event} <strong>${escapeHtml(order.event.title)}</strong> ${c.cancelled}.</p><p>${c.refund} <strong dir="ltr">${escapeHtml(amount)}</strong>. ${c.refundTail}</p><p><strong>${c.invalid}</strong></p><p><a href="${orderUrl}">${c.open}</a></p></div></div>`,
     }),
   });
 
