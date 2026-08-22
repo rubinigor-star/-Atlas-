@@ -193,6 +193,8 @@ export function AccessibilityMenu() {
   const reset = () => setSettings(DEFAULT_SETTINGS);
 
   return <div className="atlas-accessibility-root">
+    <button type="button" className="atlas-a11y-skip-link" onClick={skipToMain}>{t.skip}</button>
+
     <button
       ref={triggerRef}
       type="button"
