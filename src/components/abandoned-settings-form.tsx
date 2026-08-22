@@ -1,78 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {useEffect,useState} from "react";
+import {useLocale} from "@/components/locale-provider";
 
-type Settings = { active:boolean; abandonAfterMinutes:number; firstEmailAfterMinutes:number; finalEmailAfterMinutes:number };
-
-export function AbandonedSettingsForm() {
-  const [settings,setSettings]=useState<Settings|null>(null);
-  const [savedSettings,setSavedSettings]=useState<Settings|null>(null);
-  const [busy,setBusy]=useState(false);
-  const [running,setRunning]=useState(false);
-  const [message,setMessage]=useState("");
-
-  useEffect(()=>{
-    void fetch("/api/office/abandoned/settings",{cache:"no-store"})
-      .then(async response => {
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error || "Не удалось загрузить настройки");
-        setSettings(body);
-        setSavedSettings(body);
-      })
-      .catch(error=>setMessage(error instanceof Error ? error.message : "Не удалось загрузить настройки"));
-  },[]);
-
-  if(!settings)return <div className="panel">{message||"Загружаем настройки..."}</div>;
-  const currentSettings: Settings = settings;
-  const dirty = JSON.stringify(currentSettings) !== JSON.stringify(savedSettings);
-
-  async function persistSettings(snapshot: Settings, showSuccess = true) {
-    const response=await fetch("/api/office/abandoned/settings",{
-      method:"PUT",
-      headers:{"content-type":"application/json"},
-      body:JSON.stringify(snapshot),
-    });
-    const body=await response.json().catch(()=>({}));
-    if(!response.ok) throw new Error(body.error||"Не удалось сохранить настройки");
-    setSavedSettings({...snapshot});
-    if(showSuccess)setMessage("Настройки сохранены на сервере");
-  }
-
-  async function save(){
-    setBusy(true);
-    setMessage("");
-    try { await persistSettings(currentSettings,true); }
-    catch(error){ setMessage(error instanceof Error ? error.message : "Не удалось сохранить настройки"); }
-    finally { setBusy(false); }
-  }
-
-  async function runNow(){
-    setRunning(true);
-    setMessage("Сохраняем настройки и запускаем обработку...");
-    try {
-      await persistSettings(currentSettings,false);
-      const response=await fetch("/api/office/abandoned/run-now",{method:"POST"});
-      const body=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(body.error||"Не удалось запустить сценарий");
-      const reasons = body.skipReasons ? ` Причины пропуска: ${Object.entries(body.skipReasons).map(([reason,count])=>`${reason}: ${count}`).join(", ")}.` : "";
-      setMessage(`Настройки сохранены. Новых потерянных: ${body.newlyAbandoned||0}, обработано писем: ${body.processed||0}, отправлено: ${body.sent||0}, ошибок: ${body.failed||0}, пропущено: ${body.skipped||0}.${reasons}`);
-    } catch(error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось запустить сценарий");
-    } finally {
-      setRunning(false);
-    }
-  }
-
-  return <div className="panel" style={{maxWidth:820}}>
-    <div className="row between"><div><span className="eyebrow">Состояние</span><h2 style={{marginBottom:4}}>Автоматическое восстановление</h2><p className="muted">Отключение останавливает новые письма. История и статистика сохраняются.</p></div><label className="row" style={{gap:10}}><input type="checkbox" checked={currentSettings.active} onChange={e=>setSettings({...currentSettings,active:e.target.checked})}/><strong>{currentSettings.active?"Включено":"Выключено"}</strong></label></div>
-    <hr style={{border:0,borderTop:"1px solid #e5e7eb",margin:"24px 0"}}/>
-    <div className="panel" style={{background:"#fff7ed",borderColor:"#fed7aa"}}><strong>Тестовый режим</strong><p className="muted" style={{marginBottom:0}}>Установите 1 минуту и нажмите «Обработать сейчас». Кнопка сначала сохраняет текущие значения на сервере, затем запускает сценарий.</p></div>
-    <div className="field" style={{marginTop:18}}><label>Когда покупка считается потерянной, минут</label><input className="input" type="number" min={1} max={240} value={currentSettings.abandonAfterMinutes} onChange={e=>setSettings({...currentSettings,abandonAfterMinutes:Number(e.target.value)})}/></div>
-    <div className="field" style={{marginTop:18}}><label>Первый Email после признания покупки потерянной, минут</label><input className="input" type="number" min={0} max={240} value={currentSettings.firstEmailAfterMinutes} onChange={e=>setSettings({...currentSettings,firstEmailAfterMinutes:Number(e.target.value)})}/><small className="muted">0 означает отправить при ближайшем запуске обработчика.</small></div>
-    <div className="field" style={{marginTop:18}}><label>Финальный Email после признания покупки потерянной, минут</label><input className="input" type="number" min={1} max={10080} value={currentSettings.finalEmailAfterMinutes} onChange={e=>setSettings({...currentSettings,finalEmailAfterMinutes:Number(e.target.value)})}/></div>
-    <div className="panel" style={{marginTop:20,background:"#f8fafc"}}><strong>Фактический маршрут</strong><p className="muted" style={{marginBottom:0}}>{currentSettings.abandonAfterMinutes} мин. без активности → первый Email через {currentSettings.firstEmailAfterMinutes} мин. → финальный Email через {currentSettings.finalEmailAfterMinutes} мин. → остановка после покупки, отказа клиента или ручной остановки.</p></div>
-    {dirty&&<div className="toast" style={{marginTop:16,background:"#fff7ed",borderColor:"#fed7aa"}}>Есть несохранённые изменения</div>}
-    {message&&<div className="toast" style={{marginTop:16}}>{message}</div>}
-    <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:18}}><button className="btn dark" disabled={busy||running} onClick={()=>void save()}>{busy?"Сохраняем...":"Сохранить настройки"}</button><button className="btn" disabled={running||busy} onClick={()=>void runNow()}>{running?"Сохраняем и обрабатываем...":"Обработать сейчас"}</button></div>
-  </div>;
-}
+type Settings={active:boolean;abandonAfterMinutes:number;firstEmailAfterMinutes:number;finalEmailAfterMinutes:number};
+const copy={
+ru:{loadError:"Не удалось загрузить настройки",loading:"Загружаем настройки...",saveError:"Не удалось сохранить настройки",saved:"Настройки сохранены на сервере",starting:"Сохраняем настройки и запускаем обработку...",runError:"Не удалось запустить сценарий",result:(b:any)=>`Настройки сохранены. Новых потерянных: ${b.newlyAbandoned||0}, обработано писем: ${b.processed||0}, отправлено: ${b.sent||0}, ошибок: ${b.failed||0}, пропущено: ${b.skipped||0}.`,state:"Состояние",title:"Автоматическое восстановление",help:"Отключение останавливает новые письма. История и статистика сохраняются.",on:"Включено",off:"Выключено",test:"Тестовый режим",testHelp:"Установите 1 минуту и нажмите «Обработать сейчас». Кнопка сначала сохраняет текущие значения на сервере, затем запускает сценарий.",abandon:"Когда покупка считается потерянной, минут",first:"Первый Email после признания покупки потерянной, минут",zero:"0 означает отправить при ближайшем запуске обработчика.",final:"Финальный Email после признания покупки потерянной, минут",route:"Фактический маршрут",routeText:(s:Settings)=>`${s.abandonAfterMinutes} мин. без активности → первый Email через ${s.firstEmailAfterMinutes} мин. → финальный Email через ${s.finalEmailAfterMinutes} мин. → остановка после покупки, отказа клиента или ручной остановки.`,dirty:"Есть несохранённые изменения",saving:"Сохраняем...",save:"Сохранить настройки",running:"Сохраняем и обрабатываем...",run:"Обработать сейчас"},
+he:{loadError:"לא הצלחנו לטעון את ההגדרות",loading:"טוענים הגדרות...",saveError:"לא הצלחנו לשמור את ההגדרות",saved:"ההגדרות נשמרו בשרת",starting:"שומרים את ההגדרות ומפעילים את התהליך...",runError:"לא הצלחנו להפעיל את התהליך",result:(b:any)=>`ההגדרות נשמרו. נטישות חדשות: ${b.newlyAbandoned||0}, הודעות שעובדו: ${b.processed||0}, נשלחו: ${b.sent||0}, שגיאות: ${b.failed||0}, דולגו: ${b.skipped||0}.`,state:"מצב",title:"שחזור אוטומטי",help:"כיבוי האפשרות עוצר הודעות חדשות. ההיסטוריה והנתונים נשמרים.",on:"פעיל",off:"כבוי",test:"מצב בדיקה",testHelp:"הגדירו דקה אחת ולחצו על ״הפעלה עכשיו״. הכפתור שומר קודם את ההגדרות בשרת ורק אז מפעיל את התהליך.",abandon:"אחרי כמה דקות הרכישה נחשבת לנטושה",first:"Email ראשון לאחר סימון הרכישה כנטושה, דקות",zero:"0 פירושו שליחה בהרצה הקרובה של התהליך.",final:"Email סופי לאחר סימון הרכישה כנטושה, דקות",route:"מסלול בפועל",routeText:(s:Settings)=>`${s.abandonAfterMinutes} דק׳ ללא פעילות → Email ראשון אחרי ${s.firstEmailAfterMinutes} דק׳ → Email סופי אחרי ${s.finalEmailAfterMinutes} דק׳ → עצירה לאחר רכישה, בקשת הסרה או עצירה ידנית.`,dirty:"יש שינויים שלא נשמרו",saving:"שומרים...",save:"שמירת הגדרות",running:"שומרים ומפעילים...",run:"הפעלה עכשיו"},
+en:{loadError:"Could not load settings",loading:"Loading settings...",saveError:"Could not save settings",saved:"Settings saved on the server",starting:"Saving settings and starting recovery...",runError:"Could not start recovery",result:(b:any)=>`Settings saved. Newly abandoned: ${b.newlyAbandoned||0}, messages processed: ${b.processed||0}, sent: ${b.sent||0}, errors: ${b.failed||0}, skipped: ${b.skipped||0}.`,state:"Status",title:"Automatic recovery",help:"Disabling stops new messages. History and analytics remain stored.",on:"Enabled",off:"Disabled",test:"Test mode",testHelp:"Set 1 minute and press Run now. The button saves the current values first, then starts recovery.",abandon:"When purchase is considered abandoned, minutes",first:"First Email after abandonment, minutes",zero:"0 means send on the next processor run.",final:"Final Email after abandonment, minutes",route:"Effective flow",routeText:(s:Settings)=>`${s.abandonAfterMinutes} min without activity → first Email after ${s.firstEmailAfterMinutes} min → final Email after ${s.finalEmailAfterMinutes} min → stop after purchase, opt-out, or manual stop.`,dirty:"There are unsaved changes",saving:"Saving...",save:"Save settings",running:"Saving and running...",run:"Run now"}
+} as const;
+export function AbandonedSettingsForm(){const{locale}=useLocale();const t=copy[locale];const[settings,setSettings]=useState<Settings|null>(null);const[savedSettings,setSavedSettings]=useState<Settings|null>(null);const[busy,setBusy]=useState(false);const[running,setRunning]=useState(false);const[message,setMessage]=useState("");useEffect(()=>{void fetch("/api/office/abandoned/settings",{cache:"no-store"}).then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.error||t.loadError);setSettings(body);setSavedSettings(body)}).catch(error=>setMessage(error instanceof Error?error.message:t.loadError))},[t]);if(!settings)return <div className="panel">{message||t.loading}</div>;const current=settings;const dirty=JSON.stringify(current)!==JSON.stringify(savedSettings);const ltr={direction:"ltr" as const,textAlign:"left" as const};async function persist(snapshot:Settings,showSuccess=true){const response=await fetch("/api/office/abandoned/settings",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(snapshot)});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error||t.saveError);setSavedSettings({...snapshot});if(showSuccess)setMessage(t.saved)}async function save(){setBusy(true);setMessage("");try{await persist(current,true)}catch(error){setMessage(error instanceof Error?error.message:t.saveError)}finally{setBusy(false)}}async function runNow(){setRunning(true);setMessage(t.starting);try{await persist(current,false);const response=await fetch("/api/office/abandoned/run-now",{method:"POST"});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error||t.runError);setMessage(t.result(body))}catch(error){setMessage(error instanceof Error?error.message:t.runError)}finally{setRunning(false)}}return <div className="panel" style={{maxWidth:820}}><div className="row between"><div><span className="eyebrow">{t.state}</span><h2 style={{marginBottom:4}}>{t.title}</h2><p className="muted">{t.help}</p></div><label className="row" style={{gap:10}}><input type="checkbox" checked={current.active} onChange={e=>setSettings({...current,active:e.target.checked})}/><strong>{current.active?t.on:t.off}</strong></label></div><hr style={{border:0,borderTop:"1px solid #e5e7eb",margin:"24px 0"}}/><div className="panel" style={{background:"#fff7ed",borderColor:"#fed7aa"}}><strong>{t.test}</strong><p className="muted" style={{marginBottom:0}}>{t.testHelp}</p></div><div className="field" style={{marginTop:18}}><label>{t.abandon}</label><input className="input" dir="ltr" style={ltr} type="number" min={1} max={240} value={current.abandonAfterMinutes} onChange={e=>setSettings({...current,abandonAfterMinutes:Number(e.target.value)})}/></div><div className="field" style={{marginTop:18}}><label>{t.first}</label><input className="input" dir="ltr" style={ltr} type="number" min={0} max={240} value={current.firstEmailAfterMinutes} onChange={e=>setSettings({...current,firstEmailAfterMinutes:Number(e.target.value)})}/><small className="muted">{t.zero}</small></div><div className="field" style={{marginTop:18}}><label>{t.final}</label><input className="input" dir="ltr" style={ltr} type="number" min={1} max={10080} value={current.finalEmailAfterMinutes} onChange={e=>setSettings({...current,finalEmailAfterMinutes:Number(e.target.value)})}/></div><div className="panel" style={{marginTop:20,background:"#f8fafc"}}><strong>{t.route}</strong><p className="muted" style={{marginBottom:0}}>{t.routeText(current)}</p></div>{dirty&&<div className="toast" style={{marginTop:16,background:"#fff7ed",borderColor:"#fed7aa"}}>{t.dirty}</div>}{message&&<div className="toast" style={{marginTop:16}}>{message}</div>}<div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:18}}><button className="btn dark" disabled={busy||running} onClick={()=>void save()}>{busy?t.saving:t.save}</button><button className="btn" disabled={running||busy} onClick={()=>void runNow()}>{running?t.running:t.run}</button></div></div>}
