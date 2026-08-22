@@ -1,32 +1,19 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
-import { GuestListPage } from "@/components/guest-list-page";
-import { getGuestLinkSettings, isGuestListPromoter, verifyGuestManagementToken } from "@/lib/guest-links";
-import { parseGuestFields } from "@/lib/event-guest-fields";
+import type {Metadata} from "next";
+import {notFound} from "next/navigation";
+import {db} from "@/lib/db";
+import {GuestListPage} from "@/components/guest-list-page";
+import {LocaleProvider} from "@/components/locale-provider";
+import {getGuestLinkSettings,isGuestListPromoter,verifyGuestManagementToken} from "@/lib/guest-links";
+import {parseGuestFields} from "@/lib/event-guest-fields";
+import {getEventLanguageSettings} from "@/lib/event-language-server";
+import {localeConfig} from "@/lib/i18n";
 
 export const dynamic="force-dynamic";
-export const metadata: Metadata = { robots: { index: false, follow: false, nocache: true }, referrer: "no-referrer" };
-
-export default async function GuestPage({params,searchParams}:{params:Promise<{code:string}>;searchParams:Promise<Record<string,string|undefined>>}){
-  const {code}=await params;const query=await searchParams;
-  const link=await db.promoterLink.findUnique({where:{code:code.toUpperCase()},include:{promoter:true,event:{include:{categories:true}},category:true,table:true,orders:{where:{status:{in:["PAID","PENDING_APPROVAL"]}},orderBy:{createdAt:"asc"},include:{items:true,tickets:true}}}});
-  const now=new Date();
-  if(!link||!link.active||!isGuestListPromoter(link.promoter.name)||(link.startsAt&&link.startsAt>now)||(link.endsAt&&link.endsAt<now))notFound();
-  const token=query.token||"";const canManage=verifyGuestManagementToken(link.id,token);const settings=await getGuestLinkSettings(link.id);const seatPoolActive=settings.seatIds.length>0;const limit=link.guestLimit??link.table?.seats??link.category?.capacity??0;
-  const guestCount=link.orders.reduce((sum,order)=>sum+order.items.reduce((n,item)=>n+item.quantity,0),0);
-  const showRoster=canManage||settings.showAttendees;
-  const guests=showRoster?link.orders.map(order=>({id:order.id,name:order.customerName,phone:canManage?order.customerPhone:null,ticketStatus:order.status==="PENDING_APPROVAL"?"PENDING_APPROVAL":order.tickets[0]?.status??order.status})):[];
-  let poolSeat:null|{id:string;categoryId:string;label:string}=null;
-  if(seatPoolActive){
-    const seats=await db.seat.findMany({where:{id:{in:settings.seatIds},status:"AVAILABLE"},include:{table:true},orderBy:{position:"asc"}});
-    const claims=await db.$queryRawUnsafe<Array<{seatId:string|null}>>(`SELECT "seatId" FROM "ReservationClaim" WHERE "seatId" = ANY($1::text[])`,settings.seatIds).catch(()=>[]);
-    const claimed=new Set(claims.map(item=>item.seatId).filter((id):id is string=>Boolean(id)));
-    const candidate=seats.find(seat=>!claimed.has(seat.id)&&Boolean(seat.categoryId??seat.table.categoryId));
-    if(candidate)poolSeat={id:candidate.id,categoryId:(candidate.categoryId??candidate.table.categoryId)!,label:`${candidate.table.label} · ${candidate.label}`};
-  }
-  const checkoutCategory=seatPoolActive?(poolSeat?link.event.categories.find(item=>item.id===poolSeat.categoryId)??null:null):link.category??(link.table?.categoryId?link.event.categories.find(item=>item.id===link.table?.categoryId):null)??link.event.categories.find(item=>!item.hidden)??null;
-  const effectivePrice=link.customPriceMinor??checkoutCategory?.priceMinor??0;
-  const allocation=seatPoolActive?`Выбранные места с карты${poolSeat?` · следующее: ${poolSeat.label}`:""}`:link.table?`Стол ${link.table.label}`:link.category?`Билет: ${link.category.name}`:"Гостевой список";
-  return <GuestListPage code={link.code} token={token} title={link.label} eventTitle={link.event.title} eventId={link.eventId} categoryId={checkoutCategory?.id??null} seatId={poolSeat?.id??null} seatPoolActive={seatPoolActive} requiresPayment={effectivePrice>0} allocation={allocation} limit={limit} guestCount={guestCount} canManage={canManage} showAttendees={settings.showAttendees} fields={parseGuestFields(link.event.description)} guests={guests}/>;
+export const metadata:Metadata={robots:{index:false,follow:false,nocache:true},referrer:"no-referrer"};
+const allocationCopy={
+ ru:{seats:(next?:string)=>`Выбранные места с карты${next?` · следующее: ${next}`:""}`,table:(value:string)=>`Стол ${value}`,ticket:(value:string)=>`Билет: ${value}`,list:"Гостевой список"},
+ he:{seats:(next?:string)=>`מקומות נבחרים מהמפה${next?` · הבא: ${next}`:""}`,table:(value:string)=>`שולחן ${value}`,ticket:(value:string)=>`כרטיס: ${value}`,list:"רשימת אורחים"},
+ en:{seats:(next?:string)=>`Selected seats from the map${next?` · next: ${next}`:""}`,table:(value:string)=>`Table ${value}`,ticket:(value:string)=>`Ticket: ${value}`,list:"Guest list"}
+} as const;
+export default async function GuestPage({params,searchParams}:{params:Promise<{code:string}>;searchParams:Promise<Record<string,string|undefined>>}){const{code}=await params;const query=await searchParams;const link=await db.promoterLink.findUnique({where:{code:code.toUpperCase()},include:{promoter:true,event:{include:{categories:true}},category:true,table:true,orders:{where:{status:{in:["PAID","PENDING_APPROVAL"]}},orderBy:{createdAt:"asc"},include:{items:true,tickets:true}}}});const now=new Date();if(!link||!link.active||!isGuestListPromoter(link.promoter.name)||(link.startsAt&&link.startsAt>now)||(link.endsAt&&link.endsAt<now))notFound();const language=await getEventLanguageSettings(link.eventId);const locale=language.locale;const text=allocationCopy[locale];const token=query.token||"";const canManage=verifyGuestManagementToken(link.id,token);const settings=await getGuestLinkSettings(link.id);const seatPoolActive=settings.seatIds.length>0;const limit=link.guestLimit??link.table?.seats??link.category?.capacity??0;const guestCount=link.orders.reduce((sum,order)=>sum+order.items.reduce((n,item)=>n+item.quantity,0),0);const showRoster=canManage||settings.showAttendees;const guests=showRoster?link.orders.map(order=>({id:order.id,name:order.customerName,phone:canManage?order.customerPhone:null,ticketStatus:order.status==="PENDING_APPROVAL"?"PENDING_APPROVAL":order.tickets[0]?.status??order.status})):[];let poolSeat:null|{id:string;categoryId:string;label:string}=null;if(seatPoolActive){const seats=await db.seat.findMany({where:{id:{in:settings.seatIds},status:"AVAILABLE"},include:{table:true},orderBy:{position:"asc"}});const claims=await db.$queryRawUnsafe<Array<{seatId:string|null}>>(`SELECT "seatId" FROM "ReservationClaim" WHERE "seatId" = ANY($1::text[])`,settings.seatIds).catch(()=>[]);const claimed=new Set(claims.map(item=>item.seatId).filter((id):id is string=>Boolean(id)));const candidate=seats.find(seat=>!claimed.has(seat.id)&&Boolean(seat.categoryId??seat.table.categoryId));if(candidate)poolSeat={id:candidate.id,categoryId:(candidate.categoryId??candidate.table.categoryId)!,label:`${candidate.table.label} · ${candidate.label}`};}const checkoutCategory=seatPoolActive?(poolSeat?link.event.categories.find(item=>item.id===poolSeat.categoryId)??null:null):link.category??(link.table?.categoryId?link.event.categories.find(item=>item.id===link.table?.categoryId):null)??link.event.categories.find(item=>!item.hidden)??null;const effectivePrice=link.customPriceMinor??checkoutCategory?.priceMinor??0;const allocation=seatPoolActive?text.seats(poolSeat?.label):link.table?text.table(link.table.label):link.category?text.ticket(link.category.name):text.list;return <LocaleProvider initialLocale={locale} scope="fixed"><div lang={localeConfig[locale].tag} dir={localeConfig[locale].dir}><GuestListPage code={link.code} token={token} title={link.label} eventTitle={link.event.title} eventId={link.eventId} categoryId={checkoutCategory?.id??null} seatId={poolSeat?.id??null} seatPoolActive={seatPoolActive} requiresPayment={effectivePrice>0} allocation={allocation} limit={limit} guestCount={guestCount} canManage={canManage} showAttendees={settings.showAttendees} fields={parseGuestFields(link.event.description)} guests={guests}/></div></LocaleProvider>;
 }
