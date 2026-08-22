@@ -1,4 +1,5 @@
 import type { Locale } from "@/lib/i18n";
+import { getSms019ConfigurationStatus, sendSms019 } from "@/lib/sms-019";
 
 type RecoveryMessage = {
   recipient: string;
@@ -33,6 +34,12 @@ export const recoveryCopy = {
   en: { subjectFinal:"Ticket reminder",subjectFirst:"You did not complete your ticket purchase",titleFinal:"Your purchase is not complete",titleFirst:"Your order is almost complete",hello:"Hello",started:"You started booking tickets for",unfinished:"but did not complete payment.",important:"Important:",inventory:"Tickets and selected seats are not reserved. Availability, category or price may have changed.",action:"View available tickets",service:"This is a service message about a checkout you started. It does not subscribe you to marketing messages.",optout:"Stop reminders about this purchase" },
 } as const;
 
+const recoverySmsCopy = {
+  ru: { lead:"Atlas One: вы не завершили покупку билетов на", inventory:"Билеты, места и цена могли измениться.", action:"Продолжить", optout:"Не напоминать" },
+  he: { lead:"Atlas One: לא השלמת את רכישת הכרטיסים לאירוע", inventory:"ייתכן שהכרטיסים, המקומות או המחיר השתנו.", action:"להמשך ההזמנה", optout:"להפסקת תזכורות" },
+  en: { lead:"Atlas One: you did not complete your ticket purchase for", inventory:"Tickets, seats or price may have changed.", action:"Continue", optout:"Stop reminders" },
+} as const;
+
 const email: ChannelAdapter = {
   configured: () => Boolean(process.env.RESEND_API_KEY),
   async send(message) {
@@ -58,12 +65,30 @@ const email: ChannelAdapter = {
   },
 };
 
+const sms: ChannelAdapter = {
+  configured: () => {
+    const status = getSms019ConfigurationStatus();
+    return status.username && status.token && status.source;
+  },
+  async send(message) {
+    const c = recoverySmsCopy[message.communicationLocale];
+    const body = `${c.lead} ${message.eventTitle}. ${c.inventory} ${c.action}: ${message.checkoutUrl} ${c.optout}: ${message.optOutUrl}`;
+    const result = await sendSms019({
+      phone: process.env.SMS_019_TEST_TO?.trim() || message.recipient,
+      message: body,
+      campaignName: `recovery-${message.templateKey.toLowerCase()}`,
+    });
+    if (!result.ok) throw new Error(result.providerMessage || `SMS_019_${result.status}`);
+    return { id: result.providerStatus === undefined || result.providerStatus === null ? undefined : String(result.providerStatus) };
+  },
+};
+
 const unavailable: ChannelAdapter = {
   configured: () => false,
   async send() { throw new Error("CHANNEL_NOT_CONFIGURED"); },
 };
 
-const adapters: Record<string, ChannelAdapter> = { EMAIL: email, SMS: unavailable, WHATSAPP: unavailable };
+const adapters: Record<string, ChannelAdapter> = { EMAIL: email, SMS: sms, WHATSAPP: unavailable };
 
 export function recoveryChannel(code: string) {
   return adapters[code] || unavailable;
