@@ -1,19 +1,4 @@
-export const metadata = {
-  title: "Credits",
-  description: "Third-party services used by Atlas One.",
-};
-
-export default function CreditsPage() {
-  return (
-    <main className="shell" style={{ paddingTop: 48, paddingBottom: 72 }}>
-      <section className="panel" style={{ maxWidth: 760, margin: "0 auto" }}>
-        <span className="eyebrow">Atlas One</span>
-        <h1>Credits</h1>
-        <p className="muted">Third-party services used to improve the Atlas One experience.</p>
-        <p>
-          <a href="https://unavatar.io">Avatars provided by Unavatar</a>
-        </p>
-      </section>
-    </main>
-  );
-}
+import {getServerI18n} from "@/lib/server-locale";
+const copy={ru:{title:"Используемые сервисы",description:"Сторонние сервисы, используемые Atlas One.",help:"Сторонние сервисы, которые помогают улучшать работу Atlas One.",avatars:"Аватары предоставляются Unavatar"},he:{title:"שירותים חיצוניים",description:"שירותי צד שלישי שבהם Atlas One משתמשת.",help:"שירותי צד שלישי שעוזרים לנו לשפר את חוויית Atlas One.",avatars:"תמונות פרופיל מסופקות על ידי Unavatar"},en:{title:"Credits",description:"Third-party services used by Atlas One.",help:"Third-party services used to improve the Atlas One experience.",avatars:"Avatars provided by Unavatar"}} as const;
+export async function generateMetadata(){const{locale}=await getServerI18n();return{title:copy[locale].title,description:copy[locale].description}}
+export default async function CreditsPage(){const{locale}=await getServerI18n();const t=copy[locale];return <main className="shell" style={{paddingTop:48,paddingBottom:72}}><section className="panel" style={{maxWidth:760,margin:"0 auto"}}><span className="eyebrow">Atlas One</span><h1>{t.title}</h1><p className="muted">{t.help}</p><p><a href="https://unavatar.io">{t.avatars}</a></p></section></main>}
