@@ -1,131 +1,24 @@
 import "../concepts.css";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
-import { money, eventDate } from "@/lib/format";
-import { AdminShell } from "@/components/admin-shell";
-import { requirePermission, canAccessEvent } from "@/lib/auth";
-import { recoveryDashboard } from "@/lib/abandoned-checkout";
+import {notFound} from "next/navigation";
+import {db} from "@/lib/db";
+import {money,eventDate} from "@/lib/format";
+import {resolveStaffLocale} from "@/lib/i18n";
+import {AdminShell} from "@/components/admin-shell";
+import {requirePermission,canAccessEvent} from "@/lib/auth";
+import {recoveryDashboard} from "@/lib/abandoned-checkout";
 
-export const dynamic = "force-dynamic";
-
-type Variant = "a" | "b" | "c" | "d";
-
-const startOfToday = () => {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-};
-
-function relativeTime(date: Date) {
-  const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
-  if (minutes < 1) return "только что";
-  if (minutes < 60) return `${minutes} мин назад`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} ч назад`;
-  return `${Math.floor(hours / 24)} дн назад`;
-}
-
-function daysUntil(date: Date) {
-  return Math.ceil((date.getTime() - Date.now()) / 86400000);
-}
-
-const variantNames: Record<Variant, string> = {
-  a: "A · Balanced",
-  b: "B · Event First",
-  c: "C · Mission Control",
-  d: "D · Minimal",
-};
-
-export default async function ConceptPage({ params }: { params: Promise<{ variant: string }> }) {
-  const { variant: rawVariant } = await params;
-  if (!["a", "b", "c", "d"].includes(rawVariant)) notFound();
-  const variant = rawVariant as Variant;
-  const staff = await requirePermission("EVENT_VIEW");
-  const today = startOfToday();
-
-  const [events, todayOrders, recentOrders, approvalCount, recovery] = await Promise.all([
-    db.event.findMany({
-      where: { organizationId: staff.organizationId! },
-      include: { venue: true, categories: true, orders: { where: { status: "PAID" }, select: { totalMinor: true, createdAt: true } } },
-      orderBy: { startsAt: "asc" },
-    }),
-    db.order.findMany({
-      where: { status: "PAID", createdAt: { gte: today }, event: { organizationId: staff.organizationId! } },
-      select: { totalMinor: true },
-    }),
-    db.order.findMany({
-      where: { event: { organizationId: staff.organizationId! } },
-      take: 8,
-      orderBy: { createdAt: "desc" },
-      include: { event: true, tickets: true },
-    }),
-    db.order.count({ where: { status: "PENDING_APPROVAL", event: { organizationId: staff.organizationId! } } }),
-    recoveryDashboard(staff.organizationId!),
-  ]);
-
-  const visibleEvents = events.filter(event => canAccessEvent(staff, event.id));
-  const upcomingEvents = visibleEvents.filter(event => event.startsAt >= today).slice(0, 6);
-  const todayRevenue = todayOrders.reduce((sum, order) => sum + order.totalMinor, 0);
-  const abandonedCount = Number(recovery.totals.activeCount || 0);
-  const potentialMinor = Number(recovery.totals.potentialMinor || 0);
-  const attentionCount = approvalCount + abandonedCount;
-  const firstName = staff.name?.split(" ")[0] || "организатор";
-
-  const eventCards = upcomingEvents.map(event => {
-    const sold = event.categories.reduce((sum, category) => sum + category.sold, 0);
-    const capacity = event.categories.reduce((sum, category) => sum + category.capacity, 0);
-    const fill = capacity ? Math.min(100, Math.round(sold / capacity * 100)) : 0;
-    const revenue = event.orders.reduce((sum, order) => sum + order.totalMinor, 0);
-    const todaySold = event.orders.filter(order => order.createdAt >= today).length;
-    return { event, sold, capacity, fill, revenue, todaySold, days: daysUntil(event.startsAt) };
-  });
-
-  return <AdminShell>
-    <div className={`concept concept-${variant}`}>
-      <nav className="concept-switcher" aria-label="Варианты дизайна">
-        {(["a", "b", "c", "d"] as Variant[]).map(item => <Link key={item} href={`/office/concepts/${item}`} className={variant === item ? "active" : ""}>{variantNames[item]}</Link>)}
-      </nav>
-
-      <header className="concept-head">
-        <div><span>Концепт {variant.toUpperCase()}</span><h1>{variant === "b" ? "Мои мероприятия" : variant === "c" ? "Центр управления" : variant === "d" ? `Добрый день, ${firstName}` : `Главная, ${firstName}`}</h1><p>{variant === "b" ? "Все события и быстрые действия на одном экране." : variant === "c" ? "Сначала проблемы и ближайшие операционные задачи." : variant === "d" ? "Только важное. Без визуального шума." : "Сбалансированный обзор бизнеса и мероприятий."}</p></div>
-        {staff.permissionSet.has("EVENT_MANAGE") && <Link href="/office/events/new" className="btn">+ Новое мероприятие</Link>}
-      </header>
-
-      {variant !== "b" && <section className="concept-kpis">
-        <article><small>Продажи сегодня</small><strong>{todayOrders.length}</strong><span>{money(todayRevenue)}</span></article>
-        <article><small>Активные события</small><strong>{upcomingEvents.length}</strong><span>{upcomingEvents[0] ? eventDate(upcomingEvents[0].startsAt) : "Нет ближайших"}</span></article>
-        <article><small>Требует внимания</small><strong>{attentionCount}</strong><span>{abandonedCount} abandoned · {approvalCount} заявок</span></article>
-        <article><small>Потенциальная выручка</small><strong>{money(potentialMinor)}</strong><span>Из потерянных оформлений</span></article>
-      </section>}
-
-      {variant === "b" && <section className="event-first-summary"><span><b>{todayOrders.length}</b> продаж сегодня</span><span><b>{upcomingEvents.length}</b> активных событий</span><span><b>{attentionCount}</b> требуют внимания</span></section>}
-
-      <div className="concept-body">
-        {variant === "c" && <aside className="mission-rail">
-          <h2>Требует действия</h2>
-          <Link href="/office/abandoned"><b>{abandonedCount}</b><span>Потерянные оформления<small>{money(potentialMinor)} потенциально</small></span></Link>
-          <Link href="/office/requests"><b>{approvalCount}</b><span>Заявки на рассмотрении<small>Ожидают решения</small></span></Link>
-          {eventCards[0] && <Link href={`/office/events/${eventCards[0].event.id}`}><b>{eventCards[0].days <= 0 ? "!" : eventCards[0].days}</b><span>{eventCards[0].event.title}<small>{eventDate(eventCards[0].event.startsAt)}</small></span></Link>}
-          <h3>Последние действия</h3>
-          {recentOrders.slice(0,5).map(order => <Link className="mission-activity" href={`/office/orders/${order.publicId}`} key={order.id}><span>{order.status === "PAID" ? "Продажа" : "Заказ"}<small>{order.event.title}</small></span><time>{relativeTime(order.createdAt)}</time></Link>)}
-        </aside>}
-
-        <main className="concept-main">
-          <div className="concept-section-title"><div><span>{variant === "c" ? "События" : "Ваши мероприятия"}</span><h2>{variant === "b" ? "В центре Atlas" : variant === "d" ? "Ближайшие" : "Активные мероприятия"}</h2></div><Link href="/office/events">Все →</Link></div>
-          <div className="concept-events">
-            {eventCards.map(({event,sold,capacity,fill,revenue,todaySold,days}) => <Link className="concept-event" href={`/office/events/${event.id}`} key={event.id}>
-              <div className="concept-poster"><img src={event.posterUrl} alt=""/><span>{days <= 0 ? "Сегодня" : `Через ${days} дн.`}</span></div>
-              <div className="concept-event-copy"><small>{eventDate(event.startsAt)} · {event.venue.name}</small><h3>{event.title}</h3><div className="concept-progress"><i style={{width:`${fill}%`}}/></div><div className="concept-event-line"><strong>{sold} / {capacity}</strong><span>{fill}% заполнено</span></div><footer><span>{money(revenue)}</span><span>+{todaySold} сегодня</span></footer></div>
-            </Link>)}
-            {!eventCards.length && <div className="office-empty"><h3>Нет ближайших мероприятий</h3><p>Создайте первое событие.</p></div>}
-          </div>
-        </main>
-
-        {variant !== "c" && <aside className="concept-side">
-          <section><header><h2>Требует внимания</h2><b>{attentionCount}</b></header><Link href="/office/abandoned"><span>Потерянные оформления</span><strong>{abandonedCount}</strong></Link><Link href="/office/requests"><span>Заявки</span><strong>{approvalCount}</strong></Link></section>
-          <section><header><h2>Последняя активность</h2></header>{recentOrders.slice(0,5).map(order => <Link href={`/office/orders/${order.publicId}`} key={order.id}><span>{order.status === "PAID" ? "Новая продажа" : "Обновление заказа"}<small>{order.event.title}</small></span><time>{relativeTime(order.createdAt)}</time></Link>)}</section>
-        </aside>}
-      </div>
-    </div>
-  </AdminShell>;
-}
+export const dynamic="force-dynamic";type Variant="a"|"b"|"c"|"d";
+const copy={
+ru:{aria:"Варианты дизайна",concept:"Концепт",titles:{a:"Главная",b:"Мои мероприятия",c:"Центр управления",d:"Добрый день"},descriptions:{a:"Сбалансированный обзор бизнеса и мероприятий.",b:"Все события и быстрые действия на одном экране.",c:"Сначала проблемы и ближайшие операционные задачи.",d:"Только важное. Без визуального шума."},newEvent:"+ Новое мероприятие",salesToday:"Продажи сегодня",activeEvents:"Активные события",noUpcoming:"Нет ближайших",attention:"Требует внимания",abandoned:"abandoned",requests:"заявок",potential:"Потенциальная выручка",lostHelp:"Из потерянных оформлений",salesWord:"продаж сегодня",activeWord:"активных событий",attentionWord:"требуют внимания",action:"Требует действия",lost:"Потерянные оформления",potentially:"потенциально",review:"Заявки на рассмотрении",waiting:"Ожидают решения",recent:"Последние действия",sale:"Продажа",order:"Заказ",events:"События",yourEvents:"Ваши мероприятия",atlasCenter:"В центре Atlas",upcoming:"Ближайшие",activeTitle:"Активные мероприятия",all:"Все →",today:"Сегодня",inDays:(n:number)=>`Через ${n} дн.`,filled:"заполнено",todayPlus:"сегодня",none:"Нет ближайших мероприятий",noneHelp:"Создайте первое событие.",lastActivity:"Последняя активность",newSale:"Новая продажа",orderUpdate:"Обновление заказа",just:"только что",minutes:(n:number)=>`${n} мин назад`,hours:(n:number)=>`${n} ч назад`,days:(n:number)=>`${n} дн назад`,organizer:"организатор"},
+he:{aria:"גרסאות עיצוב",concept:"קונספט",titles:{a:"ראשי",b:"האירועים שלי",c:"מרכז שליטה",d:"שלום"},descriptions:{a:"סקירה מאוזנת של העסק והאירועים.",b:"כל האירועים והפעולות המהירות במסך אחד.",c:"קודם כל בעיות ומשימות תפעול קרובות.",d:"רק מה שחשוב. בלי עומס חזותי."},newEvent:"+ אירוע חדש",salesToday:"מכירות היום",activeEvents:"אירועים פעילים",noUpcoming:"אין אירועים קרובים",attention:"דורש תשומת לב",abandoned:"נטישות",requests:"בקשות",potential:"הכנסה פוטנציאלית",lostHelp:"מתהליכי רכישה שננטשו",salesWord:"מכירות היום",activeWord:"אירועים פעילים",attentionWord:"דורשים תשומת לב",action:"דורש פעולה",lost:"רכישות שננטשו",potentially:"פוטנציאל",review:"בקשות לבדיקה",waiting:"ממתינות להחלטה",recent:"פעילות אחרונה",sale:"מכירה",order:"הזמנה",events:"אירועים",yourEvents:"האירועים שלכם",atlasCenter:"במרכז Atlas",upcoming:"קרובים",activeTitle:"אירועים פעילים",all:"הכול →",today:"היום",inDays:(n:number)=>`בעוד ${n} ימים`,filled:"תפוסה",todayPlus:"היום",none:"אין אירועים קרובים",noneHelp:"צרו את האירוע הראשון.",lastActivity:"פעילות אחרונה",newSale:"מכירה חדשה",orderUpdate:"עדכון הזמנה",just:"הרגע",minutes:(n:number)=>`לפני ${n} דק׳`,hours:(n:number)=>`לפני ${n} שעות`,days:(n:number)=>`לפני ${n} ימים`,organizer:"מפיק"},
+en:{aria:"Design variants",concept:"Concept",titles:{a:"Home",b:"My events",c:"Mission control",d:"Good day"},descriptions:{a:"A balanced overview of business and events.",b:"All events and quick actions on one screen.",c:"Problems and near-term operational tasks first.",d:"Only what matters. No visual noise."},newEvent:"+ New event",salesToday:"Sales today",activeEvents:"Active events",noUpcoming:"No upcoming events",attention:"Needs attention",abandoned:"abandoned",requests:"requests",potential:"Potential revenue",lostHelp:"From abandoned checkouts",salesWord:"sales today",activeWord:"active events",attentionWord:"need attention",action:"Needs action",lost:"Abandoned checkouts",potentially:"potential",review:"Requests for review",waiting:"Awaiting decision",recent:"Recent activity",sale:"Sale",order:"Order",events:"Events",yourEvents:"Your events",atlasCenter:"At the center of Atlas",upcoming:"Upcoming",activeTitle:"Active events",all:"All →",today:"Today",inDays:(n:number)=>`In ${n} days`,filled:"filled",todayPlus:"today",none:"No upcoming events",noneHelp:"Create your first event.",lastActivity:"Latest activity",newSale:"New sale",orderUpdate:"Order update",just:"just now",minutes:(n:number)=>`${n} min ago`,hours:(n:number)=>`${n} h ago`,days:(n:number)=>`${n} d ago`,organizer:"organizer"}
+} as const;
+const variantNames:Record<Variant,string>={a:"A · Balanced",b:"B · Event First",c:"C · Mission Control",d:"D · Minimal"};
+const startOfToday=()=>{const now=new Date();return new Date(now.getFullYear(),now.getMonth(),now.getDate())};
+function daysUntil(date:Date){return Math.ceil((date.getTime()-Date.now())/86400000)}
+export default async function ConceptPage({params}:{params:Promise<{variant:string}>}){const{variant:rawVariant}=await params;if(!["a","b","c","d"].includes(rawVariant))notFound();const variant=rawVariant as Variant;const staff=await requirePermission("EVENT_VIEW");const locale=resolveStaffLocale({memberOverride:staff.interfaceLocaleOverride,userPreference:staff.preferredLocale,organizationDefault:staff.organization?.defaultStaffLocale});const t=copy[locale];const today=startOfToday();const relativeTime=(date:Date)=>{const minutes=Math.max(0,Math.floor((Date.now()-date.getTime())/60000));if(minutes<1)return t.just;if(minutes<60)return t.minutes(minutes);const hours=Math.floor(minutes/60);if(hours<24)return t.hours(hours);return t.days(Math.floor(hours/24))};
+ const[events,todayOrders,recentOrders,approvalCount,recovery]=await Promise.all([db.event.findMany({where:{organizationId:staff.organizationId!},include:{venue:true,categories:true,orders:{where:{status:"PAID"},select:{totalMinor:true,createdAt:true}}},orderBy:{startsAt:"asc"}}),db.order.findMany({where:{status:"PAID",createdAt:{gte:today},event:{organizationId:staff.organizationId!}},select:{totalMinor:true}}),db.order.findMany({where:{event:{organizationId:staff.organizationId!}},take:8,orderBy:{createdAt:"desc"},include:{event:true,tickets:true}}),db.order.count({where:{status:"PENDING_APPROVAL",event:{organizationId:staff.organizationId!}}}),recoveryDashboard(staff.organizationId!)]);
+ const visibleEvents=events.filter(event=>canAccessEvent(staff,event.id));const upcomingEvents=visibleEvents.filter(event=>event.startsAt>=today).slice(0,6);const todayRevenue=todayOrders.reduce((sum,order)=>sum+order.totalMinor,0);const abandonedCount=Number(recovery.totals.activeCount||0);const potentialMinor=Number(recovery.totals.potentialMinor||0);const attentionCount=approvalCount+abandonedCount;const firstName=staff.name?.split(" ")[0]||t.organizer;const eventCards=upcomingEvents.map(event=>{const sold=event.categories.reduce((sum,c)=>sum+c.sold,0),capacity=event.categories.reduce((sum,c)=>sum+c.capacity,0),fill=capacity?Math.min(100,Math.round(sold/capacity*100)):0,revenue=event.orders.reduce((sum,o)=>sum+o.totalMinor,0),todaySold=event.orders.filter(o=>o.createdAt>=today).length;return{event,sold,capacity,fill,revenue,todaySold,days:daysUntil(event.startsAt)}});
+ const heading=variant==="d"?`${t.titles.d}, ${firstName}`:variant==="a"?`${t.titles.a}, ${firstName}`:t.titles[variant];
+ return <AdminShell><div className={`concept concept-${variant}`}><nav className="concept-switcher" aria-label={t.aria}>{(["a","b","c","d"] as Variant[]).map(item=><Link key={item} href={`/office/concepts/${item}`} className={variant===item?"active":""}>{variantNames[item]}</Link>)}</nav><header className="concept-head"><div><span>{t.concept} {variant.toUpperCase()}</span><h1>{heading}</h1><p>{t.descriptions[variant]}</p></div>{staff.permissionSet.has("EVENT_MANAGE")&&<Link href="/office/events/new" className="btn">{t.newEvent}</Link>}</header>{variant!=="b"&&<section className="concept-kpis"><article><small>{t.salesToday}</small><strong>{todayOrders.length}</strong><span><bdi>{money(todayRevenue)}</bdi></span></article><article><small>{t.activeEvents}</small><strong>{upcomingEvents.length}</strong><span>{upcomingEvents[0]?eventDate(upcomingEvents[0].startsAt,locale):t.noUpcoming}</span></article><article><small>{t.attention}</small><strong>{attentionCount}</strong><span>{abandonedCount} {t.abandoned} · {approvalCount} {t.requests}</span></article><article><small>{t.potential}</small><strong><bdi>{money(potentialMinor)}</bdi></strong><span>{t.lostHelp}</span></article></section>}{variant==="b"&&<section className="event-first-summary"><span><b>{todayOrders.length}</b> {t.salesWord}</span><span><b>{upcomingEvents.length}</b> {t.activeWord}</span><span><b>{attentionCount}</b> {t.attentionWord}</span></section>}<div className="concept-body">{variant==="c"&&<aside className="mission-rail"><h2>{t.action}</h2><Link href="/office/abandoned"><b>{abandonedCount}</b><span>{t.lost}<small><bdi>{money(potentialMinor)}</bdi> {t.potentially}</small></span></Link><Link href="/office/requests"><b>{approvalCount}</b><span>{t.review}<small>{t.waiting}</small></span></Link>{eventCards[0]&&<Link href={`/office/events/${eventCards[0].event.id}`}><b>{eventCards[0].days<=0?"!":eventCards[0].days}</b><span>{eventCards[0].event.title}<small>{eventDate(eventCards[0].event.startsAt,locale)}</small></span></Link>}<h3>{t.recent}</h3>{recentOrders.slice(0,5).map(order=><Link className="mission-activity" href={`/office/orders/${order.publicId}`} key={order.id}><span>{order.status==="PAID"?t.sale:t.order}<small>{order.event.title}</small></span><time>{relativeTime(order.createdAt)}</time></Link>)}</aside>}<main className="concept-main"><div className="concept-section-title"><div><span>{variant==="c"?t.events:t.yourEvents}</span><h2>{variant==="b"?t.atlasCenter:variant==="d"?t.upcoming:t.activeTitle}</h2></div><Link href="/office/events">{t.all}</Link></div><div className="concept-events">{eventCards.map(({event,sold,capacity,fill,revenue,todaySold,days})=><Link className="concept-event" href={`/office/events/${event.id}`} key={event.id}><div className="concept-poster"><img src={event.posterUrl} alt=""/><span>{days<=0?t.today:t.inDays(days)}</span></div><div className="concept-event-copy"><small>{eventDate(event.startsAt,locale)} · {event.venue.name}</small><h3>{event.title}</h3><div className="concept-progress"><i style={{width:`${fill}%`}}/></div><div className="concept-event-line"><strong>{sold} / {capacity}</strong><span>{fill}% {t.filled}</span></div><footer><span><bdi>{money(revenue)}</bdi></span><span>+{todaySold} {t.todayPlus}</span></footer></div></Link>)}{!eventCards.length&&<div className="office-empty"><h3>{t.none}</h3><p>{t.noneHelp}</p></div>}</div></main>{variant!=="c"&&<aside className="concept-side"><section><header><h2>{t.attention}</h2><b>{attentionCount}</b></header><Link href="/office/abandoned"><span>{t.lost}</span><strong>{abandonedCount}</strong></Link><Link href="/office/requests"><span>{t.requests}</span><strong>{approvalCount}</strong></Link></section><section><header><h2>{t.lastActivity}</h2></header>{recentOrders.slice(0,5).map(order=><Link href={`/office/orders/${order.publicId}`} key={order.id}><span>{order.status==="PAID"?t.newSale:t.orderUpdate}<small>{order.event.title}</small></span><time>{relativeTime(order.createdAt)}</time></Link>)}</section></aside>}</div></div></AdminShell>}
