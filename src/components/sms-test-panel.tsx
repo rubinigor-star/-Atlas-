@@ -1,45 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import {useState} from "react";
+import {useLocale} from "@/components/locale-provider";
 
-export function SmsTestPanel({ initialPhone }: { initialPhone: string }) {
-  const [phone, setPhone] = useState(initialPhone);
-  const [message, setMessage] = useState("Atlas One: SMS integration test completed successfully.");
-  const [result, setResult] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-
-  async function sendTest() {
-    setLoading(true);
-    setResult("");
-    try {
-      const response = await fetch("/api/platform/sms/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, message }),
-      });
-      const data = await response.json();
-      setResult(JSON.stringify(data, null, 2));
-    } catch (error) {
-      setResult(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : "UNKNOWN_ERROR" }, null, 2));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return <section style={{maxWidth:720,margin:"40px auto",padding:24}}>
-    <h1>019SMS integration test</h1>
-    <p>This page is available only to the Atlas platform administrator.</p>
-    <label style={{display:"grid",gap:8,marginTop:20}}>
-      Phone
-      <input value={phone} onChange={event=>setPhone(event.target.value)} style={{padding:12,fontSize:16}} />
-    </label>
-    <label style={{display:"grid",gap:8,marginTop:16}}>
-      Message
-      <textarea value={message} onChange={event=>setMessage(event.target.value)} rows={4} style={{padding:12,fontSize:16}} />
-    </label>
-    <button type="button" onClick={sendTest} disabled={loading} style={{marginTop:18,padding:"12px 18px",fontSize:16,cursor:"pointer"}}>
-      {loading ? "Sending..." : "Send test SMS"}
-    </button>
-    {result && <pre style={{marginTop:20,padding:16,background:"#111",color:"#fff",whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{result}</pre>}
-  </section>;
-}
+const copy={ru:{defaultMessage:"Atlas One: тест интеграции SMS успешно выполнен.",title:"Тест интеграции 019SMS",help:"Эта страница доступна только администратору платформы Atlas.",phone:"Телефон",message:"Сообщение",sending:"Отправляем...",send:"Отправить тестовое SMS"},he:{defaultMessage:"Atlas One: בדיקת אינטגרציית SMS הושלמה בהצלחה.",title:"בדיקת אינטגרציית 019SMS",help:"העמוד זמין רק למנהל מערכת Atlas.",phone:"טלפון",message:"הודעה",sending:"שולחים...",send:"שליחת SMS לבדיקה"},en:{defaultMessage:"Atlas One: SMS integration test completed successfully.",title:"019SMS integration test",help:"This page is available only to the Atlas platform administrator.",phone:"Phone",message:"Message",sending:"Sending...",send:"Send test SMS"}} as const;
+export function SmsTestPanel({initialPhone}:{initialPhone:string}){const{locale}=useLocale();const t=copy[locale];const[phone,setPhone]=useState(initialPhone);const[message,setMessage]=useState(t.defaultMessage);const[result,setResult]=useState<string>("");const[loading,setLoading]=useState(false);async function sendTest(){setLoading(true);setResult("");try{const response=await fetch("/api/platform/sms/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone,message})});const data=await response.json();setResult(JSON.stringify(data,null,2));}catch(error){setResult(JSON.stringify({ok:false,error:error instanceof Error?error.message:"UNKNOWN_ERROR"},null,2));}finally{setLoading(false);}}return <section style={{maxWidth:720,margin:"40px auto",padding:24}}><h1>{t.title}</h1><p>{t.help}</p><label style={{display:"grid",gap:8,marginTop:20}}>{t.phone}<input dir="ltr" value={phone} onChange={event=>setPhone(event.target.value)} style={{padding:12,fontSize:16,textAlign:"left"}}/></label><label style={{display:"grid",gap:8,marginTop:16}}>{t.message}<textarea dir="auto" value={message} onChange={event=>setMessage(event.target.value)} rows={4} style={{padding:12,fontSize:16}}/></label><button type="button" onClick={sendTest} disabled={loading} style={{marginTop:18,padding:"12px 18px",fontSize:16,cursor:"pointer"}}>{loading?t.sending:t.send}</button>{result&&<pre dir="ltr" style={{marginTop:20,padding:16,background:"#111",color:"#fff",whiteSpace:"pre-wrap",overflowWrap:"anywhere",textAlign:"left"}}>{result}</pre>}</section>}
