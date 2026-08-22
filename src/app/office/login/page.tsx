@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AtlasLogo } from "@/components/atlas-logo";
 import { getServerI18n } from "@/lib/server-locale";
+import { localeConfig } from "@/lib/i18n";
 import { OfficeLanguageControl } from "./office-login-branding";
 import styles from "./office-login.module.css";
 import brandingStyles from "./office-login-branding.module.css";
@@ -108,7 +109,7 @@ export default async function OfficeLoginPage({ searchParams }: { searchParams: 
   const verification = typeof params.verification === "string" ? params.verification : "";
   const showResend = verification === "failed" || params.error === "EMAIL_NOT_VERIFIED";
 
-  return <main className={styles.page}>
+  return <main className={styles.page} lang={localeConfig[locale].tag} dir={localeConfig[locale].dir}>
     <div className={brandingStyles.loginTopbar}>
       <AtlasLogo />
       <OfficeLanguageControl />
@@ -134,13 +135,13 @@ export default async function OfficeLoginPage({ searchParams }: { searchParams: 
 
         {showResend&&<form method="post" action="/api/office/auth/resend-verification" className={styles.resend}>
           <div><strong>{text.resendTitle}</strong><p>{text.resendHelp}</p></div>
-          <div className={styles.field}><label>{text.email}</label><input className={styles.input} type="email" name="email" autoComplete="email" required /></div>
+          <div className={styles.field}><label>{text.email}</label><input className={`${styles.input} ${styles.technicalInput}`} dir="ltr" type="email" name="email" autoComplete="email" required /></div>
           <button className={styles.secondaryButton}>{text.resendButton}</button>
         </form>}
 
         <form method="post" action="/api/office/auth/login" className={styles.form}>
-          <div className={styles.field}><label>{text.email}</label><input className={styles.input} type="email" name="email" autoComplete="email" required /></div>
-          <div className={styles.field}><label>{text.password}</label><input className={styles.input} type="password" name="password" autoComplete="current-password" required /></div>
+          <div className={styles.field}><label>{text.email}</label><input className={`${styles.input} ${styles.technicalInput}`} dir="ltr" type="email" name="email" autoComplete="email" required /></div>
+          <div className={styles.field}><label>{text.password}</label><input className={`${styles.input} ${styles.technicalInput}`} dir="ltr" type="password" name="password" autoComplete="current-password" required /></div>
           <button className={styles.primaryButton}>{text.login}</button>
         </form>
 
