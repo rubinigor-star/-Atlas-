@@ -1,0 +1,248 @@
+import * as SecureStore from "expo-secure-store";
+
+const TOKEN_KEY = "atlas-office-session";
+const API_BASE_URL = "https://www.atlas-one.co";
+
+export type MobileUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  staffRole: string | null;
+  jobTitle?: string | null;
+  organization?: { id: string; name: string } | null;
+  permissions?: string[];
+  eventIds?: string[];
+};
+
+export type DashboardPayload = {
+  user: MobileUser;
+  summary: { revenueMinor: number; paidOrders: number; pendingRequests: number; activeEvents: number };
+  events: Array<{
+    id: string;
+    title: string;
+    startsAt: string;
+    venue: { name: string; city: string };
+    posterUrl: string | null;
+    published: boolean;
+    salesMode: string;
+    mapEnabled: boolean;
+    sold: number;
+    capacity: number;
+    checkedIn: number;
+    checkInOpensAt: string;
+    checkInClosesAt: string;
+    checkInOpen: boolean;
+    status: "PAST" | "PUBLISHED" | "DRAFT";
+  }>;
+  recentOrders: Array<{
+    id: string;
+    publicId: string;
+    customerName: string;
+    totalMinor: number;
+    status: string;
+    ticketCount: number;
+    createdAt: string;
+    event: { id: string; title: string };
+  }>;
+};
+
+export type OperationGroup = "pending" | "approved" | "cancelled" | "abandoned";
+export type OperationSort = "newest" | "oldest" | "amount_desc" | "amount_asc";
+
+export type EventOperationOrder = {
+  id: string;
+  publicId: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  totalMinor: number;
+  currency: string;
+  status: string;
+  reviewNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+  ticketCount: number;
+  categories: Array<{ name: string; quantity: number; unitPriceMinor: number }>;
+  usedTickets: number;
+  source: "ORDER" | "ABANDONED_CHECKOUT";
+  canApprove: boolean;
+  canReject: boolean;
+  reviewBlockedReason: string | null;
+  paymentProvider: string | null;
+  paymentAuthorizationStatus: string | null;
+  reservationStatus: string | null;
+};
+
+export type EventOperationsPayload = {
+  event: {
+    id: string;
+    title: string;
+    startsAt: string;
+    posterUrl: string | null;
+    venue: { name: string; city: string };
+    revenueMinor: number;
+    checkedIn: number;
+    categoryOptions: string[];
+  };
+  counts: Record<OperationGroup, number>;
+  group: OperationGroup;
+  pagination: { page: number; limit: number; total: number; hasMore: boolean };
+  orders: EventOperationOrder[];
+};
+
+export type EventOperationsQuery = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  category?: string;
+  sort?: OperationSort;
+};
+
+export type OrderReviewResult = {
+  status: string;
+  emailSent: boolean;
+  emailError?: string;
+  legacyDemoOrder?: boolean;
+  recoveredCapture?: boolean;
+};
+
+export type TicketResendResult = {
+  sent: boolean;
+  channel: "email" | "sms";
+  recipient: string;
+  priceMinor: number;
+  providerStatus?: string;
+  id?: string;
+};
+
+export type RefundAvailability = {
+  orderStatus: string;
+  orderTotalMinor: number;
+  provider: string | null;
+  paymentStatus: string | null;
+  refundedMinor: number;
+  refundableMinor: number;
+  canRefund: boolean;
+};
+
+export type RefundResult = {
+  ok: boolean;
+  amountMinor: number;
+  fullRefund?: boolean;
+  refundTranId?: string | null;
+  resultCode?: string;
+  emailSent?: boolean;
+  emailError?: string | null;
+  idempotent?: boolean;
+};
+
+export type TicketValidationPayload = {
+  result: "VALID" | "USED" | "CANCELLED" | "NOT_FOUND";
+  ticketId?: string;
+  eventId?: string;
+  holderName?: string;
+  categoryName?: string;
+  event?: { id: string; title: string } | null;
+};
+
+async function request<T>(path: string, options: RequestInit = {}) {
+  const token = await SecureStore.getItemAsync(TOKEN_KEY);
+  const url = `${API_BASE_URL}${path}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+    });
+  } catch {
+    throw new Error("NETWORK_ERROR");
+  }
+
+  const raw = await response.text();
+  let body: Record<string, unknown> = {};
+  try {
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    body = {};
+  }
+
+  if (!response.ok) {
+    if (response.status === 401) await SecureStore.deleteItemAsync(TOKEN_KEY);
+    const error = new Error(typeof body.error === "string" ? body.error : `HTTP_${response.status}`);
+    Object.assign(error, { status: response.status, payload: body });
+    throw error;
+  }
+
+  return body as T;
+}
+
+export async function login(email: string, password: string) {
+  const result = await request<{ token: string; user: MobileUser }>("/api/mobile/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+  await SecureStore.setItemAsync(TOKEN_KEY, result.token, { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY });
+  return result.user;
+}
+
+export async function currentUser() {
+  return request<{ user: MobileUser }>("/api/mobile/auth/me").then((result) => result.user);
+}
+
+export async function getDashboard() {
+  return request<DashboardPayload>("/api/mobile/dashboard");
+}
+
+export async function getEventOperations(eventId: string, group: OperationGroup = "pending", query: EventOperationsQuery = {}) {
+  const params = new URLSearchParams({
+    status: group,
+    page: String(query.page || 1),
+    limit: String(query.limit || 50),
+    sort: query.sort || "newest",
+  });
+  if (query.search?.trim()) params.set("q", query.search.trim());
+  if (query.category?.trim() && query.category !== "all") params.set("category", query.category.trim());
+  return request<EventOperationsPayload>(`/api/mobile/events/${encodeURIComponent(eventId)}/operations?${params.toString()}`);
+}
+
+export async function reviewEventOrder(publicId: string, action: "approve" | "reject", note?: string) {
+  return request<OrderReviewResult>(`/api/mobile/orders/${encodeURIComponent(publicId)}/review`, {
+    method: "POST",
+    body: JSON.stringify({ action, note }),
+  });
+}
+
+export async function resendOrderTicket(publicId: string, channel: "email" | "sms" = "email") {
+  return request<TicketResendResult>(`/api/mobile/orders/${encodeURIComponent(publicId)}/resend-ticket`, {
+    method: "POST",
+    body: JSON.stringify({ channel }),
+  });
+}
+
+export async function getOrderRefundAvailability(publicId: string) {
+  return request<RefundAvailability>(`/api/mobile/orders/${encodeURIComponent(publicId)}/refund`);
+}
+
+export async function refundEventOrder(publicId: string, amountMinor: number, reason: string) {
+  return request<RefundResult>(`/api/mobile/orders/${encodeURIComponent(publicId)}/refund`, {
+    method: "POST",
+    body: JSON.stringify({ amountMinor, reason }),
+  });
+}
+
+export async function validateTicket(eventId: string, code: string) {
+  return request<TicketValidationPayload>("/api/mobile/tickets/validate", {
+    method: "POST",
+    body: JSON.stringify({ eventId, code }),
+  });
+}
+
+export async function logout() {
+  await SecureStore.deleteItemAsync(TOKEN_KEY);
+}
