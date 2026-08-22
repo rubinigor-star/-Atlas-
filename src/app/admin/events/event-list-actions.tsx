@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, ExternalLink, Pause, Pencil, Play, ShoppingBag, RotateCcw, Ticket } from "lucide-react";
+import type { Locale } from "@/lib/i18n";
 
 type EventListActionsProps = {
   event: {
@@ -22,25 +23,19 @@ type EventListActionsProps = {
     address: string;
   };
   canManage: boolean;
+  locale: Locale;
 };
 
 const labels = {
-  ru: { edit: "Редактировать", pause: "Приостановить", paused: "Приостановлено", publish: "Опубликовать", soldOut: "SOLD OUT", available: "Вернуть в продажу", lastTickets: "Последние билеты", copy: "Копировать", page: "Страница события", working: "Выполняется...", copySuffix: "копия" },
-  he: { edit: "עריכה", pause: "השהיה", paused: "מושהה", publish: "פרסום", soldOut: "SOLD OUT", available: "החזרה למכירה", lastTickets: "כרטיסים אחרונים", copy: "שכפול", page: "עמוד האירוע", working: "מתבצע...", copySuffix: "עותק" },
-  en: { edit: "Edit", pause: "Pause", paused: "Paused", publish: "Publish", soldOut: "SOLD OUT", available: "Return to sale", lastTickets: "Last tickets", copy: "Duplicate", page: "Event page", working: "Working...", copySuffix: "copy" },
+  ru: { edit: "Редактировать", pause: "Приостановить", paused: "Приостановлено", publish: "Опубликовать", soldOut: "SOLD OUT", available: "Вернуть в продажу", lastTickets: "Последние билеты", copy: "Копировать", page: "Страница события", working: "Выполняется...", copySuffix: "копия", actionFailed: "Не удалось выполнить действие", copyFailed: "Не удалось скопировать мероприятие" },
+  he: { edit: "עריכה", pause: "השהיה", paused: "מושהה", publish: "פרסום", soldOut: "SOLD OUT", available: "החזרה למכירה", lastTickets: "כרטיסים אחרונים", copy: "שכפול", page: "עמוד האירוע", working: "מתבצע...", copySuffix: "עותק", actionFailed: "לא הצלחנו לבצע את הפעולה", copyFailed: "לא הצלחנו לשכפל את האירוע" },
+  en: { edit: "Edit", pause: "Pause", paused: "Paused", publish: "Publish", soldOut: "SOLD OUT", available: "Return to sale", lastTickets: "Last tickets", copy: "Duplicate", page: "Event page", working: "Working...", copySuffix: "copy", actionFailed: "Action failed", copyFailed: "Could not duplicate event" },
 } as const;
 
-function currentLocale() {
-  if (typeof document === "undefined") return "ru" as const;
-  const value = document.documentElement.lang.slice(0, 2);
-  return value === "he" || value === "en" ? value : "ru";
-}
-
-export function EventListActions({ event, canManage }: EventListActionsProps) {
+export function EventListActions({ event, canManage, locale }: EventListActionsProps) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const locale = currentLocale();
   const t = labels[locale];
   const published = event.status === "PUBLISHED";
   const paused = event.status === "DRAFT";
@@ -63,10 +58,10 @@ export function EventListActions({ event, canManage }: EventListActionsProps) {
         body: JSON.stringify({ action }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Action failed");
+      if (!response.ok) throw new Error(payload.error || t.actionFailed);
       router.refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Action failed");
+      setError(cause instanceof Error ? cause.message : t.actionFailed);
     } finally {
       setBusy(null);
     }
@@ -97,17 +92,17 @@ export function EventListActions({ event, canManage }: EventListActionsProps) {
         }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Copy failed");
+      if (!response.ok) throw new Error(payload.error || t.copyFailed);
       router.push(`/office/events/${payload.id}`);
       router.refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Copy failed");
+      setError(cause instanceof Error ? cause.message : t.copyFailed);
       setBusy(null);
     }
   }
 
   return (
-    <div className="event-card-controls">
+    <div className="event-card-controls" dir={locale === "he" ? "rtl" : "ltr"}>
       <div className="event-card-control-grid">
         <Link className="event-card-control" href={`/office/events/${event.id}`}>
           <Pencil size={17} aria-hidden="true" />
