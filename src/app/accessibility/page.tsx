@@ -1,14 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { localeConfig } from "@/lib/i18n";
 import { getServerI18n } from "@/lib/server-locale";
-
-export const metadata: Metadata = {
-  title: "Accessibility",
-  description: "Atlas One accessibility statement and contact information.",
-};
 
 const content = {
   ru: {
+    metaTitle: "Заявление о доступности - Atlas One",
+    metaDescription: "Информация о доступности Atlas One, поддерживаемых настройках и способах сообщить о проблеме.",
     title: "Заявление о доступности",
     intro: "Atlas One стремится сделать покупку билетов и использование платформы доступными для людей с различными потребностями и возможностями.",
     standardTitle: "Стандарт доступности",
@@ -31,6 +29,8 @@ const content = {
     back: "Вернуться на главную",
   },
   he: {
+    metaTitle: "הצהרת נגישות - Atlas One",
+    metaDescription: "מידע על נגישות Atlas One, התאמות הנגישות הקיימות ודרכי יצירת קשר במקרה של בעיה.",
     title: "הצהרת נגישות",
     intro: "Atlas One פועלת כדי לאפשר לאנשים עם מגוון צרכים ויכולות לרכוש כרטיסים ולהשתמש בפלטפורמה בצורה נגישה.",
     standardTitle: "תקן הנגישות",
@@ -53,6 +53,8 @@ const content = {
     back: "חזרה לעמוד הראשי",
   },
   en: {
+    metaTitle: "Accessibility statement - Atlas One",
+    metaDescription: "Atlas One accessibility information, available accessibility controls and contact details for reporting an issue.",
     title: "Accessibility statement",
     intro: "Atlas One is committed to making ticket purchasing and use of the platform accessible to people with a wide range of needs and abilities.",
     standardTitle: "Accessibility standard",
@@ -76,12 +78,19 @@ const content = {
   },
 } as const;
 
+export async function generateMetadata(): Promise<Metadata> {
+  const { locale } = await getServerI18n();
+  const t = content[locale];
+  return { title: t.metaTitle, description: t.metaDescription };
+}
+
 export default async function AccessibilityPage() {
   const { locale } = await getServerI18n();
   const t = content[locale];
+  const settings = localeConfig[locale];
 
   return <main className="atlas-accessibility-statement" id="atlas-main-content">
-    <div className="atlas-accessibility-statement-card">
+    <div className="atlas-accessibility-statement-card" lang={settings.tag} dir={settings.dir}>
       <div className="atlas-accessibility-statement-kicker">Atlas One</div>
       <h1>{t.title}</h1>
       <p className="atlas-accessibility-statement-lead">{t.intro}</p>
@@ -109,7 +118,7 @@ export default async function AccessibilityPage() {
       <section>
         <h2>{t.contactTitle}</h2>
         <p>{t.contact}</p>
-        <a className="atlas-accessibility-email" href="mailto:support@atlas-one.co">support@atlas-one.co</a>
+        <a className="atlas-accessibility-email" href="mailto:support@atlas-one.co" dir="ltr">support@atlas-one.co</a>
       </section>
 
       <div className="atlas-accessibility-statement-footer">
