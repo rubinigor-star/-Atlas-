@@ -2,105 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/components/locale-provider";
 
-type Props = {
-  eventId: string;
-  eventTitle: string;
-  status: "DRAFT" | "PUBLISHED";
-  archived: boolean;
-};
+type Props={eventId:string;eventTitle:string;status:"DRAFT"|"PUBLISHED";archived:boolean};
+const copy={
+ ru:{deleteConfirm:(t:string)=>`Удалить черновик «${t}» безвозвратно? Удаление разрешено только если мероприятие не публиковалось и в нём нет заказов или истории продаж.`,deleteError:"Не удалось удалить черновик",restoreConfirm:(t:string)=>`Восстановить мероприятие «${t}» как черновик? Оно не появится в афише, пока вы снова его не опубликуете.`,archiveConfirm:(t:string)=>`Архивировать мероприятие «${t}»? Оно сразу исчезнет из публичной афиши, а заказы и билеты сохранятся.`,statusError:"Не удалось изменить статус мероприятия",restored:"Мероприятие восстановлено как черновик.",archived:"Мероприятие архивировано и удалено из афиши.",archive:"Архив",archivedDraft:"Черновик находится в архиве",archivedDraftHelp:"Можно восстановить его для дальнейшего редактирования или удалить прямо сейчас.",saving:"Сохраняю...",restore:"Восстановить как черновик",deleteEyebrow:"Удаление черновика",deleteTitle:"Удалить черновик",deleteHelp:"Неопубликованный черновик без заказов и истории продаж можно удалить полностью. Архивировать или восстанавливать его перед удалением не требуется.",deleting:"Удаляю...",delete:"Удалить черновик",lifecycle:"Жизненный цикл мероприятия",archivedTitle:"Мероприятие находится в архиве",archiveTitle:"Архивирование мероприятия",archivedHelp:"Заказы, билеты, статистика и настройки сохранены. После восстановления мероприятие станет черновиком и не будет опубликовано автоматически.",archiveHelp:"Архивирование немедленно скрывает мероприятие из публичной афиши и закрывает продажу. Заказы, билеты и история остаются доступными в кабинете.",archiveButton:"Архивировать мероприятие"},
+ he:{deleteConfirm:(t:string)=>`למחוק לצמיתות את הטיוטה „${t}”? מחיקה אפשרית רק אם האירוע לא פורסם ואין בו הזמנות או היסטוריית מכירות.`,deleteError:"לא הצלחנו למחוק את הטיוטה",restoreConfirm:(t:string)=>`לשחזר את האירוע „${t}” כטיוטה? הוא לא יחזור ללוח האירועים עד שתפרסמו אותו מחדש.`,archiveConfirm:(t:string)=>`להעביר את האירוע „${t}” לארכיון? הוא יוסר מיד מהלוח הציבורי, אך ההזמנות והכרטיסים יישמרו.`,statusError:"לא הצלחנו לשנות את סטטוס האירוע",restored:"האירוע שוחזר כטיוטה.",archived:"האירוע הועבר לארכיון והוסר מהלוח הציבורי.",archive:"ארכיון",archivedDraft:"הטיוטה נמצאת בארכיון",archivedDraftHelp:"אפשר לשחזר אותה לעריכה נוספת או למחוק אותה עכשיו.",saving:"שומרים...",restore:"שחזור כטיוטה",deleteEyebrow:"מחיקת טיוטה",deleteTitle:"מחיקת הטיוטה",deleteHelp:"אפשר למחוק לחלוטין טיוטה שלא פורסמה ואין בה הזמנות או היסטוריית מכירות. אין צורך להעביר אותה לארכיון או לשחזר אותה לפני המחיקה.",deleting:"מוחקים...",delete:"מחיקת הטיוטה",lifecycle:"מחזור חיי האירוע",archivedTitle:"האירוע נמצא בארכיון",archiveTitle:"העברת אירוע לארכיון",archivedHelp:"ההזמנות, הכרטיסים, הנתונים וההגדרות נשמרו. לאחר שחזור האירוע הוא יחזור כטיוטה ולא יפורסם אוטומטית.",archiveHelp:"העברה לארכיון מסתירה מיד את האירוע מהלוח הציבורי וסוגרת את המכירה. ההזמנות, הכרטיסים וההיסטוריה נשארים זמינים באזור העבודה.",archiveButton:"העברת האירוע לארכיון"},
+ en:{deleteConfirm:(t:string)=>`Permanently delete the draft “${t}”? Deletion is allowed only if the event was never published and has no orders or sales history.`,deleteError:"Could not delete draft",restoreConfirm:(t:string)=>`Restore “${t}” as a draft? It will not return to the public listing until you publish it again.`,archiveConfirm:(t:string)=>`Archive “${t}”? It will immediately disappear from the public listing while orders and tickets remain stored.`,statusError:"Could not change event status",restored:"Event restored as a draft.",archived:"Event archived and removed from the public listing.",archive:"Archive",archivedDraft:"Draft is archived",archivedDraftHelp:"You can restore it for further editing or delete it now.",saving:"Saving...",restore:"Restore as draft",deleteEyebrow:"Draft deletion",deleteTitle:"Delete draft",deleteHelp:"An unpublished draft with no orders or sales history can be deleted permanently. It does not need to be archived or restored first.",deleting:"Deleting...",delete:"Delete draft",lifecycle:"Event lifecycle",archivedTitle:"Event is archived",archiveTitle:"Archive event",archivedHelp:"Orders, tickets, analytics and settings are preserved. After restoration, the event becomes a draft and is not published automatically.",archiveHelp:"Archiving immediately hides the event from the public listing and closes sales. Orders, tickets and history remain available in the workspace.",archiveButton:"Archive event"}
+} as const;
 
-export function EventArchiveControl({ eventId, eventTitle, status, archived }: Props) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-
-  async function deleteDraft() {
-    const confirmation = `Удалить черновик «${eventTitle}» безвозвратно? Удаление разрешено только если мероприятие не публиковалось и в нём нет заказов или истории продаж.`;
-    if (!window.confirm(confirmation)) return;
-
-    setBusy(true);
-    setMessage("");
-    try {
-      const response = await fetch(`/api/admin/events/${eventId}/delete`, { method: "DELETE" });
-      const data = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(data.error || "Не удалось удалить черновик");
-      router.push("/office/events?status=DRAFT");
-      router.refresh();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось удалить черновик");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function changeArchiveStatus() {
-    const confirmation = archived
-      ? `Восстановить мероприятие «${eventTitle}» как черновик? Оно не появится в афише, пока вы снова его не опубликуете.`
-      : `Архивировать мероприятие «${eventTitle}»? Оно сразу исчезнет из публичной афиши, а заказы и билеты сохранятся.`;
-    if (!window.confirm(confirmation)) return;
-
-    setBusy(true);
-    setMessage("");
-    try {
-      const response = await fetch(`/api/admin/events/${eventId}/archive`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: archived ? "restore" : "archive" }),
-      });
-      const data = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(data.error || "Не удалось изменить статус мероприятия");
-      setMessage(archived ? "Мероприятие восстановлено как черновик." : "Мероприятие архивировано и удалено из афиши.");
-      router.refresh();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось изменить статус мероприятия");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (status === "DRAFT") {
-    return (
-      <div style={{ display: "grid", gap: 16 }}>
-        {archived && (
-          <section className="panel form" style={{ borderColor: "#94a3b8" }}>
-            <span className="eyebrow">Архив</span>
-            <h2>Черновик находится в архиве</h2>
-            <p className="muted">Можно восстановить его для дальнейшего редактирования или удалить прямо сейчас.</p>
-            <button type="button" className="btn secondary" disabled={busy} onClick={changeArchiveStatus}>
-              {busy ? "Сохраняю..." : "Восстановить как черновик"}
-            </button>
-          </section>
-        )}
-
-        <section className="panel form" style={{ borderColor: "#fca5a5", background: "#fffafa" }}>
-          <span className="eyebrow">Удаление черновика</span>
-          <h2>Удалить черновик</h2>
-          <p className="muted">
-            Неопубликованный черновик без заказов и истории продаж можно удалить полностью. Архивировать или восстанавливать его перед удалением не требуется.
-          </p>
-          <button type="button" className="btn" style={{ background: "#b42318", color: "white" }} disabled={busy} onClick={deleteDraft}>
-            {busy ? "Удаляю..." : "Удалить черновик"}
-          </button>
-          {message && <div className="toast save-feedback" role="status">{message}</div>}
-        </section>
-      </div>
-    );
-  }
-
-  return (
-    <section className="panel form" style={{ borderColor: archived ? "#94a3b8" : "#f59e0b" }}>
-      <span className="eyebrow">Жизненный цикл мероприятия</span>
-      <h2>{archived ? "Мероприятие находится в архиве" : "Архивирование мероприятия"}</h2>
-      <p className="muted">
-        {archived
-          ? "Заказы, билеты, статистика и настройки сохранены. После восстановления мероприятие станет черновиком и не будет опубликовано автоматически."
-          : "Архивирование немедленно скрывает мероприятие из публичной афиши и закрывает продажу. Заказы, билеты и история остаются доступными в кабинете."}
-      </p>
-      <button type="button" className={archived ? "btn secondary" : "btn dark"} disabled={busy} onClick={changeArchiveStatus}>
-        {busy ? "Сохраняю..." : archived ? "Восстановить как черновик" : "Архивировать мероприятие"}
-      </button>
-      {message && <div className="toast save-feedback" role="status">{message}</div>}
-    </section>
-  );
+export function EventArchiveControl({eventId,eventTitle,status,archived}:Props){
+ const router=useRouter();const{locale}=useLocale();const text=copy[locale];const[busy,setBusy]=useState(false);const[message,setMessage]=useState("");
+ async function deleteDraft(){if(!window.confirm(text.deleteConfirm(eventTitle)))return;setBusy(true);setMessage("");try{const response=await fetch(`/api/admin/events/${eventId}/delete`,{method:"DELETE"});const data=await response.json() as {error?:string};if(!response.ok)throw new Error(data.error||text.deleteError);router.push("/office/events?status=DRAFT");router.refresh();}catch(error){setMessage(error instanceof Error?error.message:text.deleteError);}finally{setBusy(false)}}
+ async function changeArchiveStatus(){if(!window.confirm(archived?text.restoreConfirm(eventTitle):text.archiveConfirm(eventTitle)))return;setBusy(true);setMessage("");try{const response=await fetch(`/api/admin/events/${eventId}/archive`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({action:archived?"restore":"archive"})});const data=await response.json() as {error?:string};if(!response.ok)throw new Error(data.error||text.statusError);setMessage(archived?text.restored:text.archived);router.refresh();}catch(error){setMessage(error instanceof Error?error.message:text.statusError);}finally{setBusy(false)}}
+ if(status==="DRAFT")return <div style={{display:"grid",gap:16}}>{archived&&<section className="panel form" style={{borderColor:"#94a3b8"}}><span className="eyebrow">{text.archive}</span><h2>{text.archivedDraft}</h2><p className="muted">{text.archivedDraftHelp}</p><button type="button" className="btn secondary" disabled={busy} onClick={changeArchiveStatus}>{busy?text.saving:text.restore}</button></section>}<section className="panel form" style={{borderColor:"#fca5a5",background:"#fffafa"}}><span className="eyebrow">{text.deleteEyebrow}</span><h2>{text.deleteTitle}</h2><p className="muted">{text.deleteHelp}</p><button type="button" className="btn" style={{background:"#b42318",color:"white"}} disabled={busy} onClick={deleteDraft}>{busy?text.deleting:text.delete}</button>{message&&<div className="toast save-feedback" role="status">{message}</div>}</section></div>;
+ return <section className="panel form" style={{borderColor:archived?"#94a3b8":"#f59e0b"}}><span className="eyebrow">{text.lifecycle}</span><h2>{archived?text.archivedTitle:text.archiveTitle}</h2><p className="muted">{archived?text.archivedHelp:text.archiveHelp}</p><button type="button" className={archived?"btn secondary":"btn dark"} disabled={busy} onClick={changeArchiveStatus}>{busy?text.saving:archived?text.restore:text.archiveButton}</button>{message&&<div className="toast save-feedback" role="status">{message}</div>}</section>;
 }
