@@ -133,6 +133,8 @@ export async function GET(request: Request) {
         jobTitle: user.jobTitle,
         organization: user.organization ? { id: user.organization.id, name: user.organization.name } : null,
         permissions: Array.from(user.permissionSet),
+        staffLocale: user.staffLocale,
+        localePreference: user.localePreference,
       },
       summary: {
         revenueMinor: paidRevenue._sum.totalMinor ?? 0,
