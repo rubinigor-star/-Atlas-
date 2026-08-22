@@ -1,103 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useLocale } from "@/components/locale-provider";
+import { localeTag } from "@/lib/i18n";
 import { money } from "@/lib/format";
 import { calculateServiceFee } from "@/lib/service-fee";
 
-export function EventCommercialTermsForm({ eventId, initial, organizerName, isSuperAdmin }: {
-  eventId: string;
-  organizerName: string;
-  isSuperAdmin: boolean;
-  initial: {
-    useOrganizerDefaults: boolean;
-    serviceFeePayer: "BUYER" | "ORGANIZER";
-    organizerServiceFeePayer: "BUYER" | "ORGANIZER";
-  };
-}) {
-  const [useOrganizerDefaults, setUseOrganizerDefaults] = useState(initial.useOrganizerDefaults);
-  const [serviceFeePayer, setServiceFeePayer] = useState(initial.serviceFeePayer);
-  const [organizerPayer, setOrganizerPayer] = useState(initial.organizerServiceFeePayer);
-  const [percentBps, setPercentBps] = useState(0);
-  const [fixedMinor, setFixedMinor] = useState(0);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
+const copy={ru:{saved:"Условия сохранены",error:"Не удалось сохранить условия",eyebrow:"Условия продажи",title:"Кто оплачивает сервисный сбор?",help:"Выберите, будет ли сбор добавлен к заказу покупателя или удержан из вашей выплаты.",organizer:"Организатор",fee:"Размер сервисного сбора",feeHelp:"Размер комиссии установлен в условиях организатора. Здесь выбирается только тот, кто её оплачивает.",defaults:"Использовать стандартное правило организатора",buyerRule:"сервисный сбор оплачивает покупатель",organizerRule:"сервисный сбор оплачивает организатор",buyer:"Платит покупатель",buyerHelp:"Сбор добавляется сверху к стоимости билетов.",organizerPays:"Плачу я как организатор",organizerHelp:"Покупатель платит только за билеты, а сбор удерживается из вашей выплаты.",effectiveBuyer:"Для этого мероприятия сбор оплачивает покупатель",effectiveOrganizer:"Для этого мероприятия сбор оплачивает организатор",exampleTickets:"Пример: билеты",serviceFee:"Сервисный сбор",buyerTotal:"Покупатель оплачивает",organizerNet:"Организатор получает до других удержаний",saving:"Сохраняем...",save:"Сохранить условия"},he:{saved:"התנאים נשמרו",error:"לא הצלחנו לשמור את התנאים",eyebrow:"תנאי מכירה",title:"מי משלם את דמי השירות?",help:"בחרו אם דמי השירות יתווספו להזמנת הלקוח או ינוכו מהתשלום למפיק.",organizer:"מפיק",fee:"גובה דמי השירות",feeHelp:"גובה העמלה נקבע בתנאי המפיק. כאן בוחרים רק מי נושא בה.",defaults:"שימוש בכלל ברירת המחדל של המפיק",buyerRule:"דמי השירות משולמים על ידי הלקוח",organizerRule:"דמי השירות משולמים על ידי המפיק",buyer:"הלקוח משלם",buyerHelp:"דמי השירות מתווספים למחיר הכרטיסים.",organizerPays:"אני משלם כמפיק",organizerHelp:"הלקוח משלם רק על הכרטיסים ודמי השירות מנוכים מהתשלום למפיק.",effectiveBuyer:"באירוע הזה דמי השירות משולמים על ידי הלקוח",effectiveOrganizer:"באירוע הזה דמי השירות משולמים על ידי המפיק",exampleTickets:"דוגמה: כרטיסים",serviceFee:"דמי שירות",buyerTotal:"הלקוח משלם",organizerNet:"המפיק מקבל לפני ניכויים נוספים",saving:"שומרים...",save:"שמירת תנאים"},en:{saved:"Terms saved",error:"Could not save terms",eyebrow:"Sales terms",title:"Who pays the service fee?",help:"Choose whether the fee is added to the buyer's order or deducted from your payout.",organizer:"Organizer",fee:"Service fee amount",feeHelp:"The fee amount is defined in the organizer terms. Here you only choose who pays it.",defaults:"Use organizer default rule",buyerRule:"the buyer pays the service fee",organizerRule:"the organizer pays the service fee",buyer:"Buyer pays",buyerHelp:"The fee is added on top of the ticket price.",organizerPays:"I pay as organizer",organizerHelp:"The buyer pays only for the tickets and the fee is deducted from your payout.",effectiveBuyer:"For this event the buyer pays the service fee",effectiveOrganizer:"For this event the organizer pays the service fee",exampleTickets:"Example: tickets",serviceFee:"Service fee",buyerTotal:"Buyer pays",organizerNet:"Organizer receives before other deductions",saving:"Saving...",save:"Save terms"}} as const;
 
-  useEffect(() => {
-    fetch(`/api/office/events/${eventId}/commercial-terms`)
-      .then((response) => response.ok ? response.json() : null)
-      .then((data) => {
-        if (!data?.terms) return;
-        setPercentBps(data.terms.organizer.salesFeePercentBps);
-        setFixedMinor(data.terms.organizer.salesFeeFixedMinor);
-        setOrganizerPayer(data.terms.organizer.serviceFeePayer);
-      })
-      .catch(() => undefined);
-  }, [eventId]);
-
-  const effectivePayer = useOrganizerDefaults ? organizerPayer : serviceFeePayer;
-  const example = useMemo(() => calculateServiceFee(10000, {
-    salesFeePercentBps: percentBps,
-    salesFeeFixedMinor: fixedMinor,
-    serviceFeePayer: effectivePayer,
-  }), [effectivePayer, fixedMinor, percentBps]);
-  const percentLabel = `${(percentBps / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}%`;
-  const feeLabel = `${percentLabel}${fixedMinor ? ` + ${money(fixedMinor)}` : ""}`;
-
-  async function save() {
-    setSaving(true); setMessage("");
-    const response = await fetch(`/api/office/events/${eventId}/commercial-terms`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ useOrganizerDefaults, serviceFeePayer }),
-    });
-    setSaving(false);
-    setMessage(response.ok ? "Условия сохранены" : "Не удалось сохранить условия");
-  }
-
-  const optionStyle = (selected: boolean) => ({
-    border: selected ? "2px solid #ff7900" : "1px solid var(--line)",
-    borderRadius: 16,
-    padding: 18,
-    background: selected ? "#fff8f0" : "#fff",
-    cursor: "pointer",
-    display: "grid",
-    gap: 7,
-    textAlign: "left" as const,
-  });
-
-  return <section className="card" style={{ marginTop: 20, padding: 26, overflow: "visible" }}>
-    <div style={{ display: "grid", gap: 7 }}>
-      <span className="eyebrow">Условия продажи</span>
-      <h2 style={{ margin: 0, fontSize: 28 }}>Кто оплачивает сервисный сбор?</h2>
-      <p className="muted" style={{ margin: 0, maxWidth: 760 }}>Выберите, будет ли сбор добавлен к заказу покупателя или удержан из вашей выплаты.</p>
-    </div>
-
-    {isSuperAdmin && <div style={{ marginTop: 18, padding: 14, borderRadius: 14, background: "#eef5ff", border: "1px solid #cfe0ff" }}><strong>Организатор: {organizerName}</strong></div>}
-
-    <div style={{ marginTop: 20, padding: 18, borderRadius: 16, background: "#f8fafc", border: "1px solid var(--line)", display: "grid", gap: 8 }}>
-      <div className="row between" style={{ flexWrap: "wrap", gap: 10 }}><strong>Размер сервисного сбора</strong><strong style={{ fontSize: 22 }}>{feeLabel}</strong></div>
-      <small className="muted">Размер комиссии установлен в условиях организатора. Здесь выбирается только тот, кто её оплачивает.</small>
-    </div>
-
-    <label style={{ marginTop: 18, padding: 16, border: "1px solid var(--line)", borderRadius: 14, display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer" }}>
-      <input type="checkbox" checked={useOrganizerDefaults} onChange={(event) => setUseOrganizerDefaults(event.target.checked)} style={{ width: 18, height: 18, marginTop: 2 }} />
-      <span style={{ display: "grid", gap: 4 }}><strong>Использовать стандартное правило организатора</strong><small className="muted">Сейчас для {organizerName}: {organizerPayer === "BUYER" ? "сервисный сбор оплачивает покупатель" : "сервисный сбор оплачивает организатор"}.</small></span>
-    </label>
-
-    {!useOrganizerDefaults && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 14, marginTop: 16 }}>
-      <button type="button" onClick={() => setServiceFeePayer("BUYER")} style={optionStyle(serviceFeePayer === "BUYER")}><span style={{ fontSize: 22 }}>{serviceFeePayer === "BUYER" ? "✓ " : ""}<strong>Платит покупатель</strong></span><span>Сбор добавляется сверху к стоимости билетов.</span></button>
-      <button type="button" onClick={() => setServiceFeePayer("ORGANIZER")} style={optionStyle(serviceFeePayer === "ORGANIZER")}><span style={{ fontSize: 22 }}>{serviceFeePayer === "ORGANIZER" ? "✓ " : ""}<strong>Плачу я как организатор</strong></span><span>Покупатель платит только за билеты, а сбор удерживается из вашей выплаты.</span></button>
-    </div>}
-
-    <div style={{ marginTop: 16, padding: 20, borderRadius: 16, background: effectivePayer === "BUYER" ? "#f0f9ff" : "#fff7ed", border: effectivePayer === "BUYER" ? "1px solid #bae6fd" : "1px solid #fed7aa", display: "grid", gap: 10 }}>
-      <strong style={{ fontSize: 21 }}>{effectivePayer === "BUYER" ? "Для этого мероприятия сбор оплачивает покупатель" : "Для этого мероприятия сбор оплачивает организатор"}</strong>
-      <div className="row between"><span>Пример: билеты</span><strong>{money(example.subtotalMinor)}</strong></div>
-      <div className="row between"><span>Сервисный сбор</span><strong>{money(example.serviceFeeMinor)}</strong></div>
-      <hr style={{ border: 0, borderTop: "1px solid var(--line)", width: "100%" }} />
-      <div className="row between"><span>Покупатель оплачивает</span><strong style={{ fontSize: 20 }}>{money(example.buyerTotalMinor)}</strong></div>
-      <div className="row between"><span>Организатор получает до других удержаний</span><strong style={{ fontSize: 20 }}>{money(example.organizerNetMinor)}</strong></div>
-    </div>
-
-    <div className="row" style={{ marginTop: 20, flexWrap: "wrap" }}><button className="btn" type="button" disabled={saving} onClick={save}>{saving ? "Сохраняем..." : "Сохранить условия"}</button>{message && <span className="muted">{message}</span>}</div>
-  </section>;
-}
+export function EventCommercialTermsForm({eventId,initial,organizerName,isSuperAdmin}:{eventId:string;organizerName:string;isSuperAdmin:boolean;initial:{useOrganizerDefaults:boolean;serviceFeePayer:"BUYER"|"ORGANIZER";organizerServiceFeePayer:"BUYER"|"ORGANIZER"}}){const {locale}=useLocale();const text=copy[locale];const[useOrganizerDefaults,setUseOrganizerDefaults]=useState(initial.useOrganizerDefaults);const[serviceFeePayer,setServiceFeePayer]=useState(initial.serviceFeePayer);const[organizerPayer,setOrganizerPayer]=useState(initial.organizerServiceFeePayer);const[percentBps,setPercentBps]=useState(0);const[fixedMinor,setFixedMinor]=useState(0);const[saving,setSaving]=useState(false);const[message,setMessage]=useState("");useEffect(()=>{fetch(`/api/office/events/${eventId}/commercial-terms`).then(response=>response.ok?response.json():null).then(data=>{if(!data?.terms)return;setPercentBps(data.terms.organizer.salesFeePercentBps);setFixedMinor(data.terms.organizer.salesFeeFixedMinor);setOrganizerPayer(data.terms.organizer.serviceFeePayer);}).catch(()=>undefined);},[eventId]);const effectivePayer=useOrganizerDefaults?organizerPayer:serviceFeePayer;const example=useMemo(()=>calculateServiceFee(10000,{salesFeePercentBps:percentBps,salesFeeFixedMinor:fixedMinor,serviceFeePayer:effectivePayer}),[effectivePayer,fixedMinor,percentBps]);const percentLabel=`${(percentBps/100).toLocaleString(localeTag(locale),{maximumFractionDigits:2})}%`;const feeLabel=`${percentLabel}${fixedMinor?` + ${money(fixedMinor)}`:""}`;async function save(){setSaving(true);setMessage("");const response=await fetch(`/api/office/events/${eventId}/commercial-terms`,{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({useOrganizerDefaults,serviceFeePayer})});setSaving(false);setMessage(response.ok?text.saved:text.error);}const optionStyle=(selected:boolean)=>({border:selected?"2px solid #ff7900":"1px solid var(--line)",borderRadius:16,padding:18,background:selected?"#fff8f0":"#fff",cursor:"pointer",display:"grid",gap:7,textAlign:"start" as const});return <section className="card" style={{marginTop:20,padding:26,overflow:"visible"}}><div style={{display:"grid",gap:7}}><span className="eyebrow">{text.eyebrow}</span><h2 style={{margin:0,fontSize:28}}>{text.title}</h2><p className="muted" style={{margin:0,maxWidth:760}}>{text.help}</p></div>{isSuperAdmin&&<div style={{marginTop:18,padding:14,borderRadius:14,background:"#eef5ff",border:"1px solid #cfe0ff"}}><strong>{text.organizer}: {organizerName}</strong></div>}<div style={{marginTop:20,padding:18,borderRadius:16,background:"#f8fafc",border:"1px solid var(--line)",display:"grid",gap:8}}><div className="row between" style={{flexWrap:"wrap",gap:10}}><strong>{text.fee}</strong><strong style={{fontSize:22}}><bdi>{feeLabel}</bdi></strong></div><small className="muted">{text.feeHelp}</small></div><label style={{marginTop:18,padding:16,border:"1px solid var(--line)",borderRadius:14,display:"flex",alignItems:"flex-start",gap:12,cursor:"pointer"}}><input type="checkbox" checked={useOrganizerDefaults} onChange={event=>setUseOrganizerDefaults(event.target.checked)} style={{width:18,height:18,marginTop:2}}/><span style={{display:"grid",gap:4}}><strong>{text.defaults}</strong><small className="muted">{organizerName}: {organizerPayer==="BUYER"?text.buyerRule:text.organizerRule}.</small></span></label>{!useOrganizerDefaults&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14,marginTop:16}}><button type="button" onClick={()=>setServiceFeePayer("BUYER")} style={optionStyle(serviceFeePayer==="BUYER")}><span style={{fontSize:22}}>{serviceFeePayer==="BUYER"?"✓ ":""}<strong>{text.buyer}</strong></span><span>{text.buyerHelp}</span></button><button type="button" onClick={()=>setServiceFeePayer("ORGANIZER")} style={optionStyle(serviceFeePayer==="ORGANIZER")}><span style={{fontSize:22}}>{serviceFeePayer==="ORGANIZER"?"✓ ":""}<strong>{text.organizerPays}</strong></span><span>{text.organizerHelp}</span></button></div>}<div style={{marginTop:16,padding:20,borderRadius:16,background:effectivePayer==="BUYER"?"#f0f9ff":"#fff7ed",border:effectivePayer==="BUYER"?"1px solid #bae6fd":"1px solid #fed7aa",display:"grid",gap:10}}><strong style={{fontSize:21}}>{effectivePayer==="BUYER"?text.effectiveBuyer:text.effectiveOrganizer}</strong><div className="row between"><span>{text.exampleTickets}</span><strong><bdi>{money(example.subtotalMinor)}</bdi></strong></div><div className="row between"><span>{text.serviceFee}</span><strong><bdi>{money(example.serviceFeeMinor)}</bdi></strong></div><hr style={{border:0,borderTop:"1px solid var(--line)",width:"100%"}}/><div className="row between"><span>{text.buyerTotal}</span><strong style={{fontSize:20}}><bdi>{money(example.buyerTotalMinor)}</bdi></strong></div><div className="row between"><span>{text.organizerNet}</span><strong style={{fontSize:20}}><bdi>{money(example.organizerNetMinor)}</bdi></strong></div></div><div className="row" style={{marginTop:20,flexWrap:"wrap"}}><button className="btn" type="button" disabled={saving} onClick={save}>{saving?text.saving:text.save}</button>{message&&<span className="muted">{message}</span>}</div></section>;}
