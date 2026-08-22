@@ -1,9 +1,7 @@
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentStaff } from "@/lib/auth";
+import { resolveStaffLocale } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
-
-export default async function NoAccessPage() {
-  const staff = await getCurrentStaff();
-  return <AdminShell><section className="panel" style={{maxWidth:760}}><span className="eyebrow">Access control</span><h1>Доступ пока не назначен</h1><p className="muted">Ваш рабочий аккаунт активирован, но для него ещё не выбраны доступные инструменты. Обратитесь к владельцу или администратору организации.</p>{staff?.eventScope==="NONE"&&<p className="muted">Доступ к мероприятиям также пока отключён.</p>}</section></AdminShell>;
-}
+const copy={ru:{eyebrow:"Контроль доступа",title:"Доступ пока не назначен",description:"Ваш рабочий аккаунт активирован, но для него ещё не выбраны доступные инструменты. Обратитесь к владельцу или администратору организации.",events:"Доступ к мероприятиям также пока отключён."},he:{eyebrow:"בקרת גישה",title:"עדיין לא הוקצו הרשאות",description:"החשבון שלכם פעיל, אך עדיין לא הוגדרו עבורו כלי העבודה הזמינים. פנו לבעלים או למנהל הארגון.",events:"גם הגישה לאירועים עדיין מושבתת."},en:{eyebrow:"Access control",title:"Access has not been assigned yet",description:"Your staff account is active, but no tools have been assigned to it yet. Contact the organization owner or administrator.",events:"Event access is also currently disabled."}} as const;
+export default async function NoAccessPage(){const staff=await getCurrentStaff();const locale=resolveStaffLocale({memberOverride:staff?.interfaceLocaleOverride,userPreference:staff?.preferredLocale,organizationDefault:staff?.organization?.defaultStaffLocale});const text=copy[locale];return <AdminShell><section className="panel" style={{maxWidth:760}}><span className="eyebrow">{text.eyebrow}</span><h1>{text.title}</h1><p className="muted">{text.description}</p>{staff?.eventScope==="NONE"&&<p className="muted">{text.events}</p>}</section></AdminShell>;}
