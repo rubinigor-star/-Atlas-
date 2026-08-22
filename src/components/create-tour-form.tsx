@@ -2,40 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/components/locale-provider";
 
 type EventOption={id:string;title:string;city:string;startsAt:string};
-
-function slugify(value:string){
-  const map:Record<string,string>={а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"e",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"h",ц:"c",ч:"ch",ш:"sh",щ:"sch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya"};
-  return value.toLowerCase().split("").map(char=>map[char]??char).join("").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,90);
-}
-
+const copy={
+ ru:{slugError:"Не удалось создать адрес страницы. Введите название тура латиницей или измените поле адреса.",createError:"Не удалось создать тур",title:"Название тура",slug:"Адрес страницы",slugHelp:"Формируется автоматически. Только латинские буквы, цифры и дефисы.",description:"Общее описание",poster:"Общая афиша - HTTPS-ссылка",events:"Выступления тура",busy:"Создаём...",create:"Создать страницу тура",help:"Для тура нужно выбрать минимум два существующих мероприятия. Цены, площадки, схемы и остатки остаются отдельными для каждой даты."},
+ he:{slugError:"לא הצלחנו ליצור כתובת לעמוד. הזינו שם סיור באותיות לטיניות או ערכו את שדה הכתובת.",createError:"לא הצלחנו ליצור את הסיור",title:"שם הסיור",slug:"כתובת העמוד",slugHelp:"נוצרת אוטומטית. אותיות לטיניות, ספרות ומקפים בלבד.",description:"תיאור כללי",poster:"פוסטר כללי - קישור HTTPS",events:"מופעי הסיור",busy:"יוצרים...",create:"יצירת עמוד הסיור",help:"כדי ליצור סיור יש לבחור לפחות שני אירועים קיימים. המחירים, האולמות, המפות והמלאי נשארים נפרדים לכל תאריך."},
+ en:{slugError:"Could not create the page address. Enter the tour name in Latin characters or edit the address field.",createError:"Could not create tour",title:"Tour name",slug:"Page address",slugHelp:"Generated automatically. Latin letters, digits and hyphens only.",description:"General description",poster:"Main poster - HTTPS URL",events:"Tour dates",busy:"Creating...",create:"Create tour page",help:"A tour requires at least two existing events. Pricing, venues, maps and inventory remain separate for each date."}
+} as const;
+function slugify(value:string){const map:Record<string,string>={а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"e",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"h",ц:"c",ч:"ch",ш:"sh",щ:"sch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya"};return value.toLowerCase().split("").map(char=>map[char]??char).join("").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,90);}
+function dateLocale(locale:"ru"|"he"|"en"){return locale==="he"?"he-IL":locale==="en"?"en-IL":"ru-IL";}
 export function CreateTourForm({events}:{events:EventOption[]}){
-  const router=useRouter();
-  const [selected,setSelected]=useState<string[]>([]);
-  const [busy,setBusy]=useState(false);
-  const [error,setError]=useState("");
-  const [title,setTitle]=useState("");
-  const [slug,setSlug]=useState("");
-  const [slugEdited,setSlugEdited]=useState(false);
-  async function submit(e:React.FormEvent<HTMLFormElement>){
-    e.preventDefault();setBusy(true);setError("");
-    const form=new FormData(e.currentTarget);
-    const finalSlug=slugify(slug||title);
-    if(!finalSlug){setError("Не удалось создать адрес страницы. Введите название тура латиницей или измените поле адреса.");setBusy(false);return;}
-    const response=await fetch("/api/admin/tours",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({title,slug:finalSlug,description:form.get("description"),posterUrl:form.get("posterUrl"),eventIds:selected})});
-    const data=await response.json();
-    if(!response.ok){setError(data.error||"Не удалось создать тур");setBusy(false);return;}
-    router.push(`/tours/${data.slug}`);router.refresh();
-  }
-  return <form className={`panel form ${busy?"loading":""}`} onSubmit={submit}>
-    <div className="field"><label>Название тура</label><input className="input" name="title" value={title} onChange={e=>{const value=e.target.value;setTitle(value);if(!slugEdited)setSlug(slugify(value));}} required placeholder="NOA ELECTRIC — Israel Tour 2026"/></div>
-    <div className="field"><label>Адрес страницы</label><input className="input" name="slug" value={slug} onChange={e=>{setSlugEdited(true);setSlug(slugify(e.target.value));}} required pattern="[a-z0-9-]+" placeholder="noa-electric-israel-2026"/><small className="muted">Формируется автоматически. Только латинские буквы, цифры и дефисы.</small></div>
-    <div className="field"><label>Общее описание</label><textarea name="description" rows={5} required/></div>
-    <div className="field"><label>Общая афиша — HTTPS-ссылка</label><input className="input" name="posterUrl" type="url" placeholder="https://..."/></div>
-    <div className="field"><label>Выступления тура</label><div className="tour-event-picker">{events.map(event=><label key={event.id} className={selected.includes(event.id)?"selected":""}><input type="checkbox" checked={selected.includes(event.id)} onChange={e=>setSelected(current=>e.target.checked?[...current,event.id]:current.filter(id=>id!==event.id))}/><span><strong>{event.title}</strong><small>{event.city} · {new Date(event.startsAt).toLocaleString("ru-IL")}</small></span></label>)}</div></div>
-    {error&&<div className="toast">{error}</div>}
-    <button className="btn" disabled={busy||selected.length<2}>{busy?"Создаём...":"Создать страницу тура"}</button>
-    <p className="muted">Для тура нужно выбрать минимум два существующих мероприятия. Цены, площадки, схемы и остатки остаются отдельными для каждой даты.</p>
-  </form>;
+ const router=useRouter();const{locale}=useLocale();const text=copy[locale];const[selected,setSelected]=useState<string[]>([]);const[busy,setBusy]=useState(false);const[error,setError]=useState("");const[title,setTitle]=useState("");const[slug,setSlug]=useState("");const[slugEdited,setSlugEdited]=useState(false);const ltr={direction:"ltr" as const,textAlign:"left" as const};
+ async function submit(e:React.FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setError("");const form=new FormData(e.currentTarget);const finalSlug=slugify(slug||title);if(!finalSlug){setError(text.slugError);setBusy(false);return;}const response=await fetch("/api/admin/tours",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({title,slug:finalSlug,description:form.get("description"),posterUrl:form.get("posterUrl"),eventIds:selected})});const data=await response.json();if(!response.ok){setError(data.error||text.createError);setBusy(false);return;}router.push(`/tours/${data.slug}`);router.refresh();}
+ return <form className={`panel form ${busy?"loading":""}`} onSubmit={submit}><div className="field"><label>{text.title}</label><input className="input" name="title" value={title} onChange={e=>{const value=e.target.value;setTitle(value);if(!slugEdited)setSlug(slugify(value));}} required placeholder="NOA ELECTRIC - Israel Tour 2026"/></div><div className="field"><label>{text.slug}</label><input className="input" dir="ltr" style={ltr} name="slug" value={slug} onChange={e=>{setSlugEdited(true);setSlug(slugify(e.target.value));}} required pattern="[a-z0-9-]+" placeholder="noa-electric-israel-2026"/><small className="muted">{text.slugHelp}</small></div><div className="field"><label>{text.description}</label><textarea name="description" rows={5} required/></div><div className="field"><label>{text.poster}</label><input className="input" dir="ltr" style={ltr} name="posterUrl" type="url" placeholder="https://..."/></div><div className="field"><label>{text.events}</label><div className="tour-event-picker">{events.map(event=><label key={event.id} className={selected.includes(event.id)?"selected":""}><input type="checkbox" checked={selected.includes(event.id)} onChange={e=>setSelected(current=>e.target.checked?[...current,event.id]:current.filter(id=>id!==event.id))}/><span><strong>{event.title}</strong><small>{event.city} · <bdi>{new Date(event.startsAt).toLocaleString(dateLocale(locale))}</bdi></small></span></label>)}</div></div>{error&&<div className="toast">{error}</div>}<button className="btn" disabled={busy||selected.length<2}>{busy?text.busy:text.create}</button><p className="muted">{text.help}</p></form>;
 }
