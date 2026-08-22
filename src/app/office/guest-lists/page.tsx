@@ -2,64 +2,27 @@ import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
+import { localeTag, resolveStaffLocale } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 const GUEST_LIST_PREFIXES = ["__GUEST_LIST__:", "__CHANNEL__:GUEST:"];
+const copy={
+  ru:{eyebrow:"Гостевые списки",title:"Гостевые списки",description:"Каждый список живёт отдельно: мероприятие, лимит, гости, проходы, просмотры и ссылка управления.",lists:"Списков",active:"Активных",guests:"Гостей",checkins:"Прошли",views:"Уникальные открытия",create:"Создание нового списка",createHelp:"Новый список создаётся внутри нужного мероприятия, потому что там уже известны доступные билеты, категории и столы.",open:"Открыть мероприятия",columns:["Список","Мероприятие","Назначение","Заполнено","Прошли","Открытия","Статус"],table:"Стол",ticket:"Билет",event:"Мероприятие",filled:"заполнено",enabled:"Активен",disabled:"Отключён",empty:"Гостевых списков пока нет."},
+  he:{eyebrow:"רשימות אורחים",title:"רשימות אורחים",description:"כל רשימה מנוהלת בנפרד: אירוע, מגבלה, אורחים, כניסות, צפיות וקישור ניהול.",lists:"רשימות",active:"פעילות",guests:"אורחים",checkins:"נכנסו",views:"פתיחות ייחודיות",create:"יצירת רשימה חדשה",createHelp:"רשימה חדשה נוצרת מתוך האירוע הרלוונטי, שבו כבר מוגדרים הכרטיסים, הקטגוריות והשולחנות הזמינים.",open:"פתיחת האירועים",columns:["רשימה","אירוע","הקצאה","מילוי","נכנסו","פתיחות","סטטוס"],table:"שולחן",ticket:"כרטיס",event:"אירוע",filled:"מלא",enabled:"פעילה",disabled:"מושבתת",empty:"עדיין אין רשימות אורחים."},
+  en:{eyebrow:"Guest lists",title:"Guest lists",description:"Each list is managed separately with its event, limit, guests, check-ins, views, and management link.",lists:"Lists",active:"Active",guests:"Guests",checkins:"Checked in",views:"Unique opens",create:"Create a new list",createHelp:"A new list is created inside the relevant event, where the available tickets, categories, and tables are already known.",open:"Open events",columns:["List","Event","Allocation","Filled","Checked in","Opens","Status"],table:"Table",ticket:"Ticket",event:"Event",filled:"filled",enabled:"Active",disabled:"Disabled",empty:"No guest lists yet."}
+} as const;
 
 export default async function GuestListsPage() {
   const staff = await requirePermission("EVENT_MANAGE");
-  const organizationId = staff.organizationId!;
-  const allowed = staff.eventAccess.map(item => item.eventId);
-  const lists = await db.promoterLink.findMany({
-    where: {
-      event: { organizationId, ...(allowed.length ? { id: { in: allowed } } : {}) },
-      promoter: { OR: GUEST_LIST_PREFIXES.map(prefix => ({ name: { startsWith: prefix } })) },
-    },
-    orderBy: { createdAt: "desc" },
-    include: {
-      event: true,
-      category: true,
-      table: true,
-      visits: { select: { id: true } },
-      orders: { where: { status: { notIn: ["CANCELLED", "REJECTED"] } }, include: { items: true, tickets: true } },
-    },
-  });
-
-  const totals = lists.reduce((sum, list) => {
-    const guests = list.orders.flatMap(order => order.items).reduce((n, item) => n + item.quantity, 0);
-    const checkins = list.orders.flatMap(order => order.tickets).filter(ticket => ticket.status === "USED").length;
-    return { lists: sum.lists + 1, active: sum.active + (list.active ? 1 : 0), guests: sum.guests + guests, checkins: sum.checkins + checkins, views: sum.views + list.visits.length };
-  }, { lists: 0, active: 0, guests: 0, checkins: 0, views: 0 });
-
+  const locale=resolveStaffLocale({memberOverride:staff.interfaceLocaleOverride,userPreference:staff.preferredLocale,organizationDefault:staff.organization?.defaultStaffLocale});const text=copy[locale];
+  const organizationId = staff.organizationId!;const allowed = staff.eventAccess.map(item => item.eventId);
+  const lists = await db.promoterLink.findMany({where:{event:{organizationId,...(allowed.length?{id:{in:allowed}}:{})},promoter:{OR:GUEST_LIST_PREFIXES.map(prefix=>({name:{startsWith:prefix}}))}},orderBy:{createdAt:"desc"},include:{event:true,category:true,table:true,visits:{select:{id:true}},orders:{where:{status:{notIn:["CANCELLED","REJECTED"]}},include:{items:true,tickets:true}}}});
+  const totals=lists.reduce((sum,list)=>{const guests=list.orders.flatMap(order=>order.items).reduce((n,item)=>n+item.quantity,0);const checkins=list.orders.flatMap(order=>order.tickets).filter(ticket=>ticket.status==="USED").length;return{lists:sum.lists+1,active:sum.active+(list.active?1:0),guests:sum.guests+guests,checkins:sum.checkins+checkins,views:sum.views+list.visits.length};},{lists:0,active:0,guests:0,checkins:0,views:0});
+  const formatDate=(date:Date)=>new Intl.DateTimeFormat(localeTag(locale),{dateStyle:"short",timeStyle:"short",timeZone:"Asia/Jerusalem"}).format(date);
   return <AdminShell>
-    <div className="office-page-heading"><div><span className="eyebrow">Guest lists</span><h1>Гостевые списки</h1><p className="muted">Каждый список живёт отдельно: мероприятие, лимит, гости, проходы, просмотры и ссылка управления.</p></div></div>
-    <div className="stats">
-      <div className="stat"><span className="muted">Списков</span><strong>{totals.lists}</strong></div>
-      <div className="stat"><span className="muted">Активных</span><strong>{totals.active}</strong></div>
-      <div className="stat"><span className="muted">Гостей</span><strong>{totals.guests}</strong></div>
-      <div className="stat"><span className="muted">Прошли</span><strong>{totals.checkins}</strong></div>
-      <div className="stat"><span className="muted">Уникальные открытия</span><strong>{totals.views}</strong></div>
-    </div>
-
-    <div className="panel" style={{ marginTop: 24, marginBottom: 20 }}><strong>Создание нового списка</strong><p className="muted">Новый список создаётся внутри нужного мероприятия, потому что там уже известны доступные билеты, категории и столы.</p><Link className="btn dark" href="/office/events">Открыть мероприятия</Link></div>
-
-    <div className="table-wrap"><table><thead><tr><th>Список</th><th>Мероприятие</th><th>Назначение</th><th>Заполнено</th><th>Прошли</th><th>Открытия</th><th>Статус</th></tr></thead><tbody>
-      {lists.map(list => {
-        const guests = list.orders.flatMap(order => order.items).reduce((sum, item) => sum + item.quantity, 0);
-        const checkins = list.orders.flatMap(order => order.tickets).filter(ticket => ticket.status === "USED").length;
-        const limit = list.guestLimit ?? list.table?.seats ?? list.category?.capacity ?? 0;
-        const allocation = list.table ? `Стол: ${list.table.label}` : list.category ? `Билет: ${list.category.name}` : "Мероприятие";
-        const fill = limit ? Math.round(guests / limit * 100) : null;
-        return <tr key={list.id}>
-          <td><Link href={`/office/guest-lists/${list.id}`}><strong>{list.label}</strong></Link><br/><small>{list.code}</small></td>
-          <td>{list.event.title}<br/><small>{new Date(list.event.startsAt).toLocaleString("ru-RU")}</small></td>
-          <td>{allocation}</td>
-          <td><strong>{guests}</strong>{limit ? ` / ${limit}` : ""}{fill !== null && <><br/><small>{fill}% заполнено</small></>}</td>
-          <td>{checkins}</td><td>{list.visits.length}</td>
-          <td><span className="pill" style={list.active ? { background: "#dcfae6", color: "#067647" } : {}}>{list.active ? "Активен" : "Отключён"}</span></td>
-        </tr>;
-      })}
-      {!lists.length && <tr><td colSpan={7}>Гостевых списков пока нет.</td></tr>}
-    </tbody></table></div>
+    <div className="office-page-heading"><div><span className="eyebrow">{text.eyebrow}</span><h1>{text.title}</h1><p className="muted">{text.description}</p></div></div>
+    <div className="stats"><div className="stat"><span className="muted">{text.lists}</span><strong>{totals.lists}</strong></div><div className="stat"><span className="muted">{text.active}</span><strong>{totals.active}</strong></div><div className="stat"><span className="muted">{text.guests}</span><strong>{totals.guests}</strong></div><div className="stat"><span className="muted">{text.checkins}</span><strong>{totals.checkins}</strong></div><div className="stat"><span className="muted">{text.views}</span><strong>{totals.views}</strong></div></div>
+    <div className="panel" style={{marginTop:24,marginBottom:20}}><strong>{text.create}</strong><p className="muted">{text.createHelp}</p><Link className="btn dark" href="/office/events">{text.open}</Link></div>
+    <div className="table-wrap"><table><thead><tr>{text.columns.map(column=><th key={column}>{column}</th>)}</tr></thead><tbody>{lists.map(list=>{const guests=list.orders.flatMap(order=>order.items).reduce((sum,item)=>sum+item.quantity,0);const checkins=list.orders.flatMap(order=>order.tickets).filter(ticket=>ticket.status==="USED").length;const limit=list.guestLimit??list.table?.seats??list.category?.capacity??0;const allocation=list.table?`${text.table}: ${list.table.label}`:list.category?`${text.ticket}: ${list.category.name}`:text.event;const fill=limit?Math.round(guests/limit*100):null;return <tr key={list.id}><td><Link href={`/office/guest-lists/${list.id}`}><strong>{list.label}</strong></Link><br/><small><bdi>{list.code}</bdi></small></td><td>{list.event.title}<br/><small><bdi>{formatDate(list.event.startsAt)}</bdi></small></td><td>{allocation}</td><td><strong>{guests}</strong>{limit?` / ${limit}`:""}{fill!==null&&<><br/><small>{fill}% {text.filled}</small></>}</td><td>{checkins}</td><td>{list.visits.length}</td><td><span className="pill" style={list.active?{background:"#dcfae6",color:"#067647"}:{}}>{list.active?text.enabled:text.disabled}</span></td></tr>})}{!lists.length&&<tr><td colSpan={7}>{text.empty}</td></tr>}</tbody></table></div>
   </AdminShell>;
 }
