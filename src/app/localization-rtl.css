@@ -1,0 +1,38 @@
+/* Context-scoped RTL. Platform chrome may remain LTR while an event, order or
+   staff workspace is Hebrew, so these rules intentionally match any dir root. */
+[dir="rtl"]{direction:rtl;text-align:start}
+[dir="rtl"] input:not([type="email"]):not([type="tel"]),[dir="rtl"] textarea,[dir="rtl"] select{text-align:start}
+[dir="rtl"] input[type="email"],[dir="rtl"] input[type="tel"],[dir="rtl"] [data-bidi="technical"]{direction:ltr;text-align:left;unicode-bidi:isolate}
+[dir="rtl"] table th,[dir="rtl"] table td,[dir="rtl"] button,[dir="rtl"] .field{text-align:start}
+[dir="rtl"] svg[data-directional="true"]{transform:scaleX(-1)}
+
+/* Backoffice uses a nested locale context, independent from the public site. */
+.office-shell[dir="rtl"]{grid-template-columns:minmax(0,1fr) 264px}
+.office-shell[dir="rtl"] .office-sidebar{grid-column:2;grid-row:1}
+.office-shell[dir="rtl"] .office-main{grid-column:1;grid-row:1}
+.office-shell[dir="rtl"] .office-account>button,
+.office-shell[dir="rtl"] .office-account-popover button,
+.office-shell[dir="rtl"] .office-account-popover a,
+.office-shell[dir="rtl"] .team-list>button,
+.office-shell[dir="rtl"] .permission-grid button{text-align:right}
+.office-shell[dir="rtl"] .office-account-popover{left:auto;right:0}
+.office-shell[dir="rtl"] .request-status{margin-left:0;margin-right:auto}
+.office-shell[dir="rtl"] .request-card blockquote{border-left:0;border-right:3px solid #ff604b;border-radius:10px 0 0 10px}
+.office-shell[dir="rtl"] .team-list>button strong i{margin-left:0;margin-right:6px}
+
+/* Seat-map geometry is physical and must not mirror. Textual controls around
+   it inherit RTL, while the coordinate surface and price axes stay LTR. */
+[dir="rtl"] [class*="mapViewport"],
+[dir="rtl"] [class*="mapFrame"],
+[dir="rtl"] [class*="world"],
+[dir="rtl"] [class*="priceGrid"],
+[dir="rtl"] [class*="rangeWrap"]{direction:ltr;text-align:left}
+[dir="rtl"] [class*="eventDetails"],
+[dir="rtl"] [class*="sidebar"]{direction:rtl;text-align:right}
+
+@media(max-width:900px){
+  .office-shell[dir="rtl"] .office-mobile-header{left:0;right:0}
+  .office-shell[dir="rtl"] .office-mobile-header .office-brand{transform-origin:right center}
+  .office-shell[dir="rtl"] .office-account-popover{left:12px;right:12px}
+  .office-shell[dir="rtl"] .office-bottom-nav{left:10px;right:10px}
+}

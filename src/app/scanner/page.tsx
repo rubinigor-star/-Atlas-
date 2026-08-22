@@ -3,12 +3,15 @@ import { requirePermission } from "@/lib/auth";
 import { ScannerClient } from "@/components/scanner-client";
 import { AdminShell } from "@/components/admin-shell";
 import { ensureExternalTicketStorage } from "@/lib/external-ticket-storage";
+import { localeTag, resolveStaffLocale } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 type CountRow = { count: number | bigint };
 
 export default async function Scanner() {
   const staff = await requirePermission("SCAN");
+  const locale=resolveStaffLocale({memberOverride:staff.interfaceLocaleOverride,userPreference:staff.preferredLocale,organizationDefault:staff.organization?.defaultStaffLocale});
+  const c=locale==="he"?{title:"סריקת כרטיסים",intro:"בקרת כניסה מהנייד, נתוני האירוע וחיפוש מהיר של אורחים.",entered:"נכנסו",time:"שעה",result:"תוצאה",guest:"אורח",category:"קטגוריה",event:"אירוע",code:"קוד"}:locale==="en"?{title:"Ticket scanner",intro:"Mobile door control, live event statistics and quick guest search.",entered:"Entered",time:"Time",result:"Result",guest:"Guest",category:"Category",event:"Event",code:"Code"}:{title:"Сканер билетов",intro:"Мобильный контроль входа, статистика мероприятия и быстрый поиск гостя.",entered:"Вошли",time:"Время",result:"Результат",guest:"Гость",category:"Категория",event:"Мероприятие",code:"Код"};
   await ensureExternalTicketStorage();
   const allowedEvents = staff.eventAccess.map((item) => item.eventId);
   const scopedIds = staff.eventScope === "ALL" ? undefined : allowedEvents;
@@ -43,5 +46,5 @@ export default async function Scanner() {
 
   const totalEntered = eventOptions.reduce((sum, event) => sum + event.entered, 0);
 
-  return <AdminShell><div className="office-page-heading"><div><span className="eyebrow">Door control</span><h1>Сканер билетов</h1><p>Мобильный контроль входа, статистика мероприятия и быстрый поиск гостя.</p></div><span className="office-live"><i/>Вошли: {totalEntered}</span></div><div className="office-scanner"><ScannerClient initialEntered={totalEntered} events={eventOptions}/><div className="table-wrap"><table><thead><tr><th>Время</th><th>Результат</th><th>Гость</th><th>Категория</th><th>Мероприятие</th><th>Код</th></tr></thead><tbody>{scans.map((scan) => <tr key={scan.id}><td>{scan.scannedAt.toLocaleString("ru-RU", { timeZone: "Asia/Jerusalem" })}</td><td><span className="pill">{scan.result}</span></td><td>{scan.ticket?.holderName ?? "-"}</td><td>{scan.ticket?.category.name ?? "-"}</td><td>{scan.ticket?.order.event.title ?? "-"}</td><td>{scan.ticket?.publicCode.slice(0, 16) ?? "-"}</td></tr>)}</tbody></table></div></div></AdminShell>;
+  return <AdminShell><div className="office-page-heading"><div><span className="eyebrow">Door control</span><h1>{c.title}</h1><p>{c.intro}</p></div><span className="office-live"><i/>{c.entered}: {totalEntered}</span></div><div className="office-scanner"><ScannerClient initialEntered={totalEntered} events={eventOptions}/><div className="table-wrap"><table><thead><tr><th>{c.time}</th><th>{c.result}</th><th>{c.guest}</th><th>{c.category}</th><th>{c.event}</th><th>{c.code}</th></tr></thead><tbody>{scans.map((scan) => <tr key={scan.id}><td>{scan.scannedAt.toLocaleString(localeTag(locale), { timeZone: "Asia/Jerusalem" })}</td><td><span className="pill">{scan.result}</span></td><td>{scan.ticket?.holderName ?? "-"}</td><td>{scan.ticket?.category.name ?? "-"}</td><td>{scan.ticket?.order.event.title ?? "-"}</td><td>{scan.ticket?.publicCode.slice(0, 16) ?? "-"}</td></tr>)}</tbody></table></div></div></AdminShell>;
 }

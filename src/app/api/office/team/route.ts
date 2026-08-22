@@ -6,7 +6,7 @@ import { rolePermissions } from "@/lib/permissions";
 import { writeAudit } from "@/lib/audit";
 import { sendStaffInvitation } from "@/lib/office-auth-email";
 
-const schema=z.object({name:z.string().min(2).max(120),email:z.string().email(),jobTitle:z.string().max(100).optional(),staffRole:z.enum(["ADMIN","EVENT_MANAGER","APPROVER","CHECKIN","ANALYST","CUSTOM"])});
+const schema=z.object({name:z.string().min(2).max(120),email:z.string().email(),jobTitle:z.string().max(100).optional(),staffRole:z.enum(["ADMIN","EVENT_MANAGER","APPROVER","CHECKIN","ANALYST","CUSTOM"]),interfaceLocaleOverride:z.enum(["ru","he","en"]).nullable().optional()});
 
 export async function POST(request:Request){
   try{
@@ -19,7 +19,7 @@ export async function POST(request:Request){
     const existing=await db.user.findUnique({where:{email:normalizedEmail}});
     if(existing)throw new Error("Пользователь с таким email уже существует");
     const permissions=input.staffRole==="CUSTOM"?[]:rolePermissions[input.staffRole];
-    const staff=await db.user.create({data:{name:input.name.trim(),email:normalizedEmail,jobTitle:input.jobTitle?.trim()||null,role:input.staffRole==="CHECKIN"?"CHECKIN":"ORGANIZER",staffRole:input.staffRole,organizationId:actor.organizationId,active:true,permissions:{create:permissions.map(permission=>({permission}))}},include:{permissions:true,eventAccess:true}});
+    const staff=await db.user.create({data:{name:input.name.trim(),email:normalizedEmail,jobTitle:input.jobTitle?.trim()||null,interfaceLocaleOverride:input.interfaceLocaleOverride??null,role:input.staffRole==="CHECKIN"?"CHECKIN":"ORGANIZER",staffRole:input.staffRole,organizationId:actor.organizationId,active:true,permissions:{create:permissions.map(permission=>({permission}))}},include:{permissions:true,eventAccess:true}});
     await setStaffEventScope(staff.id,"NONE");
     let invitationSent=false;
     try{
@@ -30,7 +30,7 @@ export async function POST(request:Request){
       console.error("[staff-invite]",error);
     }
     await writeAudit(actor,{action:"TEAM_MEMBER_CREATED",entityType:"User",entityId:staff.id,summary:`Добавлен сотрудник ${staff.name}`,metadata:{staffRole:staff.staffRole,eventScope:"NONE",invitationSent}});
-    return NextResponse.json({invitationSent,staff:{id:staff.id,name:staff.name,email:staff.email,jobTitle:staff.jobTitle,staffRole:staff.staffRole,active:staff.active,permissions:staff.permissions.map(grant=>grant.permission),eventIds:[],eventScope:"NONE"}});
+    return NextResponse.json({invitationSent,staff:{id:staff.id,name:staff.name,email:staff.email,jobTitle:staff.jobTitle,staffRole:staff.staffRole,interfaceLocaleOverride:staff.interfaceLocaleOverride,active:staff.active,permissions:staff.permissions.map(grant=>grant.permission),eventIds:[],eventScope:"NONE"}});
   }catch(error){
     const message=error instanceof Error?error.message:"Ошибка";
     return NextResponse.json({error:message==="FORBIDDEN"?"Недостаточно прав":message},{status:message==="FORBIDDEN"?403:400});

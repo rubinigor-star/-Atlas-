@@ -2,7 +2,16 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getDictionary, isRtl, normalizeLocale, type Dictionary, type Locale } from "@/lib/i18n";
+import {
+  getDictionary,
+  isRtl,
+  LEGACY_LOCALE_COOKIE,
+  normalizeLocale,
+  PLATFORM_LOCALE_COOKIE,
+  localeConfig,
+  type Dictionary,
+  type Locale,
+} from "@/lib/i18n";
 
 export type { Locale } from "@/lib/i18n";
 
@@ -22,46 +31,75 @@ function detectedLocale(): Locale {
   return "en";
 }
 
-function persistBrowserLocale(locale: Locale) {
-  window.localStorage.setItem("atlas-locale", locale);
-  document.cookie = `atlas-locale=${locale}; path=/; max-age=31536000; samesite=lax`;
-  document.documentElement.lang = locale;
+type LocaleScope = "platform" | "staff" | "fixed";
+
+function persistPlatformLocale(locale: Locale) {
+  window.localStorage.setItem(PLATFORM_LOCALE_COOKIE, locale);
+  window.localStorage.setItem(LEGACY_LOCALE_COOKIE, locale);
+  document.cookie = `${PLATFORM_LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax`;
+  document.cookie = `${LEGACY_LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax`;
+  document.documentElement.lang = localeConfig[locale].tag;
   document.documentElement.dir = isRtl(locale) ? "rtl" : "ltr";
 }
 
-export function LocaleProvider({ children, initialLocale = "ru" }: { children: React.ReactNode; initialLocale?: Locale }) {
+export function LocaleProvider({
+  children,
+  initialLocale = "ru",
+  scope = "platform",
+}: {
+  children: React.ReactNode;
+  initialLocale?: Locale;
+  scope?: LocaleScope;
+}) {
   const router = useRouter();
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
 
   const changeLocale = useCallback((nextLocale: Locale) => {
-    persistBrowserLocale(nextLocale);
+    if (scope === "fixed") return;
     setLocaleState(nextLocale);
+    if (scope === "platform") persistPlatformLocale(nextLocale);
+    if (scope === "staff") {
+      window.localStorage.setItem("atlas-staff-locale", nextLocale);
+      void fetch("/api/office/locale", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "self", locale: nextLocale }),
+      }).then((response) => {
+        if (!response.ok) throw new Error("STAFF_LOCALE_UPDATE_FAILED");
+        router.refresh();
+      }).catch(() => {
+        setLocaleState(initialLocale);
+      });
+    }
 
     // The homepage and other public pages render their localized copy on the server.
     // Refresh the React Server Components after the cookie changes so the entire
     // page, not only the client-side header, switches language and direction.
     router.refresh();
-  }, [router]);
+  }, [initialLocale, router, scope]);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("atlas-locale");
+    if (scope !== "platform") return;
+    const saved = window.localStorage.getItem(PLATFORM_LOCALE_COOKIE)
+      ?? window.localStorage.getItem(LEGACY_LOCALE_COOKIE);
     const nextLocale = saved ? normalizeLocale(saved) : detectedLocale();
 
     if (nextLocale !== initialLocale) {
-      changeLocale(nextLocale);
+      queueMicrotask(() => changeLocale(nextLocale));
       return;
     }
 
-    persistBrowserLocale(initialLocale);
-    setLocaleState(initialLocale);
-  }, [changeLocale, initialLocale]);
+    persistPlatformLocale(initialLocale);
+  }, [changeLocale, initialLocale, scope]);
+
+  const resolvedLocale=scope==="fixed"?initialLocale:locale;
 
   const value = useMemo<LocaleContextValue>(() => ({
-    locale,
-    dir: isRtl(locale) ? "rtl" : "ltr",
-    messages: getDictionary(locale),
+    locale:resolvedLocale,
+    dir: isRtl(resolvedLocale) ? "rtl" : "ltr",
+    messages: getDictionary(resolvedLocale),
     setLocale: changeLocale,
-  }), [changeLocale, locale]);
+  }), [changeLocale, resolvedLocale]);
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }

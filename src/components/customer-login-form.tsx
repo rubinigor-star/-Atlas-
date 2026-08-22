@@ -27,7 +27,7 @@ export function CustomerLoginForm({ expired = false }: { expired?: boolean }) {
     const response = await fetch("/api/account/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: form.get("email") }),
+      body: JSON.stringify({ email: form.get("email"), locale }),
     });
     const data = await response.json();
     setBusy(false);

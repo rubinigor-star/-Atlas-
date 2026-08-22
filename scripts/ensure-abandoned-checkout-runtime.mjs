@@ -9,6 +9,7 @@ const statements = [
     "organizationId" TEXT NOT NULL,
     "eventId" TEXT NOT NULL,
     "categoryId" TEXT,
+    "communicationLocale" TEXT NOT NULL DEFAULT 'ru',
     "customerFirstName" TEXT,
     "customerLastName" TEXT,
     "customerEmail" TEXT,
@@ -28,6 +29,7 @@ const statements = [
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE
   )`,
+  `ALTER TABLE "AbandonedCheckout" ADD COLUMN IF NOT EXISTS "communicationLocale" TEXT NOT NULL DEFAULT 'ru'`,
   `CREATE INDEX IF NOT EXISTS "AbandonedCheckout_org_status_idx" ON "AbandonedCheckout"("organizationId", "status", "lastActivityAt")`,
   `CREATE INDEX IF NOT EXISTS "AbandonedCheckout_event_status_idx" ON "AbandonedCheckout"("eventId", "status", "lastActivityAt")`,
   `CREATE TABLE IF NOT EXISTS "RecoveryScenario" (

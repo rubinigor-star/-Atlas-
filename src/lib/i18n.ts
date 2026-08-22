@@ -1,6 +1,20 @@
 export type Locale = "ru" | "he" | "en";
 
 export const locales: Locale[] = ["ru", "he", "en"];
+export const DEFAULT_LOCALE: Locale = "ru";
+export const PLATFORM_LOCALE_COOKIE = "atlas-platform-locale";
+export const LEGACY_LOCALE_COOKIE = "atlas-locale";
+export const ISRAEL_TIME_ZONE = "Asia/Jerusalem";
+
+export const localeConfig: Record<Locale, {
+  tag: string;
+  dir: "ltr" | "rtl";
+  hypLanguage: "HEB" | "ENG";
+}> = {
+  ru: { tag: "ru-IL", dir: "ltr", hypLanguage: "ENG" },
+  he: { tag: "he-IL", dir: "rtl", hypLanguage: "HEB" },
+  en: { tag: "en-IL", dir: "ltr", hypLanguage: "ENG" },
+};
 
 export const localeNames: Record<Locale, string> = {
   ru: "Русский",
@@ -43,12 +57,67 @@ const dictionary = {
 
 export type Dictionary = typeof dictionary.ru;
 
-export function normalizeLocale(value?: string | null): Locale {
-  return value === "he" || value === "en" || value === "ru" ? value : "ru";
+export function isLocale(value: unknown): value is Locale {
+  return value === "he" || value === "en" || value === "ru";
+}
+
+export function normalizeLocale(value?: string | null, fallback: Locale = DEFAULT_LOCALE): Locale {
+  return isLocale(value) ? value : fallback;
 }
 
 export function getDictionary(locale: Locale): Dictionary {
   return dictionary[locale] as Dictionary;
 }
 
-export function isRtl(locale: Locale) { return locale === "he"; }
+export function isRtl(locale: Locale) { return localeConfig[locale].dir === "rtl"; }
+
+export function localeTag(locale: Locale) { return localeConfig[locale].tag; }
+
+export function eventLanguageDefaultLocale(primaryLanguage?: string | null): Locale {
+  if (primaryLanguage === "HE") return "he";
+  if (primaryLanguage === "EN") return "en";
+  return "ru";
+}
+
+export function resolvePlatformLocale(input: {
+  userPreference?: string | null;
+  savedPreference?: string | null;
+  browserPreference?: string | null;
+  fallback?: Locale;
+}): Locale {
+  const fallback = input.fallback ?? DEFAULT_LOCALE;
+  if (isLocale(input.userPreference)) return input.userPreference;
+  if (isLocale(input.savedPreference)) return input.savedPreference;
+  const browser = input.browserPreference?.toLowerCase() ?? "";
+  if (browser.startsWith("he")) return "he";
+  if (browser.startsWith("ru")) return "ru";
+  if (browser.startsWith("en")) return "en";
+  return fallback;
+}
+
+export function resolveStaffLocale(input: {
+  memberOverride?: string | null;
+  userPreference?: string | null;
+  organizationDefault?: string | null;
+  devicePreference?: string | null;
+  fallback?: Locale;
+}): Locale {
+  if (isLocale(input.memberOverride)) return input.memberOverride;
+  if (isLocale(input.userPreference)) return input.userPreference;
+  if (isLocale(input.organizationDefault)) return input.organizationDefault;
+  return resolvePlatformLocale({ browserPreference: input.devicePreference, fallback: input.fallback });
+}
+
+export function resolveCommunicationLocale(input: {
+  transactionLocale?: string | null;
+  eventLocale?: string | null;
+  legacyTicketLocale?: string | null;
+  platformLocale?: string | null;
+  fallback?: Locale;
+}): Locale {
+  if (isLocale(input.transactionLocale)) return input.transactionLocale;
+  if (isLocale(input.eventLocale)) return input.eventLocale;
+  if (isLocale(input.legacyTicketLocale)) return input.legacyTicketLocale;
+  if (isLocale(input.platformLocale)) return input.platformLocale;
+  return input.fallback ?? DEFAULT_LOCALE;
+}

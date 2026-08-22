@@ -9,6 +9,7 @@ import "@fontsource/noto-sans-hebrew/700.css";
 import "./globals.css";
 import "./accessibility.css";
 import "./accessibility-skip.css";
+import "./localization-rtl.css";
 import "./platform.css";
 import "./event-experience.css";
 import "./event-detail-sticky.css";
@@ -43,20 +44,15 @@ import { MarketingTracker } from "@/components/marketing-tracker";
 import { PromoterChannelTracker } from "@/components/promoter-channel-tracker";
 import { CartDrawerMotion } from "@/components/cart-drawer-motion";
 import { getServerI18n } from "@/lib/server-locale";
+import { localeConfig } from "@/lib/i18n";
 
 const BASE="https://www.atlas-one.co";
 
-export const metadata: Metadata = {
-  metadataBase:new URL(BASE),
-  title:{default:"Atlas One - билеты на события в Израиле",template:"%s | Atlas One"},
-  description:"Концерты, вечеринки, фестивали и специальные события в Израиле. Безопасная покупка и электронный билет сразу после оплаты.",
-  openGraph:{type:"website",url:BASE,siteName:"Atlas One",title:"Atlas One - билеты на события в Израиле",description:"Находите события и покупайте билеты онлайн.",images:[{url:"/atlas-app-icon.svg",width:512,height:512,alt:"Atlas One"}]},
-  twitter:{card:"summary_large_image",title:"Atlas One",description:"Билеты на концерты и события в Израиле",images:["/atlas-app-icon.svg"]},
-  robots:{index:true,follow:true,googleBot:{index:true,follow:true,"max-image-preview":"large","max-snippet":-1,"max-video-preview":-1}},
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {capable: true,statusBarStyle: "black-translucent",title: "Atlas One"},
-  icons: {icon: "/atlas-app-icon.svg",apple: "/atlas-app-icon.svg"},
-};
+export async function generateMetadata():Promise<Metadata>{
+  const {locale}=await getServerI18n();
+  const c=locale==="he"?{title:"Atlas One - כרטיסים לאירועים בישראל",description:"הופעות, מסיבות, פסטיבלים ואירועים מיוחדים בישראל. רכישה מאובטחת וכרטיס דיגיטלי מיד לאחר התשלום.",short:"מוצאים אירועים ורוכשים כרטיסים אונליין."}:locale==="en"?{title:"Atlas One - tickets for events in Israel",description:"Concerts, parties, festivals and special events in Israel. Secure checkout and a digital ticket immediately after payment.",short:"Find events and buy tickets online."}:{title:"Atlas One - билеты на события в Израиле",description:"Концерты, вечеринки, фестивали и специальные события в Израиле. Безопасная покупка и электронный билет сразу после оплаты.",short:"Находите события и покупайте билеты онлайн."};
+  return {metadataBase:new URL(BASE),title:{default:c.title,template:"%s | Atlas One"},description:c.description,openGraph:{type:"website",url:BASE,siteName:"Atlas One",title:c.title,description:c.short,images:[{url:"/atlas-app-icon.svg",width:512,height:512,alt:"Atlas One"}]},twitter:{card:"summary_large_image",title:"Atlas One",description:c.short,images:["/atlas-app-icon.svg"]},robots:{index:true,follow:true,googleBot:{index:true,follow:true,"max-image-preview":"large","max-snippet":-1,"max-video-preview":-1}},manifest:"/manifest.webmanifest",appleWebApp:{capable:true,statusBarStyle:"black-translucent",title:"Atlas One"},icons:{icon:"/atlas-app-icon.svg",apple:"/atlas-app-icon.svg"}};
+}
 
 export const viewport: Viewport = {themeColor: "#081426",viewportFit: "cover"};
 
@@ -67,10 +63,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     {"@type":"WebSite","@id":`${BASE}/#website`,url:BASE,name:"Atlas One",publisher:{"@id":`${BASE}/#organization`},inLanguage:["ru","he","en"]}
   ]};
   const applePayIframeBootstrap=`(()=>{const enable=()=>{document.querySelectorAll('iframe').forEach((frame)=>{try{const src=frame.getAttribute('src')||'';if(src.includes('/payments/hyp/')||src.includes('hyp.co.il')||src.includes('creditguard.co.il')){frame.setAttribute('allow','payment');frame.allowPaymentRequest=true;}}catch{}})};enable();new MutationObserver(enable).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});})();`;
-  return <html lang={locale} dir={dir} suppressHydrationWarning><body>
+  return <html lang={localeConfig[locale].tag} dir={dir} suppressHydrationWarning><body>
     <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(schema).replace(/</g,"\\u003c")}}/>
     <script src="https://pps.creditguard.co.il/plugins/applePayOnIframe.js" defer></script>
     <script dangerouslySetInnerHTML={{__html:applePayIframeBootstrap}}/>
-    <MarketingTracker/><PromoterChannelTracker/><CartDrawerMotion/><LocaleProvider initialLocale={locale}><PwaRegister/><AppChrome>{children}</AppChrome></LocaleProvider><SpeedInsights/>
+    <MarketingTracker/><PromoterChannelTracker/><CartDrawerMotion/><LocaleProvider key={locale} initialLocale={locale}><PwaRegister/><AppChrome>{children}</AppChrome></LocaleProvider><SpeedInsights/>
   </body></html>;
 }

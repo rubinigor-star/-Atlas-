@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
 import { getCurrentStaff } from "@/lib/auth";
-import { roleLabels } from "@/lib/permissions";
+import { roleLabelsByLocale } from "@/lib/permissions";
 import { OfficeNavigation } from "@/components/office-navigation";
 import { OfficeAccountMenu } from "@/components/office-account-menu";
 import { OfficeLanguageSwitch } from "@/components/office-language-switch";
 import { AtlasLogo } from "@/components/atlas-logo";
+import { LocaleProvider } from "@/components/locale-provider";
+import { localeConfig, resolveStaffLocale } from "@/lib/i18n";
 
 export async function AdminShell({ children }: { children: React.ReactNode }) {
   const staff = await getCurrentStaff();
@@ -12,16 +14,22 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
   if (staff.role === "ADMIN") redirect("/platform");
   if (!staff.organizationId || !staff.organization) redirect("/office/login?error=NO_ORGANIZATION");
 
-  const staffTitle = staff.staffRole ? roleLabels[staff.staffRole] : "Сотрудник";
+  const staffLocale = resolveStaffLocale({
+    memberOverride: staff.interfaceLocaleOverride,
+    userPreference: staff.preferredLocale,
+    organizationDefault: staff.organization.defaultStaffLocale,
+  });
+  const staffTitle = staff.staffRole ? roleLabelsByLocale[staffLocale][staff.staffRole] : roleLabelsByLocale[staffLocale].CUSTOM;
+  const organizerLabel=staffLocale==="he"?"מפיק":staffLocale==="en"?"Organizer":"Организатор";
 
-  return <div className="office-shell">
+  return <LocaleProvider key={staffLocale} initialLocale={staffLocale} scope="staff"><div className="office-shell" lang={localeConfig[staffLocale].tag} dir={localeConfig[staffLocale].dir}>
     <aside className="office-sidebar">
       <AtlasLogo office />
       <div className="office-org">
         <i>{staff.organization.name.slice(0, 1)}</i>
         <div>
           <strong>{staff.organization.name}</strong>
-          <small>Организатор</small>
+          <small>{organizerLabel}</small>
         </div>
       </div>
       <OfficeLanguageSwitch />
@@ -41,5 +49,5 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
     </main>
 
     <OfficeNavigation mobile permissions={[...staff.permissionSet]} />
-  </div>;
+  </div></LocaleProvider>;
 }

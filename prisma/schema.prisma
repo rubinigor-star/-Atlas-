@@ -110,30 +110,33 @@ enum GuestStatus {
 }
 
 model Organization {
-  id        String         @id @default(cuid())
-  name      String
-  users     User[]
-  events    Event[]
-  promoters Promoter[]
-  guests    GuestProfile[]
-  auditLogs AuditLog[]
-  createdAt DateTime       @default(now())
+  id                 String         @id @default(cuid())
+  name               String
+  defaultStaffLocale String         @default("ru")
+  users              User[]
+  events             Event[]
+  promoters          Promoter[]
+  guests             GuestProfile[]
+  auditLogs          AuditLog[]
+  createdAt          DateTime       @default(now())
 }
 
 model User {
-  id             String             @id @default(cuid())
-  name           String
-  email          String             @unique
-  role           Role
-  staffRole      StaffRole?         @default(CUSTOM)
-  jobTitle       String?
-  active         Boolean            @default(true)
-  organizationId String?
-  organization   Organization?      @relation(fields: [organizationId], references: [id])
-  permissions    PermissionGrant[]
-  eventAccess    EventStaffAccess[]
-  auditLogs      AuditLog[]
-  createdAt      DateTime           @default(now())
+  id                      String             @id @default(cuid())
+  name                    String
+  email                   String             @unique
+  role                    Role
+  staffRole               StaffRole?         @default(CUSTOM)
+  jobTitle                String?
+  active                  Boolean            @default(true)
+  preferredLocale         String?
+  interfaceLocaleOverride String?
+  organizationId          String?
+  organization            Organization?      @relation(fields: [organizationId], references: [id])
+  permissions             PermissionGrant[]
+  eventAccess             EventStaffAccess[]
+  auditLogs               AuditLog[]
+  createdAt               DateTime           @default(now())
 }
 
 model Venue {
@@ -145,33 +148,34 @@ model Venue {
 }
 
 model Event {
-  id                   String             @id @default(cuid())
-  slug                 String             @unique
-  title                String
-  description          String
-  posterUrl            String
-  startsAt             DateTime
-  salesStart           DateTime
-  salesEnd             DateTime
-  status               EventStatus        @default(DRAFT)
-  salesMode            SalesMode          @default(INSTANT)
-  approvalInstructions String?
-  mapEnabled           Boolean            @default(false)
-  mapName              String?            @default("Основной зал")
-  organizationId       String
-  organization         Organization       @relation(fields: [organizationId], references: [id])
-  venueId              String
-  venue                Venue              @relation(fields: [venueId], references: [id])
-  categories           TicketCategory[]
-  zones                Zone[]
-  orders               Order[]
-  promoCodes           PromoCode[]
-  referrals            Referral[]
-  promoterLinks        PromoterLink[]
-  staffAccess          EventStaffAccess[]
-  ticketTemplate       TicketTemplate?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  id                          String             @id @default(cuid())
+  slug                        String             @unique
+  title                       String
+  description                 String
+  posterUrl                   String
+  startsAt                    DateTime
+  salesStart                  DateTime
+  salesEnd                    DateTime
+  status                      EventStatus        @default(DRAFT)
+  salesMode                   SalesMode          @default(INSTANT)
+  approvalInstructions        String?
+  customerCommunicationLocale String             @default("ru")
+  mapEnabled                  Boolean            @default(false)
+  mapName                     String?            @default("Основной зал")
+  organizationId              String
+  organization                Organization       @relation(fields: [organizationId], references: [id])
+  venueId                     String
+  venue                       Venue              @relation(fields: [venueId], references: [id])
+  categories                  TicketCategory[]
+  zones                       Zone[]
+  orders                      Order[]
+  promoCodes                  PromoCode[]
+  referrals                   Referral[]
+  promoterLinks               PromoterLink[]
+  staffAccess                 EventStaffAccess[]
+  ticketTemplate              TicketTemplate?
+  createdAt                   DateTime           @default(now())
+  updatedAt                   DateTime           @updatedAt
 }
 
 model TicketTemplate {
@@ -242,9 +246,9 @@ model GuestProfile {
   tags           String?
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  orders          Order[]
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  orders         Order[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   @@unique([organizationId, phone])
   @@index([organizationId, email])
@@ -339,38 +343,39 @@ model Seat {
 }
 
 model Order {
-  id                String         @id @default(cuid())
-  publicId          String         @unique
-  idempotencyKey    String         @unique
-  customerName      String
-  customerEmail     String
-  customerPhone     String
-  customerFirstName String?
-  customerLastName  String?
-  customerBirthDate DateTime?
-  customerCity      String?
-  customerFacebook  String?
-  customerInstagram String?
-  totalMinor        Int
-  currency          String         @default("ILS")
-  status            OrderStatus    @default(PAID)
-  salesFlow         OrderSalesFlow @default(DIRECT)
-  eligibilityAnswer String?
-  reviewNote        String?
-  reviewedAt        DateTime?
-  paymentDueAt      DateTime?
-  eventId           String
-  event             Event          @relation(fields: [eventId], references: [id])
-  guestId           String?
-  guest             GuestProfile?  @relation(fields: [guestId], references: [id], onDelete: SetNull)
-  items             OrderItem[]
-  tickets           Ticket[]
-  referralId        String?
-  referral          Referral?      @relation(fields: [referralId], references: [id])
-  promoterLinkId    String?
-  promoterLink      PromoterLink?  @relation(fields: [promoterLinkId], references: [id])
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id                  String         @id @default(cuid())
+  publicId            String         @unique
+  idempotencyKey      String         @unique
+  customerName        String
+  customerEmail       String
+  customerPhone       String
+  customerFirstName   String?
+  customerLastName    String?
+  customerBirthDate   DateTime?
+  customerCity        String?
+  customerFacebook    String?
+  customerInstagram   String?
+  totalMinor          Int
+  currency            String         @default("ILS")
+  status              OrderStatus    @default(PAID)
+  salesFlow           OrderSalesFlow @default(DIRECT)
+  eligibilityAnswer   String?
+  reviewNote          String?
+  reviewedAt          DateTime?
+  paymentDueAt        DateTime?
+  communicationLocale String         @default("ru")
+  eventId             String
+  event               Event          @relation(fields: [eventId], references: [id])
+  guestId             String?
+  guest               GuestProfile?  @relation(fields: [guestId], references: [id], onDelete: SetNull)
+  items               OrderItem[]
+  tickets             Ticket[]
+  referralId          String?
+  referral            Referral?      @relation(fields: [referralId], references: [id])
+  promoterLinkId      String?
+  promoterLink        PromoterLink?  @relation(fields: [promoterLinkId], references: [id])
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   @@index([guestId])
   @@index([customerPhone])
@@ -458,17 +463,17 @@ model Referral {
 }
 
 model Promoter {
-  id                   String       @id @default(cuid())
+  id                   String         @id @default(cuid())
   name                 String
   email                String?
   phone                String?
-  active               Boolean      @default(true)
-  defaultCommissionBps Int          @default(0)
+  active               Boolean        @default(true)
+  defaultCommissionBps Int            @default(0)
   organizationId       String
-  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  links                 PromoterLink[]
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @updatedAt
+  organization         Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  links                PromoterLink[]
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
   @@unique([organizationId, name])
   @@index([organizationId, active])

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateOfficeUser } from "@/lib/auth";
 import { createMobileSessionToken } from "@/lib/mobile-auth";
+import { db } from "@/lib/db";
+import { resolveStaffLocale } from "@/lib/i18n";
 
 const loginSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -23,6 +25,8 @@ export async function POST(request: Request) {
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 401 });
 
   const token = createMobileSessionToken(result.user.id);
+  const localeUser=await db.user.findUnique({where:{id:result.user.id},include:{organization:true}});
+  const staffLocale=resolveStaffLocale({memberOverride:localeUser?.interfaceLocaleOverride,userPreference:localeUser?.preferredLocale,organizationDefault:localeUser?.organization?.defaultStaffLocale});
   return NextResponse.json(
     {
       token,
@@ -32,6 +36,7 @@ export async function POST(request: Request) {
         email: result.user.email,
         role: result.user.role,
         staffRole: result.user.staffRole,
+        staffLocale,
       },
     },
     { headers: { "cache-control": "no-store" } },

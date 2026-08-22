@@ -27,10 +27,11 @@ const links: Array<{ href: string; key: "overview" | "requests" | "cancellations
 
 export function OfficeNavigation({ permissions, mobile = false }: { permissions: StaffPermission[]; mobile?: boolean }) {
   const pathname = usePathname();
-  const { messages } = useLocale();
+  const { messages,locale } = useLocale();
   const allowed = new Set(permissions);
   const visible = links.filter((link) => !link.permission || allowed.has(link.permission));
   const shown = mobile ? visible.slice(0, 5) : visible;
-  const labels = {overview:messages.common.overview,requests:messages.common.requests,cancellations:"Отмены",events:messages.nav.events,guestLists:messages.nav.guestLists,guests:messages.nav.guests,promoters:messages.nav.promoters,marketing:"Реклама",abandoned:"Потерянные продажи",orders:messages.common.orders,finance:"Финансы",company:"Компания и условия",integrations:"Интеграции",scanner:messages.common.scanner,team:messages.nav.team,audit:messages.nav.audit};
+  const extra=locale==="he"?{cancellations:"ביטולים",marketing:"שיווק",abandoned:"שחזור רכישות",finance:"כספים",company:"פרטי החברה ותנאים",integrations:"אינטגרציות"}:locale==="en"?{cancellations:"Cancellations",marketing:"Marketing",abandoned:"Purchase recovery",finance:"Finance",company:"Company and terms",integrations:"Integrations"}:{cancellations:"Отмены",marketing:"Реклама",abandoned:"Потерянные продажи",finance:"Финансы",company:"Компания и условия",integrations:"Интеграции"};
+  const labels = {overview:messages.common.overview,requests:messages.common.requests,cancellations:extra.cancellations,events:messages.nav.events,guestLists:messages.nav.guestLists,guests:messages.nav.guests,promoters:messages.nav.promoters,marketing:extra.marketing,abandoned:extra.abandoned,orders:messages.common.orders,finance:extra.finance,company:extra.company,integrations:extra.integrations,scanner:messages.common.scanner,team:messages.nav.team,audit:messages.nav.audit};
   return <nav className={mobile ? "office-bottom-nav" : "office-nav"}>{shown.map((link) => { const Icon=link.icon; const active=link.href==="/office"?pathname===link.href:pathname.startsWith(link.href); return <Link prefetch={false} key={link.href} href={link.href} className={active?"active":""}><Icon size={19}/><span>{labels[link.key]}</span></Link>; })}</nav>;
 }

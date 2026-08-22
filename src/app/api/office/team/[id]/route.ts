@@ -6,7 +6,7 @@ import { allPermissions, rolePermissions } from "@/lib/permissions";
 import { writeAudit } from "@/lib/audit";
 import { sendOrganizerPasswordReset, sendStaffInvitation } from "@/lib/office-auth-email";
 
-const schema=z.object({staffRole:z.enum(["ADMIN","EVENT_MANAGER","APPROVER","CHECKIN","ANALYST","CUSTOM"]),jobTitle:z.string().max(100).nullable().optional(),active:z.boolean(),permissions:z.array(z.enum(allPermissions as [typeof allPermissions[number],...typeof allPermissions])),eventIds:z.array(z.string()).max(100),eventScope:z.enum(["ALL","SELECTED","NONE"])});
+const schema=z.object({staffRole:z.enum(["ADMIN","EVENT_MANAGER","APPROVER","CHECKIN","ANALYST","CUSTOM"]),jobTitle:z.string().max(100).nullable().optional(),interfaceLocaleOverride:z.enum(["ru","he","en"]).nullable(),active:z.boolean(),permissions:z.array(z.enum(allPermissions as [typeof allPermissions[number],...typeof allPermissions])),eventIds:z.array(z.string()).max(100),eventScope:z.enum(["ALL","SELECTED","NONE"])});
 
 async function editableMember(actor:Awaited<ReturnType<typeof requirePermission>>,id:string){
   const member=await db.user.findUniqueOrThrow({where:{id},include:{permissions:true,eventAccess:true}});
@@ -33,10 +33,10 @@ export async function PATCH(request:Request,{params}:{params:Promise<{id:string}
     await db.$transaction(async tx=>{
       await tx.permissionGrant.deleteMany({where:{userId:id}});
       await tx.eventStaffAccess.deleteMany({where:{userId:id}});
-      await tx.user.update({where:{id},data:{staffRole:input.staffRole,jobTitle:input.jobTitle?.trim()||null,active:input.active,role:input.staffRole==="CHECKIN"?"CHECKIN":"ORGANIZER",permissions:{create:resolvedPermissions.map(permission=>({permission}))},eventAccess:{create:eventIds.map(eventId=>({eventId}))}}});
+      await tx.user.update({where:{id},data:{staffRole:input.staffRole,jobTitle:input.jobTitle?.trim()||null,interfaceLocaleOverride:input.interfaceLocaleOverride,active:input.active,role:input.staffRole==="CHECKIN"?"CHECKIN":"ORGANIZER",permissions:{create:resolvedPermissions.map(permission=>({permission}))},eventAccess:{create:eventIds.map(eventId=>({eventId}))}}});
     });
     await setStaffEventScope(id,input.eventScope);
-    await writeAudit(actor,{action:"TEAM_PERMISSIONS_UPDATED",entityType:"User",entityId:id,summary:`Изменены права сотрудника ${member.name}`,metadata:{staffRole:input.staffRole,permissions:resolvedPermissions,eventIds,eventScope:input.eventScope,active:input.active}});
+    await writeAudit(actor,{action:"TEAM_PERMISSIONS_UPDATED",entityType:"User",entityId:id,summary:`Изменены права сотрудника ${member.name}`,metadata:{staffRole:input.staffRole,interfaceLocaleOverride:input.interfaceLocaleOverride,permissions:resolvedPermissions,eventIds,eventScope:input.eventScope,active:input.active}});
     return NextResponse.json({ok:true});
   }catch(error){
     const message=error instanceof Error?error.message:"Ошибка";
