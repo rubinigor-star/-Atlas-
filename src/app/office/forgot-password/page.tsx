@@ -1,12 +1,7 @@
 import Link from "next/link";
 import { AtlasLogo } from "@/components/atlas-logo";
+import { getServerI18n } from "@/lib/server-locale";
+import { localeConfig } from "@/lib/i18n";
 
-export default async function OfficeForgotPasswordPage({ searchParams }: { searchParams: Promise<Record<string,string|string[]|undefined>> }) {
-  const params = await searchParams;
-  return <main className="container" style={{maxWidth:540,paddingTop:60,paddingBottom:80}}><div className="panel form" style={{padding:32}}>
-    <AtlasLogo office /><div><span className="eyebrow">Восстановление доступа</span><h1>Забыли пароль?</h1><p className="muted">Укажите рабочий email. Если аккаунт существует, мы отправим ссылку для создания нового пароля.</p></div>
-    {params.sent&&<div className="toast" style={{background:"#ecfdf3",color:"#166534"}}>Проверьте почту. Сообщение отправлено, если этот email зарегистрирован.</div>}
-    <form method="post" action="/api/office/auth/forgot-password" className="form"><div className="field"><label>Email</label><input className="input" type="email" name="email" autoComplete="email" required /></div><button className="btn dark">Отправить ссылку</button></form>
-    <Link href="/office/login">Вернуться ко входу</Link>
-  </div></main>;
-}
+const copy={ru:{eyebrow:"Восстановление доступа",title:"Забыли пароль?",help:"Укажите рабочий email. Если аккаунт существует, мы отправим ссылку для создания нового пароля.",sent:"Проверьте почту. Сообщение отправлено, если этот email зарегистрирован.",email:"Email",send:"Отправить ссылку",back:"Вернуться ко входу"},he:{eyebrow:"שחזור גישה",title:"שכחתם סיסמה?",help:"הזינו את כתובת ה־Email של העבודה. אם החשבון קיים, נשלח קישור ליצירת סיסמה חדשה.",sent:"בדקו את תיבת הדואר. אם כתובת ה־Email רשומה, נשלחה אליה הודעה.",email:"Email",send:"שליחת קישור",back:"חזרה לכניסה"},en:{eyebrow:"Account recovery",title:"Forgot your password?",help:"Enter your work email. If the account exists, we will send a link to create a new password.",sent:"Check your inbox. A message was sent if this email is registered.",email:"Email",send:"Send link",back:"Back to login"}} as const;
+export default async function OfficeForgotPasswordPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){const [{locale},params]=await Promise.all([getServerI18n(),searchParams]);const text=copy[locale];return <main lang={localeConfig[locale].htmlLang} dir={localeConfig[locale].dir} className="container" style={{maxWidth:540,paddingTop:60,paddingBottom:80}}><div className="panel form" style={{padding:32}}><AtlasLogo office/><div><span className="eyebrow">{text.eyebrow}</span><h1>{text.title}</h1><p className="muted">{text.help}</p></div>{params.sent&&<div className="toast" style={{background:"#ecfdf3",color:"#166534"}}>{text.sent}</div>}<form method="post" action="/api/office/auth/forgot-password" className="form"><div className="field"><label>{text.email}</label><input className="input" dir="ltr" style={{textAlign:"left"}} type="email" name="email" autoComplete="email" required/></div><button className="btn dark">{text.send}</button></form><Link href="/office/login">{text.back}</Link></div></main>;}
