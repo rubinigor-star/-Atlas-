@@ -1,49 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useLocale } from "@/components/locale-provider";
+import { localeTag } from "@/lib/i18n";
 
 type Channel = "email" | "sms";
-
-export function ResendTicketButton({ publicId, smsPriceMinor = 20 }: { publicId: string; smsPriceMinor?: number }) {
-  const [busy, setBusy] = useState<Channel | null>(null);
-  const [message, setMessage] = useState("");
-  const smsPrice = (smsPriceMinor / 100).toFixed(2);
-
-  async function resend(channel: Channel) {
-    setBusy(channel);
-    setMessage("");
-    try {
-      const response = await fetch(`/api/orders/${publicId}/resend-ticket`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Не удалось отправить билет");
-      setMessage(channel === "sms"
-        ? `SMS с билетами отправлено на ${data.recipient}. Стоимость: ${(data.priceMinor / 100).toFixed(2)} ₪.`
-        : `Билеты бесплатно отправлены на email ${data.recipient}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось отправить билет");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  return (
-    <div style={{ marginTop: 16 }}>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button className="btn" disabled={busy !== null} onClick={() => void resend("email")}>
-          {busy === "email" ? "Отправляем..." : "Отправить на email - бесплатно"}
-        </button>
-        <button className="btn" disabled={busy !== null} onClick={() => void resend("sms")}>
-          {busy === "sms" ? "Отправляем..." : `Отправить по SMS - ${smsPrice} ₪`}
-        </button>
-      </div>
-      <small style={{ display: "block", marginTop: 8, opacity: 0.7 }}>
-        SMS содержит защищенную ссылку на заказ и все билеты. PDF отправляется только по email.
-      </small>
-      {message && <div className="toast" style={{ marginTop: 10 }}>{message}</div>}
-    </div>
-  );
-}
+const copy={ru:{error:"Не удалось отправить билет",smsSent:"SMS с билетами отправлено на",cost:"Стоимость",emailSent:"Билеты бесплатно отправлены на email",sending:"Отправляем...",email:"Отправить на email - бесплатно",sms:"Отправить по SMS",help:"SMS содержит защищенную ссылку на заказ и все билеты. PDF отправляется только по email."},he:{error:"לא הצלחנו לשלוח את הכרטיסים",smsSent:"SMS עם הכרטיסים נשלח אל",cost:"עלות",emailSent:"הכרטיסים נשלחו ללא עלות ל־Email",sending:"שולחים...",email:"שליחה ל־Email - ללא עלות",sms:"שליחה ב־SMS",help:"ה־SMS כולל קישור מאובטח להזמנה ולכל הכרטיסים. קובץ PDF נשלח רק ב־Email."},en:{error:"Could not send tickets",smsSent:"Ticket SMS sent to",cost:"Cost",emailSent:"Tickets sent by email for free to",sending:"Sending...",email:"Send by email - free",sms:"Send by SMS",help:"SMS contains a secure link to the order and all tickets. PDF is sent only by email."}} as const;
+export function ResendTicketButton({publicId,smsPriceMinor=20}:{publicId:string;smsPriceMinor?:number}){const {locale}=useLocale();const text=copy[locale];const [busy,setBusy]=useState<Channel|null>(null);const [message,setMessage]=useState("");const format=(minor:number)=>(minor/100).toLocaleString(localeTag(locale),{minimumFractionDigits:2,maximumFractionDigits:2})+" ₪";async function resend(channel:Channel){setBusy(channel);setMessage("");try{const response=await fetch(`/api/orders/${publicId}/resend-ticket`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({channel})});const data=await response.json();if(!response.ok)throw new Error(data.error||text.error);setMessage(channel==="sms"?`${text.smsSent} ${data.recipient}. ${text.cost}: ${format(data.priceMinor)}.`:`${text.emailSent} ${data.recipient}.`);}catch(error){setMessage(error instanceof Error?error.message:text.error);}finally{setBusy(null);}}return <div style={{marginTop:16}}><div style={{display:"flex",gap:10,flexWrap:"wrap"}}><button className="btn" disabled={busy!==null} onClick={()=>void resend("email")}>{busy==="email"?text.sending:text.email}</button><button className="btn" disabled={busy!==null} onClick={()=>void resend("sms")}>{busy==="sms"?text.sending:<>{text.sms} - <bdi>{format(smsPriceMinor)}</bdi></>}</button></div><small style={{display:"block",marginTop:8,opacity:.7}}>{text.help}</small>{message&&<div className="toast" style={{marginTop:10}}>{message}</div>}</div>;}
