@@ -1,37 +1,7 @@
 import Link from "next/link";
-import { hypResultFromUrl } from "@/lib/hyp-yaadpay";
+import {hypResultFromUrl} from "@/lib/hyp-yaadpay";
+import {getServerI18n} from "@/lib/server-locale";
 
-export const dynamic = "force-dynamic";
-
-export default async function HypResultPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const params = await searchParams;
-  const url = new URL("https://www.atlas-one.co/payments/hyp/result");
-  for (const [key, value] of Object.entries(params)) {
-    if (Array.isArray(value)) value.forEach((item) => url.searchParams.append(key, item));
-    else if (typeof value === "string") url.searchParams.set(key, value);
-  }
-  const result = hypResultFromUrl(url);
-  const atlasOrder = typeof params.atlasOrder === "string" ? params.atlasOrder : result.orderId;
-
-  return (
-    <main className="container" style={{ paddingTop: 48, paddingBottom: 80 }}>
-      <div className="panel" style={{ maxWidth: 720, margin: "0 auto", display: "grid", gap: 18 }}>
-        <span className="eyebrow">ATLAS ONE · HYP</span>
-        <h1 style={{ margin: 0 }}>{result.success ? "Оплата подтверждена" : "Получен ответ от Hyp"}</h1>
-        <div className="toast" style={result.success ? { background: "#ecfdf3", color: "#166534" } : { background: "#fff7ed", color: "#9a3412" }}>
-          {result.success ? "Тестовое списание 1 ₪ прошло успешно." : "Платёж не подтверждён как успешный. Посмотрите код ответа ниже."}
-        </div>
-        <div className="panel" style={{ background: "#f8fafc", display: "grid", gap: 10 }}>
-          <div className="row between"><span className="muted">Заказ Atlas</span><strong>{atlasOrder || "—"}</strong></div>
-          <div className="row between"><span className="muted">Код Hyp</span><strong>{result.code || "—"}</strong></div>
-          <div className="row between"><span className="muted">ID транзакции</span><strong>{result.transactionId || "—"}</strong></div>
-          <div className="row between"><span className="muted">Сумма</span><strong>{result.amount || "1.00"} ₪</strong></div>
-          <div className="row between"><span className="muted">Карта</span><strong>{result.cardMask || "—"}</strong></div>
-        </div>
-        <p className="muted" style={{ margin: 0 }}>Эта тестовая страница намеренно не выпускает билеты. После успешного теста интеграция будет подключена к обычному checkout Atlas.</p>
-        <Link className="btn dark" href="/payments/hyp/test">Повторить тест</Link>
-        <Link className="btn secondary" href="/">Вернуться на сайт</Link>
-      </div>
-    </main>
-  );
-}
+export const dynamic="force-dynamic";
+const copy={ru:{success:"Оплата подтверждена",response:"Получен ответ от Hyp",successBody:"Тестовое списание 1 ₪ прошло успешно.",responseBody:"Платёж не подтверждён как успешный. Посмотрите код ответа ниже.",order:"Заказ Atlas",code:"Код Hyp",transaction:"ID транзакции",amount:"Сумма",card:"Карта",note:"Эта тестовая страница намеренно не выпускает билеты. После успешного теста интеграция будет подключена к обычному checkout Atlas.",repeat:"Повторить тест",back:"Вернуться на сайт"},he:{success:"התשלום אושר",response:"התקבלה תשובה מ-Hyp",successBody:"חיוב הבדיקה של 1 ₪ עבר בהצלחה.",responseBody:"התשלום לא אושר כמוצלח. אפשר לבדוק את קוד התשובה למטה.",order:"הזמנת Atlas",code:"קוד Hyp",transaction:"מזהה עסקה",amount:"סכום",card:"כרטיס",note:"עמוד הבדיקה הזה אינו מנפיק כרטיסים. לאחר בדיקה מוצלחת האינטגרציה תחובר ל-checkout הרגיל של Atlas.",repeat:"בדיקה נוספת",back:"חזרה לאתר"},en:{success:"Payment confirmed",response:"Hyp response received",successBody:"The ₪1 test charge completed successfully.",responseBody:"The payment was not confirmed as successful. Check the response code below.",order:"Atlas order",code:"Hyp code",transaction:"Transaction ID",amount:"Amount",card:"Card",note:"This test page intentionally does not issue tickets. After a successful test, the integration will be connected to the regular Atlas checkout.",repeat:"Repeat test",back:"Back to website"}} as const;
+export default async function HypResultPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){const[params,{locale}]=await Promise.all([searchParams,getServerI18n()]);const t=copy[locale];const url=new URL("https://www.atlas-one.co/payments/hyp/result");for(const[key,value]of Object.entries(params)){if(Array.isArray(value))value.forEach(item=>url.searchParams.append(key,item));else if(typeof value==="string")url.searchParams.set(key,value);}const result=hypResultFromUrl(url);const atlasOrder=typeof params.atlasOrder==="string"?params.atlasOrder:result.orderId;const value=(input:string|undefined,fallback="-")=><strong dir="ltr" style={{textAlign:"left"}}>{input||fallback}</strong>;return <main className="container" style={{paddingTop:48,paddingBottom:80}}><div className="panel" style={{maxWidth:720,margin:"0 auto",display:"grid",gap:18}}><span className="eyebrow">ATLAS ONE · HYP</span><h1 style={{margin:0}}>{result.success?t.success:t.response}</h1><div className="toast" style={result.success?{background:"#ecfdf3",color:"#166534"}:{background:"#fff7ed",color:"#9a3412"}}>{result.success?t.successBody:t.responseBody}</div><div className="panel" style={{background:"#f8fafc",display:"grid",gap:10}}><div className="row between"><span className="muted">{t.order}</span>{value(atlasOrder)}</div><div className="row between"><span className="muted">{t.code}</span>{value(result.code)}</div><div className="row between"><span className="muted">{t.transaction}</span>{value(result.transactionId)}</div><div className="row between"><span className="muted">{t.amount}</span><strong dir="ltr">{result.amount||"1.00"} ₪</strong></div><div className="row between"><span className="muted">{t.card}</span>{value(result.cardMask)}</div></div><p className="muted" style={{margin:0}}>{t.note}</p><Link className="btn dark" href="/payments/hyp/test">{t.repeat}</Link><Link className="btn secondary" href="/">{t.back}</Link></div></main>}
