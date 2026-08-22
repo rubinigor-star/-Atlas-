@@ -4,57 +4,30 @@ import { ExcelExportButton } from "@/components/excel-export-button";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { money } from "@/lib/format";
+import { localeTag, resolveStaffLocale } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 25;
+const copy={
+  ru:{eyebrow:"CRM гостей",title:"Гости",description:(n:number)=>`Единая база покупателей и приглашённых. На странице загружается не более ${n} профилей.`,columns:["Гость","Профиль","Статус","Заказы","Посещения","Оборот","Последняя активность"],years:"лет",empty:"Профили появятся после новых регистраций.",page:"Страница",of:"из",total:"всего",back:"Назад",next:"Дальше",export:{name:"Имя",phone:"Телефон",email:"Email",age:"Возраст",city:"Город",instagram:"Instagram",facebook:"Facebook",status:"Статус",orders:"Заказов",visits:"Посещений",revenue:"Оборот",lastEvent:"Последнее мероприятие",lastActivity:"Последняя активность"}},
+  he:{eyebrow:"CRM אורחים",title:"אורחים",description:(n:number)=>`מאגר מאוחד של רוכשים ומוזמנים. בכל עמוד נטענים עד ${n} פרופילים.`,columns:["אורח","פרופיל","סטטוס","הזמנות","ביקורים","מחזור","פעילות אחרונה"],years:"שנים",empty:"פרופילים יופיעו לאחר הרשמות חדשות.",page:"עמוד",of:"מתוך",total:"סה״כ",back:"הקודם",next:"הבא",export:{name:"שם",phone:"טלפון",email:"Email",age:"גיל",city:"עיר",instagram:"Instagram",facebook:"Facebook",status:"סטטוס",orders:"הזמנות",visits:"ביקורים",revenue:"מחזור",lastEvent:"אירוע אחרון",lastActivity:"פעילות אחרונה"}},
+  en:{eyebrow:"Guest CRM",title:"Guests",description:(n:number)=>`Unified database of buyers and invited guests. Up to ${n} profiles are loaded per page.`,columns:["Guest","Profile","Status","Orders","Visits","Revenue","Last activity"],years:"years",empty:"Profiles will appear after new registrations.",page:"Page",of:"of",total:"total",back:"Back",next:"Next",export:{name:"Name",phone:"Phone",email:"Email",age:"Age",city:"City",instagram:"Instagram",facebook:"Facebook",status:"Status",orders:"Orders",visits:"Visits",revenue:"Revenue",lastEvent:"Last event",lastActivity:"Last activity"}}
+} as const;
 
 function age(date:Date){const now=new Date();let value=now.getFullYear()-date.getFullYear();const before=now.getMonth()<date.getMonth()||(now.getMonth()===date.getMonth()&&now.getDate()<date.getDate());if(before)value--;return value;}
 function pageHref(page:number){return page<=1?"/office/guests":`/office/guests?page=${page}`;}
-
 type GuestsPageProps={searchParams:Promise<{page?:string}>};
 
 export default async function GuestsPage({searchParams}:GuestsPageProps){
   const staff=await requirePermission("ORDER_VIEW");
-  const query=await searchParams;
-  const requestedPage=Math.max(1,Number.parseInt(query.page||"1",10)||1);
-  const where={organizationId:staff.organizationId!};
-  const total=await db.guestProfile.count({where});
-  const totalPages=Math.max(1,Math.ceil(total/PAGE_SIZE));
-  const page=Math.min(requestedPage,totalPages);
-
-  const guests=await db.guestProfile.findMany({
-    where,
-    select:{id:true,firstName:true,lastName:true,phone:true,email:true,birthDate:true,city:true,instagram:true,facebook:true,status:true},
-    orderBy:{updatedAt:"desc"},
-    skip:(page-1)*PAGE_SIZE,
-    take:PAGE_SIZE,
-  });
-  const guestIds=guests.map(guest=>guest.id);
-  const orders=guestIds.length?await db.order.findMany({
-    where:{guestId:{in:guestIds}},
-    select:{guestId:true,status:true,totalMinor:true,createdAt:true,event:{select:{title:true}},tickets:{select:{_count:{select:{scans:true}}}}},
-    orderBy:{createdAt:"desc"},
-  }):[];
-  const ordersByGuest=new Map<string,typeof orders>();
-  for(const order of orders){if(!order.guestId)continue;const list=ordersByGuest.get(order.guestId)||[];list.push(order);ordersByGuest.set(order.guestId,list);}
-
-  const rows=guests.map(guest=>{
-    const allOrders=ordersByGuest.get(guest.id)||[];
-    const activeOrders=allOrders.filter(order=>!["CANCELLED","REJECTED"].includes(order.status));
-    const visits=activeOrders.reduce((sum,order)=>sum+order.tickets.filter(ticket=>ticket._count.scans>0).length,0);
-    const revenue=activeOrders.reduce((sum,order)=>sum+order.totalMinor,0);
-    const last=allOrders[0];
-    return {"Имя":`${guest.firstName} ${guest.lastName}`,"Телефон":guest.phone,"Email":guest.email,"Возраст":age(guest.birthDate),"Город":guest.city,"Instagram":guest.instagram,"Facebook":guest.facebook,"Статус":guest.status,"Заказов":activeOrders.length,"Посещений":visits,"Оборот":money(revenue),"Последнее мероприятие":last?.event.title??"","Последняя активность":last?new Date(last.createdAt).toLocaleDateString("ru-IL"):""};
-  });
-
-  return <AdminShell><div className="office-page-heading"><div><span className="eyebrow">Guest CRM</span><h1>Гости</h1><p>Единая база покупателей и приглашённых. На странице загружается не более {PAGE_SIZE} профилей.</p></div><ExcelExportButton rows={rows} filename={`atlas-guests-page-${page}`}/></div>
-  <div className="table-wrap"><table><thead><tr><th>Гость</th><th>Профиль</th><th>Статус</th><th>Заказы</th><th>Посещения</th><th>Оборот</th><th>Последняя активность</th></tr></thead><tbody>{guests.map(guest=>{
-    const allOrders=ordersByGuest.get(guest.id)||[];
-    const activeOrders=allOrders.filter(order=>!["CANCELLED","REJECTED"].includes(order.status));
-    const visits=activeOrders.reduce((sum,order)=>sum+order.tickets.filter(ticket=>ticket._count.scans>0).length,0);
-    const revenue=activeOrders.reduce((sum,order)=>sum+order.totalMinor,0);
-    const last=allOrders[0];
-    return <tr key={guest.id}><td><strong>{guest.firstName} {guest.lastName}</strong><br/><a href={`https://wa.me/${guest.phone.replace(/\D/g,"")}`} target="_blank" rel="noreferrer">WhatsApp</a> · <a href={`tel:${guest.phone}`}>{guest.phone}</a><br/><small>{guest.email}</small></td><td>{age(guest.birthDate)} лет · {guest.city}<br/><small>{guest.instagram} · {guest.facebook}</small></td><td><span className="pill">{guest.status}</span></td><td>{activeOrders.length}</td><td>{visits}</td><td>{money(revenue)}</td><td>{last?`${last.event.title} · ${new Date(last.createdAt).toLocaleDateString("ru-IL")}`:"—"}</td></tr>;
-  })}{!guests.length&&<tr><td colSpan={7}>Профили появятся после новых регистраций.</td></tr>}</tbody></table></div>
-  <div className="row between" style={{marginTop:18}}><span className="muted">Страница {page} из {totalPages} · всего {total}</span><div className="row" style={{gap:8}}>{page>1&&<Link prefetch={false} className="btn secondary" href={pageHref(page-1)}>Назад</Link>}{page<totalPages&&<Link prefetch={false} className="btn secondary" href={pageHref(page+1)}>Дальше</Link>}</div></div></AdminShell>;
+  const locale=resolveStaffLocale({memberOverride:staff.interfaceLocaleOverride,userPreference:staff.preferredLocale,organizationDefault:staff.organization?.defaultStaffLocale});const text=copy[locale];
+  const query=await searchParams;const requestedPage=Math.max(1,Number.parseInt(query.page||"1",10)||1);const where={organizationId:staff.organizationId!};const total=await db.guestProfile.count({where});const totalPages=Math.max(1,Math.ceil(total/PAGE_SIZE));const page=Math.min(requestedPage,totalPages);
+  const guests=await db.guestProfile.findMany({where,select:{id:true,firstName:true,lastName:true,phone:true,email:true,birthDate:true,city:true,instagram:true,facebook:true,status:true},orderBy:{updatedAt:"desc"},skip:(page-1)*PAGE_SIZE,take:PAGE_SIZE});
+  const guestIds=guests.map(guest=>guest.id);const orders=guestIds.length?await db.order.findMany({where:{guestId:{in:guestIds}},select:{guestId:true,status:true,totalMinor:true,createdAt:true,event:{select:{title:true}},tickets:{select:{_count:{select:{scans:true}}}}},orderBy:{createdAt:"desc"}}):[];
+  const ordersByGuest=new Map<string,typeof orders>();for(const order of orders){if(!order.guestId)continue;const list=ordersByGuest.get(order.guestId)||[];list.push(order);ordersByGuest.set(order.guestId,list);}
+  const date=(value:Date)=>new Intl.DateTimeFormat(localeTag(locale),{dateStyle:"short",timeZone:"Asia/Jerusalem"}).format(value);
+  const rows=guests.map(guest=>{const allOrders=ordersByGuest.get(guest.id)||[];const activeOrders=allOrders.filter(order=>!["CANCELLED","REJECTED"].includes(order.status));const visits=activeOrders.reduce((sum,order)=>sum+order.tickets.filter(ticket=>ticket._count.scans>0).length,0);const revenue=activeOrders.reduce((sum,order)=>sum+order.totalMinor,0);const last=allOrders[0];return {[text.export.name]:`${guest.firstName} ${guest.lastName}`,[text.export.phone]:guest.phone,[text.export.email]:guest.email,[text.export.age]:age(guest.birthDate),[text.export.city]:guest.city,[text.export.instagram]:guest.instagram,[text.export.facebook]:guest.facebook,[text.export.status]:guest.status,[text.export.orders]:activeOrders.length,[text.export.visits]:visits,[text.export.revenue]:money(revenue),[text.export.lastEvent]:last?.event.title??"",[text.export.lastActivity]:last?date(last.createdAt):""};});
+  return <AdminShell><div className="office-page-heading"><div><span className="eyebrow">{text.eyebrow}</span><h1>{text.title}</h1><p>{text.description(PAGE_SIZE)}</p></div><ExcelExportButton rows={rows} filename={`atlas-guests-page-${page}`}/></div>
+  <div className="table-wrap"><table><thead><tr>{text.columns.map(column=><th key={column}>{column}</th>)}</tr></thead><tbody>{guests.map(guest=>{const allOrders=ordersByGuest.get(guest.id)||[];const activeOrders=allOrders.filter(order=>!["CANCELLED","REJECTED"].includes(order.status));const visits=activeOrders.reduce((sum,order)=>sum+order.tickets.filter(ticket=>ticket._count.scans>0).length,0);const revenue=activeOrders.reduce((sum,order)=>sum+order.totalMinor,0);const last=allOrders[0];return <tr key={guest.id}><td><strong>{guest.firstName} {guest.lastName}</strong><br/><a href={`https://wa.me/${guest.phone.replace(/\D/g,"")}`} target="_blank" rel="noreferrer">WhatsApp</a> · <a dir="ltr" href={`tel:${guest.phone}`}><bdi>{guest.phone}</bdi></a><br/><small><bdi>{guest.email}</bdi></small></td><td>{age(guest.birthDate)} {text.years} · {guest.city}<br/><small><bdi>{guest.instagram}</bdi> · <bdi>{guest.facebook}</bdi></small></td><td><span className="pill"><bdi>{guest.status}</bdi></span></td><td>{activeOrders.length}</td><td>{visits}</td><td><bdi>{money(revenue)}</bdi></td><td>{last?<>{last.event.title} · <bdi>{date(last.createdAt)}</bdi></>:"-"}</td></tr>})}{!guests.length&&<tr><td colSpan={7}>{text.empty}</td></tr>}</tbody></table></div>
+  <div className="row between" style={{marginTop:18}}><span className="muted">{text.page} {page} {text.of} {totalPages} · {text.total} {total}</span><div className="row" style={{gap:8}}>{page>1&&<Link prefetch={false} className="btn secondary" href={pageHref(page-1)}>{text.back}</Link>}{page<totalPages&&<Link prefetch={false} className="btn secondary" href={pageHref(page+1)}>{text.next}</Link>}</div></div></AdminShell>;
 }
