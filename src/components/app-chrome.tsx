@@ -8,6 +8,7 @@ import { PublicSoldOutDecorator } from "@/components/public-sold-out-decorator";
 import { PersistentCartExperience } from "@/components/persistent-cart-experience";
 import { CartReminderCard } from "@/components/cart-reminder-card";
 import { CartStateReconciler } from "@/components/cart-state-reconciler";
+import { AccessibilityMenu } from "@/components/accessibility-menu";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -20,6 +21,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const immersiveHeader = home || eventPage;
   const showPublicHeader = !standaloneAuth;
   const showPublicFooter = !standaloneAuth && !seatSelectionPage;
+  const showAccessibility = !pathname.startsWith("/scanner") && !pathname.startsWith("/admin");
 
   useEffect(() => {
     const body = document.body;
@@ -40,6 +42,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   }, [eventPage, home, immersiveHeader]);
 
   return <>
+    {showAccessibility && <AccessibilityMenu/>}
     {showPublicHeader && <SiteHeader/>}
     {showPublicHeader && <PersistentCartExperience/>}
     {showPublicHeader && <CartStateReconciler/>}
