@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
 import { completeRecoveryAction, getDueRecoveryActions, prepareRecoveryActions } from "@/lib/abandoned-checkout";
 import { recoveryCheckoutUrl } from "@/lib/abandoned-order-attribution";
 import { recoveryChannel } from "@/lib/recovery-channels";
@@ -11,6 +12,14 @@ function authorized(request: Request) {
 
 function baseUrl(request: Request) {
   return new URL(request.url).origin.replace(/\/$/, "");
+}
+
+async function smsRecipient(checkoutId: string) {
+  const rows = await db.$queryRawUnsafe<Array<{ customerPhone: string | null }>>(
+    `SELECT "customerPhone" FROM "AbandonedCheckout" WHERE "id"=$1 LIMIT 1`,
+    checkoutId,
+  );
+  return rows[0]?.customerPhone || null;
 }
 
 async function run(request: Request) {
@@ -27,14 +36,15 @@ async function run(request: Request) {
       skipped++;
       continue;
     }
-    if (!action.customerEmail) {
+    const recipient = action.channel === "SMS" ? await smsRecipient(action.checkoutId) : action.customerEmail;
+    if (!recipient) {
       await completeRecoveryAction(action.id, { status: "SKIPPED", error: "RECIPIENT_MISSING" });
       skipped++;
       continue;
     }
     try {
       const checkoutUrl = recoveryCheckoutUrl(action.checkoutUrl, action.token);
-      const result = await adapter.send({ recipient: action.customerEmail, firstName: action.customerFirstName, eventTitle: action.eventTitle, checkoutUrl, optOutUrl: `${baseUrl(request)}/api/checkout/abandon/opt-out?token=${encodeURIComponent(action.token)}`, amountMinor: action.amountMinor, templateKey: action.templateKey, communicationLocale: action.communicationLocale });
+      const result = await adapter.send({ recipient, firstName: action.customerFirstName, eventTitle: action.eventTitle, checkoutUrl, optOutUrl: `${baseUrl(request)}/api/checkout/abandon/opt-out?token=${encodeURIComponent(action.token)}`, amountMinor: action.amountMinor, templateKey: action.templateKey, communicationLocale: action.communicationLocale });
       await completeRecoveryAction(action.id, { status: "SENT", providerId: result.id });
       sent++;
     } catch (error) {
