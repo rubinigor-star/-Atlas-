@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import type { StaffPermission } from "@prisma/client";
 import { db } from "@/lib/db";
 import { allPermissions } from "@/lib/permissions";
+import { resolveStaffLocale } from "@/lib/i18n";
 
 const MOBILE_SESSION_TTL_SECONDS = 60 * 60 * 24 * 14;
 
@@ -67,5 +68,19 @@ export async function getMobileStaff(request: Request) {
   });
   if (!user || !user.active || !["ORGANIZER", "CHECKIN", "ADMIN"].includes(user.role)) return null;
   const permissions = user.role === "ADMIN" ? allPermissions : user.permissions.map((grant) => grant.permission);
-  return { ...user, permissionSet: new Set<StaffPermission>(permissions) };
+  const staffLocale = resolveStaffLocale({
+    memberOverride: user.interfaceLocaleOverride,
+    userPreference: user.preferredLocale,
+    organizationDefault: user.organization?.defaultStaffLocale,
+  });
+  return {
+    ...user,
+    permissionSet: new Set<StaffPermission>(permissions),
+    staffLocale,
+    localePreference: {
+      override: user.interfaceLocaleOverride,
+      userPreferred: user.preferredLocale,
+      organizationDefault: user.organization?.defaultStaffLocale ?? "ru",
+    },
+  };
 }
