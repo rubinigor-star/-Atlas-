@@ -1,13 +1,7 @@
 import Link from "next/link";
 import { AtlasLogo } from "@/components/atlas-logo";
+import { getServerI18n } from "@/lib/server-locale";
+import { localeConfig } from "@/lib/i18n";
 
-export default async function OfficeResetPasswordPage({ searchParams }: { searchParams: Promise<Record<string,string|string[]|undefined>> }) {
-  const params = await searchParams;
-  const token = typeof params.token === "string" ? params.token : "";
-  return <main className="container" style={{maxWidth:540,paddingTop:60,paddingBottom:80}}><div className="panel form" style={{padding:32}}>
-    <AtlasLogo office /><div><span className="eyebrow">Новый пароль</span><h1>Восстановите доступ</h1><p className="muted">Создайте новый пароль длиной не менее 10 символов.</p></div>
-    {params.error&&<div className="toast" style={{background:"#fff1f0",color:"#b42318"}}>Пароль слишком короткий или ссылка недействительна.</div>}
-    {token?<form method="post" action="/api/office/auth/reset-password" className="form"><input type="hidden" name="token" value={token}/><div className="field"><label>Новый пароль</label><input className="input" type="password" name="password" minLength={10} autoComplete="new-password" required /></div><button className="btn dark">Сохранить новый пароль</button></form>:<div className="toast">Ссылка восстановления отсутствует.</div>}
-    <Link href="/office/login">Вернуться ко входу</Link>
-  </div></main>;
-}
+const copy={ru:{eyebrow:"Новый пароль",title:"Восстановите доступ",help:"Создайте новый пароль длиной не менее 10 символов.",error:"Пароль слишком короткий или ссылка недействительна.",password:"Новый пароль",save:"Сохранить новый пароль",missing:"Ссылка восстановления отсутствует.",back:"Вернуться ко входу"},he:{eyebrow:"סיסמה חדשה",title:"שחזור גישה",help:"צרו סיסמה חדשה באורך של 10 תווים לפחות.",error:"הסיסמה קצרה מדי או שהקישור אינו תקין.",password:"סיסמה חדשה",save:"שמירת סיסמה חדשה",missing:"קישור השחזור חסר.",back:"חזרה לכניסה"},en:{eyebrow:"New password",title:"Restore access",help:"Create a new password with at least 10 characters.",error:"The password is too short or the link is invalid.",password:"New password",save:"Save new password",missing:"Recovery link is missing.",back:"Back to login"}} as const;
+export default async function OfficeResetPasswordPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){const [{locale},params]=await Promise.all([getServerI18n(),searchParams]);const text=copy[locale];const token=typeof params.token==="string"?params.token:"";return <main lang={localeConfig[locale].htmlLang} dir={localeConfig[locale].dir} className="container" style={{maxWidth:540,paddingTop:60,paddingBottom:80}}><div className="panel form" style={{padding:32}}><AtlasLogo office/><div><span className="eyebrow">{text.eyebrow}</span><h1>{text.title}</h1><p className="muted">{text.help}</p></div>{params.error&&<div className="toast" style={{background:"#fff1f0",color:"#b42318"}}>{text.error}</div>}{token?<form method="post" action="/api/office/auth/reset-password" className="form"><input type="hidden" name="token" value={token}/><div className="field"><label>{text.password}</label><input className="input" dir="ltr" style={{textAlign:"left"}} type="password" name="password" minLength={10} autoComplete="new-password" required/></div><button className="btn dark">{text.save}</button></form>:<div className="toast">{text.missing}</div>}<Link href="/office/login">{text.back}</Link></div></main>;}
