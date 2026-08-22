@@ -1,87 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import {useEffect,useRef,useState} from "react";
+import {useLocale} from "@/components/locale-provider";
+import {localeConfig,type Locale} from "@/lib/i18n";
+import {money as formatMoney} from "@/lib/format";
 
-type FoundOrder={
-  publicId:string;customerName:string;totalMinor:number;currency:string;status:string;createdAt:string;eventTitle:string;eventStartsAt:string;ticketCount:number;itemSummary:string;
-  eligibility:{status:"STANDARD_ELIGIBLE"|"OUTSIDE_STANDARD"|"SPECIAL_REVIEW";reason:string;within14Days:boolean;nonRestDays:number};
-  feeMinor:number;standardRefundMinor:number;canRequest:boolean;
-};
-
-function money(minor:number){return `${(minor/100).toLocaleString("he-IL",{minimumFractionDigits:0,maximumFractionDigits:2})} ₪`;}
-
-export function CancellationCustomerForm({initialOrderId="",initialEmail=""}:{initialOrderId?:string;initialEmail?:string}){
-  const [orderId,setOrderId]=useState(initialOrderId);
-  const [email,setEmail]=useState(initialEmail);
-  const [order,setOrder]=useState<FoundOrder|null>(null);
-  const [reason,setReason]=useState("");
-  const [special,setSpecial]=useState<""|"SENIOR"|"NEW_IMMIGRANT"|"DISABILITY">("");
-  const [accepted,setAccepted]=useState(false);
-  const [busy,setBusy]=useState(false);
-  const [message,setMessage]=useState("");
-  const [submitted,setSubmitted]=useState<string|null>(null);
-  const autoLookupStarted=useRef(false);
-
-  async function lookup(id=orderId,mail=email){
-    setBusy(true);setMessage("");setOrder(null);setSubmitted(null);
-    try{
-      const response=await fetch("/api/cancellations",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({orderId:id,email:mail})});
-      const body=await response.json();
-      if(!response.ok)throw new Error(body.error==="ORDER_NOT_FOUND"?"Заказ не найден. Проверьте номер заказа и email.":body.error||"Не удалось найти заказ");
-      setOrder(body.order);
-    }catch(error){setMessage(error instanceof Error?error.message:"Не удалось найти заказ");}
-    finally{setBusy(false);}
-  }
-
-  useEffect(()=>{
-    if(autoLookupStarted.current||!initialOrderId||!initialEmail)return;
-    autoLookupStarted.current=true;
-    void lookup(initialOrderId,initialEmail);
-  },[initialOrderId,initialEmail]);
-
-  async function submit(){
-    if(!accepted){setMessage("Подтвердите, что вы ознакомились с правилами отмены.");return;}
-    setBusy(true);setMessage("");
-    try{
-      const response=await fetch("/api/cancellations",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({orderId,email,reason,specialCategory:special||null,acceptedPolicy:true})});
-      const body=await response.json();
-      if(!response.ok){
-        const text=body.error==="OPEN_REQUEST_EXISTS"?"По этому заказу уже есть открытая заявка на отмену.":body.error==="ORDER_NOT_CANCELLABLE"?"Этот заказ нельзя отправить на отмену.":body.error||"Не удалось отправить заявку";
-        throw new Error(text);
-      }
-      setSubmitted(body.requestId);
-    }catch(error){setMessage(error instanceof Error?error.message:"Не удалось отправить заявку");}
-    finally{setBusy(false);}
-  }
-
-  if(submitted)return <section className="panel stack" style={{maxWidth:720,margin:"0 auto",textAlign:"center",padding:32}}>
-    <span className="eyebrow">Заявка отправлена</span><h1>Заявка принята</h1><p>Номер обращения: <strong>{submitted}</strong>.</p><p className="muted">Заявка уже появилась в кабинете организатора мероприятия. Там Atlas покажет предварительную оценку права на возврат и расчёт суммы. После решения организатора статус возврата будет обновлён.</p><div className="row" style={{justifyContent:"center",gap:10,flexWrap:"wrap"}}><Link href="/" className="btn dark">Вернуться на Atlas One</Link><Link href="/cancellation-policy" className="btn secondary">Правила отмены</Link></div>
-  </section>;
-
-  return <div className="stack" style={{maxWidth:780,margin:"0 auto"}}>
-    <div style={{textAlign:"center"}}><span className="eyebrow">Atlas One</span><h1>Заявка на отмену заказа</h1><p className="muted" style={{maxWidth:650,margin:"0 auto"}}>Введите данные заказа. Если вы пришли со страницы оплаченного заказа, данные будут подставлены автоматически.</p><p style={{marginTop:12}}><Link href="/cancellation-policy">Сначала ознакомиться с политикой отмены</Link></p></div>
-    <section className="panel stack">
-      <div className="field"><label>Номер заказа</label><input className="input" value={orderId} onChange={e=>setOrderId(e.target.value)} placeholder="ATL-..." autoComplete="off"/></div>
-      <div className="field"><label>Email, использованный при покупке</label><input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@example.com" autoComplete="email"/></div>
-      <button className="btn dark" type="button" disabled={busy||!orderId||!email} onClick={()=>void lookup()}>{busy?"Ищем...":"Найти заказ"}</button>
-      {message&&<div className="toast">{message}</div>}
-    </section>
-    {order&&<section className="panel stack">
-      <div><span className="eyebrow">Заказ найден</span><h2>{order.eventTitle}</h2><p className="muted">Заказ {order.publicId} · {order.itemSummary} · {money(order.totalMinor)}</p></div>
-      <div className="row between"><span className="muted">Дата покупки</span><strong>{new Date(order.createdAt).toLocaleDateString("ru-RU")}</strong></div>
-      <div className="row between"><span className="muted">Дата мероприятия</span><strong>{new Date(order.eventStartsAt).toLocaleString("ru-RU")}</strong></div>
-      <div className="row between"><span className="muted">Расчётная комиссия отмены</span><strong>{money(order.feeMinor)}</strong></div>
-      <div className="row between"><span className="muted">Ориентир стандартного возврата</span><strong>{money(order.standardRefundMinor)}</strong></div>
-      <div className="panel" style={{background:order.eligibility.status==="STANDARD_ELIGIBLE"?"#f0fdf4":order.eligibility.status==="SPECIAL_REVIEW"?"#fffbeb":"#fff7ed",borderColor:order.eligibility.status==="STANDARD_ELIGIBLE"?"#bbf7d0":order.eligibility.status==="SPECIAL_REVIEW"?"#fde68a":"#fed7aa"}}>
-        <strong>{order.eligibility.status==="STANDARD_ELIGIBLE"?"Предварительно возврат положен по стандартной политике":order.eligibility.status==="SPECIAL_REVIEW"?"Требуется специальная проверка":"Стандартное право на возврат автоматически не подтверждено"}</strong>
-        <p className="muted" style={{marginBottom:0,marginTop:6}}>{order.eligibility.reason}</p>
-      </div>
-      <div className="field"><label>Причина отмены</label><textarea rows={4} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Напишите причину обращения. Заявку увидит организатор мероприятия."/></div>
-      <div className="field"><label>Льготная категория, если применимо</label><select className="input" value={special} onChange={e=>setSpecial(e.target.value as typeof special)}><option value="">Не относится</option><option value="SENIOR">Пожилой гражданин</option><option value="NEW_IMMIGRANT">Новый репатриант</option><option value="DISABILITY">Человек с инвалидностью</option></select><small className="muted">При выборе льготной категории организатор может запросить подтверждающий документ.</small></div>
-      <label className="panel" style={{display:"flex",gap:10,alignItems:"flex-start",cursor:"pointer",background:"#f8fafc"}}><input type="checkbox" checked={accepted} onChange={e=>setAccepted(e.target.checked)}/><span>Я ознакомился с <Link href="/cancellation-policy" target="_blank">מדיניות ביטול / правилами отмены</Link> и прошу передать заявку организатору.</span></label>
-      <button className="btn dark" type="button" disabled={busy||!order.canRequest||!accepted} onClick={()=>void submit()}>{busy?"Отправляем...":"Отправить заявку организатору"}</button>
-      {!order.canRequest&&<div className="toast">Для этого заказа сейчас нельзя открыть заявку на отмену.</div>}
-    </section>}
-  </div>;
+type FoundOrder={publicId:string;customerName:string;totalMinor:number;currency:string;status:string;createdAt:string;eventTitle:string;eventStartsAt:string;ticketCount:number;itemSummary:string;eligibility:{status:"STANDARD_ELIGIBLE"|"OUTSIDE_STANDARD"|"SPECIAL_REVIEW";reason:string;within14Days:boolean;nonRestDays:number};feeMinor:number;standardRefundMinor:number;canRequest:boolean};
+type Special=""|"SENIOR"|"NEW_IMMIGRANT"|"DISABILITY";
+const copy={
+ ru:{notFound:"Заказ не найден. Проверьте номер заказа и email.",lookupError:"Не удалось найти заказ",acceptError:"Подтвердите, что вы ознакомились с правилами отмены.",openExists:"По этому заказу уже есть открытая заявка на отмену.",notCancellable:"Этот заказ нельзя отправить на отмену.",submitError:"Не удалось отправить заявку",submittedEyebrow:"Заявка отправлена",submittedTitle:"Заявка принята",reference:"Номер обращения",submittedHelp:"Заявка уже появилась в кабинете организатора мероприятия. Atlas покажет предварительную оценку права на возврат и расчёт суммы. После решения организатора статус возврата будет обновлён.",back:"Вернуться на Atlas One",policy:"Правила отмены",title:"Заявка на отмену заказа",intro:"Введите данные заказа. Если вы пришли со страницы оплаченного заказа, данные будут подставлены автоматически.",readPolicy:"Сначала ознакомиться с политикой отмены",orderNumber:"Номер заказа",email:"Email, использованный при покупке",searching:"Ищем...",find:"Найти заказ",found:"Заказ найден",order:"Заказ",purchaseDate:"Дата покупки",eventDate:"Дата мероприятия",fee:"Расчётная комиссия отмены",refund:"Ориентир стандартного возврата",eligibility:{STANDARD_ELIGIBLE:"Предварительно возврат положен по стандартной политике",SPECIAL_REVIEW:"Требуется специальная проверка",OUTSIDE_STANDARD:"Стандартное право на возврат автоматически не подтверждено"},reason:"Причина отмены",reasonPh:"Напишите причину обращения. Заявку увидит организатор мероприятия.",special:"Льготная категория, если применимо",specialOptions:{none:"Не относится",SENIOR:"Пожилой гражданин",NEW_IMMIGRANT:"Новый репатриант",DISABILITY:"Человек с инвалидностью"},specialHelp:"При выборе льготной категории организатор может запросить подтверждающий документ.",acceptPrefix:"Я ознакомился с",acceptLink:"правилами отмены",acceptSuffix:"и прошу передать заявку организатору.",sending:"Отправляем...",submit:"Отправить заявку организатору",disabled:"Для этого заказа сейчас нельзя открыть заявку на отмену."},
+ he:{notFound:"ההזמנה לא נמצאה. בדקו את מספר ההזמנה ואת כתובת ה-Email.",lookupError:"לא הצלחנו למצוא את ההזמנה",acceptError:"יש לאשר שקראתם את מדיניות הביטול.",openExists:"כבר קיימת בקשת ביטול פתוחה להזמנה הזו.",notCancellable:"לא ניתן להגיש בקשת ביטול עבור ההזמנה הזו.",submitError:"לא הצלחנו לשלוח את הבקשה",submittedEyebrow:"הבקשה נשלחה",submittedTitle:"הבקשה התקבלה",reference:"מספר פנייה",submittedHelp:"הבקשה כבר מופיעה באזור המפיק. Atlas תציג למפיק הערכה ראשונית של הזכאות להחזר ואת חישוב הסכום. הסטטוס יעודכן לאחר החלטת המפיק.",back:"חזרה ל-Atlas One",policy:"מדיניות ביטול",title:"בקשה לביטול הזמנה",intro:"הזינו את פרטי ההזמנה. אם הגעתם מעמוד הזמנה ששולמה, הפרטים ימולאו אוטומטית.",readPolicy:"לקריאת מדיניות הביטול לפני ההגשה",orderNumber:"מספר הזמנה",email:"Email ששימש לרכישה",searching:"מחפשים...",find:"איתור הזמנה",found:"ההזמנה נמצאה",order:"הזמנה",purchaseDate:"תאריך רכישה",eventDate:"תאריך האירוע",fee:"עמלת ביטול מחושבת",refund:"החזר משוער לפי המדיניות הרגילה",eligibility:{STANDARD_ELIGIBLE:"לפי הבדיקה הראשונית קיימת זכאות להחזר לפי המדיניות הרגילה",SPECIAL_REVIEW:"נדרשת בדיקה מיוחדת",OUTSIDE_STANDARD:"לא נמצאה אוטומטית זכאות להחזר לפי המדיניות הרגילה"},reason:"סיבת הביטול",reasonPh:"כתבו את סיבת הפנייה. מפיק האירוע יראה את הבקשה.",special:"קטגוריה מיוחדת, אם רלוונטי",specialOptions:{none:"לא רלוונטי",SENIOR:"אזרח ותיק",NEW_IMMIGRANT:"עולה חדש",DISABILITY:"אדם עם מוגבלות"},specialHelp:"בבחירת קטגוריה מיוחדת המפיק עשוי לבקש מסמך תומך.",acceptPrefix:"קראתי את",acceptLink:"מדיניות הביטול",acceptSuffix:"ואני מבקש/ת להעביר את הבקשה למפיק.",sending:"שולחים...",submit:"שליחת הבקשה למפיק",disabled:"לא ניתן לפתוח כרגע בקשת ביטול עבור ההזמנה הזו."},
+ en:{notFound:"Order not found. Check the order number and email.",lookupError:"Could not find the order",acceptError:"Confirm that you have read the cancellation policy.",openExists:"An open cancellation request already exists for this order.",notCancellable:"This order cannot be submitted for cancellation.",submitError:"Could not submit the request",submittedEyebrow:"Request sent",submittedTitle:"Request received",reference:"Request number",submittedHelp:"The request is already visible in the organizer workspace. Atlas will show the organizer a preliminary eligibility assessment and refund calculation. The status will be updated after the organizer decides.",back:"Return to Atlas One",policy:"Cancellation policy",title:"Order cancellation request",intro:"Enter the order details. If you arrived from a paid order page, the details will be filled automatically.",readPolicy:"Read the cancellation policy first",orderNumber:"Order number",email:"Email used for the purchase",searching:"Searching...",find:"Find order",found:"Order found",order:"Order",purchaseDate:"Purchase date",eventDate:"Event date",fee:"Calculated cancellation fee",refund:"Estimated standard refund",eligibility:{STANDARD_ELIGIBLE:"Preliminarily eligible for a refund under the standard policy",SPECIAL_REVIEW:"Special review required",OUTSIDE_STANDARD:"Standard refund eligibility was not automatically confirmed"},reason:"Cancellation reason",reasonPh:"Describe the reason for your request. The event organizer will see it.",special:"Special category, if applicable",specialOptions:{none:"Not applicable",SENIOR:"Senior citizen",NEW_IMMIGRANT:"New immigrant",DISABILITY:"Person with disability"},specialHelp:"If you select a special category, the organizer may request supporting documentation.",acceptPrefix:"I have read the",acceptLink:"cancellation policy",acceptSuffix:"and ask that this request be sent to the organizer.",sending:"Sending...",submit:"Send request to organizer",disabled:"A cancellation request cannot currently be opened for this order."}
+} as const;
+function dateTime(value:string,locale:Locale){return new Intl.DateTimeFormat(localeConfig[locale].tag,{dateStyle:"medium",timeStyle:"short"}).format(new Date(value));}
+function dateOnly(value:string,locale:Locale){return new Intl.DateTimeFormat(localeConfig[locale].tag,{dateStyle:"medium"}).format(new Date(value));}
+export function CancellationCustomerForm({initialOrderId="",initialEmail=""}:{initialOrderId?:string;initialEmail?:string}){const{locale}=useLocale();const text=copy[locale];const[orderId,setOrderId]=useState(initialOrderId);const[email,setEmail]=useState(initialEmail);const[order,setOrder]=useState<FoundOrder|null>(null);const[reason,setReason]=useState("");const[special,setSpecial]=useState<Special>("");const[accepted,setAccepted]=useState(false);const[busy,setBusy]=useState(false);const[message,setMessage]=useState("");const[submitted,setSubmitted]=useState<string|null>(null);const autoLookupStarted=useRef(false);const money=(minor:number)=>formatMoney(minor,"ILS",locale);
+ async function lookup(id=orderId,mail=email){setBusy(true);setMessage("");setOrder(null);setSubmitted(null);try{const response=await fetch("/api/cancellations",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({orderId:id,email:mail,locale})});const body=await response.json();if(!response.ok)throw new Error(body.error==="ORDER_NOT_FOUND"?text.notFound:body.error||text.lookupError);setOrder(body.order);}catch(error){setMessage(error instanceof Error?error.message:text.lookupError);}finally{setBusy(false)}}
+ useEffect(()=>{if(autoLookupStarted.current||!initialOrderId||!initialEmail)return;autoLookupStarted.current=true;void lookup(initialOrderId,initialEmail);},[initialOrderId,initialEmail]);
+ async function submit(){if(!accepted){setMessage(text.acceptError);return;}setBusy(true);setMessage("");try{const response=await fetch("/api/cancellations",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({orderId,email,reason,specialCategory:special||null,acceptedPolicy:true,locale})});const body=await response.json();if(!response.ok){const errorText=body.error==="OPEN_REQUEST_EXISTS"?text.openExists:body.error==="ORDER_NOT_CANCELLABLE"?text.notCancellable:body.error||text.submitError;throw new Error(errorText);}setSubmitted(body.requestId);}catch(error){setMessage(error instanceof Error?error.message:text.submitError);}finally{setBusy(false)}}
+ const ltr={direction:"ltr" as const,textAlign:"left" as const};
+ if(submitted)return <section className="panel stack" style={{maxWidth:720,margin:"0 auto",textAlign:"center",padding:32}}><span className="eyebrow">{text.submittedEyebrow}</span><h1>{text.submittedTitle}</h1><p>{text.reference}: <strong><bdi>{submitted}</bdi></strong>.</p><p className="muted">{text.submittedHelp}</p><div className="row" style={{justifyContent:"center",gap:10,flexWrap:"wrap"}}><Link href="/" className="btn dark">{text.back}</Link><Link href="/cancellation-policy" className="btn secondary">{text.policy}</Link></div></section>;
+ return <div className="stack" style={{maxWidth:780,margin:"0 auto"}}><div style={{textAlign:"center"}}><span className="eyebrow">Atlas One</span><h1>{text.title}</h1><p className="muted" style={{maxWidth:650,margin:"0 auto"}}>{text.intro}</p><p style={{marginTop:12}}><Link href="/cancellation-policy">{text.readPolicy}</Link></p></div><section className="panel stack"><div className="field"><label>{text.orderNumber}</label><input className="input" dir="ltr" style={ltr} value={orderId} onChange={e=>setOrderId(e.target.value)} placeholder="ATL-..." autoComplete="off"/></div><div className="field"><label>{text.email}</label><input className="input" dir="ltr" style={ltr} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@example.com" autoComplete="email"/></div><button className="btn dark" type="button" disabled={busy||!orderId||!email} onClick={()=>void lookup()}>{busy?text.searching:text.find}</button>{message&&<div className="toast">{message}</div>}</section>{order&&<section className="panel stack"><div><span className="eyebrow">{text.found}</span><h2>{order.eventTitle}</h2><p className="muted">{text.order} <bdi>{order.publicId}</bdi> · {order.itemSummary} · <bdi>{money(order.totalMinor)}</bdi></p></div><div className="row between"><span className="muted">{text.purchaseDate}</span><strong><bdi>{dateOnly(order.createdAt,locale)}</bdi></strong></div><div className="row between"><span className="muted">{text.eventDate}</span><strong><bdi>{dateTime(order.eventStartsAt,locale)}</bdi></strong></div><div className="row between"><span className="muted">{text.fee}</span><strong><bdi>{money(order.feeMinor)}</bdi></strong></div><div className="row between"><span className="muted">{text.refund}</span><strong><bdi>{money(order.standardRefundMinor)}</bdi></strong></div><div className="panel" style={{background:order.eligibility.status==="STANDARD_ELIGIBLE"?"#f0fdf4":order.eligibility.status==="SPECIAL_REVIEW"?"#fffbeb":"#fff7ed",borderColor:order.eligibility.status==="STANDARD_ELIGIBLE"?"#bbf7d0":order.eligibility.status==="SPECIAL_REVIEW"?"#fde68a":"#fed7aa"}}><strong>{text.eligibility[order.eligibility.status]}</strong>{order.eligibility.reason&&<p className="muted" style={{marginBottom:0,marginTop:6}}>{order.eligibility.reason}</p>}</div><div className="field"><label>{text.reason}</label><textarea rows={4} value={reason} onChange={e=>setReason(e.target.value)} placeholder={text.reasonPh}/></div><div className="field"><label>{text.special}</label><select className="input" value={special} onChange={e=>setSpecial(e.target.value as Special)}><option value="">{text.specialOptions.none}</option><option value="SENIOR">{text.specialOptions.SENIOR}</option><option value="NEW_IMMIGRANT">{text.specialOptions.NEW_IMMIGRANT}</option><option value="DISABILITY">{text.specialOptions.DISABILITY}</option></select><small className="muted">{text.specialHelp}</small></div><label className="panel" style={{display:"flex",gap:10,alignItems:"flex-start",cursor:"pointer",background:"#f8fafc"}}><input type="checkbox" checked={accepted} onChange={e=>setAccepted(e.target.checked)}/><span>{text.acceptPrefix} <Link href="/cancellation-policy" target="_blank">{text.acceptLink}</Link> {text.acceptSuffix}</span></label><button className="btn dark" type="button" disabled={busy||!order.canRequest||!accepted} onClick={()=>void submit()}>{busy?text.sending:text.submit}</button>{!order.canRequest&&<div className="toast">{text.disabled}</div>}</section>}</div>;
 }
