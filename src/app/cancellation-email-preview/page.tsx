@@ -1,25 +1,11 @@
 import Link from "next/link";
+import {getServerI18n} from "@/lib/server-locale";
+import {localeConfig} from "@/lib/i18n";
 
-export default function CancellationEmailPreviewPage(){
-  const orderPublicId="ATL-DEMO-1234";
-  const cancellationPublicId="CAN-DEMO-5678";
-  const eventTitle="Пример мероприятия Atlas One";
-  const amount="95.00 ₪";
+const copy={
+ ru:{event:"Пример мероприятия Atlas One",note:"Предпросмотр письма об отмене. Ничего не отправляется, возврат не выполняется.",title:"Билеты отменены, возврат оформлен",hello:"Здравствуйте, Игорь.",request:"Номер заявки",orderStart:"Ваш заказ",eventWord:"на мероприятие",cancelled:"отменён",refund:"Организатор подтвердил возврат на сумму",refundTail:"Возврат уже оформлен на исходный способ оплаты. Срок фактического зачисления средств зависит от банка и платёжной системы.",invalid:"Все билеты и QR-коды по этому заказу больше недействительны.",open:"Посмотреть отменённый заказ"},
+ he:{event:"אירוע לדוגמה ב-Atlas One",note:"תצוגה מקדימה של מייל ביטול. לא נשלחת הודעה ולא מתבצע החזר כספי.",title:"הכרטיסים בוטלו וההחזר בוצע",hello:"שלום, איגור.",request:"מספר בקשה",orderStart:"ההזמנה שלך",eventWord:"לאירוע",cancelled:"בוטלה",refund:"המפיק אישר החזר בסך",refundTail:"ההחזר הועבר לאמצעי התשלום המקורי. מועד הזיכוי בפועל תלוי בבנק ובחברת האשראי.",invalid:"כל הכרטיסים וקודי ה-QR בהזמנה זו אינם תקפים יותר.",open:"לצפייה בהזמנה שבוטלה"},
+ en:{event:"Atlas One sample event",note:"Cancellation email preview. Nothing is sent and no refund is processed.",title:"Tickets cancelled and refund issued",hello:"Hello, Igor.",request:"Request number",orderStart:"Your order",eventWord:"for",cancelled:"has been cancelled",refund:"The organizer approved a refund of",refundTail:"The refund was issued to the original payment method. Posting time depends on your bank and card network.",invalid:"All tickets and QR codes in this order are no longer valid.",open:"View cancelled order"}
+} as const;
 
-  return <main style={{background:"#f3f4f6",minHeight:"100vh",padding:"36px 12px"}}>
-    <div style={{maxWidth:680,margin:"0 auto"}}>
-      <div style={{marginBottom:18,color:"#6b7280",fontSize:14}}>Preview письма отмены. Ничего не отправляется и возврат не выполняется.</div>
-      <div style={{background:"#fff",borderRadius:20,overflow:"hidden",boxShadow:"0 18px 45px rgba(15,23,42,.10)",fontFamily:"Arial,sans-serif",color:"#111827"}}>
-        <div style={{background:"#081426",color:"white",padding:26}}><h1 style={{margin:0,fontSize:28}}>Билеты отменены, возврат оформлен</h1></div>
-        <div style={{padding:26,lineHeight:1.6}}>
-          <p>Здравствуйте, Игорь.</p>
-          <p>Номер заявки: <strong>{cancellationPublicId}</strong>.</p>
-          <p>Ваш заказ <strong>{orderPublicId}</strong> на мероприятие <strong>{eventTitle}</strong> отменён.</p>
-          <p>Организатор подтвердил возврат на сумму <strong>{amount}</strong>. Возврат уже оформлен на исходный способ оплаты. Срок фактического зачисления средств зависит от банка и платёжной системы.</p>
-          <p><strong>Все билеты и QR-коды по этому заказу больше недействительны.</strong></p>
-          <p style={{marginTop:28}}><Link href="#" style={{display:"inline-block",background:"#081426",color:"white",textDecoration:"none",padding:"12px 18px",borderRadius:10,fontWeight:700}}>Посмотреть отменённый заказ</Link></p>
-        </div>
-      </div>
-    </div>
-  </main>;
-}
+export default async function CancellationEmailPreviewPage(){const{locale}=await getServerI18n();const t=copy[locale];const orderPublicId="ATL-DEMO-1234";const cancellationPublicId="CAN-DEMO-5678";const amount="95.00 ₪";return <main lang={localeConfig[locale].tag} dir={localeConfig[locale].dir} style={{background:"#f3f4f6",minHeight:"100vh",padding:"36px 12px"}}><div style={{maxWidth:680,margin:"0 auto"}}><div style={{marginBottom:18,color:"#6b7280",fontSize:14}}>{t.note}</div><div style={{background:"#fff",borderRadius:20,overflow:"hidden",boxShadow:"0 18px 45px rgba(15,23,42,.10)",fontFamily:"Arial,sans-serif",color:"#111827"}}><div style={{background:"#081426",color:"white",padding:26}}><h1 style={{margin:0,fontSize:28}}>{t.title}</h1></div><div style={{padding:26,lineHeight:1.6}}><p>{t.hello}</p><p>{t.request}: <strong><bdi>{cancellationPublicId}</bdi></strong>.</p><p>{t.orderStart} <strong><bdi>{orderPublicId}</bdi></strong> {t.eventWord} <strong>{t.event}</strong> {t.cancelled}.</p><p>{t.refund} <strong><bdi>{amount}</bdi></strong>. {t.refundTail}</p><p><strong>{t.invalid}</strong></p><p style={{marginTop:28}}><Link href="#" style={{display:"inline-block",background:"#081426",color:"white",textDecoration:"none",padding:"12px 18px",borderRadius:10,fontWeight:700}}>{t.open}</Link></p></div></div></div></main>}
