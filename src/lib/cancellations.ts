@@ -1,224 +1,33 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
+import type { Locale } from "@/lib/i18n";
 
 export type CancellationLegalStatus = "STANDARD_ELIGIBLE" | "OUTSIDE_STANDARD" | "SPECIAL_REVIEW";
 export type CancellationStatus = "NEW" | "APPROVED" | "REJECTED" | "REFUND_PENDING" | "REFUNDED";
 
 export type CancellationOrderSnapshot = {
-  id: string;
-  publicId: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  totalMinor: number;
-  currency: string;
-  status: string;
-  createdAt: Date;
-  eventId: string;
-  eventTitle: string;
-  eventStartsAt: Date;
-  organizationId: string;
-  ticketCount: number;
-  itemSummary: string;
+  id:string;publicId:string;customerName:string;customerEmail:string;customerPhone:string;totalMinor:number;currency:string;status:string;createdAt:Date;eventId:string;eventTitle:string;eventStartsAt:Date;organizationId:string;ticketCount:number;itemSummary:string;
 };
 
-let runtimeReady: Promise<void> | null = null;
+let runtimeReady:Promise<void>|null=null;
+export function ensureCancellationRuntime(){if(!runtimeReady)runtimeReady=(async()=>{const statements=[`CREATE TABLE IF NOT EXISTS "CancellationRequest" ("id" TEXT PRIMARY KEY,"publicId" TEXT NOT NULL UNIQUE,"orderId" TEXT NOT NULL,"organizationId" TEXT NOT NULL,"eventId" TEXT NOT NULL,"customerEmail" TEXT NOT NULL,"reason" TEXT,"specialCategory" TEXT,"status" TEXT NOT NULL DEFAULT 'NEW',"legalStatus" TEXT NOT NULL,"legalReason" TEXT NOT NULL,"orderAmountMinor" INTEGER NOT NULL,"statutoryFeeMinor" INTEGER NOT NULL,"refundAmountMinor" INTEGER,"organizerChargeMinor" INTEGER,"decisionNote" TEXT,"reviewedBy" TEXT,"reviewedAt" TIMESTAMP(3),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE,FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE)`,`CREATE INDEX IF NOT EXISTS "CancellationRequest_org_status_idx" ON "CancellationRequest"("organizationId","status","createdAt")`,`CREATE INDEX IF NOT EXISTS "CancellationRequest_order_idx" ON "CancellationRequest"("orderId","createdAt")`,`CREATE UNIQUE INDEX IF NOT EXISTS "CancellationRequest_one_open_per_order_idx" ON "CancellationRequest"("orderId") WHERE "status" IN ('NEW','REFUND_PENDING')`];for(const statement of statements)await db.$executeRawUnsafe(statement);})().catch(error=>{runtimeReady=null;throw error});return runtimeReady;}
+function normalizeEmail(value:string){return value.trim().toLowerCase();}
+function nonRestDaysUntilEvent(from:Date,eventDate:Date){let count=0;const cursor=new Date(from);cursor.setHours(0,0,0,0);cursor.setDate(cursor.getDate()+1);const end=new Date(eventDate);end.setHours(0,0,0,0);while(cursor<end){if(cursor.getDay()!==6)count++;cursor.setDate(cursor.getDate()+1);}return count;}
 
-export function ensureCancellationRuntime() {
-  if (!runtimeReady) runtimeReady = (async () => {
-    const statements = [
-      `CREATE TABLE IF NOT EXISTS "CancellationRequest" (
-        "id" TEXT PRIMARY KEY,
-        "publicId" TEXT NOT NULL UNIQUE,
-        "orderId" TEXT NOT NULL,
-        "organizationId" TEXT NOT NULL,
-        "eventId" TEXT NOT NULL,
-        "customerEmail" TEXT NOT NULL,
-        "reason" TEXT,
-        "specialCategory" TEXT,
-        "status" TEXT NOT NULL DEFAULT 'NEW',
-        "legalStatus" TEXT NOT NULL,
-        "legalReason" TEXT NOT NULL,
-        "orderAmountMinor" INTEGER NOT NULL,
-        "statutoryFeeMinor" INTEGER NOT NULL,
-        "refundAmountMinor" INTEGER,
-        "organizerChargeMinor" INTEGER,
-        "decisionNote" TEXT,
-        "reviewedBy" TEXT,
-        "reviewedAt" TIMESTAMP(3),
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE,
-        FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE
-      )`,
-      `CREATE INDEX IF NOT EXISTS "CancellationRequest_org_status_idx" ON "CancellationRequest"("organizationId","status","createdAt")`,
-      `CREATE INDEX IF NOT EXISTS "CancellationRequest_order_idx" ON "CancellationRequest"("orderId","createdAt")`,
-      `CREATE UNIQUE INDEX IF NOT EXISTS "CancellationRequest_one_open_per_order_idx" ON "CancellationRequest"("orderId") WHERE "status" IN ('NEW','REFUND_PENDING')`,
-    ];
-    for (const statement of statements) await db.$executeRawUnsafe(statement);
-  })().catch(error => { runtimeReady = null; throw error; });
-  return runtimeReady;
-}
+type EligibilityReasonContext={within14Days?:boolean;enoughTimeBeforeEvent?:boolean};
+const eligibilityReasonCopy={
+ ru:{SPECIAL_REVIEW:"Клиент указал льготную категорию. Требуется ручная проверка документов и применимости расширенного срока отмены.",STANDARD_ELIGIBLE:"Предварительная автоматическая проверка: заявка подана в пределах 14 дней с покупки и до события более 7 дней, не являющихся субботой. Праздничные дни требуют финальной проверки организатором.",outsideBase:"Стандартное право на отмену автоматически не подтверждено",outside14:"прошло более 14 дней с момента покупки",outsideTime:"до мероприятия недостаточно дней для стандартной дистанционной отмены",outsideEnd:"Организатор может одобрить добровольный возврат."},
+ he:{SPECIAL_REVIEW:"הלקוח ציין קטגוריה מיוחדת. נדרשת בדיקה ידנית של המסמכים ושל תחולת תקופת הביטול המורחבת.",STANDARD_ELIGIBLE:"בדיקה אוטומטית ראשונית: הבקשה הוגשה בתוך 14 ימים ממועד הרכישה ולפני האירוע נותרו יותר מ-7 ימים שאינם שבת. ימי חג מחייבים בדיקה סופית של המפיק.",outsideBase:"לא אושרה אוטומטית זכאות רגילה לביטול",outside14:"חלפו יותר מ-14 ימים ממועד הרכישה",outsideTime:"לא נותרו מספיק ימים עד האירוע לביטול מרחוק לפי המסלול הרגיל",outsideEnd:"המפיק רשאי לאשר החזר מרצונו."},
+ en:{SPECIAL_REVIEW:"The customer selected a special category. Manual review of supporting documents and the extended cancellation window is required.",STANDARD_ELIGIBLE:"Preliminary automated check: the request was submitted within 14 days of purchase and more than 7 non-Saturday days remain before the event. Israeli holidays require final organizer review.",outsideBase:"Standard cancellation eligibility was not automatically confirmed",outside14:"more than 14 days have passed since purchase",outsideTime:"not enough days remain before the event for the standard distance-cancellation route",outsideEnd:"The organizer may still approve a voluntary refund."}
+} as const;
+export function cancellationEligibilityReason(status:CancellationLegalStatus,locale:Locale,context:EligibilityReasonContext={}){const text=eligibilityReasonCopy[locale];if(status==="SPECIAL_REVIEW")return text.SPECIAL_REVIEW;if(status==="STANDARD_ELIGIBLE")return text.STANDARD_ELIGIBLE;const reasons:string[]=[];if(context.within14Days===false)reasons.push(text.outside14);if(context.enoughTimeBeforeEvent===false)reasons.push(text.outsideTime);return reasons.length?`${text.outsideBase}: ${reasons.join("; ")}. ${text.outsideEnd}`:`${text.outsideBase}. ${text.outsideEnd}`;}
 
-function normalizeEmail(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function nonRestDaysUntilEvent(from: Date, eventDate: Date) {
-  let count = 0;
-  const cursor = new Date(from);
-  cursor.setHours(0,0,0,0);
-  cursor.setDate(cursor.getDate() + 1);
-  const end = new Date(eventDate);
-  end.setHours(0,0,0,0);
-  while (cursor < end) {
-    // Saturday is always a statutory rest day. Israeli holidays can add more
-    // rest days, so the result is treated as a preliminary automated check.
-    if (cursor.getDay() !== 6) count++;
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return count;
-}
-
-export function evaluateCancellationEligibility(orderCreatedAt: Date, eventStartsAt: Date, specialCategory?: string | null) {
-  const now = new Date();
-  const elapsedMs = now.getTime() - new Date(orderCreatedAt).getTime();
-  const within14Days = elapsedMs >= 0 && elapsedMs <= 14 * 24 * 60 * 60 * 1000;
-  const nonRestDays = nonRestDaysUntilEvent(now, new Date(eventStartsAt));
-  const enoughTimeBeforeEvent = nonRestDays > 7;
-
-  if (specialCategory) {
-    return {
-      status: "SPECIAL_REVIEW" as CancellationLegalStatus,
-      reason: "Клиент указал льготную категорию. Требуется ручная проверка документов и применимости расширенного срока отмены.",
-      within14Days,
-      nonRestDays,
-    };
-  }
-  if (within14Days && enoughTimeBeforeEvent) {
-    return {
-      status: "STANDARD_ELIGIBLE" as CancellationLegalStatus,
-      reason: `Предварительная автоматическая проверка: заявка подана в пределах 14 дней с покупки и до события более 7 дней, не являющихся субботой. Праздничные дни требуют финальной проверки организатором.`,
-      within14Days,
-      nonRestDays,
-    };
-  }
-  const reasons: string[] = [];
-  if (!within14Days) reasons.push("прошло более 14 дней с момента покупки");
-  if (!enoughTimeBeforeEvent) reasons.push("до мероприятия недостаточно дней для стандартной дистанционной отмены");
-  return {
-    status: "OUTSIDE_STANDARD" as CancellationLegalStatus,
-    reason: `Стандартное право на отмену автоматически не подтверждено: ${reasons.join("; ")}. Организатор может одобрить добровольный возврат.`,
-    within14Days,
-    nonRestDays,
-  };
-}
-
-export function statutoryCancellationFeeMinor(orderAmountMinor: number) {
-  return Math.min(Math.round(orderAmountMinor * 0.05), 10000);
-}
-
-export async function findCancellationOrder(publicId: string, email: string): Promise<CancellationOrderSnapshot | null> {
-  const order = await db.order.findFirst({
-    where: { publicId: publicId.trim(), customerEmail: { equals: normalizeEmail(email) } },
-    select: {
-      id: true, publicId: true, customerName: true, customerEmail: true, customerPhone: true,
-      totalMinor: true, currency: true, status: true, createdAt: true, eventId: true,
-      event: { select: { title: true, startsAt: true, organizationId: true } },
-      tickets: { select: { id: true } },
-      items: { select: { quantity: true, categoryName: true } },
-    },
-  });
-  if (!order) return null;
-  return {
-    id: order.id,
-    publicId: order.publicId,
-    customerName: order.customerName,
-    customerEmail: order.customerEmail,
-    customerPhone: order.customerPhone,
-    totalMinor: order.totalMinor,
-    currency: order.currency,
-    status: order.status,
-    createdAt: order.createdAt,
-    eventId: order.eventId,
-    eventTitle: order.event.title,
-    eventStartsAt: order.event.startsAt,
-    organizationId: order.event.organizationId,
-    ticketCount: order.tickets.length,
-    itemSummary: order.items.map(item => `${item.quantity} × ${item.categoryName}`).join(", ") || `${order.tickets.length} билет(а)`,
-  };
-}
-
-function cancellationPublicId() {
-  return `CAN-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;
-}
-
-export async function createCancellationRequest(input: { order: CancellationOrderSnapshot; reason?: string; specialCategory?: string | null }) {
-  await ensureCancellationRuntime();
-  if (input.order.status !== "PAID") throw new Error("ORDER_NOT_CANCELLABLE");
-  if (new Date(input.order.eventStartsAt) <= new Date()) throw new Error("EVENT_ALREADY_STARTED");
-  const eligibility = evaluateCancellationEligibility(input.order.createdAt, input.order.eventStartsAt, input.specialCategory);
-  const fee = statutoryCancellationFeeMinor(input.order.totalMinor);
-  const id = randomUUID();
-  const publicId = cancellationPublicId();
-  try {
-    await db.$executeRawUnsafe(
-      `INSERT INTO "CancellationRequest" ("id","publicId","orderId","organizationId","eventId","customerEmail","reason","specialCategory","legalStatus","legalReason","orderAmountMinor","statutoryFeeMinor") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      id, publicId, input.order.id, input.order.organizationId, input.order.eventId, normalizeEmail(input.order.customerEmail), input.reason?.trim() || null,
-      input.specialCategory || null, eligibility.status, eligibility.reason, input.order.totalMinor, fee,
-    );
-  } catch (error) {
-    if (String(error).includes("CancellationRequest_one_open_per_order_idx") || String(error).includes("unique")) throw new Error("OPEN_REQUEST_EXISTS");
-    throw error;
-  }
-  return { id, publicId, eligibility, feeMinor: fee };
-}
-
-export type CancellationListRow = {
-  id: string; publicId: string; orderId: string; orderPublicId: string; customerName: string; customerEmail: string;
-  eventTitle: string; eventStartsAt: Date; orderAmountMinor: number; statutoryFeeMinor: number; status: CancellationStatus;
-  legalStatus: CancellationLegalStatus; legalReason: string; createdAt: Date;
-};
-
-export async function listCancellationRequests(organizationId: string, allowedEventIds?: string[]) {
-  await ensureCancellationRuntime();
-  const scoped = allowedEventIds?.length ? ` AND c."eventId" = ANY($2::text[])` : "";
-  const params: unknown[] = [organizationId];
-  if (allowedEventIds?.length) params.push(allowedEventIds);
-  return db.$queryRawUnsafe<CancellationListRow[]>(
-    `SELECT c."id",c."publicId",c."orderId",o."publicId" AS "orderPublicId",o."customerName",o."customerEmail",e."title" AS "eventTitle",e."startsAt" AS "eventStartsAt",c."orderAmountMinor",c."statutoryFeeMinor",c."status",c."legalStatus",c."legalReason",c."createdAt" FROM "CancellationRequest" c JOIN "Order" o ON o."id"=c."orderId" JOIN "Event" e ON e."id"=c."eventId" WHERE c."organizationId"=$1${scoped} ORDER BY CASE WHEN c."status"='NEW' THEN 0 ELSE 1 END,c."createdAt" DESC`,
-    ...params,
-  );
-}
-
-export async function getCancellationRequest(id: string, organizationId: string, allowedEventIds?: string[]) {
-  await ensureCancellationRuntime();
-  const scoped = allowedEventIds?.length ? ` AND c."eventId" = ANY($3::text[])` : "";
-  const params: unknown[] = [id, organizationId];
-  if (allowedEventIds?.length) params.push(allowedEventIds);
-  const rows = await db.$queryRawUnsafe<Array<CancellationListRow & {
-    customerPhone:string; orderCreatedAt:Date; itemSummary:string; reason:string|null; specialCategory:string|null;
-    refundAmountMinor:number|null; organizerChargeMinor:number|null; decisionNote:string|null; reviewedAt:Date|null;
-  }>>(
-    `SELECT c."id",c."publicId",c."orderId",o."publicId" AS "orderPublicId",o."customerName",o."customerEmail",o."customerPhone",o."createdAt" AS "orderCreatedAt",e."title" AS "eventTitle",e."startsAt" AS "eventStartsAt",c."orderAmountMinor",c."statutoryFeeMinor",c."status",c."legalStatus",c."legalReason",c."reason",c."specialCategory",c."refundAmountMinor",c."organizerChargeMinor",c."decisionNote",c."reviewedAt",c."createdAt",COALESCE((SELECT string_agg(oi."quantity"::text || ' × ' || oi."categoryName", ', ') FROM "OrderItem" oi WHERE oi."orderId"=o."id"),'') AS "itemSummary" FROM "CancellationRequest" c JOIN "Order" o ON o."id"=c."orderId" JOIN "Event" e ON e."id"=c."eventId" WHERE c."id"=$1 AND c."organizationId"=$2${scoped} LIMIT 1`,
-    ...params,
-  );
-  return rows[0] || null;
-}
-
-export async function reviewCancellationRequest(input: { id:string; organizationId:string; actorId:string; action:"APPROVE"|"REJECT"; refundAmountMinor?:number; note?:string; allowedEventIds?:string[] }) {
-  const request = await getCancellationRequest(input.id, input.organizationId, input.allowedEventIds);
-  if (!request) throw new Error("REQUEST_NOT_FOUND");
-  if (request.status !== "NEW") throw new Error("REQUEST_ALREADY_REVIEWED");
-  if (input.action === "REJECT") {
-    await db.$executeRawUnsafe(`UPDATE "CancellationRequest" SET "status"='REJECTED',"decisionNote"=$2,"reviewedBy"=$3,"reviewedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1`, input.id, input.note?.trim() || null, input.actorId);
-    return { status:"REJECTED" as const };
-  }
-  const refund = Math.max(0, Math.min(request.orderAmountMinor, Math.round(input.refundAmountMinor ?? (request.orderAmountMinor-request.statutoryFeeMinor))));
-  const standardRefund = request.orderAmountMinor - request.statutoryFeeMinor;
-  const organizerCharge = Math.max(0, refund - standardRefund);
-  // Real HYP refund is deliberately a separate execution step. A review decision
-  // must never mark funds as returned before the payment provider confirms it.
-  await db.$executeRawUnsafe(`UPDATE "CancellationRequest" SET "status"='REFUND_PENDING',"refundAmountMinor"=$2,"organizerChargeMinor"=$3,"decisionNote"=$4,"reviewedBy"=$5,"reviewedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1`, input.id, refund, organizerCharge, input.note?.trim() || null, input.actorId);
-  return { status:"REFUND_PENDING" as const, refundAmountMinor:refund, organizerChargeMinor:organizerCharge };
-}
+export function evaluateCancellationEligibility(orderCreatedAt:Date,eventStartsAt:Date,specialCategory?:string|null){const now=new Date();const elapsedMs=now.getTime()-new Date(orderCreatedAt).getTime();const within14Days=elapsedMs>=0&&elapsedMs<=14*24*60*60*1000;const nonRestDays=nonRestDaysUntilEvent(now,new Date(eventStartsAt));const enoughTimeBeforeEvent=nonRestDays>7;if(specialCategory){return{status:"SPECIAL_REVIEW" as CancellationLegalStatus,reason:cancellationEligibilityReason("SPECIAL_REVIEW","ru"),within14Days,nonRestDays,enoughTimeBeforeEvent};}if(within14Days&&enoughTimeBeforeEvent){return{status:"STANDARD_ELIGIBLE" as CancellationLegalStatus,reason:cancellationEligibilityReason("STANDARD_ELIGIBLE","ru"),within14Days,nonRestDays,enoughTimeBeforeEvent};}return{status:"OUTSIDE_STANDARD" as CancellationLegalStatus,reason:cancellationEligibilityReason("OUTSIDE_STANDARD","ru",{within14Days,enoughTimeBeforeEvent}),within14Days,nonRestDays,enoughTimeBeforeEvent};}
+export function statutoryCancellationFeeMinor(orderAmountMinor:number){return Math.min(Math.round(orderAmountMinor*.05),10000);}
+export async function findCancellationOrder(publicId:string,email:string):Promise<CancellationOrderSnapshot|null>{const order=await db.order.findFirst({where:{publicId:publicId.trim(),customerEmail:{equals:normalizeEmail(email)}},select:{id:true,publicId:true,customerName:true,customerEmail:true,customerPhone:true,totalMinor:true,currency:true,status:true,createdAt:true,eventId:true,event:{select:{title:true,startsAt:true,organizationId:true}},tickets:{select:{id:true}},items:{select:{quantity:true,categoryName:true}}}});if(!order)return null;return{id:order.id,publicId:order.publicId,customerName:order.customerName,customerEmail:order.customerEmail,customerPhone:order.customerPhone,totalMinor:order.totalMinor,currency:order.currency,status:order.status,createdAt:order.createdAt,eventId:order.eventId,eventTitle:order.event.title,eventStartsAt:order.event.startsAt,organizationId:order.event.organizationId,ticketCount:order.tickets.length,itemSummary:order.items.map(item=>`${item.quantity} × ${item.categoryName}`).join(", ")||`${order.tickets.length} ticket(s)`};}
+function cancellationPublicId(){return`CAN-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;}
+export async function createCancellationRequest(input:{order:CancellationOrderSnapshot;reason?:string;specialCategory?:string|null}){await ensureCancellationRuntime();if(input.order.status!=="PAID")throw new Error("ORDER_NOT_CANCELLABLE");if(new Date(input.order.eventStartsAt)<=new Date())throw new Error("EVENT_ALREADY_STARTED");const eligibility=evaluateCancellationEligibility(input.order.createdAt,input.order.eventStartsAt,input.specialCategory);const fee=statutoryCancellationFeeMinor(input.order.totalMinor);const id=randomUUID();const publicId=cancellationPublicId();try{await db.$executeRawUnsafe(`INSERT INTO "CancellationRequest" ("id","publicId","orderId","organizationId","eventId","customerEmail","reason","specialCategory","legalStatus","legalReason","orderAmountMinor","statutoryFeeMinor") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,id,publicId,input.order.id,input.order.organizationId,input.order.eventId,normalizeEmail(input.order.customerEmail),input.reason?.trim()||null,input.specialCategory||null,eligibility.status,eligibility.reason,input.order.totalMinor,fee);}catch(error){if(String(error).includes("CancellationRequest_one_open_per_order_idx")||String(error).includes("unique"))throw new Error("OPEN_REQUEST_EXISTS");throw error;}return{id,publicId,eligibility,feeMinor:fee};}
+export type CancellationListRow={id:string;publicId:string;orderId:string;orderPublicId:string;customerName:string;customerEmail:string;eventTitle:string;eventStartsAt:Date;orderAmountMinor:number;statutoryFeeMinor:number;status:CancellationStatus;legalStatus:CancellationLegalStatus;legalReason:string;createdAt:Date};
+export async function listCancellationRequests(organizationId:string,allowedEventIds?:string[]){await ensureCancellationRuntime();const scoped=allowedEventIds?.length?` AND c."eventId" = ANY($2::text[])`:"";const params:unknown[]=[organizationId];if(allowedEventIds?.length)params.push(allowedEventIds);return db.$queryRawUnsafe<CancellationListRow[]>(`SELECT c."id",c."publicId",c."orderId",o."publicId" AS "orderPublicId",o."customerName",o."customerEmail",e."title" AS "eventTitle",e."startsAt" AS "eventStartsAt",c."orderAmountMinor",c."statutoryFeeMinor",c."status",c."legalStatus",c."legalReason",c."createdAt" FROM "CancellationRequest" c JOIN "Order" o ON o."id"=c."orderId" JOIN "Event" e ON e."id"=c."eventId" WHERE c."organizationId"=$1${scoped} ORDER BY CASE WHEN c."status"='NEW' THEN 0 ELSE 1 END,c."createdAt" DESC`,...params);}
+export async function getCancellationRequest(id:string,organizationId:string,allowedEventIds?:string[]){await ensureCancellationRuntime();const scoped=allowedEventIds?.length?` AND c."eventId" = ANY($3::text[])`:"";const params:unknown[]=[id,organizationId];if(allowedEventIds?.length)params.push(allowedEventIds);const rows=await db.$queryRawUnsafe<Array<CancellationListRow&{customerPhone:string;orderCreatedAt:Date;itemSummary:string;reason:string|null;specialCategory:string|null;refundAmountMinor:number|null;organizerChargeMinor:number|null;decisionNote:string|null;reviewedAt:Date|null}>>(`SELECT c."id",c."publicId",c."orderId",o."publicId" AS "orderPublicId",o."customerName",o."customerEmail",o."customerPhone",o."createdAt" AS "orderCreatedAt",e."title" AS "eventTitle",e."startsAt" AS "eventStartsAt",c."orderAmountMinor",c."statutoryFeeMinor",c."status",c."legalStatus",c."legalReason",c."reason",c."specialCategory",c."refundAmountMinor",c."organizerChargeMinor",c."decisionNote",c."reviewedAt",c."createdAt",COALESCE((SELECT string_agg(oi."quantity"::text || ' × ' || oi."categoryName", ', ') FROM "OrderItem" oi WHERE oi."orderId"=o."id"),'') AS "itemSummary" FROM "CancellationRequest" c JOIN "Order" o ON o."id"=c."orderId" JOIN "Event" e ON e."id"=c."eventId" WHERE c."id"=$1 AND c."organizationId"=$2${scoped} LIMIT 1`,...params);return rows[0]||null;}
+export async function reviewCancellationRequest(input:{id:string;organizationId:string;actorId:string;action:"APPROVE"|"REJECT";refundAmountMinor?:number;note?:string;allowedEventIds?:string[]}){const request=await getCancellationRequest(input.id,input.organizationId,input.allowedEventIds);if(!request)throw new Error("REQUEST_NOT_FOUND");if(request.status!=="NEW")throw new Error("REQUEST_ALREADY_REVIEWED");if(input.action==="REJECT"){await db.$executeRawUnsafe(`UPDATE "CancellationRequest" SET "status"='REJECTED',"decisionNote"=$2,"reviewedBy"=$3,"reviewedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1`,input.id,input.note?.trim()||null,input.actorId);return{status:"REJECTED" as const};}const refund=Math.max(0,Math.min(request.orderAmountMinor,Math.round(input.refundAmountMinor??(request.orderAmountMinor-request.statutoryFeeMinor))));const standardRefund=request.orderAmountMinor-request.statutoryFeeMinor;const organizerCharge=Math.max(0,refund-standardRefund);await db.$executeRawUnsafe(`UPDATE "CancellationRequest" SET "status"='REFUND_PENDING',"refundAmountMinor"=$2,"organizerChargeMinor"=$3,"decisionNote"=$4,"reviewedBy"=$5,"reviewedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1`,input.id,refund,organizerCharge,input.note?.trim()||null,input.actorId);return{status:"REFUND_PENDING" as const,refundAmountMinor:refund,organizerChargeMinor:organizerCharge};}
