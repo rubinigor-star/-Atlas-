@@ -1,27 +1,6 @@
 import Link from "next/link";
+import {getServerI18n} from "@/lib/server-locale";
 
-export const dynamic = "force-dynamic";
-
-const copy = {
-  title: "Тест оплаты Hyp",
-  text: "Эта страница создаёт отдельную реальную оплату на 1 ₪ через Hyp. Она не создаёт билет и не изменяет существующие заказы Atlas.",
-  warning: "Будет выполнено настоящее списание 1 ₪. Для теста используйте свою карту, Apple Pay или Google Pay.",
-  start: "Перейти к оплате 1 ₪",
-};
-
-export default async function HypTestPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const params = await searchParams;
-  return (
-    <main className="container" style={{ paddingTop: 48, paddingBottom: 80 }}>
-      <div className="panel" style={{ maxWidth: 680, margin: "0 auto", display: "grid", gap: 18 }}>
-        <span className="eyebrow">ATLAS ONE · HYP</span>
-        <h1 style={{ margin: 0 }}>{copy.title}</h1>
-        <p className="muted" style={{ margin: 0 }}>{copy.text}</p>
-        <div className="toast" style={{ background: "#fff7ed", color: "#9a3412" }}>{copy.warning}</div>
-        {params.error && <div className="toast" style={{ background: "#fff1f0", color: "#b42318", overflowWrap: "anywhere" }}>{params.error}</div>}
-        <Link className="btn dark" href="/api/payments/hyp/test">{copy.start}</Link>
-        <Link className="btn secondary" href="/">Вернуться на сайт</Link>
-      </div>
-    </main>
-  );
-}
+export const dynamic="force-dynamic";
+const copy={ru:{title:"Тест оплаты Hyp",text:"Эта страница создаёт отдельную реальную оплату на 1 ₪ через Hyp. Она не создаёт билет и не изменяет существующие заказы Atlas.",warning:"Будет выполнено настоящее списание 1 ₪. Для теста используйте свою карту, Apple Pay или Google Pay.",start:"Перейти к оплате 1 ₪",back:"Вернуться на сайт"},he:{title:"בדיקת תשלום Hyp",text:"העמוד יוצר תשלום אמיתי נפרד של 1 ₪ דרך Hyp. הוא אינו יוצר כרטיס ואינו משנה הזמנות קיימות ב-Atlas.",warning:"יתבצע חיוב אמיתי של 1 ₪. לבדיקה השתמשו בכרטיס שלכם, Apple Pay או Google Pay.",start:"מעבר לתשלום 1 ₪",back:"חזרה לאתר"},en:{title:"Hyp payment test",text:"This page creates a separate real ₪1 payment through Hyp. It does not create a ticket or modify existing Atlas orders.",warning:"A real ₪1 charge will be made. Use your own card, Apple Pay or Google Pay for the test.",start:"Continue to ₪1 payment",back:"Back to website"}} as const;
+export default async function HypTestPage({searchParams}:{searchParams:Promise<{error?:string}>}){const[params,{locale}]=await Promise.all([searchParams,getServerI18n()]);const t=copy[locale];return <main className="container" style={{paddingTop:48,paddingBottom:80}}><div className="panel" style={{maxWidth:680,margin:"0 auto",display:"grid",gap:18}}><span className="eyebrow">ATLAS ONE · HYP</span><h1 style={{margin:0}}>{t.title}</h1><p className="muted" style={{margin:0}}>{t.text}</p><div className="toast" style={{background:"#fff7ed",color:"#9a3412"}}>{t.warning}</div>{params.error&&<div className="toast" dir="auto" style={{background:"#fff1f0",color:"#b42318",overflowWrap:"anywhere"}}>{params.error}</div>}<Link className="btn dark" href="/api/payments/hyp/test">{t.start}</Link><Link className="btn secondary" href="/">{t.back}</Link></div></main>}
