@@ -2,143 +2,46 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEventAccess } from "@/lib/auth";
+import type { Locale } from "@/lib/i18n";
 
 const inputSchema = z.object({ prompt: z.string().min(5).max(4000), locale: z.enum(["ru", "he", "en"]).optional() });
 
 const planSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["summary", "notes", "changes"],
+  type: "object", additionalProperties: false, required: ["summary", "notes", "changes"],
   properties: {
-    summary: { type: "string" },
-    notes: { type: "array", items: { type: "string" } },
-    changes: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["id", "title", "detail", "risk", "kind", "selectable", "statusLabel"],
-        properties: {
-          id: { type: "string" },
-          title: { type: "string" },
-          detail: { type: "string" },
-          risk: { type: "string", enum: ["safe", "review"] },
-          kind: { type: "string", enum: ["draft", "system_change", "advice"] },
-          selectable: { type: "boolean" },
-          statusLabel: { type: "string" },
-        },
-      },
-    },
+    summary: { type: "string" }, notes: { type: "array", items: { type: "string" } },
+    changes: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "title", "detail", "risk", "kind", "selectable", "statusLabel"], properties: { id: { type: "string" }, title: { type: "string" }, detail: { type: "string" }, risk: { type: "string", enum: ["safe", "review"] }, kind: { type: "string", enum: ["draft", "system_change", "advice"] }, selectable: { type: "boolean" }, statusLabel: { type: "string" } } } },
   },
 } as const;
 
-type PlanItem = {
-  id: string;
-  title: string;
-  detail: string;
-  risk: "safe" | "review";
-  kind: "draft" | "system_change" | "advice";
-  selectable: boolean;
-  statusLabel: string;
-};
+type PlanItem = { id:string; title:string; detail:string; risk:"safe"|"review"; kind:"draft"|"system_change"|"advice"; selectable:boolean; statusLabel:string };
+const copy={
+  ru:{missing:"Мероприятие не найдено",failed:"Не удалось обработать запрос Atlas Assistant",marketing1:"Подготовить план публикаций",marketing1Detail:"Atlas подготовит конкретный календарь публикаций на 7 дней без изменения настроек мероприятия.",marketing2:"Подготовить тексты для рассылки",marketing2Detail:"Будут созданы черновики сообщений. Ничего не будет отправлено автоматически.",tickets:"Проверить категории билетов",ticketsDetail:"Atlas подготовит точный список категорий, цен, вместимости и лимитов для подтверждения.",review:"Проверить текущее мероприятие",reviewDetail:(title:string)=>`Atlas проверит настройки «${title}» и покажет только относящиеся к запросу действия.`,safe:"Можно подготовить",draft:"Черновик",confirm:"Требует подтверждения",advice:"Рекомендация",summary:"Atlas отделяет рекомендации, черновики и изменения системы. Несвязанные действия не добавляются в один план.",note1:"До отдельного подтверждения данные мероприятия не изменяются.",note2:(n:number)=>`Сейчас найдено категорий: ${n}.`},
+  he:{missing:"האירוע לא נמצא",failed:"לא ניתן לעבד את הבקשה ב-Atlas Assistant",marketing1:"הכנת תוכנית פרסום",marketing1Detail:"Atlas תכין לוח פרסומים ממוקד ל-7 ימים בלי לשנות את הגדרות האירוע.",marketing2:"הכנת טקסטים לשליחה",marketing2Detail:"יוכנו טיוטות הודעות בלבד. שום דבר לא יישלח אוטומטית.",tickets:"בדיקת קטגוריות הכרטיסים",ticketsDetail:"Atlas תכין רשימה מדויקת של קטגוריות, מחירים, קיבולת ומגבלות לאישור.",review:"בדיקת האירוע הנוכחי",reviewDetail:(title:string)=>`Atlas תבדוק את הגדרות האירוע ״${title}״ ותציג רק פעולות שרלוונטיות לבקשה.`,safe:"אפשר להכין",draft:"טיוטה",confirm:"דורש אישור",advice:"המלצה",summary:"Atlas מפרידה בין המלצות, טיוטות ושינויים במערכת ולא מערבבת פעולות שאינן קשורות לאותה בקשה.",note1:"נתוני האירוע לא משתנים לפני אישור מפורש.",note2:(n:number)=>`נמצאו כרגע ${n} קטגוריות.`},
+  en:{missing:"Event not found",failed:"Atlas Assistant could not process the request",marketing1:"Prepare a publishing plan",marketing1Detail:"Atlas will prepare a concrete 7-day publishing calendar without changing event settings.",marketing2:"Prepare message copy",marketing2Detail:"Message drafts will be created. Nothing will be sent automatically.",tickets:"Review ticket categories",ticketsDetail:"Atlas will prepare an exact list of categories, prices, capacities and limits for review.",review:"Review the current event",reviewDetail:(title:string)=>`Atlas will review the settings for “${title}” and show only actions relevant to the request.`,safe:"Ready to prepare",draft:"Draft",confirm:"Requires confirmation",advice:"Recommendation",summary:"Atlas separates advice, drafts and system changes. Unrelated actions are not mixed into one plan.",note1:"Event data is not changed without separate confirmation.",note2:(n:number)=>`There are currently ${n} categories.`}
+} as const;
 
-function demoPlan(prompt: string, event: { title: string; categories: Array<{ name: string; capacity: number; priceMinor: number }> }) {
-  const lower = prompt.toLowerCase();
-  const changes: PlanItem[] = [];
-  const add = (item: Omit<PlanItem, "id">) => changes.push({ id: `action-${changes.length + 1}`, ...item });
-
-  if (lower.includes("продвиж") || lower.includes("marketing") || lower.includes("קידום")) {
-    add({ title: "Подготовить план публикаций", detail: "Atlas подготовит конкретный календарь публикаций на 7 дней без изменения настроек мероприятия.", risk: "safe", kind: "draft", selectable: true, statusLabel: "Можно подготовить" });
-    add({ title: "Подготовить тексты для рассылки", detail: "Будут созданы черновики сообщений. Ничего не будет отправлено автоматически.", risk: "safe", kind: "draft", selectable: true, statusLabel: "Черновик" });
-  } else if (lower.includes("категор") || lower.includes("dance") || lower.includes("vip") || lower.includes("билет")) {
-    add({ title: "Проверить категории билетов", detail: "Atlas подготовит точный список категорий, цен, вместимости и лимитов для подтверждения.", risk: "review", kind: "system_change", selectable: true, statusLabel: "Требует подтверждения" });
-  } else {
-    add({ title: "Проверить текущее мероприятие", detail: `Atlas проверит настройки «${event.title}» и покажет только относящиеся к запросу действия.`, risk: "safe", kind: "advice", selectable: false, statusLabel: "Рекомендация" });
-  }
-
-  return {
-    summary: "Atlas отделяет рекомендации, черновики и изменения системы. Несвязанные действия не добавляются в один план.",
-    notes: ["До отдельного подтверждения данные мероприятия не изменяются.", `Сейчас найдено категорий: ${event.categories.length}.`],
-    changes,
-    mode: "demo" as const,
-  };
-}
-
-function extractOutputText(response: unknown) {
-  const value = response as { output_text?: string; output?: Array<{ content?: Array<{ type?: string; text?: string }> }> };
-  if (value.output_text) return value.output_text;
-  for (const item of value.output || []) for (const content of item.content || []) if (content.type === "output_text" && content.text) return content.text;
-  return "";
-}
+function demoPlan(prompt:string,event:{title:string;categories:Array<{name:string;capacity:number;priceMinor:number}>},locale:Locale){const t=copy[locale];const lower=prompt.toLowerCase();const changes:PlanItem[]=[];const add=(item:Omit<PlanItem,"id">)=>changes.push({id:`action-${changes.length+1}`,...item});if(lower.includes("продвиж")||lower.includes("marketing")||lower.includes("קידום")||lower.includes("שיווק")){add({title:t.marketing1,detail:t.marketing1Detail,risk:"safe",kind:"draft",selectable:true,statusLabel:t.safe});add({title:t.marketing2,detail:t.marketing2Detail,risk:"safe",kind:"draft",selectable:true,statusLabel:t.draft});}else if(lower.includes("категор")||lower.includes("dance")||lower.includes("vip")||lower.includes("билет")||lower.includes("כרטיס")||lower.includes("category")){add({title:t.tickets,detail:t.ticketsDetail,risk:"review",kind:"system_change",selectable:true,statusLabel:t.confirm});}else{add({title:t.review,detail:t.reviewDetail(event.title),risk:"safe",kind:"advice",selectable:false,statusLabel:t.advice});}return{summary:t.summary,notes:[t.note1,t.note2(event.categories.length)],changes,mode:"demo" as const};}
+function extractOutputText(response:unknown){const value=response as{output_text?:string;output?:Array<{content?:Array<{type?:string;text?:string}>}>};if(value.output_text)return value.output_text;for(const item of value.output||[])for(const content of item.content||[])if(content.type==="output_text"&&content.text)return content.text;return"";}
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  let locale:Locale="ru";
   try {
     const { id } = await params;
     await requireEventAccess("EVENT_VIEW", id);
-    const { prompt, locale = "ru" } = inputSchema.parse(await req.json());
-    const event = await db.event.findUnique({ where: { id }, include: { venue: true, categories: { include: { priceTiers: true } } } });
-    if (!event) return NextResponse.json({ error: "Мероприятие не найдено" }, { status: 404 });
-
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) return NextResponse.json({ plan: demoPlan(prompt, event) });
-
-    const context = {
-      id: event.id,
-      title: event.title,
-      status: event.status,
-      startsAt: event.startsAt.toISOString(),
-      salesMode: event.salesMode,
-      mapEnabled: event.mapEnabled,
-      venue: { name: event.venue.name, city: event.venue.city, address: event.venue.address },
-      categories: event.categories.map((category) => ({
-        id: category.id,
-        name: category.name,
-        description: category.description,
-        priceMinor: category.priceMinor,
-        capacity: category.capacity,
-        sold: category.sold,
-        hidden: category.hidden,
-        maxPerOrder: category.maxPerOrder,
-        pricingMode: category.pricingMode,
-        salesStart: category.salesStart?.toISOString() || null,
-        salesEnd: category.salesEnd?.toISOString() || null,
-        priceTiers: category.priceTiers.map((tier) => ({ label: tier.label, priceMinor: tier.priceMinor, startsAt: tier.startsAt.toISOString(), endsAt: tier.endsAt.toISOString() })),
-      })),
-    };
-
-    const language = locale === "he" ? "Hebrew" : locale === "en" ? "English" : "Russian";
-    const instructions = `You are Atlas, the working partner of an event organizer inside Atlas Ticketing. Reply in ${language}.
-
-Core behavior:
-- Work like an operator who understands the current event, not like a generic chatbot.
-- Answer only the organizer's actual request. Never mix unrelated marketing, ticketing, venue-map, promo-code, approval-mode, SMS, email, or pricing changes into one plan.
-- If the user asks for promotion, return promotion deliverables only. Do not propose changing sales mode, map settings, prices, dates, capacities, promo codes, or checkout settings unless explicitly requested.
-- If the user asks to change the event, return only the exact requested system changes plus necessary safety checks.
-- Distinguish three kinds: draft (content Atlas can prepare), system_change (would alter data), advice (informational only).
-- selectable=true only for concrete items the organizer can deliberately choose. General advice must be selectable=false.
-- Never claim that anything was applied, sent, published, or changed.
-- Use short, concrete titles and details. Maximum 6 items.
-- Do not invent capabilities or modules that are not present in the supplied event context.
-- Prices, capacities, active sales, published events and sales windows are review risk.
-- Prefer stable fixed-price configurations. Never propose dynamic pricing unless explicitly requested.`;
-
-    const openAiResponse = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-5-mini",
-        instructions,
-        input: `CURRENT EVENT:\n${JSON.stringify(context)}\n\nORGANIZER REQUEST:\n${prompt}`,
-        text: { format: { type: "json_schema", name: "atlas_event_plan", strict: true, schema: planSchema } },
-      }),
-    });
-    const payload = await openAiResponse.json();
-    if (!openAiResponse.ok) throw new Error((payload as { error?: { message?: string } }).error?.message || "OpenAI API не ответил");
-    const text = extractOutputText(payload);
-    if (!text) throw new Error("OpenAI вернул пустой план");
-    const plan = JSON.parse(text) as { summary: string; notes: string[]; changes: PlanItem[] };
-    return NextResponse.json({ plan: { ...plan, mode: "live" as const } });
+    const input=inputSchema.parse(await req.json());locale=input.locale||"ru";const {prompt}=input;
+    const event=await db.event.findUnique({where:{id},include:{venue:true,categories:{include:{priceTiers:true}}}});
+    if(!event)return NextResponse.json({error:copy[locale].missing},{status:404});
+    const apiKey=process.env.OPENAI_API_KEY;if(!apiKey)return NextResponse.json({plan:demoPlan(prompt,event,locale)});
+    const context={id:event.id,title:event.title,status:event.status,startsAt:event.startsAt.toISOString(),salesMode:event.salesMode,mapEnabled:event.mapEnabled,venue:{name:event.venue.name,city:event.venue.city,address:event.venue.address},categories:event.categories.map(category=>({id:category.id,name:category.name,description:category.description,priceMinor:category.priceMinor,capacity:category.capacity,sold:category.sold,hidden:category.hidden,maxPerOrder:category.maxPerOrder,pricingMode:category.pricingMode,salesStart:category.salesStart?.toISOString()||null,salesEnd:category.salesEnd?.toISOString()||null,priceTiers:category.priceTiers.map(tier=>({label:tier.label,priceMinor:tier.priceMinor,startsAt:tier.startsAt.toISOString(),endsAt:tier.endsAt.toISOString()}))}))};
+    const language=locale==="he"?"Hebrew":locale==="en"?"English":"Russian";
+    const instructions=`You are Atlas, the working partner of an event organizer inside Atlas Ticketing. Reply in ${language}.\n\nCore behavior:\n- Work like an operator who understands the current event, not like a generic chatbot.\n- Answer only the organizer's actual request. Never mix unrelated marketing, ticketing, venue-map, promo-code, approval-mode, SMS, email, or pricing changes into one plan.\n- If the user asks for promotion, return promotion deliverables only. Do not propose changing sales mode, map settings, prices, dates, capacities, promo codes, or checkout settings unless explicitly requested.\n- If the user asks to change the event, return only the exact requested system changes plus necessary safety checks.\n- Distinguish three kinds: draft (content Atlas can prepare), system_change (would alter data), advice (informational only).\n- selectable=true only for concrete items the organizer can deliberately choose. General advice must be selectable=false.\n- Never claim that anything was applied, sent, published, or changed.\n- Use short, concrete titles and details. Maximum 6 items.\n- Do not invent capabilities or modules that are not present in the supplied event context.\n- Prices, capacities, active sales, published events and sales windows are review risk.\n- Prefer stable fixed-price configurations. Never propose dynamic pricing unless explicitly requested.`;
+    const openAiResponse=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{authorization:`Bearer ${apiKey}`,"content-type":"application/json"},body:JSON.stringify({model:process.env.OPENAI_MODEL||"gpt-5-mini",instructions,input:`CURRENT EVENT:\n${JSON.stringify(context)}\n\nORGANIZER REQUEST:\n${prompt}`,text:{format:{type:"json_schema",name:"atlas_event_plan",strict:true,schema:planSchema}}})});
+    const payload=await openAiResponse.json();if(!openAiResponse.ok)throw new Error((payload as{error?:{message?:string}}).error?.message||"OPENAI_API_ERROR");const text=extractOutputText(payload);if(!text)throw new Error("OPENAI_EMPTY_PLAN");const plan=JSON.parse(text) as{summary:string;notes:string[];changes:PlanItem[]};return NextResponse.json({plan:{...plan,mode:"live" as const}});
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось обработать запрос" }, { status: 400 });
+    console.error("admin.event.ai_assistant_failed",{message:error instanceof Error?error.message:"UNKNOWN_AI_ERROR"});
+    const forbidden=error instanceof Error&&error.message==="FORBIDDEN";
+    const message=forbidden?(locale==="he"?"אין הרשאה מתאימה":locale==="en"?"Insufficient permission":"Недостаточно прав"):copy[locale].failed;
+    return NextResponse.json({error:message},{status:forbidden?403:400});
   }
 }
