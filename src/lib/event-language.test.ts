@@ -10,6 +10,7 @@ describe("event language settings", () => {
     expect(normalizeEventLanguageSettings(undefined, undefined)).toEqual({
       primaryLanguage: "MULTILINGUAL",
       catalogVisibility: "PUBLIC",
+      customerCommunicationLocale: "ru",
     });
   });
 
@@ -17,11 +18,14 @@ describe("event language settings", () => {
     expect(normalizeEventLanguageSettings("INVALID", "UNKNOWN")).toEqual({
       primaryLanguage: "MULTILINGUAL",
       catalogVisibility: "PUBLIC",
+      customerCommunicationLocale: "ru",
     });
     expect(normalizeEventLanguageSettings("RU", "TARGETED")).toEqual({
       primaryLanguage: "RU",
       catalogVisibility: "TARGETED",
+      customerCommunicationLocale: "ru",
     });
+    expect(normalizeEventLanguageSettings("HE", "TARGETED", "en").customerCommunicationLocale).toBe("en");
   });
 
   it("uses the interface locale as the first catalog preference", () => {
@@ -31,10 +35,10 @@ describe("event language settings", () => {
   });
 
   it("filters targeted events but never hides public or language-free events", () => {
-    expect(isEventVisibleInCatalog({ primaryLanguage: "RU", catalogVisibility: "TARGETED" }, ["HE"])).toBe(false);
-    expect(isEventVisibleInCatalog({ primaryLanguage: "RU", catalogVisibility: "TARGETED" }, ["RU"])).toBe(true);
-    expect(isEventVisibleInCatalog({ primaryLanguage: "RU", catalogVisibility: "PUBLIC" }, ["HE"])).toBe(true);
-    expect(isEventVisibleInCatalog({ primaryLanguage: "NO_LANGUAGE_BARRIER", catalogVisibility: "TARGETED" }, ["HE"])).toBe(true);
-    expect(isEventVisibleInCatalog({ primaryLanguage: "HE", catalogVisibility: "DIRECT_ONLY" }, ["HE"])).toBe(false);
+    expect(isEventVisibleInCatalog({ primaryLanguage: "RU", catalogVisibility: "TARGETED",customerCommunicationLocale:"ru" }, ["HE"])).toBe(false);
+    expect(isEventVisibleInCatalog({ primaryLanguage: "RU", catalogVisibility: "TARGETED",customerCommunicationLocale:"ru" }, ["RU"])).toBe(true);
+    expect(isEventVisibleInCatalog({ primaryLanguage: "RU", catalogVisibility: "PUBLIC",customerCommunicationLocale:"ru" }, ["HE"])).toBe(true);
+    expect(isEventVisibleInCatalog({ primaryLanguage: "NO_LANGUAGE_BARRIER", catalogVisibility: "TARGETED",customerCommunicationLocale:"he" }, ["HE"])).toBe(true);
+    expect(isEventVisibleInCatalog({ primaryLanguage: "HE", catalogVisibility: "DIRECT_ONLY",customerCommunicationLocale:"he" }, ["HE"])).toBe(false);
   });
 });

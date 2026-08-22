@@ -4,11 +4,13 @@ import { db } from "@/lib/db";
 import { requireEventAccess } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { catalogVisibilityValues, eventLanguageValues } from "@/lib/event-language";
+import { locales } from "@/lib/i18n";
 import { getEventLanguageSettings, saveEventLanguageSettings } from "@/lib/event-language-server";
 
 const schema = z.object({
   primaryLanguage: z.enum(eventLanguageValues),
   catalogVisibility: z.enum(catalogVisibilityValues),
+  customerCommunicationLocale: z.enum(locales as ["ru", "he", "en"]),
 });
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {

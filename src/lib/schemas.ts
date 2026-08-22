@@ -50,6 +50,7 @@ export const createEventSchema = z.object({
   description: z.string().min(20),
   primaryLanguage: z.enum(eventLanguageValues),
   catalogVisibility: z.enum(catalogVisibilityValues).default("TARGETED"),
+  customerCommunicationLocale: z.enum(["ru", "he", "en"]),
   startsAt: z.string().datetime(),
   doorsOpenAt: z.string().datetime(),
   venueName: z.string().min(2),

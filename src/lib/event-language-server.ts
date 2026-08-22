@@ -11,6 +11,7 @@ type EventLanguageRow = {
   eventId: string;
   primaryLanguage: string;
   catalogVisibility: string;
+  customerCommunicationLocale: string;
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -56,13 +57,18 @@ export function eventLanguageUpsertQuery(
 export async function getEventLanguageSettings(eventId: string): Promise<EventLanguageSettings> {
   await ensureEventLanguageSettingsTable();
   const rows = await db.$queryRaw<EventLanguageRow[]>(Prisma.sql`
-    SELECT "eventId", "primaryLanguage", "catalogVisibility", "updatedBy", "createdAt", "updatedAt"
-    FROM "EventLanguageSettings"
-    WHERE "eventId" = ${eventId}
+    SELECT s."eventId", s."primaryLanguage", s."catalogVisibility", e."customerCommunicationLocale",
+           s."updatedBy", s."createdAt", s."updatedAt"
+    FROM "EventLanguageSettings" s
+    JOIN "Event" e ON e."id" = s."eventId"
+    WHERE s."eventId" = ${eventId}
     LIMIT 1
   `);
-  if (!rows[0]) return legacyEventLanguageSettings;
-  return normalizeEventLanguageSettings(rows[0].primaryLanguage, rows[0].catalogVisibility);
+  if (!rows[0]) {
+    const event = await db.event.findUnique({ where: { id: eventId }, select: { customerCommunicationLocale: true } });
+    return { ...legacyEventLanguageSettings, customerCommunicationLocale: normalizeEventLanguageSettings(null, null, event?.customerCommunicationLocale).customerCommunicationLocale };
+  }
+  return normalizeEventLanguageSettings(rows[0].primaryLanguage, rows[0].catalogVisibility, rows[0].customerCommunicationLocale);
 }
 
 export async function saveEventLanguageSettings(
@@ -71,7 +77,10 @@ export async function saveEventLanguageSettings(
   updatedBy: string | null,
 ) {
   await ensureEventLanguageSettingsTable();
-  await db.$executeRaw(eventLanguageUpsertQuery(eventId, settings, updatedBy));
+  await db.$transaction([
+    db.event.update({ where: { id: eventId }, data: { customerCommunicationLocale: settings.customerCommunicationLocale } }),
+    db.$executeRaw(eventLanguageUpsertQuery(eventId, settings, updatedBy)),
+  ]);
   return settings;
 }
 

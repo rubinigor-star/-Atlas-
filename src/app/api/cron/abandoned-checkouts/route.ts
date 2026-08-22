@@ -34,7 +34,7 @@ async function run(request: Request) {
     }
     try {
       const checkoutUrl = recoveryCheckoutUrl(action.checkoutUrl, action.token);
-      const result = await adapter.send({ recipient: action.customerEmail, firstName: action.customerFirstName, eventTitle: action.eventTitle, checkoutUrl, optOutUrl: `${baseUrl(request)}/api/checkout/abandon/opt-out?token=${encodeURIComponent(action.token)}`, amountMinor: action.amountMinor, templateKey: action.templateKey });
+      const result = await adapter.send({ recipient: action.customerEmail, firstName: action.customerFirstName, eventTitle: action.eventTitle, checkoutUrl, optOutUrl: `${baseUrl(request)}/api/checkout/abandon/opt-out?token=${encodeURIComponent(action.token)}`, amountMinor: action.amountMinor, templateKey: action.templateKey, communicationLocale: action.communicationLocale });
       await completeRecoveryAction(action.id, { status: "SENT", providerId: result.id });
       sent++;
     } catch (error) {

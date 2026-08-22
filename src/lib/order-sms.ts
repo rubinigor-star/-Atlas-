@@ -2,11 +2,18 @@ import { db } from "@/lib/db";
 import { claimNotification, completeNotification, failNotification } from "@/lib/notification-ledger";
 import { sendSms019 } from "@/lib/sms-019";
 import { shortTicketUrl } from "@/lib/short-ticket-link";
+import { normalizeLocale } from "@/lib/i18n";
 
 export function getSmsPriceMinor() {
   const value = Number(process.env.SMS_PRICE_MINOR ?? "20");
   return Number.isInteger(value) && value >= 0 ? value : 20;
 }
+
+export const ticketSmsCopy = {
+  ru: { event:"Ваши билеты на", ready:"готовы", order:"Заказ", tickets:"Билеты" },
+  he: { event:"הכרטיסים לאירוע", ready:"מוכנים", order:"הזמנה", tickets:"לצפייה בכרטיסים" },
+  en: { event:"Your tickets for", ready:"are ready", order:"Order", tickets:"Tickets" },
+} as const;
 
 export async function sendOrderTicketSms(publicId: string, options?: { automatic?: boolean }) {
   const order = await db.order.findUnique({
@@ -40,7 +47,10 @@ export async function sendOrderTicketSms(publicId: string, options?: { automatic
 
   try {
     const ticketUrl = await shortTicketUrl(order.publicId);
-    const message = `Ваши билеты на ${order.event.title} готовы. Заказ: ${order.publicId}. Билеты: ${ticketUrl}`;
+    const locale=normalizeLocale(order.communicationLocale);
+    const text=ticketSmsCopy[locale];
+    const eventMessage=`${text.event} ${order.event.title} ${text.ready}.`;
+    const message = `${eventMessage} ${text.order}: ${order.publicId}. ${text.tickets}: ${ticketUrl}`;
     const result = await sendSms019({ phone: order.customerPhone, message, campaignName: `ticket-${order.publicId}` });
 
     if (!result.ok) {

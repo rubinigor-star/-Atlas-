@@ -24,7 +24,8 @@ import { stripBuyerQuestions } from "@/lib/buyer-questions";
 import { stripEventMarkers } from "@/lib/event-guest-fields";
 import { parsePricingMarketingStrategy, stripPricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 import { parseTicketSalesStrategy, stripTicketSalesStrategy } from "@/lib/ticket-sales-strategy";
-import { getServerI18n } from "@/lib/server-locale";
+import { LocaleProvider } from "@/components/locale-provider";
+import { getDictionary, localeConfig, normalizeLocale } from "@/lib/i18n";
 import { eventTypeLabels, parseEventTypes, stripEventType } from "@/lib/event-type";
 import { getEffectiveEventTerms } from "@/lib/commercial-terms";
 import { calculateServiceFee } from "@/lib/service-fee";
@@ -44,8 +45,10 @@ const copy={
 } as const;
 
 export default async function EventPage({params,searchParams}:{params:Promise<{slug:string}>;searchParams:Promise<Record<string,string|undefined>>}){
- const[{slug},query,i18n]=await Promise.all([params,searchParams,getServerI18n()]);
+ const[{slug},query]=await Promise.all([params,searchParams]);
  const event=await db.event.findUnique({where:{slug},include:{venue:true,categories:{include:{priceTiers:true}}}}); if(!event||event.status!=="PUBLISHED")notFound();
+ const locale=normalizeLocale(event.customerCommunicationLocale);
+ const i18n={locale,messages:getDictionary(locale)};
  const channelCode=query.ref||query.channel;
  const[promoterLink,zones,commercialTerms]=await Promise.all([
   channelCode?db.promoterLink.findUnique({where:{code:channelCode.toUpperCase()}}):Promise.resolve(null),
@@ -69,7 +72,7 @@ export default async function EventPage({params,searchParams}:{params:Promise<{s
  const locationLabel=/(?:israel|ישראל)/i.test(event.venue.city)?event.venue.city:`${event.venue.city}, Israel`;
  const pageStyle={"--event-hero-image":`url("${event.posterUrl}")`} as CSSProperties;
  const seatHref=event.mapEnabled?`/events/${event.slug}/seats?qty=2${validPromoterLink?.code?`&ref=${encodeURIComponent(validPromoterLink.code)}`:""}`:undefined;
- return <main id="event-public-page" className={styles.page} style={pageStyle}>
+ return <LocaleProvider key={locale} initialLocale={locale} scope="fixed"><main id="event-public-page" className={styles.page} style={pageStyle} lang={localeConfig[locale].tag} dir={localeConfig[locale].dir}>
   {validPromoterLink&&<PromoterLinkTracker code={validPromoterLink.code} eventId={event.id}/>} 
   <EventHeroPalette posterUrl={event.posterUrl} targetId="event-public-page"/>
   <section className={`${styles.hero} ${mobile.hero} ${desktopLayout.hero} ${palette.heroPalette}`}>
@@ -88,5 +91,5 @@ export default async function EventPage({params,searchParams}:{params:Promise<{s
    <aside id="tickets" className={styles.ticketsColumn}>{validPromoterLink&&<div className={styles.promoterCard}><strong>{text.personalLink}: {validPromoterLink.label}</strong><p>{text.personalLinkInfo}</p></div>}{categories.length?<div className={styles.ticketCard}>{event.mapEnabled?<SeatMapPurchaseCard slug={event.slug} title={event.title} categories={categories} objects={objects} referralCode={validPromoterLink?.code}/>:<GeneralAdmissionPurchase eventId={event.id} eventSlug={event.slug} eventTitle={event.title} posterUrl={event.posterUrl} categories={categories} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocationCategoryId={validPromoterLink?.allocationType==="CATEGORY"?validPromoterLink.categoryId:null}/>}</div>:<div className={styles.closedCard}><strong>{text.salesClosed}</strong><p>{text.noTariffs}</p></div>}</aside>
   </div></section>
   {categories.length>0&&<EventMobileStickyCta priceLabel={mobilePriceLabel} actionLabel={event.mapEnabled?local.pick:local.buy} locale={i18n.locale} actionHref={seatHref}/>} 
- </main>;
+ </main></LocaleProvider>;
 }

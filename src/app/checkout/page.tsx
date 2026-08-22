@@ -10,6 +10,8 @@ import { parseGuestFields } from "@/lib/event-guest-fields";
 import { getEffectiveEventTerms } from "@/lib/commercial-terms";
 import { calculateServiceFee } from "@/lib/service-fee";
 import { promoterChannelValid, resolvePromoterChannel } from "@/lib/promoter-channel";
+import { LocaleProvider } from "@/components/locale-provider";
+import { localeConfig, normalizeLocale } from "@/lib/i18n";
 
 export const dynamic="force-dynamic";
 type CartItem={categoryId:string;quantity:number;tableId?:string|null;seatIds:string[]};
@@ -52,6 +54,8 @@ export default async function Checkout({searchParams}:{searchParams:Promise<Reco
     db.ticketCategory.aggregate({where:{eventId:query.eventId,hidden:false},_max:{maxPerOrder:true}}),
   ]);
   if(!event||categories.length!==categoryIds.length||categories.some(category=>category.eventId!==event.id))notFound();
+  const locale=normalizeLocale(event.customerCommunicationLocale);
+  const tableCopy=locale==="he"?{sofa:"ספה",table:"שולחן",whole:"מקומות בשלמותו",seats:"מקומות"}:locale==="en"?{sofa:"Sofa",table:"Table",whole:"seats in full",seats:"seats"}:{sofa:"Диван",table:"Стол",whole:"мест целиком",seats:"места"};
   if(tables.length!==tableIds.length||tables.some(table=>table.zone.eventId!==event.id||!table.category))notFound();
   if(seats.length!==seatIds.length||seats.some(seat=>seat.table.zone.eventId!==event.id||!seat.category))notFound();
   const now=new Date();
@@ -70,13 +74,13 @@ export default async function Checkout({searchParams}:{searchParams:Promise<Reco
     if(item.tableId){
       const table=tableMap.get(item.tableId);if(!table?.category)notFound();
       const amount=validLink?.customPriceMinor??effectiveTicketPrice(table.category,now);
-      const label=`${table.objectType==="SOFA"?"Диван":"Стол"} ${table.label}, ${table.seats} мест целиком`;
+      const label=`${table.objectType==="SOFA"?tableCopy.sofa:tableCopy.table} ${table.label}, ${table.seats} ${tableCopy.whole}`;
       subtotal+=amount;labels.push(label);summaryItems.push({label,amount,quantity:item.quantity});
     }else if(item.seatIds.length){
       const itemSeats=item.seatIds.map(id=>seatMap.get(id)).filter(Boolean);if(itemSeats.length!==item.seatIds.length)notFound();
       const amount=itemSeats.reduce((sum,seat)=>sum+(validLink?.customPriceMinor??effectiveTicketPrice(seat!.category!,now)),0);
       const table=itemSeats[0]!.table;
-      const label=`${table.objectType==="SOFA"?"Диван":"Стол"} ${table.label}, места ${itemSeats.map(seat=>seat!.position).join(", ")}`;
+      const label=`${table.objectType==="SOFA"?tableCopy.sofa:tableCopy.table} ${table.label}, ${tableCopy.seats} ${itemSeats.map(seat=>seat!.position).join(", ")}`;
       subtotal+=amount;labels.push(label);summaryItems.push({label,amount,quantity:item.quantity});
     }else{
       const amount=(validLink?.customPriceMinor??effectiveTicketPrice(category,now))*item.quantity;
@@ -89,5 +93,5 @@ export default async function Checkout({searchParams}:{searchParams:Promise<Reco
   const pricing=calculateServiceFee(subtotal,{salesFeePercentBps:terms.organizer.salesFeePercentBps,salesFeeFixedMinor:terms.organizer.salesFeeFixedMinor,serviceFeePayer:terms.serviceFeePayer});
   const first=items[0];
   const firstTable=first.tableId?tableMap.get(first.tableId):undefined;
-  return <main className="shell"><Script src="https://pps.creditguard.co.il/plugins/applePayOnIframe.js" strategy="afterInteractive"/><AbandonExitTracker eventId={event.id} categoryId={first.categoryId} tableId={firstTable?.id} seatIds={seatIds}/><CheckoutBackToMap eventSlug={event.slug} referralCode={validLink?.code}/><CheckoutForm eventId={event.id} eventSlug={event.slug} categoryId={first.categoryId} quantity={quantity} tableId={firstTable?.id} items={items} seatIds={seatIds} subtotal={pricing.subtotalMinor} serviceFee={pricing.serviceFeeMinor} total={pricing.buyerTotalMinor} serviceFeePayer={terms.serviceFeePayer} title={event.title} label={labels.join(" · ")} posterUrl={event.posterUrl} startsAt={event.startsAt.toISOString()} summaryItems={summaryItems} salesMode={event.salesMode} approvalInstructions={event.approvalInstructions} referralCode={validLink?.code} promoterLabel={validLink?`${validLink.promoterName} · ${validLink.label}`:undefined} recoveryToken={query.recovery} guestFields={parseGuestFields(event.description)}/></main>;
+  return <LocaleProvider initialLocale={locale} scope="fixed"><main className="shell" lang={localeConfig[locale].tag} dir={localeConfig[locale].dir}><Script src="https://pps.creditguard.co.il/plugins/applePayOnIframe.js" strategy="afterInteractive"/><AbandonExitTracker eventId={event.id} categoryId={first.categoryId} tableId={firstTable?.id} seatIds={seatIds}/><CheckoutBackToMap eventSlug={event.slug} referralCode={validLink?.code}/><CheckoutForm eventId={event.id} eventSlug={event.slug} categoryId={first.categoryId} quantity={quantity} tableId={firstTable?.id} items={items} seatIds={seatIds} subtotal={pricing.subtotalMinor} serviceFee={pricing.serviceFeeMinor} total={pricing.buyerTotalMinor} serviceFeePayer={terms.serviceFeePayer} title={event.title} label={labels.join(" · ")} posterUrl={event.posterUrl} startsAt={event.startsAt.toISOString()} summaryItems={summaryItems} salesMode={event.salesMode} approvalInstructions={event.approvalInstructions} referralCode={validLink?.code} promoterLabel={validLink?`${validLink.promoterName} · ${validLink.label}`:undefined} recoveryToken={query.recovery} guestFields={parseGuestFields(event.description)}/></main></LocaleProvider>;
 }

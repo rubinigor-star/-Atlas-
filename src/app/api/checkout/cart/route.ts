@@ -10,6 +10,7 @@ import { createHypApprovalPaymentPage } from "@/lib/hyp-creditguard";
 import { ensureMarketingRuntime, parseMarketingCookie, saveOrderAttribution } from "@/lib/marketing-runtime";
 import { getEffectiveEventTerms } from "@/lib/commercial-terms";
 import { calculateServiceFee } from "@/lib/service-fee";
+import { localeConfig, normalizeLocale } from "@/lib/i18n";
 
 const APP_URL="https://www.atlas-one.co";
 function phone(value:string){const digits=value.replace(/\D/g,"");if(!digits)return"";if(digits.startsWith("972"))return`+${digits}`;if(digits.startsWith("0"))return`+972${digits.slice(1)}`;return`+972${digits}`;}
@@ -27,14 +28,14 @@ export async function POST(req:Request){
     const cartSessionId=cookieValue(req,CART_SESSION_COOKIE);
     const input=checkoutSchema.parse(await req.json());
     const items=input.items;if(!items?.length)throw new Error("Корзина пуста");
-    const language=input.locale==="he"?"HEB" as const:"ENG" as const;
     const existing=await db.order.findUnique({where:{idempotencyKey:input.idempotencyKey},include:{event:true}});
     if(existing){
-      if(existing.status==="PENDING"){const url=await paymentUrl({mode:existing.event.salesMode,total:existing.totalMinor,id:existing.publicId,title:existing.event.title,name:existing.customerName,email:existing.customerEmail,phone:existing.customerPhone,language});return NextResponse.json({orderId:existing.publicId,status:existing.status,paymentUrl:launch(url)});}
-      return NextResponse.json({orderId:existing.publicId,status:existing.status});
+      const existingLocale=normalizeLocale(existing.communicationLocale);const language=localeConfig[existingLocale].hypLanguage;
+      if(existing.status==="PENDING"){const url=await paymentUrl({mode:existing.event.salesMode,total:existing.totalMinor,id:existing.publicId,title:existing.event.title,name:existing.customerName,email:existing.customerEmail,phone:existing.customerPhone,language});return NextResponse.json({orderId:existing.publicId,status:existing.status,paymentUrl:launch(url),locale:existingLocale});}
+      return NextResponse.json({orderId:existing.publicId,status:existing.status,locale:existingLocale});
     }
     const result=await db.$transaction(async tx=>{
-      const event=await tx.event.findUnique({where:{id:input.eventId}});if(!event||event.status!=="PUBLISHED")throw new Error("Мероприятие недоступно для продажи");
+      const event=await tx.event.findUnique({where:{id:input.eventId}});if(!event||event.status!=="PUBLISHED")throw new Error("Мероприятие недоступно для продажи");const eventLocale=normalizeLocale(event.customerCommunicationLocale);
       const fields=parseGuestFields(event.description);for(const key of guestFieldKeys){const value=String(input.customer[key]||"").trim();if(fields[key].visible&&fields[key].required&&!value)throw new Error(`Заполните обязательное поле: ${key}`);}if(input.customer.email&&!/^\S+@\S+\.\S+$/.test(input.customer.email))throw new Error("Укажите корректный email");
       const categoryIds=[...new Set(items.map(item=>item.categoryId))];
       const categories=await tx.ticketCategory.findMany({where:{id:{in:categoryIds}},include:{priceTiers:true}});
@@ -91,13 +92,13 @@ export async function POST(req:Request){
       const terms=await getEffectiveEventTerms(event.id,event.organizationId);const pricing=calculateServiceFee(subtotal,{salesFeePercentBps:terms.organizer.salesFeePercentBps,salesFeeFixedMinor:terms.organizer.salesFeeFixedMinor,serviceFeePayer:terms.serviceFeePayer});
       const firstName=input.customer.firstName.trim()||"Гость";const lastName=input.customer.lastName.trim();const name=`${firstName} ${lastName}`.trim();const email=(input.customer.email||`guest-${crypto.randomUUID()}@guest.atlas.local`).toLowerCase();const rawPhone=input.customer.phone.trim();const normalized=phone(rawPhone)||`guest-${crypto.randomUUID()}`;const birthDate=input.customer.birthDate?new Date(input.customer.birthDate):new Date("1900-01-01T00:00:00.000Z");
       const guest=await tx.guestProfile.upsert({where:{organizationId_phone:{organizationId:event.organizationId,phone:normalized}},create:{organizationId:event.organizationId,firstName,lastName,phone:normalized,email,birthDate,city:input.customer.city||"",facebook:input.customer.facebook||"",instagram:input.customer.instagram||""},update:{firstName,lastName,email,birthDate,city:input.customer.city||"",facebook:input.customer.facebook||"",instagram:input.customer.instagram||""}});
-      const created=await tx.order.create({data:{publicId:orderNumber(),idempotencyKey:input.idempotencyKey,customerName:name,customerEmail:email,customerPhone:rawPhone?normalized:"",customerFirstName:input.customer.firstName||null,customerLastName:lastName||null,customerBirthDate:input.customer.birthDate?birthDate:null,customerCity:input.customer.city||null,customerFacebook:input.customer.facebook||null,customerInstagram:input.customer.instagram||null,guestId:guest.id,eligibilityAnswer:input.eligibilityAnswer||null,totalMinor:pricing.buyerTotalMinor,status:"PENDING",eventId:event.id,referralId:legacy?.id,promoterLinkId:promoter?.id,items:{create:orderItems}}});
+      const created=await tx.order.create({data:{publicId:orderNumber(),idempotencyKey:input.idempotencyKey,communicationLocale:eventLocale,customerName:name,customerEmail:email,customerPhone:rawPhone?normalized:"",customerFirstName:input.customer.firstName||null,customerLastName:lastName||null,customerBirthDate:input.customer.birthDate?birthDate:null,customerCity:input.customer.city||null,customerFacebook:input.customer.facebook||null,customerInstagram:input.customer.instagram||null,guestId:guest.id,eligibilityAnswer:input.eligibilityAnswer||null,totalMinor:pricing.buyerTotalMinor,status:"PENDING",eventId:event.id,referralId:legacy?.id,promoterLinkId:promoter?.id,items:{create:orderItems}}});
       await tx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "OrderCommercialSnapshot" ("orderId" TEXT PRIMARY KEY,"subtotalMinor" INTEGER NOT NULL,"serviceFeeMinor" INTEGER NOT NULL,"buyerTotalMinor" INTEGER NOT NULL,"organizerNetMinor" INTEGER NOT NULL,"serviceFeePayer" TEXT NOT NULL,"salesFeePercentBps" INTEGER NOT NULL,"salesFeeFixedMinor" INTEGER NOT NULL,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
       await tx.$executeRawUnsafe(`INSERT INTO "OrderCommercialSnapshot" ("orderId","subtotalMinor","serviceFeeMinor","buyerTotalMinor","organizerNetMinor","serviceFeePayer","salesFeePercentBps","salesFeeFixedMinor") VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT ("orderId") DO NOTHING`,created.id,pricing.subtotalMinor,pricing.serviceFeeMinor,pricing.buyerTotalMinor,pricing.organizerNetMinor,terms.serviceFeePayer,terms.organizer.salesFeePercentBps,terms.organizer.salesFeeFixedMinor);
       await saveOrderAttribution(tx,created.id,attribution);await createReservation({orderId:created.id,items:reservationItems,ttlMinutes:event.salesMode==="INSTANT"?15:24*60,executor:tx});
-      return{order:created,event};
+      return{order:created,event,eventLocale};
     });
-    const url=await paymentUrl({mode:result.event.salesMode,total:result.order.totalMinor,id:result.order.publicId,title:result.event.title,name:result.order.customerName,email:result.order.customerEmail,phone:result.order.customerPhone,language});
-    return NextResponse.json({orderId:result.order.publicId,status:result.order.status,paymentUrl:launch(url)},{status:201});
+    const url=await paymentUrl({mode:result.event.salesMode,total:result.order.totalMinor,id:result.order.publicId,title:result.event.title,name:result.order.customerName,email:result.order.customerEmail,phone:result.order.customerPhone,language:localeConfig[result.eventLocale].hypLanguage});
+    return NextResponse.json({orderId:result.order.publicId,status:result.order.status,paymentUrl:launch(url),locale:result.eventLocale},{status:201});
   }catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Некорректный запрос"},{status:400});}
 }

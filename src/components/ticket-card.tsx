@@ -5,6 +5,7 @@ import { CalendarDays, Clock3, MapPin, Ticket as TicketIcon, UserRound, WalletCa
 import { AtlasLogo } from "@/components/atlas-logo";
 import type { TicketDesign } from "@/lib/ticket-template-types";
 import { formatTicketDate, formatTicketTime, getTicketLocale } from "@/lib/ticket-language";
+import type { Locale } from "@/lib/i18n";
 
 export function TicketCard({
   ticket,
@@ -13,6 +14,7 @@ export function TicketCard({
   event,
   orderNumber,
   walletReady,
+  communicationLocale,
 }: {
   ticket: { id: string; publicCode: string; status: string; holderName: string; category: { name: string } };
   qr: string;
@@ -20,8 +22,10 @@ export function TicketCard({
   event: { title: string; startsAt: Date; venue: { name: string; address: string } };
   orderNumber: string;
   walletReady: boolean;
+  communicationLocale: Locale;
 }) {
-  const locale = getTicketLocale(design as never);
+  const locale = getTicketLocale(design as never,communicationLocale);
+  const copy=locale==="he"?{logo:"לוגו המפיק",guest:"אורח",download:"הורדת PDF",add:"הוספה ל"}:locale==="en"?{logo:"Organizer logo",guest:"Guest",download:"Download PDF",add:"Add to"}:{logo:"Логотип организатора",guest:"Гость",download:"Скачать PDF",add:"Добавить в"};
   const date = formatTicketDate(event.startsAt, locale);
   const time = formatTicketTime(event.startsAt, locale);
   const dark = design.backgroundColor.toUpperCase() === "#081426";
@@ -51,7 +55,7 @@ export function TicketCard({
       >
         <div style={{ padding: "24px 24px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
           {design.logoUrl ? (
-            <img src={design.logoUrl} alt="Логотип организатора" style={{ maxWidth: 132, maxHeight: 58, objectFit: "contain" }} />
+            <img src={design.logoUrl} alt={copy.logo} style={{ maxWidth: 132, maxHeight: 58, objectFit: "contain" }} />
           ) : (
             <div style={{ width: 154 }}><AtlasLogo href="/" dark={dark} /></div>
           )}
@@ -72,7 +76,7 @@ export function TicketCard({
 
           <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
             <Info icon={<MapPin size={18} />} label={`${event.venue.name}${event.venue.address ? ` · ${event.venue.address}` : ""}`} surface={surface} />
-            <Info icon={<UserRound size={18} />} label={ticket.holderName || "Guest"} surface={surface} />
+            <Info icon={<UserRound size={18} />} label={ticket.holderName || copy.guest} surface={surface} />
             <Info icon={<TicketIcon size={18} />} label={ticket.category.name} surface={surface} />
           </div>
         </div>
@@ -89,11 +93,11 @@ export function TicketCard({
       </div>
 
       <div className="ticket-delivery-actions">
-        <Link className="btn secondary" href={`/api/tickets/${ticket.id}/pdf`}>Скачать PDF</Link>
+        <Link className="btn secondary" href={`/api/tickets/${ticket.id}/pdf`}>{copy.download}</Link>
         {walletReady ? (
           <Link className="apple-wallet-button" href={`/api/wallet/tickets/${ticket.id}`}>
             <WalletCards size={20} />
-            <span><small>Добавить в</small>Apple Wallet</span>
+            <span><small>{copy.add}</small>Apple Wallet</span>
           </Link>
         ) : null}
       </div>

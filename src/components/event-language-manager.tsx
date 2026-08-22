@@ -11,6 +11,7 @@ import {
   type EventLanguage,
   type EventLanguageSettings,
 } from "@/lib/event-language";
+import { localeNames, locales, type Locale } from "@/lib/i18n";
 
 const copy = {
   ru: {
@@ -18,6 +19,8 @@ const copy = {
     title: "Кому показывать мероприятие",
     language: "Основной язык мероприятия",
     languageHelp: "Это язык выступления или контента, а не язык кнопок и оплаты.",
+    customerLanguage: "Язык покупателя и сообщений",
+    customerLanguageHelp: "На этом языке будут страница события, оформление, билеты, email, SMS, возвраты и напоминания.",
     visibility: "Видимость в каталоге",
     TARGETED: "Только подходящей языковой аудитории",
     PUBLIC: "Показывать всем пользователям",
@@ -34,6 +37,8 @@ const copy = {
     title: "למי להציג את האירוע",
     language: "השפה הראשית של האירוע",
     languageHelp: "זוהי שפת המופע או התוכן, ולא שפת הכפתורים והתשלום.",
+    customerLanguage: "שפת הלקוחות וההודעות",
+    customerLanguageHelp: "בשפה זו יוצגו עמוד האירוע, תהליך הרכישה, הכרטיסים, הודעות המייל וה-SMS, החזרים ותזכורות.",
     visibility: "נראות בקטלוג",
     TARGETED: "רק לקהל בשפה המתאימה",
     PUBLIC: "להציג לכל המשתמשים",
@@ -50,6 +55,8 @@ const copy = {
     title: "Who should see this event",
     language: "Primary event language",
     languageHelp: "This is the language of the performance or content, not the language of buttons and checkout.",
+    customerLanguage: "Customer and communication language",
+    customerLanguageHelp: "The event page, checkout, tickets, email, SMS, refunds and reminders use this language.",
     visibility: "Catalog visibility",
     TARGETED: "Only matching language audiences",
     PUBLIC: "Show to everyone",
@@ -69,6 +76,7 @@ export function EventLanguageManager({ eventId, initial }: { eventId: string; in
   const text = copy[locale];
   const [primaryLanguage, setPrimaryLanguage] = useState<EventLanguage>(initial.primaryLanguage);
   const [catalogVisibility, setCatalogVisibility] = useState<CatalogVisibility>(initial.catalogVisibility);
+  const [customerCommunicationLocale, setCustomerCommunicationLocale] = useState<Locale>(initial.customerCommunicationLocale);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -80,7 +88,7 @@ export function EventLanguageManager({ eventId, initial }: { eventId: string; in
       const response = await fetch(`/api/admin/events/${eventId}/language`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ primaryLanguage, catalogVisibility }),
+        body: JSON.stringify({ primaryLanguage, catalogVisibility, customerCommunicationLocale }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || text.error);
@@ -112,6 +120,13 @@ export function EventLanguageManager({ eventId, initial }: { eventId: string; in
           {catalogVisibilityValues.map((visibility) => <option value={visibility} key={visibility}>{text[visibility]}</option>)}
         </select>
         <small className="muted">{help}</small>
+      </div>
+      <div className="field">
+        <label>{text.customerLanguage}</label>
+        <select value={customerCommunicationLocale} onChange={(event) => setCustomerCommunicationLocale(event.target.value as Locale)} required>
+          {locales.map((language) => <option value={language} key={language}>{localeNames[language]}</option>)}
+        </select>
+        <small className="muted">{text.customerLanguageHelp}</small>
       </div>
     </div>
     <button className="btn" disabled={busy} data-workspace-local-save="true">{busy ? "…" : text.save}</button>

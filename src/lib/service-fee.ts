@@ -16,7 +16,9 @@ export function roundBuyerTotalToWholeShekel(minor: number) {
 }
 
 export function calculateServiceFee(subtotalMinor: number, terms: ServiceFeeTerms) {
-  const percentMinor = Math.round((subtotalMinor * terms.salesFeePercentBps) / 10000);
+  // A fixed per-order component belongs to the same commission-bearing
+  // transaction. This keeps package pricing aligned with the configured terms.
+  const percentMinor = Math.round(((subtotalMinor + terms.salesFeeFixedMinor) * terms.salesFeePercentBps) / 10000);
   const configuredServiceFeeMinor = Math.max(0, percentMinor + terms.salesFeeFixedMinor);
   const unroundedBuyerTotalMinor = terms.serviceFeePayer === "BUYER"
     ? subtotalMinor + configuredServiceFeeMinor

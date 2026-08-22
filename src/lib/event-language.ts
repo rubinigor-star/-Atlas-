@@ -9,6 +9,7 @@ export type CatalogVisibility = (typeof catalogVisibilityValues)[number];
 export type EventLanguageSettings = {
   primaryLanguage: EventLanguage;
   catalogVisibility: CatalogVisibility;
+  customerCommunicationLocale: Locale;
 };
 
 export const EVENT_LANGUAGE_COOKIE = "atlas-event-languages";
@@ -16,6 +17,7 @@ export const EVENT_LANGUAGE_COOKIE = "atlas-event-languages";
 export const legacyEventLanguageSettings: EventLanguageSettings = {
   primaryLanguage: "MULTILINGUAL",
   catalogVisibility: "PUBLIC",
+  customerCommunicationLocale: "ru",
 };
 
 export const eventLanguageLabels: Record<Locale, Record<EventLanguage, string>> = {
@@ -51,14 +53,19 @@ export const eventLanguageLabels: Record<Locale, Record<EventLanguage, string>> 
 export function normalizeEventLanguageSettings(
   primaryLanguage: string | null | undefined,
   catalogVisibility: string | null | undefined,
+  customerCommunicationLocale?: string | null,
 ): EventLanguageSettings {
+  const normalizedPrimary = eventLanguageValues.includes(primaryLanguage as EventLanguage)
+    ? primaryLanguage as EventLanguage
+    : legacyEventLanguageSettings.primaryLanguage;
   return {
-    primaryLanguage: eventLanguageValues.includes(primaryLanguage as EventLanguage)
-      ? primaryLanguage as EventLanguage
-      : legacyEventLanguageSettings.primaryLanguage,
+    primaryLanguage: normalizedPrimary,
     catalogVisibility: catalogVisibilityValues.includes(catalogVisibility as CatalogVisibility)
       ? catalogVisibility as CatalogVisibility
       : legacyEventLanguageSettings.catalogVisibility,
+    customerCommunicationLocale: customerCommunicationLocale === "he" || customerCommunicationLocale === "en" || customerCommunicationLocale === "ru"
+      ? customerCommunicationLocale
+      : normalizedPrimary === "HE" ? "he" : normalizedPrimary === "EN" ? "en" : "ru",
   };
 }
 

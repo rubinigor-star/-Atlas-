@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { TicketDesign, TicketElement } from "@/lib/ticket-template";
 import { defaultTicketDesign } from "@/lib/ticket-template";
-import { getTicketLocale, localizedStatus, resolveLocalizedTicketText } from "@/lib/ticket-language";
+import { getTicketLocale, localizedStatus, resolveLocalizedTicketText, type TicketLocale } from "@/lib/ticket-language";
 import { atlasLogoDataUri } from "@/lib/atlas-brand";
 
 export type HtmlTicketInput = {
@@ -18,6 +18,7 @@ export type HtmlTicketInput = {
   orderNumber: string;
   ticketCode: string;
   ticketStatus?: "VALID" | "USED" | "CANCELLED" | "REFUNDED";
+  communicationLocale?: TicketLocale;
   design?: TicketDesign;
 };
 
@@ -79,7 +80,7 @@ async function renderElement(element: TicketElement, ticket: HtmlTicketInput, qr
 
 async function renderTicket(ticket: HtmlTicketInput, index: number) {
   const design = ticket.design || defaultTicketDesign();
-  const locale = getTicketLocale(design);
+  const locale = getTicketLocale(design, ticket.communicationLocale);
   const qrDataUrl = await QRCode.toDataURL(ticket.ticketCode, { width: 900, margin: 2, errorCorrectionLevel: "Q" });
   const elements = await Promise.all(design.elements.map((element) => renderElement(element, ticket, qrDataUrl, locale)));
   const background = safeUrl(design.backgroundUrl || undefined);

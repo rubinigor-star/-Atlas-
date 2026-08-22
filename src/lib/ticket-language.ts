@@ -25,7 +25,8 @@ export const ticketCopy = {
   },
 } as const;
 
-export function getTicketLocale(design?: TicketDesign | null): TicketLocale {
+export function getTicketLocale(design?: TicketDesign | null, transactionLocale?: string | null): TicketLocale {
+  if (transactionLocale === "ru" || transactionLocale === "he" || transactionLocale === "en") return transactionLocale;
   const marker = design?.elements.find(element => element.hidden && element.binding === "CUSTOM" && element.content.startsWith(LOCALE_MARKER));
   const locale = marker?.content.slice(LOCALE_MARKER.length);
   return locale === "he" || locale === "en" ? locale : "ru";

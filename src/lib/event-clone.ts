@@ -93,6 +93,7 @@ export async function cloneEvent(actor: CloneActor, input: CloneEventInput) {
         salesEnd: new Date(input.salesEnd),
         status: "DRAFT",
         salesMode: source.salesMode,
+        customerCommunicationLocale: sourceLanguageSettings.customerCommunicationLocale,
         approvalInstructions: source.approvalInstructions,
         mapEnabled: source.mapEnabled,
         mapName: source.mapName,

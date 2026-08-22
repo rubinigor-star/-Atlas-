@@ -8,6 +8,7 @@ import { stripEventType } from "@/lib/event-type";
 import { effectiveTicketPrice } from "@/lib/ticketing";
 import { getEffectiveEventTerms } from "@/lib/commercial-terms";
 import { calculateServiceFee } from "@/lib/service-fee";
+import { localeConfig, normalizeLocale } from "@/lib/i18n";
 
 const BASE="https://www.atlas-one.co";
 type Props={children:React.ReactNode;params:Promise<{slug:string}>};
@@ -26,14 +27,15 @@ async function getEvent(slug:string){
 export async function generateMetadata({params}:Pick<Props,"params">):Promise<Metadata>{
   const {slug}=await params;
   const event=await getEvent(slug);
-  if(!event||event.status!=="PUBLISHED")return {title:"Событие не найдено",robots:{index:false,follow:false}};
+  if(!event||event.status!=="PUBLISHED")return {title:"Event not found",robots:{index:false,follow:false}};
+  const locale=normalizeLocale(event.customerCommunicationLocale);
   const url=`${BASE}/events/${event.slug}`;
-  const description=cleanDescription(event.description).slice(0,160)||`${event.title} в ${event.venue.city}. Покупка билетов онлайн на Atlas One.`;
+  const description=cleanDescription(event.description).slice(0,160)||(locale==="he"?`${event.title} ב${event.venue.city}. רכישת כרטיסים אונליין ב-Atlas One.`:locale==="en"?`${event.title} in ${event.venue.city}. Buy tickets online with Atlas One.`:`${event.title} в ${event.venue.city}. Покупка билетов онлайн на Atlas One.`);
   const title=`${event.title} - ${event.venue.city}`;
   return {
     title,
     description,
-    alternates:{canonical:url},
+    alternates:{canonical:url},other:{"content-language":localeConfig[locale].tag},
     openGraph:{type:"website",url,siteName:"Atlas One",title,description,images:[{url:event.posterUrl,alt:event.title}]},
     twitter:{card:"summary_large_image",title,description,images:[event.posterUrl]},
   };
@@ -43,6 +45,7 @@ export default async function EventLayout({children,params}:Props){
   const {slug}=await params;
   const event=await getEvent(slug);
   if(!event||event.status!=="PUBLISHED")notFound();
+  const locale=normalizeLocale(event.customerCommunicationLocale);
   const now=new Date();
   const url=`${BASE}/events/${event.slug}`;
   const terms=await getEffectiveEventTerms(event.id,event.organizationId);
@@ -60,8 +63,8 @@ export default async function EventLayout({children,params}:Props){
       availability:category.sold>=category.capacity?"https://schema.org/SoldOut":now>event.salesEnd?"https://schema.org/Discontinued":"https://schema.org/InStock",
     }];
   });
-  const schema={"@context":"https://schema.org","@type":"Event","@id":`${url}#event`,name:event.title,description:cleanDescription(event.description),image:[new URL(event.posterUrl,BASE).toString()],startDate:event.startsAt.toISOString(),eventStatus:"https://schema.org/EventScheduled",eventAttendanceMode:"https://schema.org/OfflineEventAttendanceMode",location:{"@type":"Place",name:event.venue.name,address:{"@type":"PostalAddress",streetAddress:event.venue.address,addressLocality:event.venue.city,addressCountry:"IL"}},organizer:{"@type":"Organization",name:event.organization.name,url:BASE},url,offers};
-  const breadcrumb={"@context":"https://schema.org","@type":"BreadcrumbList",itemListElement:[{"@type":"ListItem",position:1,name:"События",item:BASE},{"@type":"ListItem",position:2,name:event.title,item:url}]};
+  const schema={"@context":"https://schema.org","@type":"Event","@id":`${url}#event`,name:event.title,description:cleanDescription(event.description),inLanguage:localeConfig[locale].tag,image:[new URL(event.posterUrl,BASE).toString()],startDate:event.startsAt.toISOString(),eventStatus:"https://schema.org/EventScheduled",eventAttendanceMode:"https://schema.org/OfflineEventAttendanceMode",location:{"@type":"Place",name:event.venue.name,address:{"@type":"PostalAddress",streetAddress:event.venue.address,addressLocality:event.venue.city,addressCountry:"IL"}},organizer:{"@type":"Organization",name:event.organization.name,url:BASE},url,offers};
+  const breadcrumb={"@context":"https://schema.org","@type":"BreadcrumbList",itemListElement:[{"@type":"ListItem",position:1,name:locale==="he"?"אירועים":locale==="en"?"Events":"События",item:BASE},{"@type":"ListItem",position:2,name:event.title,item:url}]};
   const safeJson=(value:unknown)=>JSON.stringify(value).replace(/</g,"\\u003c");
   return <><script type="application/ld+json" dangerouslySetInnerHTML={{__html:safeJson(schema)}}/><script type="application/ld+json" dangerouslySetInnerHTML={{__html:safeJson(breadcrumb)}}/>{children}</>;
 }

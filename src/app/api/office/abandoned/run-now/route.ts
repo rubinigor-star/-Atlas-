@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { completeRecoveryAction, ensureAbandonedCheckoutRuntime } from "@/lib/abandoned-checkout";
 import { recoveryCheckoutUrl } from "@/lib/abandoned-order-attribution";
 import { recoveryChannel } from "@/lib/recovery-channels";
+import { normalizeLocale, type Locale } from "@/lib/i18n";
 
 type ActionRow = {
   id: string;
@@ -18,6 +19,7 @@ type ActionRow = {
   checkoutUrl: string;
   amountMinor: number;
   token: string;
+  communicationLocale: Locale;
 };
 
 async function refreshOrganization(organizationId: string) {
@@ -92,10 +94,10 @@ async function prepareOrganizationActions(organizationId: string) {
 
 async function dueOrganizationActions(organizationId: string, limit = 50) {
   await ensureAbandonedCheckoutRuntime();
-  return db.$queryRawUnsafe<ActionRow[]>(
+  const rows=await db.$queryRawUnsafe<ActionRow[]>(
     `SELECT a."id",a."checkoutId",a."scenarioStepId",a."channel",s."templateKey",
             c."customerEmail",c."customerFirstName",e."title" AS "eventTitle",
-            c."checkoutUrl",c."amountMinor",c."token"
+            c."checkoutUrl",c."amountMinor",c."token",c."communicationLocale"
      FROM "RecoveryAction" a
      JOIN "RecoveryScenarioStep" s ON s."id"=a."scenarioStepId"
      JOIN "AbandonedCheckout" c ON c."id"=a."checkoutId"
@@ -110,6 +112,7 @@ async function dueOrganizationActions(organizationId: string, limit = 50) {
     organizationId,
     limit,
   );
+  return rows.map(row=>({...row,communicationLocale:normalizeLocale(row.communicationLocale)}));
 }
 
 export async function POST(request: Request) {
@@ -146,6 +149,7 @@ export async function POST(request: Request) {
         optOutUrl: `${origin}/api/checkout/abandon/opt-out?token=${encodeURIComponent(action.token)}`,
         amountMinor: action.amountMinor,
         templateKey: action.templateKey,
+        communicationLocale: action.communicationLocale,
       });
       await completeRecoveryAction(action.id, { status: "SENT", providerId: result.id });
       sent++;

@@ -19,6 +19,7 @@ export async function createEventDraftForActor(actor: { id: string; organization
       salesEnd,
       status: "DRAFT",
       salesMode: "INSTANT",
+      customerCommunicationLocale: "ru",
       mapEnabled: false,
       organization: { connect: { id: actor.organizationId } },
       venue: { create: { name: "Новая площадка", city: "Город", address: "Адрес площадки" } },

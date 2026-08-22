@@ -1,6 +1,5 @@
 import QRCode from "qrcode";
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { CheckCircle2, Clock3, WalletCards, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
@@ -10,6 +9,7 @@ import { OrderCartCleanup } from "@/components/order-cart-cleanup";
 import { OrderFrameEscape } from "@/components/order-frame-escape";
 import { parseTicketDesign } from "@/lib/ticket-template";
 import { normalizeLocale } from "@/lib/i18n";
+import { LocaleProvider } from "@/components/locale-provider";
 import styles from "./order-status.module.css";
 
 export const dynamic = "force-dynamic";
@@ -22,11 +22,10 @@ const copy={
 
 export default async function OrderPage({ params }: { params: Promise<{ publicId: string }> }) {
   const { publicId } = await params;
-  const store=await cookies();
-  const locale=normalizeLocale(store.get("atlas-locale")?.value||"ru");
-  const text=copy[locale];
   const order = await db.order.findUnique({ where: { publicId }, include: { event: { include: { venue: true, ticketTemplate: true } }, tickets: { include: { category: true } } } });
   if (!order) notFound();
+  const locale=normalizeLocale(order.communicationLocale);
+  const text=copy[locale];
 
   const pending = order.status === "PENDING_APPROVAL";
   const rejected = order.status === "REJECTED";
@@ -47,7 +46,7 @@ export default async function OrderPage({ params }: { params: Promise<{ publicId
   const statusLabel=pending?text.pendingStatus:rejected?text.rejectedStatus:cancelled?text.cancelledStatus:order.status;
 
   return (
-    <main className={styles.page} dir={locale==="he"?"rtl":"ltr"}>
+    <LocaleProvider key={locale} initialLocale={locale} scope="fixed"><main className={styles.page} lang={`${locale}-IL`} dir={locale==="he"?"rtl":"ltr"}>
       <OrderFrameEscape />
       {shouldClearCart && <OrderCartCleanup eventSlug={order.event.slug} eventTitle={order.event.title} />}
       <div className={styles.stack}>
@@ -71,8 +70,8 @@ export default async function OrderPage({ params }: { params: Promise<{ publicId
           {paid && <section className={styles.cancelCard}><Link href={cancellationPolicyUrl} className={styles.secondaryButton}>{locale==="he"?"מדיניות ביטול ובקשה":locale==="en"?"Cancellation policy and request":"Правила отмены и подача заявки"}</Link></section>}
           <Link href="/" className={styles.primaryButton}>{text.back}</Link>
         </section>
-        {!cancelled && order.tickets.length > 0 && <div className={styles.ticketList}>{order.tickets.map((ticket, index) => <TicketCard key={ticket.id} ticket={ticket} qr={qrs[index]} design={design} event={order.event} orderNumber={order.publicId} walletReady={walletReady} />)}</div>}
+        {!cancelled && order.tickets.length > 0 && <div className={styles.ticketList}>{order.tickets.map((ticket, index) => <TicketCard key={ticket.id} ticket={ticket} qr={qrs[index]} design={design} event={order.event} orderNumber={order.publicId} walletReady={walletReady} communicationLocale={locale} />)}</div>}
       </div>
-    </main>
+    </main></LocaleProvider>
   );
 }

@@ -2,6 +2,7 @@ import chromium from "@sparticuz/chromium";
 import puppeteer, { type Browser } from "puppeteer-core";
 import type { TicketDesign } from "@/lib/ticket-template";
 import { generateTicketHtml } from "@/lib/ticket-html";
+import type { TicketLocale } from "@/lib/ticket-language";
 
 export type TicketPdfInput = {
   eventTitle: string;
@@ -15,6 +16,7 @@ export type TicketPdfInput = {
   orderNumber: string;
   ticketCode: string;
   ticketStatus?: "VALID" | "USED" | "CANCELLED" | "REFUNDED";
+  communicationLocale?: TicketLocale;
   design?: TicketDesign;
 };
 

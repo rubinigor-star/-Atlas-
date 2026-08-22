@@ -5,7 +5,8 @@ import { effectiveTicketPrice, ticketPricePresentation } from "@/lib/ticketing";
 import { parsePricingMarketingStrategy } from "@/lib/ticket-pricing-strategy";
 import { parseTicketSalesStrategy } from "@/lib/ticket-sales-strategy";
 import { getEffectiveEventTerms } from "@/lib/commercial-terms";
-import { getServerI18n } from "@/lib/server-locale";
+import { LocaleProvider } from "@/components/locale-provider";
+import { localeConfig, normalizeLocale } from "@/lib/i18n";
 import { getActiveGuestSeatLocks } from "@/lib/guest-links";
 import { CART_SESSION_COOKIE, cartHoldOrderId, getHeldInventory } from "@/lib/cart-hold";
 import { getPendingCheckoutOwner } from "@/lib/cart-checkout-owner";
@@ -22,15 +23,14 @@ export default async function EventSeatsPage({ params, searchParams }: { params:
   if(!event || event.status!=="PUBLISHED") notFound();
   if(!event.mapEnabled) redirect(`/events/${slug}`);
   const channelCode=query.ref||query.channel;
-  const [promoterLink,zones,commercialTerms,i18n,guestSeatLocks,store]=await Promise.all([
+  const locale=normalizeLocale(event.customerCommunicationLocale);
+  const [promoterLink,zones,commercialTerms,guestSeatLocks,store]=await Promise.all([
     channelCode?db.promoterLink.findUnique({where:{code:channelCode.toUpperCase()}}):Promise.resolve(null),
     db.zone.findMany({where:{eventId:event.id},select:{name:true,tables:{include:{seatItems:{orderBy:{position:"asc"}}}}}}),
     getEffectiveEventTerms(event.id,event.organizationId),
-    getServerI18n(),
     getActiveGuestSeatLocks(event.id),
     cookies(),
   ]);
-  void i18n;
   const now=new Date();
   const validPromoterLink=promoterLink&&promoterLink.eventId===event.id&&promoterLink.active&&(!promoterLink.startsAt||promoterLink.startsAt<=now)&&(!promoterLink.endsAt||promoterLink.endsAt>=now)?promoterLink:null;
   const categories=event.categories.flatMap(category=>{
@@ -66,5 +66,5 @@ export default async function EventSeatsPage({ params, searchParams }: { params:
   }).join("\n");
   const feeTerms={salesFeePercentBps:commercialTerms.organizer.salesFeePercentBps,salesFeeFixedMinor:commercialTerms.organizer.salesFeeFixedMinor,serviceFeePayer:commercialTerms.serviceFeePayer};const parsedQty=Number.parseInt(query.qty||"2",10);const initialQty=Number.isFinite(parsedQty)?Math.max(1,Math.min(8,parsedQty)):2;const allocation=validPromoterLink?{type:validPromoterLink.allocationType,categoryId:validPromoterLink.categoryId,tableId:validPromoterLink.tableId,customPriceMinor:validPromoterLink.customPriceMinor,maxPerOrder:validPromoterLink.maxPerOrder}:undefined;
   const holdObjects=objects.map(object=>({id:object.id,label:object.label,seats:object.seats,priceMode:object.priceMode,objectType:object.objectType,categoryId:object.categoryId,seatItems:object.seatItems.map(seat=>({id:seat.id,label:seat.label,position:seat.position,categoryId:seat.categoryId}))}));
-  return <><style dangerouslySetInnerHTML={{__html:`${assignmentCss}\n${zoneAssignmentCss}\nbutton[data-atlas-remote-held=\"true\"]{opacity:.28!important;filter:grayscale(1)!important;cursor:not-allowed!important;pointer-events:none!important}`}}/><EventSeatSelection eventId={event.id} slug={event.slug} title={event.title} posterUrl={event.posterUrl} venueName={event.venue.name} categories={categories} objects={objects} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocation={allocation} initialQty={initialQty}/><SeatHoldBridge eventId={event.id} categories={categories.map(category=>({id:category.id,name:category.name}))} objects={holdObjects}/></>;
+  return <LocaleProvider initialLocale={locale} scope="fixed"><div lang={localeConfig[locale].tag} dir={localeConfig[locale].dir}><style dangerouslySetInnerHTML={{__html:`${assignmentCss}\n${zoneAssignmentCss}\nbutton[data-atlas-remote-held=\"true\"]{opacity:.28!important;filter:grayscale(1)!important;cursor:not-allowed!important;pointer-events:none!important}`}}/><EventSeatSelection eventId={event.id} slug={event.slug} title={event.title} posterUrl={event.posterUrl} venueName={event.venue.name} categories={categories} objects={objects} feeTerms={feeTerms} referralCode={validPromoterLink?.code} allocation={allocation} initialQty={initialQty}/><SeatHoldBridge eventId={event.id} categories={categories.map(category=>({id:category.id,name:category.name}))} objects={holdObjects}/></div></LocaleProvider>;
 }

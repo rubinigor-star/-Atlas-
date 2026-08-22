@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
+import { normalizeLocale, type Locale } from "@/lib/i18n";
 
 export const abandonStages = ["CHECKOUT_OPENED", "CONTACTS_ENTERED", "PAYMENT_STARTED"] as const;
 export type AbandonStage = (typeof abandonStages)[number];
@@ -22,6 +23,7 @@ export type CheckoutRow = {
   organizationId: string;
   eventId: string;
   eventTitle: string;
+  communicationLocale: Locale;
   customerFirstName: string | null;
   customerLastName: string | null;
   customerEmail: string | null;
@@ -51,6 +53,7 @@ type ActionRow = {
   checkoutUrl: string;
   amountMinor: number;
   token: string;
+  communicationLocale: Locale;
 };
 
 let initialized: Promise<void> | undefined;
@@ -58,7 +61,8 @@ let initialized: Promise<void> | undefined;
 export function ensureAbandonedCheckoutRuntime() {
   if (!initialized) initialized = (async () => {
     const statements = [
-      `CREATE TABLE IF NOT EXISTS "AbandonedCheckout" ("id" TEXT PRIMARY KEY,"token" TEXT NOT NULL UNIQUE,"organizationId" TEXT NOT NULL,"eventId" TEXT NOT NULL,"categoryId" TEXT,"customerFirstName" TEXT,"customerLastName" TEXT,"customerEmail" TEXT,"customerPhone" TEXT,"quantity" INTEGER NOT NULL DEFAULT 1,"amountMinor" INTEGER NOT NULL DEFAULT 0,"currency" TEXT NOT NULL DEFAULT 'ILS',"stage" TEXT NOT NULL DEFAULT 'CHECKOUT_OPENED',"status" TEXT NOT NULL DEFAULT 'ACTIVE',"checkoutUrl" TEXT NOT NULL,"orderId" TEXT,"metadataJson" TEXT,"lastActivityAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"abandonedAt" TIMESTAMP(3),"recoveredAt" TIMESTAMP(3),"optOutAt" TIMESTAMP(3),"stopReason" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE)`,
+      `CREATE TABLE IF NOT EXISTS "AbandonedCheckout" ("id" TEXT PRIMARY KEY,"token" TEXT NOT NULL UNIQUE,"organizationId" TEXT NOT NULL,"eventId" TEXT NOT NULL,"categoryId" TEXT,"communicationLocale" TEXT NOT NULL DEFAULT 'ru',"customerFirstName" TEXT,"customerLastName" TEXT,"customerEmail" TEXT,"customerPhone" TEXT,"quantity" INTEGER NOT NULL DEFAULT 1,"amountMinor" INTEGER NOT NULL DEFAULT 0,"currency" TEXT NOT NULL DEFAULT 'ILS',"stage" TEXT NOT NULL DEFAULT 'CHECKOUT_OPENED',"status" TEXT NOT NULL DEFAULT 'ACTIVE',"checkoutUrl" TEXT NOT NULL,"orderId" TEXT,"metadataJson" TEXT,"lastActivityAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"abandonedAt" TIMESTAMP(3),"recoveredAt" TIMESTAMP(3),"optOutAt" TIMESTAMP(3),"stopReason" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE)`,
+      `ALTER TABLE "AbandonedCheckout" ADD COLUMN IF NOT EXISTS "communicationLocale" TEXT NOT NULL DEFAULT 'ru'`,
       `ALTER TABLE "AbandonedCheckout" ADD COLUMN IF NOT EXISTS "optOutAt" TIMESTAMP(3)`,
       `ALTER TABLE "AbandonedCheckout" ADD COLUMN IF NOT EXISTS "stopReason" TEXT`,
       `CREATE INDEX IF NOT EXISTS "AbandonedCheckout_org_status_idx" ON "AbandonedCheckout"("organizationId","status","lastActivityAt")`,
@@ -90,11 +94,12 @@ async function ensureDefaultScenario(organizationId: string) {
 
 export async function captureAbandonedCheckout(input: CaptureInput) {
   await ensureAbandonedCheckoutRuntime();
-  const event = await db.event.findUnique({ where: { id: input.eventId }, select: { organizationId: true, status: true } });
+  const event = await db.event.findUnique({ where: { id: input.eventId }, select: { organizationId: true, status: true, customerCommunicationLocale: true } });
   if (!event || event.status !== "PUBLISHED") throw new Error("EVENT_UNAVAILABLE");
   const customer = input.customer || {};
-  await db.$executeRawUnsafe(`INSERT INTO "AbandonedCheckout" ("id","token","organizationId","eventId","categoryId","customerFirstName","customerLastName","customerEmail","customerPhone","quantity","amountMinor","stage","checkoutUrl","metadataJson","lastActivityAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-    ON CONFLICT ("token") DO UPDATE SET "categoryId"=EXCLUDED."categoryId","customerFirstName"=COALESCE(NULLIF(EXCLUDED."customerFirstName",''),"AbandonedCheckout"."customerFirstName"),"customerLastName"=COALESCE(NULLIF(EXCLUDED."customerLastName",''),"AbandonedCheckout"."customerLastName"),"customerEmail"=COALESCE(NULLIF(EXCLUDED."customerEmail",''),"AbandonedCheckout"."customerEmail"),"customerPhone"=COALESCE(NULLIF(EXCLUDED."customerPhone",''),"AbandonedCheckout"."customerPhone"),"quantity"=EXCLUDED."quantity","amountMinor"=EXCLUDED."amountMinor","stage"=EXCLUDED."stage","checkoutUrl"=EXCLUDED."checkoutUrl","metadataJson"=EXCLUDED."metadataJson","lastActivityAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "AbandonedCheckout"."status"='ACTIVE' AND "AbandonedCheckout"."optOutAt" IS NULL`, randomUUID(), input.token, event.organizationId, input.eventId, input.categoryId || null, customer.firstName || null, customer.lastName || null, customer.email?.trim().toLowerCase() || null, customer.phone || null, input.quantity, input.amountMinor, input.stage, input.checkoutUrl, JSON.stringify(input.metadata || {}));
+  const communicationLocale=normalizeLocale(event.customerCommunicationLocale);
+  await db.$executeRawUnsafe(`INSERT INTO "AbandonedCheckout" ("id","token","organizationId","eventId","categoryId","communicationLocale","customerFirstName","customerLastName","customerEmail","customerPhone","quantity","amountMinor","stage","checkoutUrl","metadataJson","lastActivityAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+    ON CONFLICT ("token") DO UPDATE SET "categoryId"=EXCLUDED."categoryId","communicationLocale"=EXCLUDED."communicationLocale","customerFirstName"=COALESCE(NULLIF(EXCLUDED."customerFirstName",''),"AbandonedCheckout"."customerFirstName"),"customerLastName"=COALESCE(NULLIF(EXCLUDED."customerLastName",''),"AbandonedCheckout"."customerLastName"),"customerEmail"=COALESCE(NULLIF(EXCLUDED."customerEmail",''),"AbandonedCheckout"."customerEmail"),"customerPhone"=COALESCE(NULLIF(EXCLUDED."customerPhone",''),"AbandonedCheckout"."customerPhone"),"quantity"=EXCLUDED."quantity","amountMinor"=EXCLUDED."amountMinor","stage"=EXCLUDED."stage","checkoutUrl"=EXCLUDED."checkoutUrl","metadataJson"=EXCLUDED."metadataJson","lastActivityAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "AbandonedCheckout"."status"='ACTIVE' AND "AbandonedCheckout"."optOutAt" IS NULL`, randomUUID(), input.token, event.organizationId, input.eventId, input.categoryId || null, communicationLocale, customer.firstName || null, customer.lastName || null, customer.email?.trim().toLowerCase() || null, customer.phone || null, input.quantity, input.amountMinor, input.stage, input.checkoutUrl, JSON.stringify(input.metadata || {}));
   await ensureDefaultScenario(event.organizationId);
 }
 
@@ -141,7 +146,8 @@ export async function prepareRecoveryActions() {
 
 export async function getDueRecoveryActions(limit = 50) {
   await ensureAbandonedCheckoutRuntime();
-  return db.$queryRawUnsafe<ActionRow[]>(`SELECT a."id",a."checkoutId",a."scenarioStepId",a."channel",s."templateKey",c."customerEmail",c."customerFirstName",e."title" AS "eventTitle",c."checkoutUrl",c."amountMinor",c."token" FROM "RecoveryAction" a JOIN "RecoveryScenarioStep" s ON s."id"=a."scenarioStepId" JOIN "AbandonedCheckout" c ON c."id"=a."checkoutId" JOIN "Event" e ON e."id"=c."eventId" WHERE a."status"='PENDING' AND a."scheduledAt"<=CURRENT_TIMESTAMP AND c."status"='ACTIVE' AND c."optOutAt" IS NULL ORDER BY a."scheduledAt" ASC LIMIT $1`, limit);
+  const rows=await db.$queryRawUnsafe<ActionRow[]>(`SELECT a."id",a."checkoutId",a."scenarioStepId",a."channel",s."templateKey",c."customerEmail",c."customerFirstName",e."title" AS "eventTitle",c."checkoutUrl",c."amountMinor",c."token",c."communicationLocale" FROM "RecoveryAction" a JOIN "RecoveryScenarioStep" s ON s."id"=a."scenarioStepId" JOIN "AbandonedCheckout" c ON c."id"=a."checkoutId" JOIN "Event" e ON e."id"=c."eventId" WHERE a."status"='PENDING' AND a."scheduledAt"<=CURRENT_TIMESTAMP AND c."status"='ACTIVE' AND c."optOutAt" IS NULL ORDER BY a."scheduledAt" ASC LIMIT $1`, limit);
+  return rows.map(row=>({...row,communicationLocale:normalizeLocale(row.communicationLocale)}));
 }
 
 export async function completeRecoveryAction(id: string, result: { status: "SENT" | "FAILED" | "SKIPPED"; providerId?: string; error?: string }) {

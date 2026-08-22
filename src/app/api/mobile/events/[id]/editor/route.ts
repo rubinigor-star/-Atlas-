@@ -38,7 +38,7 @@ const basics = z.object({
   title: z.string().min(3).max(50), description: z.string().min(20), posterUrl: z.string().min(1), startsAt: z.string().datetime(),
   venueName: z.string().min(2).max(160), city: z.string().min(2).max(120), address: z.string().min(3).max(300),
   presentation, media: z.array(mediaItem).max(20), eventTypes: z.array(z.enum(eventTypeValues)).min(1),
-  language: z.object({ primaryLanguage: z.enum(eventLanguageValues), catalogVisibility: z.enum(catalogVisibilityValues) }),
+  language: z.object({ primaryLanguage: z.enum(eventLanguageValues), catalogVisibility: z.enum(catalogVisibilityValues), customerCommunicationLocale: z.enum(["ru", "he", "en"]) }),
 });
 const categoryBase = z.object({
   name: z.string().min(2).max(160), description: z.string().max(500).optional(), priceMinor: z.number().int().nonnegative(), capacity: z.number().int().positive(),
